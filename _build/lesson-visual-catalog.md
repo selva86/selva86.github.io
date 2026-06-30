@@ -10,7 +10,7 @@ The menu of visuals `/write-lesson` chooses from, and the inventory that makes "
 
 ## Visualizable lexicon (deterministic trigger)
 
-A concept step is "visualizable" if its prose contains any of: tree, split, node, leaf, branch, boundary, region, distribution, curve, histogram, sample / resample / bootstrap, correlation, matrix, network / graph, architecture / pipeline / flow / steps, importance / ranking, gradient / surface, vector / projection, cluster, path, timeline, hypothesis, significance, agent, token, **table / column / row, join / merge, pivot / reshape / tidy, chart / plot / scatter / bar / line, facet, theme / palette, dashboard, report, document**. A hit means a visual is expected on that step.
+A concept step is "visualizable" if its prose contains any of: tree, split, node, leaf, branch, boundary, region, distribution, curve, histogram, sample / resample / bootstrap, correlation, matrix, network / graph, architecture / pipeline / flow / steps, importance / ranking, gradient / surface, vector / projection, cluster, path, timeline, hypothesis, significance, agent, token, **table / column / row, join / merge, pivot / reshape / tidy, chart / plot / scatter / bar / line, facet, theme / palette, dashboard, report, document**, **bias / variance / overfit / underfit, residual / leverage / influence, threshold / ROC / AUC / precision / recall / confusion, fold / cross-validation / resample, learning rate / loss / converge, leakage / train-test split, confidence / prediction interval**. A hit means a visual is expected on that step.
 
 ## Static vs interactive (pick the cheaper one that teaches)
 
@@ -79,6 +79,28 @@ Built to make the Data Analyst track (level 2 / track `analyst`) "show, don't te
 | `doc-structure` | `{blocks:[{type:"yaml|prose|code", text, chart}]}` - source vs rendered | S9 |
 
 Reuse for `analyst`: `process-flow` (S1 import flow, S3 EDA framework, S6 data.table anatomy, S8 reactivity, S9 parameterized reports), `agent-loop` (S9 LLM/ellmer), `chart-plotter` bar geom (S6 speed benchmark). `u.plot` geoms: point (with `corr`), line, bar/col, histogram, boxplot - all compute real scales/quartiles/r, no faked numbers.
+
+## Data Scientist / ML widget family (2026-06-30)
+
+For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each renders from `{}` with built-in DEFAULTS, is interactive (a parameter the learner MOVES), AND emits a runnable R block beside the SVG (the `u.runnable` pattern); every widget's emitted R was verified executing in WebR. The standing rule that a widget must be runnable: [[feedback_widgets_runnable]] / `project_lesson_runnable_widgets`.
+
+| Widget | What the learner moves (the feel-it) | Serves lessons |
+|---|---|---|
+| `bias-variance` | complexity slider -> train vs test U-curve | §1 bias-variance; any underfit/overfit moment |
+| `bias-variance-target` | bias + variance sliders -> dartboard shots; MSE = bias^2 + variance | §1 bias-variance (dartboard view) |
+| `ols-fit` | slope/intercept -> residual SQUARES + SSE; snap-to-least-squares | §2 OLS from scratch |
+| `gradient-descent` | learning-rate slider -> converge / oscillate / diverge on a loss bowl | §1-2 optimization; §4 boosting learning rate |
+| `residual-plot` | healthy / funnel / curve toggle | §2 assumptions, heteroskedasticity, influence |
+| `leverage-point` | drag one far point -> the line swings; Cook's distance | §2 influence and leverage |
+| `regression-intervals` | sample-size n -> confidence band shrinks, prediction band stays | §2 inference; §4 quantile-RF intervals |
+| `logistic-curve` | threshold slider -> S-curve cutoff; FP/FN trade | §2 logistic regression |
+| `knn-vote` | click to place a query + k slider -> k nearest vote | §3 kNN |
+| `roc-curve` | threshold -> ROC operating point + confusion matrix + AUC | §3 reading a classifier; §5 yardstick |
+| `gradient-boosting` | rounds slider -> trees stack, residuals shrink | §4 gradient boosting |
+| `learning-curve` | early-stop marker -> train vs validation over rounds | §4 hyperparameters, early stopping |
+| `cv-folds` | fold stepper + k -> rotating holdout; CV mean | §5 rsample / resampling |
+
+Reuse for `ds`: `tree-diagram`+`gini-split` (§3 + §4 decision trees), `decision-region` (§3 LDA/QDA, decision boundaries, and Naive Bayes), `correlation-heatmap` (§2 multicollinearity), `process-flow` (§1 CRISP-DM; §5 recipes/parsnip/workflows), and the RF set `forest-averaging`/`decorrelation`/`oob-tuner`/`bootstrap-sample`/`importance-bars` for §4 (the existing `random-forest` course owns trees-as-ensemble).
 
 ## Adding a widget
 

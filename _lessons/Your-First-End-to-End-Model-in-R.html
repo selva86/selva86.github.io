@@ -1,0 +1,361 @@
+---
+title: "ML Workflow Lesson 4: Your First End-to-End Model in R"
+description: "Build your first end-to-end machine learning model in R: split one dataset, fit a model, predict on held-out data, evaluate honestly, and make it reproducible."
+keywords: "end to end machine learning, first ML model in R, train test split, glm logistic regression, model evaluation, confusion matrix, precision recall, set.seed reproducibility, R"
+mathjax: true
+webr: true
+curriculum_id: "6.10.4"
+post_type: "LESSON"
+course_id: "ds-ml-workflow"
+course_title: "The Machine Learning Workflow in R"
+course_lesson: "4"
+course_total: "4"
+course_landing: "R-ML-Workflow-Course.html"
+course_next: ""
+course_prev: "Train-Validation-Test-and-Data-Leakage.html"
+lesson_access: "free"
+catalog_blurb: "Take one dataset from raw rows to a fitted, evaluated, reproducible model."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 4</div>
+<h2>Your First End-to-End Model in R</h2>
+
+<p>Three lessons of groundwork, and now the payoff: you build a model from raw rows to a graded verdict, all in one sitting.</p>
+
+<p>Remember Lena from Lesson 1? She runs Fern & Co, a small online plant shop, and her regulars keep quietly drifting away. She has a budget for $5 win-back coupons but cannot afford to mail all 9,000 customers, so she needs to know <strong>who is about to lapse</strong>. In Lesson 1 you turned that into a machine learning problem. In Lesson 2 you saw how a model can be too simple or too clever. In Lesson 3 you learned to split data honestly and keep the answer from leaking in. This lesson finally <strong>builds the thing</strong>: one table of Lena's customers, taken from raw data to a fitted, evaluated, reproducible model.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Run a full pipeline on one dataset: split, fit, predict, evaluate</li>
+
+<li>Make the whole run reproducible with <code>set.seed</code> and a single script</li>
+
+<li>Fit a model on the training rows, predict on held-out data, and grade it honestly with a metric that fits Lena's decision</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you have done the first three lessons of this course: <a href="Framing-a-Problem-as-ML.html">Framing a problem as ML</a>, <a href="The-Bias-Variance-Tradeoff.html">The Bias-Variance Tradeoff</a>, and <a href="Train-Validation-Test-and-Data-Leakage.html">Train, Validation, Test, and Data Leakage</a>.</p>
+
+<p>Here is the whole journey on one map. Every step from here lives in one of these five boxes.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Set the seed","sub":"fix the randomness so every run gives the exact same result"},{"title":"Split","sub":"hold out a test set BEFORE touching the data"},{"title":"Fit","sub":"learn the model on the training rows only"},{"title":"Predict","sub":"score the held-out test rows the model never saw"},{"title":"Evaluate","sub":"grade it with a metric that matches the decision"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reproducibility from day one</div>
+<h2>One table, and a seed before anything else</h2>
+
+<p>Every supervised model learns from one rectangle: one row per thing you are predicting, one column per feature, plus the column you want to predict. For Lena that rectangle is one row per customer. We will use four features she genuinely has on the day she scores someone, and the label <code>will_lapse</code>.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Column</th>
+<th>What it is</th>
+<th>Known at prediction time?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>days_since_last</code></td>
+<td>days since the customer's last order (recency)</td>
+<td>yes, computed today</td>
+</tr>
+<tr>
+<td><code>orders_90d</code></td>
+<td>orders in the last 90 days (frequency)</td>
+<td>yes, settled history</td>
+</tr>
+<tr>
+<td><code>avg_basket</code></td>
+<td>average order value in dollars (money)</td>
+<td>yes, settled history</td>
+</tr>
+<tr>
+<td><code>tenure_mo</code></td>
+<td>months the customer has been with Fern & Co</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>will_lapse</code></td>
+<td>the label: did this customer lapse? (<code>yes</code> / <code>no</code>)</td>
+<td>the answer we predict</td>
+</tr>
+</tbody>
+</table>
+
+<p>A model needs random numbers (to split the data, and inside many algorithms), and random means <em>different every run</em>, which would make your results impossible to reproduce. The fix is the first habit of any honest analysis: call <code>set.seed()</code> once at the top. It fixes R's random-number generator to a known starting point, so the "random" choices come out identical every time you run the script. We build Lena's table inline (each lesson is its own fresh R session), seeded so your numbers match the lesson exactly.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)                                  # fix randomness: same result every run
+n &lt;- 600                                        # a working sample of Lena's customers
+customers &lt;- data.frame(
+  days_since_last = round(runif(n, 1, 120)),    # recency: days since last order
+  orders_90d      = rpois(n, 3),                # frequency: orders in the last 90 days
+  avg_basket      = round(rgamma(n, 4, 0.12)),  # money: average order value, $
+  tenure_mo       = round(runif(n, 1, 48))      # months as a customer
+)
+# whether each customer lapses: risk rises with recency, falls with frequency and tenure
+risk &lt;- plogis(-1.6 + 0.06 * customers$days_since_last -
+               0.8 * customers$orders_90d - 0.03 * customers$tenure_mo)
+customers$will_lapse &lt;- factor(ifelse(runif(n) &lt; risk, &quot;yes&quot;, &quot;no&quot;))
+
+table(customers$will_lapse)
+#&gt; 
+#&gt;  no yes 
+#&gt; 384 216</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About a third of these customers lapse, which matches the lopsided reality from Lesson 1: lapsing is the rarer event. Hold that imbalance in mind; it decides which metric we trust later.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Stage 1 of the pipeline</div>
+<h2>Split first, before you look or model</h2>
+
+<p>Lesson 3 drilled in the rule: the only honest verdict comes from data the model has never seen. So before we explore, before we fit, we carve off a <strong>test set</strong> and pretend it does not exist until the very end. This is a capstone, not a tuning marathon, so we keep it to a simple two-way split: 70% to train on, 30% held out to grade on.</p>
+
+<p>Notice the seed again. A fresh <code>set.seed()</code> right before the split means <em>this exact split</em> is reproducible: rerun the script tomorrow and the same 180 customers land in the test set.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)                                     # reproducible split
+test_id &lt;- sample(nrow(customers), 0.30 * nrow(customers))   # 30% held out
+train   &lt;- customers[-test_id, ]                # everything else to learn from
+test    &lt;- customers[test_id, ]                 # sealed until the final grade
+
+c(train = nrow(train), test = nrow(test))
+#&gt; train  test 
+#&gt;   420   180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We will fit on <code>train</code>, then unseal <code>test</code> exactly once to grade the finished model. That is the whole discipline from Lesson 3, in three lines.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does the seed actually buy you?</h2>
+
+<p>You add <code>set.seed(7)</code> on the line just before you split the data. What does that line do for your analysis?</p>
+<section class="exercise" data-exercise-id="Your-First-End-to-End-Model-in-R-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It makes the model more accurate by choosing a better split</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It makes the random split reproducible: the same rows are held out every run</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is only needed for the model fitting, not for splitting</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The seed fixes R's random-number generator, so <code>sample()</code> returns the identical test rows each time you run the script. Anyone with your code and seed reproduces your exact numbers.</div><div class="lesson-qfb lesson-qfb-no">Any step that uses randomness needs it, and splitting is the first such step. Without a seed before <code>sample()</code>, your test set changes on every run and your results are not reproducible.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">Stage between split and fit</div>
+<h2>Look before you model</h2>
+
+<p>Before fitting anything, plot the data. A quick look tells you whether there is a signal worth modelling and saves you from chasing a model when there is nothing to learn. Each point below is one customer: recency on the x-axis, recent orders on the y-axis, coloured by whether they lapsed. Press Run to draw the real chart.</p>
+
+<p>The two colours separate cleanly: customers who lapsed sit to the right (many days since their last order) and low down (few recent orders), while the loyal ones cluster top-left. That separation is exactly what a model turns into a rule. If the colours were hopelessly mixed, no model could help, and you would want to know that <em>before</em> spending an afternoon tuning one.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":5,"y":6,"fill":"stay"},{"x":12,"y":5,"fill":"stay"},{"x":8,"y":7,"fill":"stay"},{"x":20,"y":4,"fill":"stay"},{"x":15,"y":5,"fill":"stay"},{"x":3,"y":8,"fill":"stay"},{"x":25,"y":4,"fill":"stay"},{"x":10,"y":6,"fill":"stay"},{"x":95,"y":1,"fill":"lapse"},{"x":110,"y":0,"fill":"lapse"},{"x":78,"y":2,"fill":"lapse"},{"x":102,"y":1,"fill":"lapse"},{"x":88,"y":0,"fill":"lapse"},{"x":70,"y":1,"fill":"lapse"},{"x":115,"y":2,"fill":"lapse"},{"x":60,"y":1,"fill":"lapse"}],"geoms":["point"],"x":"days_since_last","y":"orders_90d","code":{"point":"ggplot(df, aes(days_since_last, orders_90d, colour = group)) +\n  geom_point(size = 2)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Stage 2 of the pipeline</div>
+<h2>Fit the model on the training rows</h2>
+
+<p>Fitting (or "training") means handing the model the training rows and letting it learn the pattern that links the features to the label. For a yes/no target the standard first model is <strong>logistic regression</strong>, the same <code>glm()</code> you met in Lesson 3. It estimates a probability of lapsing for each customer.</p>
+
+<p>It does this by computing a weighted sum of the features and squeezing it into the 0-to-1 range with the logistic (sigmoid) function. Writing \(p\) for the estimated probability of lapse, \(x_1,\dots,x_k\) for the \(k\) features, \(\beta_1,\dots,\beta_k\) for the weights the model learns and \(\beta_0\) for the intercept:</p>
+
+<p>\[ p \;=\; \frac{1}{1 + e^{-(\beta_0 + \beta_1 x_1 + \cdots + \beta_k x_k)}} \]</p>
+
+<p>The bigger the weighted sum, the closer \(p\) gets to 1; the more negative, the closer to 0. Training is just choosing the weights \(\beta\) that best match the labels in the training data. The formula <code>will_lapse ~ .</code> reads as "predict <code>will_lapse</code> from every other column," and <code>family = binomial</code> is what makes <code>glm()</code> a logistic regression.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- glm(will_lapse ~ ., data = train, family = binomial)
+round(coef(fit), 3)
+#&gt;     (Intercept) days_since_last      orders_90d      avg_basket       tenure_mo 
+#&gt;          -0.625           0.065          -0.887          -0.011          -0.048</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the signs, not the exact values. The weight on <code>days_since_last</code> is <strong>positive</strong>: more days since the last order pushes the lapse probability up. The weights on <code>orders_90d</code> and <code>tenure_mo</code> are <strong>negative</strong>: more recent orders and longer tenure pull it down. The model has rediscovered, from the data alone, the pattern you saw by eye in the scatter. (Why a probability bends through a sigmoid, and how to read these weights as odds, is the whole next course; here we just need a working first model.)</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Predict on the held-out test set</h2>
+
+<p>The model was fit on <code>train</code>. Now score the customers it has <strong>never seen</strong>, the held-out <code>test</code> set, exactly as you would score a fresh batch of real applicants. <code>predict()</code> with <code>type = &quot;response&quot;</code> returns a lapse probability for each test customer. Point it at the held-out set by filling in the blank.</p>
+<section class="exercise" data-exercise-id="Your-First-End-to-End-Model-in-R-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="newdata\s*=\s*test"><textarea class="lesson-tryit-input" spellcheck="false">prob &lt;- predict(fit, ____, type = &quot;response&quot;)   # score the HELD-OUT customers
+round(head(prob), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is honest scoring: the held-out test customers give a trustworthy preview of how Lena's model will do on next week's real customers.</span><span class="lesson-tryit-fb lesson-tryit-no">Aim predict() at the held-out rows with newdata = test. Leaving it off scores the training data again, which (as Lesson 3 showed) flatters the model.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">prob &lt;- predict(fit, newdata = test, type = &quot;response&quot;)
+round(head(prob), 2)
+#&gt;  298  467  415  476  218  392 
+#&gt; 0.71 0.36 0.16 0.76 0.08 0.85</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Stage 3 of the pipeline</div>
+<h2>Grade it honestly</h2>
+
+<p>A probability is not yet a decision. Turn each one into a class with a threshold (the usual starting point is 0.5: above it, predict lapse), then compare the predictions to what actually happened in the test set. The <strong>confusion matrix</strong> is that comparison, a 2-by-2 tally of right and wrong calls.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred &lt;- factor(ifelse(prob &gt; 0.5, &quot;yes&quot;, &quot;no&quot;), levels = c(&quot;no&quot;, &quot;yes&quot;))
+cm &lt;- table(prediction = pred, actual = test$will_lapse)
+cm
+#&gt;           actual
+#&gt; prediction  no yes
+#&gt;        no  111  18
+#&gt;        yes  18  33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>From those four counts you compute three numbers. Let \(TP\) be true positives (predicted lapse, really lapsed), \(FP\) false positives (predicted lapse, actually stayed), \(FN\) false negatives (predicted stay, actually lapsed), and \(N\) the total test customers:</p>
+
+<p>\[ \text{accuracy} = \frac{\text{correct}}{N} \qquad \text{precision} = \frac{TP}{TP + FP} \qquad \text{recall} = \frac{TP}{TP + FN} \]</p>
+
+<p><strong>Accuracy</strong> is the share of all calls that were right. <strong>Precision</strong> asks: of everyone we flagged as lapsing, how many truly did (are we wasting coupons)? <strong>Recall</strong> asks: of everyone who truly lapsed, how many did we catch (are we missing customers)?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">TP &lt;- cm[&quot;yes&quot;, &quot;yes&quot;]; FP &lt;- cm[&quot;yes&quot;, &quot;no&quot;]; FN &lt;- cm[&quot;no&quot;, &quot;yes&quot;]
+c(accuracy  = round(mean(pred == test$will_lapse), 2),
+  precision = round(TP / (TP + FP), 2),
+  recall    = round(TP / (TP + FN), 2))
+#&gt;  accuracy precision    recall 
+#&gt;      0.80      0.65      0.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 80% of calls are right, a clear edge over the roughly 72% you would get by betting nobody lapses. But look at recall: the model catches about two-thirds of the customers who actually lapse, so a third still slip through. Whether that is good enough is not a statistics question, it is Lena's business question.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which number should Lena act on?</h2>
+
+<p>A wasted $5 coupon costs Lena almost nothing. Losing a regular customer who quietly lapsed costs her hundreds of dollars in future orders. Her model scores 80% accuracy, 65% precision, 65% recall on the test set. Which metric should she work to improve, and why?</p>
+<section class="exercise" data-exercise-id="Your-First-End-to-End-Model-in-R-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Accuracy, because 80% means most predictions are right</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Precision, so every coupon she sends is perfectly targeted</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Recall, because the costly mistake is missing a real lapser</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A missed lapser costs far more than a wasted coupon, so Lena wants to catch as many real lapsers as possible. She would lower the 0.5 threshold to raise recall, accepting some extra wasted coupons (lower precision) in return.</div><div class="lesson-qfb lesson-qfb-no">Chasing precision means flagging only the surest cases and missing many real lapsers, which is the costly error here. Precision matters more when the <em>action</em> is expensive; a $5 coupon is not.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Stage that wraps all the others</div>
+<h2>Make it reproducible: a seed and a script</h2>
+
+<p>You now have a complete model. The last habit turns a one-off result into something you, a colleague, or future-you can trust and rerun: <strong>reproducibility</strong>. Two pieces carry it.</p>
+
+<p>First, the <strong>seed</strong>. Because you fixed it before the split, the "random" choices are not really random, they are repeatable. Prove it: draw the test rows twice with the same seed and they are identical.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7); first  &lt;- sample(nrow(customers), 5)
+set.seed(7); second &lt;- sample(nrow(customers), 5)
+identical(first, second)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Second, the <strong>script</strong>. Keep the whole pipeline (build or load data, set the seed, split, fit, predict, evaluate) in one <code>.R</code> file that runs top to bottom with no manual steps in between. Anyone who runs it with the same seed gets your exact numbers. Record the environment too, so a package update years later cannot silently change the result:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">R.version.string
+#&gt; [1] &quot;R version 4.6.0 (2026-04-24)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><code>sessionInfo()</code> prints your R version and every loaded package's version. Paste its output (or <code>renv::snapshot()</code> for a full lockfile) alongside your script, and your analysis becomes genuinely reproducible: same code, same seed, same packages, same answer.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A result you cannot reproduce is not a finding, it is an anecdote. The seed makes the randomness repeatable; the script makes the steps repeatable; recording versions makes the tools repeatable. Together they are the difference between a model you trust and a lucky run you cannot explain.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning (free PDF)</a> - chapters 4 and 5 cover logistic regression and honest evaluation with held-out data, the two pillars of this lesson.</li>
+
+<li><a href="https://r4ds.hadley.nz/">R for Data Science (2e)</a> - the whole-game data workflow in R, from importing and tidying to transforming, visualising and communicating, the scaffolding any model sits inside.</li>
+
+<li><a href="https://www.tidymodels.org/start/">tidymodels: get started</a> - the modern R framework that wraps split, fit, predict and evaluate into one consistent pipeline you will grow into.</li>
+
+<li><a href="https://book.the-turing-way.org/reproducible-research/reproducible-research">The Turing Way: guide to reproducible research</a> - why seeds, scripts and recorded environments matter, and how to do reproducibility well.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You took one dataset from raw rows to a graded model, the full pipeline: seed the run, split off an honest test set, look at the data, fit a model on the training rows, predict on the held-out rows, and grade it with the metric that fits the decision. Lena now has a working lapse model and, just as important, the discipline to trust and reproduce it.</p>
+
+<p>That completes the Machine Learning Workflow course. You have the scaffolding every project hangs on. Next come the models themselves: the Regression course opens up the <code>glm()</code> you just used (coefficients, odds, assumptions), and the Classification course goes deeper into reading a classifier like the one you just built. The workflow you learned here does not change, only the model that slots into the middle of it.</p>
+</section>
+
+{% endraw %}

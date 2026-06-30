@@ -1,0 +1,364 @@
+---
+title: "tidymodels Lesson 4: Resample with rsample"
+description: "Judge an R model honestly with rsample: cross-validation folds, the bootstrap, running a workflow across every resample, and reading the mean with its spread."
+keywords: "rsample, cross-validation in R, k-fold cross-validation, vfold_cv, bootstrap resampling, tidymodels, fit_resamples, collect_metrics, out-of-bag, honest model evaluation"
+mathjax: true
+webr: true
+curriculum_id: "6.50.4"
+post_type: "LESSON"
+course_id: "ds-tidymodels"
+course_title: "Modeling with tidymodels"
+course_lesson: "4"
+course_total: "7"
+course_landing: "R-tidymodels-Course.html"
+course_next: "Measure-with-yardstick.html"
+course_prev: "Bundle-Steps-with-workflows.html"
+lesson_access: "free"
+catalog_blurb: "Estimate how good your model really is, instead of trusting one lucky split."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 7</div>
+<h2>Resample with rsample</h2>
+
+<p>The risk committee has one question about your loan-default model: how accurate is it, really? In Lesson 3 you bundled the recipe and the model into a workflow, split the 240 applications 75/25, scored the held-out quarter, and got 82% accuracy. You write that down. Then a colleague reshuffles the very same data, takes a fresh 75/25 split, and gets 76%. Same model, same applicants, same code. Which number do you put in the report?</p>
+
+<p>The honest answer is neither, because a single split rests its whole verdict on one slice of luck. This lesson replaces that one coin-flip with <strong>resampling</strong>: score the model on many splits and read the average, with a measure of how much it wobbles. The <code>rsample</code> package builds those splits for you.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why one train/test split gives an unreliable estimate of how good a model is</li>
+
+<li>Build cross-validation folds and bootstrap resamples with rsample</li>
+
+<li>Run your whole workflow across every resample and read the average score and its spread</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and use the <code>|&gt;</code> pipe, and you can <a href="Bundle-Steps-with-workflows.html">bundle a recipe and a model into a workflow and fit it</a> (Lesson 3).</p>
+<div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":5}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>One split is a roll of the dice</h2>
+
+<p>Let us prove the wobble rather than assert it. Here is the lender's loan book again, rebuilt right here so this page runs on its own. Each row is one applicant; <code>defaulted</code> is what we are trying to predict.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n &lt;- 240
+loans &lt;- data.frame(
+  income   = round(runif(n, 22000, 98000)),   # annual income, dollars
+  age      = round(runif(n, 21, 60)),
+  employed = round(runif(n, 2, 160)),          # months at current job
+  home     = factor(sample(c(&quot;own&quot;, &quot;rent&quot;, &quot;mortgage&quot;), n, TRUE))
+)
+risk &lt;- with(loans, plogis(-1.1 + 1.4 * (income &lt; 45000) +
+             1.0 * (employed &lt; 20) + 0.6 * (home == &quot;rent&quot;)))
+loans$defaulted &lt;- factor(ifelse(runif(n) &lt; risk, &quot;yes&quot;, &quot;no&quot;))
+table(loans$defaulted)
+#&gt;
+#&gt;  no yes
+#&gt; 151  89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now fit the <strong>same</strong> logistic model on twenty different random 75/25 splits and record the accuracy each time. Nothing about the model changes between runs. Only the luck of which rows land in the test set changes.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acc_of_one_split &lt;- function(seed) {
+  set.seed(seed)
+  i  &lt;- sample(nrow(loans), 0.75 * nrow(loans))   # pick 180 rows to train on
+  tr &lt;- loans[i, ]; te &lt;- loans[-i, ]             # the other 60 are the test set
+  m  &lt;- glm(defaulted ~ ., data = tr, family = binomial)
+  p  &lt;- ifelse(predict(m, te, type = &quot;response&quot;) &gt; 0.5, &quot;yes&quot;, &quot;no&quot;)
+  mean(p == te$defaulted)                         # accuracy on the held-out rows
+}
+accs &lt;- sapply(1:20, acc_of_one_split)
+round(range(accs), 3)   # the lowest and highest accuracy we saw
+#&gt; [1] 0.567 0.750
+round(sd(accs), 3)      # how much it swings from split to split
+#&gt; [1] 0.053</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that again. The identical model scored as low as <strong>57%</strong> and as high as <strong>75%</strong>, purely because of which applicants happened to sit in the test set. If you had run it once and stopped, you would have walked into that meeting with a number that was off by up to nine points in either direction, and no way to know it.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why does the score swing?</h2>
+
+<p>You fit the same logistic-regression model twenty times and its test accuracy ranged from 57% to 75%. What is the swing actually telling you?</p>
+<section class="exercise" data-exercise-id="Resample-with-rsample-step3" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model is unstable and retrains itself differently each run</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">240 rows is simply too few to fit any model at all</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The accuracy you measure depends on which rows land in the test set, so a single number is a noisy estimate</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The test accuracy is itself a random quantity: change the held-out rows and you change the score. One split hands you one noisy draw of it, which is why averaging many is the fix.</div><div class="lesson-qfb lesson-qfb-no">More data would tighten the swing, but it is not the cause. Even with plenty of data, scoring on one small slice gives a noisy estimate. The lesson is about the estimate, not the sample size.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>Use every row as a test row</h2>
+
+<p>Cross-validation kills the luck by not choosing one split at all. Split the data into \(k\) equal parts, called folds. Take fold 1 as the validation set, train on the other \(k-1\) folds, and score. Then let fold 2 be the validation set and repeat, and so on, until every fold has had exactly one turn as the holdout. You get \(k\) scores, and every row is validated exactly once.</p>
+
+<p>The single number you report is their average. If \(e_j\) is the score on fold \(j\), the cross-validated estimate is</p>
+
+<p>\[ \widehat{\text{Err}}_{\text{CV}} = \frac{1}{k} \sum_{j=1}^{k} e_j \]</p>
+
+<p>and because it is an average of \(k\) draws, its standard error, how much that average itself would wobble if you reran it, is</p>
+
+<p>\[ \mathrm{SE} = \frac{s}{\sqrt{k}} \]</p>
+
+<p>where \(s\) is the standard deviation of the \(k\) fold scores and \(k\) is the number of folds. The \(\sqrt{k}\) in the denominator is the whole point: averaging more folds shrinks the noise in your estimate. Step through the folds below and watch the per-fold scores collapse into one steadier CV mean.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">More folds means less bias (each model trains on more of the data) but more compute (you fit the model \(k\) times). Five and ten are the usual choices; ten-fold is the common default.</div></div>
+<div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":5}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The tool</div>
+<h2>Make the folds with rsample</h2>
+
+<p><code>rsample</code> turns "split the data" into tidy objects you can hold and reuse. First carve off a final test set with <code>initial_split</code> and never touch it until the very end. Then make the folds out of the <strong>training</strong> part only. Passing <code>strata = defaulted</code> keeps the yes/no balance steady in every fold, so no fold is accidentally all non-defaulters.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+set.seed(1)
+split &lt;- initial_split(loans, prop = 0.75, strata = defaulted)
+train &lt;- training(split)   # 179 rows to build and cross-validate on
+test  &lt;- testing(split)    # 61 rows locked away for the final check
+folds &lt;- vfold_cv(train, v = 5, strata = defaulted)
+folds
+#&gt;  5-fold cross-validation using stratification
+#&gt; # A tibble: 5 x 2
+#&gt;   splits           id
+#&gt;   &lt;list&gt;           &lt;chr&gt;
+#&gt; 1 &lt;split [142/37]&gt; Fold1
+#&gt; 2 &lt;split [143/36]&gt; Fold2
+#&gt; 3 &lt;split [143/36]&gt; Fold3
+#&gt; 4 &lt;split [144/35]&gt; Fold4
+#&gt; 5 &lt;split [144/35]&gt; Fold5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>folds</code> tibble has one row per fold, and each <code>&lt;split [142/37]&gt;</code> says "142 rows to train on, 37 held out to score." Those two halves of any single fold have names: <code>analysis()</code> is the part you train on, <code>assessment()</code> is the part you score on. (rsample avoids "train/test" here so you do not confuse a fold's inner split with the final test set you locked away.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">first &lt;- folds$splits[[1]]
+first
+#&gt; &lt;Analysis/Assess/Total&gt;
+#&gt; &lt;142/37/179&gt;
+nrow(analysis(first))     # rows used to TRAIN inside fold 1
+#&gt; [1] 142
+nrow(assessment(first))   # rows held out to SCORE fold 1
+#&gt; [1] 37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Ask for ten folds</h2>
+
+<p>Five folds gave five scores. Ten-fold cross-validation, the common default, gives ten. Change the fold count so <code>vfold_cv</code> builds ten folds from the training set.</p>
+<section class="exercise" data-exercise-id="Resample-with-rsample-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="v\s*=\s*10"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(1)
+folds10 &lt;- vfold_cv(train, v = ____, strata = defaulted)   # ten folds
+nrow(folds10)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. v = 10 makes ten folds, so the model is fit ten times and you average ten scores: less bias, a bit more compute.</span><span class="lesson-tryit-fb lesson-tryit-no">Set the number of folds with v = 10.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(1)
+folds10 &lt;- vfold_cv(train, v = 10, strata = defaulted)
+nrow(folds10)   # one row per fold
+#&gt; [1] 10</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Run the workflow across every fold</h2>
+
+<p>Now the moment it pays off. <code>fit_resamples</code> takes your whole workflow and your folds, and for each fold it preps the recipe on that fold's analysis rows, fits the model, scores on the assessment rows, and hands back every fold's metrics. You write one line; it does the loop.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+library(parsnip)
+library(workflows)
+library(tune)
+library(yardstick)
+
+rec  &lt;- recipe(defaulted ~ ., data = train) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_dummy(all_nominal_predictors())
+spec &lt;- logistic_reg() |&gt; set_engine(&quot;glm&quot;) |&gt; set_mode(&quot;classification&quot;)
+wf   &lt;- workflow() |&gt; add_recipe(rec) |&gt; add_model(spec)
+
+set.seed(3)
+cv_results &lt;- fit_resamples(wf, folds, metrics = metric_set(accuracy, roc_auc))
+collect_metrics(cv_results)
+#&gt; # A tibble: 2 x 6
+#&gt;   .metric  .estimator  mean     n std_err .config
+#&gt;   &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 accuracy binary     0.648     5  0.0275 pre0_mod0_post0
+#&gt; 2 roc_auc  binary     0.613     5  0.0481 pre0_mod0_post0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is: cross-validated accuracy <strong>0.648</strong>, with a standard error of <strong>0.0275</strong> across the five folds. That single, steady number sits right in the middle of the wild 0.567-to-0.750 range a single split was handing you, and now it comes with an honest sense of its own precision. (The table carries a second row, <code>roc_auc</code>, another way to score a classifier; read the <code>accuracy</code> row for now and we will unpack <code>roc_auc</code> in Lesson 5.)</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Notice you passed the whole <strong>workflow</strong>, not pre-baked data. That is deliberate. <code>fit_resamples</code> re-preps the recipe inside each fold, learning the normalization and dummy coding from that fold's analysis rows only. The assessment rows never touch preprocessing, so the leakage you closed in Lesson 3 stays closed, on every fold. Resampling baked data instead would let each fold's holdout leak into its own scaling, and quietly inflate the score.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does the standard error mean?</h2>
+
+<p><code>collect_metrics</code> reports accuracy <code>mean = 0.648</code> with <code>std_err = 0.0275</code> over five folds. What does that 0.0275 tell you?</p>
+<section class="exercise" data-exercise-id="Resample-with-rsample-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is the model's average prediction error, so it gets about 2.75% of cases wrong</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It means 2.75% of the held-out applicants were misclassified</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is the uncertainty of the 0.648 itself: rerun the folds and the cross-validated mean would typically move by about that much</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The standard error is the wobble of the estimate, not the model's error. A small one says 0.648 is a firm number you can report; a large one warns you to add folds or get more data before trusting it.</div><div class="lesson-qfb lesson-qfb-no">Misclassification is captured by accuracy itself. The standard error does not count wrong predictions; it measures the spread of the five fold scores.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<div class="lesson-step-eyebrow">The other resample</div>
+<h2>The bootstrap: sample with replacement</h2>
+
+<p>Cross-validation is one way to resample. The <strong>bootstrap</strong> is the other, and it makes its splits differently. Instead of cutting the data into folds, it draws a sample the same size as the training set <strong>with replacement</strong>: some rows get picked two or three times, and some are not picked at all. The rows left out, about 37% of them on average, become that resample's held-out set, the <strong>out-of-bag</strong> rows.</p>
+
+<p>In rsample, <code>bootstraps()</code> builds them just like <code>vfold_cv</code> built folds. Look at the analysis and assessment sizes: every analysis set is the full 179 (padded with duplicates), and each out-of-bag set is a different size near a third.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+boots &lt;- bootstraps(train, times = 30)
+boots
+#&gt; # Bootstrap sampling
+#&gt; # A tibble: 30 x 2
+#&gt;    splits           id
+#&gt;    &lt;list&gt;           &lt;chr&gt;
+#&gt;  1 &lt;split [179/63]&gt; Bootstrap01
+#&gt;  2 &lt;split [179/65]&gt; Bootstrap02
+#&gt;  3 &lt;split [179/70]&gt; Bootstrap03
+#&gt;  4 &lt;split [179/57]&gt; Bootstrap04
+#&gt;  5 &lt;split [179/74]&gt; Bootstrap05
+#&gt; # i 25 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">b1 &lt;- boots$splits[[1]]
+nrow(analysis(b1))     # the bootstrap sample, same size as train (with repeats)
+#&gt; [1] 179
+nrow(assessment(b1))   # the out-of-bag rows left out this draw
+#&gt; [1] 63</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You hand <code>boots</code> to <code>fit_resamples</code> exactly as you handed it <code>folds</code>. So when do you reach for which? Use <strong>k-fold cross-validation</strong> as your default for an honest estimate of test performance, since every row is scored exactly once. Reach for the <strong>bootstrap</strong> when you want many resamples to study how stable an estimate is, or to build confidence intervals, which is why it powers the out-of-bag error inside a random forest.</p>
+<div class="lesson-widget" data-widget-type="bootstrap-sample" data-widget-config='{"seed":7,"tail":"Each bootstrap draws 179 rows with replacement, so duplicates crowd in and about a third of the rows sit out as the out-of-bag set."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>How is the bootstrap's holdout formed?</h2>
+
+<p>In 5-fold cross-validation, every row is held out exactly once, in its own fold. In a bootstrap resample of the same 179 training rows, how is the held-out (assessment) set formed instead?</p>
+<section class="exercise" data-exercise-id="Resample-with-rsample-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A fixed 20% of the rows, the same share every time, like a small test split</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The rows not drawn in this sample, the out-of-bag rows, a different set of roughly a third each draw</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Every row is held out exactly once across the resamples, just like cross-validation</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The bootstrap draws with replacement until it has a full-size sample; whatever rows it never picked, about 37% on average, are that resample's out-of-bag holdout, and a fresh draw leaves out a different set.</div><div class="lesson-qfb lesson-qfb-no">That is the defining property of k-fold cross-validation, not the bootstrap. With replacement, some rows are held out many times and some never, so the once-each guarantee does not hold.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://rsample.tidymodels.org/">rsample package documentation (tidymodels)</a> - the official reference for <code>initial_split()</code>, <code>vfold_cv()</code>, <code>bootstraps()</code>, <code>analysis()</code>, and <code>assessment()</code>.</li>
+
+<li><a href="https://www.tmwr.org/resampling">Tidy Modeling with R, ch. 10: Resampling for evaluating performance</a> - Kuhn and Silge on why one split is not enough and how <code>fit_resamples</code> works, end to end.</li>
+
+<li><a href="https://www.tidymodels.org/start/resampling/">Get Started: Evaluate your model with resampling</a> - the official walk-through that runs a workflow across folds and collects the metrics.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 5: Resampling Methods (free PDF)</a> - the textbook treatment of cross-validation and the bootstrap, with the math behind the estimates.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You no longer report a model's accuracy from one lucky split. You build folds or bootstrap resamples with rsample, run the whole workflow across them with <code>fit_resamples</code>, and read a cross-validated mean that comes with an honest standard error. That single change is the difference between a number you hope is right and one you can defend.</p>
+
+<p>Next, Lesson 5: Measure with yardstick. You averaged accuracy here, but accuracy is rarely the metric that matters. You will choose the right metrics for the job, compute them as a set, and read them across all your resamples at once.</p>
+</section>
+
+{% endraw %}

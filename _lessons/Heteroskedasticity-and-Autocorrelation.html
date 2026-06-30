@@ -1,0 +1,375 @@
+---
+title: "Regression Modeling Lesson 5: Heteroskedasticity and Autocorrelation"
+description: "Heteroskedasticity and autocorrelation keep a regression's slope unbiased but break its standard errors. Spot, test and fix them with robust standard errors in R."
+keywords: "heteroskedasticity, heteroscedasticity, autocorrelation, robust standard errors, sandwich estimator, Breusch-Pagan test, Durbin-Watson test, Newey-West, HAC standard errors, non-constant variance, regression diagnostics in R"
+mathjax: true
+webr: true
+curriculum_id: "6.20.5"
+post_type: "LESSON"
+course_id: "ds-regression"
+course_title: "Regression Modeling in R"
+course_lesson: "5"
+course_total: "8"
+course_landing: "R-Regression-Modeling-Course.html"
+course_next: "Inference-and-Prediction-in-Regression.html"
+course_prev: "Multicollinearity-in-Regression.html"
+lesson_access: "free"
+catalog_blurb: "Why non-constant or correlated errors distort standard errors, and how to correct them."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 8</div>
+<h2>Heteroskedasticity and Autocorrelation</h2>
+
+<p>In Lesson 4, two columns that secretly said the same thing (multicollinearity) made Priya's coefficients wobble. So far every fault has lived in the <em>predictors</em>: one rogue row, then two redundant columns. Now the trouble moves somewhere quieter and more dangerous, into the <strong>errors</strong> themselves.</p>
+
+<p>Here is the unsettling part. When the errors misbehave in the two ways this lesson covers, your slope is still right. <code>lm()</code> hands you the correct number for how temperature drives sales. What it gets wrong is how <em>sure</em> it claims to be: the standard errors, t-values and p-values printed underneath. The estimate is honest; the confidence is a lie. The funnel below is the first warning sign.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why non-constant variance and correlated errors leave the slope unbiased but corrupt its standard error</li>
+
+<li>Spot <strong>heteroskedasticity</strong> (a funnel) and <strong>autocorrelation</strong> (runs in time), and put a formal test on each</li>
+
+<li>Fix both with <strong>robust standard errors</strong> in R, and know when to correct the errors versus model the structure instead</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 4 (you can fit a line with <code>lm()</code>, read its coefficients, standard errors and p-values, and you met the residual and the four LINE assumptions in Lesson 2). You can run R. Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"funnel"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The shared fault</div>
+<h2>Why a broken error breaks the standard error</h2>
+
+<p>A standard error is a regression's claim about its own precision: "the slope is 2.0, give or take <em>this much</em>." Ordinary least squares computes that "give or take" from one tidy formula:</p>
+
+<p>\[ \operatorname{Var}(\hat\beta) = \sigma^2 (X^\top X)^{-1} \]</p>
+
+<p>where \(\hat\beta\) is the vector of estimated coefficients, \(X\) is the design matrix (a column of 1s plus Priya's temperatures), and \(\sigma^2\) is <strong>one single error variance</strong>, the typical squared size of a miss, assumed identical for every day. That formula, and every standard error and p-value built from it, is trustworthy only if two promises from Lesson 2 hold: the error variance is the same for every observation (<strong>equal variance</strong>), and the errors do not lean on each other (<strong>independence</strong>).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Break either promise and least squares still centers the line correctly: the slope estimate \(\hat\beta\) stays unbiased. What breaks is the variance formula above. So the slope is fine, but its standard error, and the t-value and p-value that depend on it, are wrong. This single fact is the spine of the whole lesson.</div></div>
+
+<p>Let us give Priya a real season of data so we can watch it happen. Lessons 1 to 4 used a tidy 12-day sample; now she has logged a full 90-day summer. A fresh R session starts empty, so we build it here.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(56)
+n &lt;- 90
+day  &lt;- 1:n
+temp &lt;- round(23 + 11 * sin(2 * pi * day / 40) + rnorm(n, 0, 1.2), 1)  # daily high (C), wandering over the summer
+sigma &lt;- 0.022 * temp^2                       # the error's spread GROWS with temperature
+u &lt;- numeric(n)
+u[1] &lt;- rnorm(1, 0, sigma[1])
+for (i in 2:n) u[i] &lt;- 0.45 * u[i - 1] + rnorm(1, 0, sigma[i])   # today's miss leaks into tomorrow's
+cups &lt;- round(11 + 2.0 * temp + u)
+coffee &lt;- data.frame(day, temp, cups)
+head(coffee)
+#&gt;   day temp cups
+#&gt; 1   1 24.4   38
+#&gt; 2   2 25.8   60
+#&gt; 3   3 27.5   62
+#&gt; 4   4 28.5   83
+#&gt; 5   5 31.4   82
+#&gt; 6   6 33.7   25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We built two faults into that data on purpose (you will detect both before we are done): the error spread grows with temperature, and each day's miss leaks into the next. Now fit the plain line and look at what <code>lm()</code> claims.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- lm(cups ~ temp, data = coffee)
+round(summary(fit)$coef, 3)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)    7.370      6.833   1.079    0.284
+#&gt; temp           2.008      0.272   7.379    0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each warmer degree buys about <strong>2.0</strong> more cups, with a standard error of <strong>0.272</strong> and a p-value rounded to zero. That estimate is genuinely good. Hold on to the standard error <strong>0.272</strong> though, because by the end of the lesson we will show it is far too small.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Villain one</div>
+<h2>Heteroskedasticity: the funnel</h2>
+
+<p><strong>Heteroskedasticity</strong> (also spelled heteroscedasticity) is a long word for a simple picture: the errors are not all the same size. Formally, the equal-variance promise</p>
+
+<p>\[ \operatorname{Var}(\varepsilon_i) = \sigma^2 \quad\text{(the same for every day)} \]</p>
+
+<p>is replaced by</p>
+
+<p>\[ \operatorname{Var}(\varepsilon_i) = \sigma_i^2 \]</p>
+
+<p>where \(\varepsilon_i\) is the error on day \(i\), the part of that day's sales no straight line could capture. The little subscript \(i\) on \(\sigma_i^2\) is the entire problem: the variance now carries a day index, so it can be tiny on one day and enormous on another.</p>
+
+<p>Picture Priya's summer. On a mild 18-degree day demand is boringly predictable, so her misses are small. On a scorching 33-degree day anything can happen: a heatwave sells her out by noon, or a sudden thunderstorm clears the platform and she sells almost nothing. Big swings on hot days, small swings on cool ones. Plot the residuals against the fitted values and the band fans out from left to right, the classic <strong>funnel</strong>. Toggle the widget between a healthy fit and that funnel.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A funnel does not bend the line, it only changes the <em>spread</em> of the misses along it. That is why heteroskedasticity leaves the slope unbiased and damages only its standard error, exactly the split from the previous step.</div></div>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"funnel"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Detecting villain one</div>
+<h2>Put a number on it: the Breusch-Pagan test</h2>
+
+<p>Eyeballing a funnel is a fine first move, but you want a test that decides for you. Start by looking at Priya's actual residuals, then formalize what you see.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(fit, which = 1)   # Priya's residuals vs fitted: a band that fans open to the right</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The idea behind the <strong>Breusch-Pagan test</strong> is delightfully direct. If the spread of the errors really does depend on temperature, then the <em>size</em> of each miss should be predictable from temperature. So regress the squared residuals (a stand-in for each miss's size) on the predictor, and check whether that auxiliary regression explains anything.</p>
+
+<p>\[ \text{LM} = n \cdot R^2_{\text{aux}} \;\sim\; \chi^2_{k} \]</p>
+
+<p>where \(n\) is the number of days, \(R^2_{\text{aux}}\) is the R-squared from regressing the squared residuals on the predictors, \(k\) is the number of predictors allowed to explain the variance (here 1, temperature), and \(\chi^2_k\) is the chi-square distribution the statistic follows <em>if the variance is actually constant</em> (the null hypothesis). A large LM, and the small p-value it gives, means the size of the miss genuinely tracks temperature.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">e   &lt;- residuals(fit)
+aux &lt;- lm(I(e^2) ~ temp, data = coffee)   # does the SIZE of the miss depend on temperature?
+LM  &lt;- n * summary(aux)$r.squared          # the Breusch-Pagan statistic: n times the auxiliary R-squared
+round(LM, 2)
+#&gt; [1] 26.76
+signif(pchisq(LM, df = 1, lower.tail = FALSE), 3)   # p-value from chi-square with 1 df
+#&gt; [1] 2.3e-07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value of 0.0000002 is decisive: the variance is not constant. In everyday work you would not assemble the statistic by hand, of course. The <code>lmtest</code> package wraps it in one line, and its default is exactly the <code>n * R-squared</code> you just built:</p>
+
+<pre><code class="language-r">library(lmtest)
+bptest(fit)
+#&gt;
+#&gt; 	studentized Breusch-Pagan test
+#&gt;
+#&gt; data:  fit
+#&gt; BP = 26.759, df = 1, p-value = 2.304e-07</code></pre>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What do you do about it?</h2>
+
+<p>Priya's Breusch-Pagan test is significant (p far below 0.05), so there is real heteroskedasticity in her model. What is the correct response?</p>
+<section class="exercise" data-exercise-id="Heteroskedasticity-and-Autocorrelation-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Refit the model: heteroskedasticity biases the coefficient estimates, so the slope of 2.0 must be corrected before you can trust it</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Keep the least-squares estimates, but report heteroskedasticity-robust standard errors so the p-values and intervals are trustworthy</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Delete the high-variance hot days so the spread becomes constant again</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The fix targets the standard errors, not the coefficients. You leave the slope where it is and swap the naive standard errors for robust ones, which is precisely what the next step builds.</div><div class="lesson-qfb lesson-qfb-no">Dropping the most informative days to flatter an assumption throws away real data and hides the very behavior you should report. Heteroskedasticity is corrected at the standard-error stage, never by deleting rows.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fixing villain one</div>
+<h2>Robust standard errors</h2>
+
+<p>The naive variance formula failed because it forced one shared \(\sigma^2\) onto every day. The fix refuses to assume that. Instead of trusting a single error variance, let <strong>each day's own squared residual estimate that day's own error size</strong>. That gives the famous <strong>sandwich</strong> estimator:</p>
+
+<p>\[ \widehat{\operatorname{Var}}(\hat\beta) = \underbrace{(X^\top X)^{-1}}_{\text{bread}} \; \underbrace{\Big(\textstyle\sum_i \mathbf{x}_i \mathbf{x}_i^\top \, e_i^2\Big)}_{\text{meat}} \; \underbrace{(X^\top X)^{-1}}_{\text{bread}} \]</p>
+
+<p>Read it literally, like a sandwich. The two slices of <strong>bread</strong>, \((X^\top X)^{-1}\), are the same matrix least squares already uses. The <strong>meat</strong> in the middle is the new idea: rather than one \(\sigma^2\), it weights each day's row of predictors \(\mathbf{x}_i\) by that day's own squared residual \(e_i^2\), so erratic hot days contribute the large variance they actually have. This is the White, or <strong>heteroskedasticity-consistent (HC)</strong>, estimator, and you can build it from scratch in five lines.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X     &lt;- model.matrix(fit)          # design matrix: a column of 1s and the temperatures
+bread &lt;- solve(t(X) %*% X)          # the (X'X)^-1 slices
+meat  &lt;- t(X) %*% diag(e^2) %*% X   # each row weighted by its own squared residual
+V_rob &lt;- bread %*% meat %*% bread   # the sandwich: the robust covariance matrix
+round(rbind(estimate  = coef(fit),
+            se_naive  = sqrt(diag(vcov(fit))),
+            se_robust = sqrt(diag(V_rob))), 3)
+#&gt;           (Intercept)  temp
+#&gt; estimate        7.370 2.008
+#&gt; se_naive        6.833 0.272
+#&gt; se_robust       5.738 0.314</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope estimate has not moved (still 2.008, exactly as promised). Its standard error, however, rises from <strong>0.272</strong> to <strong>0.314</strong>, about 15% larger: <code>lm()</code> was overstating how precisely it knew the slope. In practice the one-liner is <code>sandwich::vcovHC()</code> fed to <code>lmtest::coeftest()</code>, which prints the corrected test directly (the small difference, 0.318, is just a finite-sample tweak called HC1):</p>
+
+<pre><code class="language-r">library(sandwich); library(lmtest)
+coeftest(fit, vcov = vcovHC(fit, type = &quot;HC1&quot;))
+#&gt;
+#&gt; t test of coefficients:
+#&gt;             Estimate Std. Error t value  Pr(&gt;|t|)
+#&gt; (Intercept)  7.36982    5.80252  1.2701    0.2074
+#&gt; temp         2.00836    0.31805  6.3146 1.072e-08 ***</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Robust standard errors fix your <em>inference</em>, not your <em>efficiency</em>. If you actually know how the variance grows, weighted least squares (<code>lm(..., weights = ...)</code>) or a log transform of the response can give tighter, better estimates. But robust errors are the low-effort default: keep the OLS slope, report the honest standard error. One caveat, which sets up the rest of the lesson: the HC sandwich corrects for non-constant variance only. It still assumes the errors are independent.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Build the Breusch-Pagan statistic</h2>
+
+<p>The one trick in the Breusch-Pagan recipe is what you regress on the predictor. It is not the residuals, and it is certainly not <code>cups</code>: it is the <strong>squared</strong> residuals, the stand-in for the size of each miss. Fill in the blank with the right response for the auxiliary regression.</p>
+<section class="exercise" data-exercise-id="Heteroskedasticity-and-Autocorrelation-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="e\s*\^\s*2"><textarea class="lesson-tryit-input" spellcheck="false">e   &lt;- residuals(fit)
+aux &lt;- lm(____ ~ temp, data = coffee)   # BP regresses the SIZE of the miss on the predictor
+round(n * summary(aux)$r.squared, 2)    # the LM statistic</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. The Breusch-Pagan test regresses the SQUARED residuals on the predictors, written I(e^2) so R actually squares them instead of reading the ^ as a formula operator; n times that auxiliary R-squared is the LM statistic, 26.76 here. Squaring is what turns a residual into a measure of its size.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the squared residuals: lm(I(e^2) ~ temp). Plain residuals average to zero and would explain nothing; cups is the original response, not a measure of the miss. Wrap the square in I() so the formula squares e rather than treating ^ as a crossing operator.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">e   &lt;- residuals(fit)
+aux &lt;- lm(I(e^2) ~ temp, data = coffee)
+round(n * summary(aux)$r.squared, 2)
+#&gt; [1] 26.76</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Villain two</div>
+<h2>Autocorrelation: errors that march in step</h2>
+
+<p>The second promise was <strong>independence</strong>: one day's miss tells you nothing about the next day's. Formally,</p>
+
+<p>\[ \operatorname{Cov}(\varepsilon_i, \varepsilon_j) \neq 0 \quad\text{for some } i \neq j \]</p>
+
+<p>breaks it, where \(\operatorname{Cov}\) (covariance) measures whether two errors move together; independence needs it to be zero for every pair of different days. In time-ordered data the usual culprit is a <strong>first-order autoregressive</strong>, or <strong>AR(1)</strong>, error:</p>
+
+<p>\[ \varepsilon_t = \rho\,\varepsilon_{t-1} + \nu_t \]</p>
+
+<p>read as: today's error \(\varepsilon_t\) is a fraction \(\rho\) (the <strong>autocorrelation</strong>, between \(-1\) and \(1\)) of yesterday's error \(\varepsilon_{t-1}\), plus a fresh, independent shock \(\nu_t\). When \(\rho\) is positive, a day above the line tends to be followed by another above the line, so the misses arrive in <strong>runs</strong> rather than random flips.</p>
+
+<p>This is exactly what summer weather does to Priya: a heatwave is not one hot day, it is a five-day spell. If her line under-predicts on the first hot day, it under-predicts the next few too. Here are her residuals in calendar order. Notice they do not zig-zag randomly around zero; they drift in streaks above and below it.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":-18.4},{"x":2,"y":0.8},{"x":3,"y":-0.6},{"x":4,"y":18.4},{"x":5,"y":11.6},{"x":6,"y":-50.1},{"x":7,"y":-26.4},{"x":8,"y":-46.3},{"x":9,"y":34.9},{"x":10,"y":9.3},{"x":11,"y":36.3},{"x":12,"y":34.3},{"x":13,"y":11.8},{"x":14,"y":33.8},{"x":15,"y":21.6},{"x":16,"y":8.6},{"x":17,"y":9.0},{"x":18,"y":14.0},{"x":19,"y":23.8},{"x":20,"y":3.6},{"x":21,"y":-16.8},{"x":22,"y":-0.1},{"x":23,"y":5.3},{"x":24,"y":-6.3}],"geoms":["line"],"x":"day","y":"residual"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Detecting and fixing villain two</div>
+<h2>The Durbin-Watson test, and a sandwich for both</h2>
+
+<p>The standard test for autocorrelation is the <strong>Durbin-Watson</strong> statistic, which compares each day's residual to the one before it:</p>
+
+<p>\[ \text{DW} = \frac{\sum_{t=2}^{n}(e_t - e_{t-1})^2}{\sum_{t=1}^{n} e_t^2} \approx 2\,(1 - \hat\rho) \]</p>
+
+<p>where \(e_t\) is the residual for day \(t\) and \(\hat\rho\) is the estimated lag-1 autocorrelation. Read the approximation on the right: with no autocorrelation \(\hat\rho \approx 0\) and DW sits near <strong>2</strong>; strong positive autocorrelation drives \(\hat\rho\) toward 1 and DW toward <strong>0</strong>; negative autocorrelation pushes DW toward 4.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">e &lt;- residuals(fit)
+DW &lt;- sum(diff(e)^2) / sum(e^2)            # squared day-to-day changes over squared residuals
+round(DW, 3)
+#&gt; [1] 0.754
+round(sum(e[-1] * e[-n]) / sum(e^2), 2)    # the lag-1 autocorrelation rho-hat that DW summarizes
+#&gt; [1] 0.56
+round(acf(e, plot = FALSE)$acf[2:4], 3)    # autocorrelation at lags 1, 2, 3
+#&gt; [1]  0.564  0.279 -0.015</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>DW of <strong>0.75</strong> (far below 2) and a lag-1 autocorrelation of <strong>0.56</strong> confirm strong positive autocorrelation. The <code>lmtest::dwtest()</code> function adds the p-value, which needs a special distribution:</p>
+
+<pre><code class="language-r">library(lmtest)
+dwtest(fit)
+#&gt;
+#&gt; 	Durbin-Watson test
+#&gt;
+#&gt; data:  fit
+#&gt; DW = 0.7541, p-value = 6.056e-12
+#&gt; alternative hypothesis: true autocorrelation is greater than 0</code></pre>
+
+<p>Now the fix, and here is the satisfying part: it is the <strong>same sandwich</strong>. The bread is unchanged; the meat simply grows to also include the products of nearby days' residuals (\(e_t e_{t-l}\)), down-weighted as the days drift apart. That is the <strong>Newey-West</strong>, or <strong>heteroskedasticity- and autocorrelation-consistent (HAC)</strong>, estimator, and it corrects for <em>both</em> villains at once.</p>
+
+<pre><code class="language-r">library(sandwich); library(lmtest)
+coeftest(fit, vcov = NeweyWest(fit))
+#&gt;
+#&gt; t test of coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  7.36982   15.56561  0.4735  0.63705
+#&gt; temp         2.00836    0.83412  2.4078  0.01814 *</code></pre>
+
+<p>Look at the temperature standard error now. It has gone from a naive <strong>0.272</strong>, to a heteroskedasticity-robust <strong>0.318</strong>, to a HAC value of <strong>0.834</strong>, three times the original. The t-value collapses from 7.4 to 2.4. The slope is still 2.0, but treating 90 correlated days as 90 independent ones had Priya believing she knew that slope far more precisely than she really did. The temperature effect survives as significant, but the swagger is gone.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">HAC standard errors <em>correct your inference</em> given autocorrelation. If the time structure is the real story (forecasting tomorrow's sales), you should <em>model</em> it instead, with generalized least squares or a proper time-series model, which you will meet in the Time Series track. Diagnose first; then decide whether to correct the errors or model the structure.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The danger of positive autocorrelation</h2>
+
+<p>Priya's residuals show strong positive autocorrelation (DW of 0.75). Her naive <code>lm()</code> output reported a temperature p-value rounded to zero, looking rock solid. What is the specific danger?</p>
+<section class="exercise" data-exercise-id="Heteroskedasticity-and-Autocorrelation-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Positive autocorrelation biases the slope upward, so the true effect of temperature is smaller than 2.0</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The naive standard errors are too small, so the p-values look more significant than they really are: false confidence</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Autocorrelation cannot matter here because the predictor is already so significant</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Positively correlated days repeat information rather than adding fresh evidence, so the 90 days are worth fewer truly independent observations. Least squares does not know this and reports a standard error that is too small, overstating significance, which the HAC correction repairs.</div><div class="lesson-qfb lesson-qfb-no">A tiny p-value computed from a wrong (too-small) standard error is exactly the trap. Correcting for the autocorrelation tripled the standard error and cut the t-value from 7.4 to 2.4, so the apparent strength was partly an illusion.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take robust inference further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 3 (free PDF)</a> - the "Potential Problems" section covers non-constant variance and correlated errors, the two faults you tested here.</li>
+
+<li><a href="https://online.stat.psu.edu/stat501/">Penn State STAT 501: Regression Methods</a> - free, worked lessons on detecting and remedying heteroskedasticity and autocorrelation.</li>
+
+<li><a href="https://cran.r-project.org/package=sandwich">sandwich: robust covariance matrix estimators (CRAN)</a> - the package behind <code>vcovHC</code> (White / HC) and <code>NeweyWest</code> (HAC); its vignette derives both sandwiches you built by hand.</li>
+
+<li><a href="https://cran.r-project.org/package=lmtest">lmtest: testing linear regression models (CRAN)</a> - <code>bptest</code> (Breusch-Pagan) and <code>dwtest</code> (Durbin-Watson), the two formal tests used in this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You can now handle the two ways a regression's <em>errors</em> misbehave. <strong>Heteroskedasticity</strong> is non-constant variance (the funnel): spot it with residuals-vs-fitted, test it with Breusch-Pagan, and correct it with heteroskedasticity-robust (HC) standard errors. <strong>Autocorrelation</strong> is errors that move together over time (runs): spot it with residuals in time order, test it with Durbin-Watson, and correct it with HAC (Newey-West) standard errors, the same sandwich extended to handle both faults at once. The thread tying them together is the one fact worth memorizing: both leave the slope unbiased and break only the standard error, so the cure is to correct the standard error (or model the structure directly), never to distrust the coefficient.</p>
+
+<p>Next, Lesson 6: Inference and Prediction in Regression. Now that you can trust a standard error, you will use it properly, separating a confidence interval (how sure are we about the average) from a prediction interval (where will the next day actually land), and seeing why explaining a relationship and predicting the next value are two different jobs.</p>
+</section>
+
+{% endraw %}

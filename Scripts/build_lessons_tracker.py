@@ -30,11 +30,17 @@ OUT = os.path.join(ROOT, 'courses.json')
 # here simply get no breadcrumb (graceful).
 COURSE_ROADMAP = {
     'random-forest': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 4,
-                      'sectionLabel': 'Tree-based models and gradient boosting'},
+                      'sectionLabel': 'Trees and gradient boosting'},
     't-test': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
                'sectionLabel': 'Hypothesis testing and test selection'},
     'llm-agents': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16,
                    'sectionLabel': 'The frontier (2026): LLMs and modern ML'},
+    # Data Scientist track sections 1-5 (the "core" tier; section 4 sits alongside random-forest).
+    'ds-ml-workflow': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 1, 'sectionLabel': 'The ML workflow and first models'},
+    'ds-regression': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 2, 'sectionLabel': 'Regression, done properly'},
+    'ds-classification': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 3, 'sectionLabel': 'Classification fundamentals'},
+    'ds-boosting': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 4, 'sectionLabel': 'Trees and gradient boosting'},
+    'ds-tidymodels': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 5, 'sectionLabel': 'The tidymodels workflow'},
     # Data Analyst track (level 2, all free) - one course per roadmap section.
     'nr-basics': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 1, 'sectionLabel': 'Syntax, types and vectors'},
     'nr-structures': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 2, 'sectionLabel': 'Lists, data frames and tibbles'},

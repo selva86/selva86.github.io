@@ -1,0 +1,293 @@
+---
+title: "Classification Lesson 6: Reading a Classifier"
+description: "Read a classifier honestly: the confusion matrix, accuracy versus precision and recall, the F1 score, ROC and PR curves, and why accuracy alone can fool you."
+keywords: "confusion matrix, precision, recall, F1 score, ROC curve, AUC, precision-recall curve, classification metrics, class imbalance, sensitivity, specificity, R"
+mathjax: true
+webr: true
+curriculum_id: "6.30.6"
+post_type: "LESSON"
+course_id: "ds-classification"
+course_title: "Classification in R"
+course_lesson: "6"
+course_total: "6"
+course_landing: "R-Classification-Course.html"
+course_next: ""
+course_prev: "Decision-Boundaries-and-Model-Geometry.html"
+lesson_access: "free"
+catalog_blurb: "Why accuracy alone misleads, and the metrics that show if a classifier works."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 6</div>
+<h2>Reading a Classifier</h2>
+
+<p>Dana feels fine. But the clinic's new screening model just flagged her: her blood panel scored 0.62, and anything at or above 0.50 gets called "at risk". Should the clinic worry? And the deeper question: how would you even know whether this model is any good?</p>
+
+<p>You have spent five lessons building classifiers. This last one teaches you to judge one. A classifier can be right, and wrong, in more than one way at once, and a single accuracy number hides almost all of it. By the end you will be able to:</p>
+
+<ul>
+
+<li>Build and read a <strong>confusion matrix</strong>: the four ways a yes/no prediction can land</li>
+
+<li>Compute and define <strong>accuracy, precision, recall, and F1</strong>, and say which one your problem needs</li>
+
+<li>See why <strong>accuracy alone misleads</strong> when one class is rare, the trap that fools beginners</li>
+
+<li>Move the <strong>threshold</strong> to trade precision against recall, and read an <strong>ROC</strong> and a <strong>precision-recall</strong> curve</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output; you have met classifiers that output a score or probability (logistic regression, plus kNN, LDA/QDA and trees from Lessons 1 to 5); and you know a training set from a test set.</p>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">From a score to a decision</div>
+<h2>The confusion matrix</h2>
+
+<p>In Lesson 5 you saw that every classifier draws a boundary. Up close, that boundary is just a number: the model gives each patient a <strong>risk score</strong> between 0 and 1, and a <strong>threshold</strong> \(t\) turns the score into a verdict. Predict "at risk" when \(\hat p \ge t\), "cleared" otherwise. The clinic uses \(t = 0.50\), which is why Dana's 0.62 got her flagged.</p>
+
+<p>Once you fix a threshold, every prediction lands in one of exactly four boxes, depending on what the patient actually was:</p>
+
+<ul>
+
+<li><strong>True positive (TP):</strong> sick, and flagged. A catch.</li>
+
+<li><strong>False positive (FP):</strong> healthy, but flagged. A false alarm.</li>
+
+<li><strong>False negative (FN):</strong> sick, but cleared. A dangerous miss.</li>
+
+<li><strong>True negative (TN):</strong> healthy, and cleared. Correct all-clear.</li>
+
+</ul>
+
+<p>Lay those four counts in a grid and you have the <strong>confusion matrix</strong>, the source every other number comes from. Here is last month's screening: 200 people, of whom 20 truly had the disease.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Last month the clinic screened 200 people; 20 of them truly had the disease.
+# Each person's verdict lands in one of the four outcomes:
+actual &lt;- factor(rep(c(&quot;disease&quot;, &quot;healthy&quot;), c(20, 180)),
+                 levels = c(&quot;disease&quot;, &quot;healthy&quot;))
+pred   &lt;- factor(c(rep(&quot;at risk&quot;, 16), rep(&quot;cleared&quot;, 4),    # the 20 WITH disease: 16 caught, 4 missed
+                   rep(&quot;at risk&quot;, 30), rep(&quot;cleared&quot;, 150)),  # the 180 healthy: 30 false alarms, 150 cleared
+                 levels = c(&quot;at risk&quot;, &quot;cleared&quot;))
+table(Prediction = pred, Actual = actual)
+#&gt;           Actual
+#&gt; Prediction disease healthy
+#&gt;    at risk      16      30
+#&gt;    cleared       4     150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read it like a map: the diagonal (16 and 150) is where the model was right; the off-diagonal (30 false alarms, 4 missed cases) is where it was wrong, and the two kinds of wrong are not equally bad.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Spot the dangerous error</h2>
+
+<p>In the matrix above, look at the 4 patients sitting in the "cleared" row under the "disease" column. What are they, and why do they matter most for a screening test?</p>
+<section class="exercise" data-exercise-id="Reading-a-Classifier-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">False negatives: sick people the model cleared. In screening, a missed case is the most dangerous error.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">False positives: healthy people the model wrongly flagged</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">True negatives: healthy people correctly cleared</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. They had the disease but were sent home reassured. For a screening test, a false negative (a missed case) is usually the costliest mistake, which is why recall will matter so much here.</div><div class="lesson-qfb lesson-qfb-no">True negatives are the 150 correctly cleared healthy people. The 4 in question were actually sick but cleared, which is the opposite of correct.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Four numbers from four boxes</div>
+<h2>Accuracy, precision, recall, F1</h2>
+
+<p>The confusion matrix has four counts. The headline metrics are just ratios of them, each answering a different question. Let \(TP, FP, FN, TN\) be the four cell counts.</p>
+
+<p><strong>Accuracy:</strong> of all predictions, what fraction were correct? \[ \text{accuracy} = \frac{TP + TN}{TP + FP + FN + TN} \]</p>
+
+<p><strong>Precision:</strong> of everyone the model <strong>flagged</strong>, what fraction were truly sick? (How much to trust an alarm.) \[ \text{precision} = \frac{TP}{TP + FP} \]</p>
+
+<p><strong>Recall</strong> (also called sensitivity or the true-positive rate): of everyone who was <strong>truly sick</strong>, what fraction did the model catch? \[ \text{recall} = \frac{TP}{TP + FN} \]</p>
+
+<p>Precision and recall pull in opposite directions, so we often want one number that balances them. The <strong>F1 score</strong> is their harmonic mean, which stays low unless <em>both</em> are high: \[ F_1 = 2 \cdot \frac{\text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}} \]</p>
+
+<p>Read the four numbers straight off the clinic's matrix:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">TP &lt;- 16; FP &lt;- 30; FN &lt;- 4; TN &lt;- 150     # read straight off the confusion matrix
+
+accuracy  &lt;- (TP + TN) / (TP + FP + FN + TN)
+precision &lt;- TP / (TP + FP)                  # of those FLAGGED, how many were sick
+recall    &lt;- TP / (TP + FN)                  # of those SICK, how many we caught
+f1        &lt;- 2 * precision * recall / (precision + recall)
+
+round(c(accuracy = accuracy, precision = precision, recall = recall, F1 = f1), 3)
+#&gt; accuracy precision    recall        F1
+#&gt;    0.830     0.348     0.800     0.485</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So the model catches 80% of sick patients (good recall), but only about a third of its alarms are real (poor precision): most flagged people are healthy. One accuracy number, 0.83, told you none of that.</p>
+
+<p>In a real project you would not compute these by hand. The tidymodels <strong>yardstick</strong> package reads a data frame of truth and estimate and returns them for you:</p>
+
+<pre><code class="language-r">library(yardstick)
+# yardstick needs truth and prediction on the SAME labels
+# (&quot;at risk&quot; = predicted disease, &quot;cleared&quot; = predicted healthy):
+results &lt;- data.frame(
+  truth     = factor(rep(c(&quot;disease&quot;, &quot;healthy&quot;), c(20, 180))),
+  predicted = factor(c(rep(&quot;disease&quot;, 16), rep(&quot;healthy&quot;, 4),
+                       rep(&quot;disease&quot;, 30), rep(&quot;healthy&quot;, 150)),
+                     levels = c(&quot;disease&quot;, &quot;healthy&quot;))
+)
+metric_set(accuracy, precision, recall, f_meas)(results, truth, predicted)</code></pre>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>Why accuracy alone misleads</h2>
+
+<p>Here is the mistake that fools everyone once. Build a model that does nothing at all: it clears <em>every</em> patient, never flagging a single one. On last month's data it is wrong only about the 20 sick people it missed, so it is right on 180 of 200.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A do-nothing model that CLEARS everyone, never flagging a single patient:
+lazy_correct &lt;- (actual == &quot;healthy&quot;)   # a blanket &quot;cleared&quot; call is right only for healthy people
+mean(lazy_correct)                        # ...its accuracy
+#&gt; [1] 0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ninety percent accuracy, and it never caught a single case of the disease. Its recall is 0 out of 20. The number looks great precisely <em>because</em> the disease is rare: when one class dominates, you can score high accuracy by always guessing the majority. This is the <strong>accuracy paradox</strong>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">When classes are imbalanced, accuracy is dominated by the majority class and can hide total failure on the minority class, which is usually the class you care about (the sick patient, the fraud, the rare defect). Lead with precision and recall, not accuracy.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute recall</h2>
+
+<p>A second clinic ran its own screening. Of its truly sick patients, it caught 45 and missed 5 (so TP = 45, FN = 5). Fill in the formula for recall, then check it.</p>
+<section class="exercise" data-exercise-id="Reading-a-Classifier-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="TP\s*/\s*\(\s*TP\s*\+\s*FN\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">TP &lt;- 45; FN &lt;- 5
+recall &lt;- ____
+recall</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Recall = TP / (TP + FN) = 45 / 50 = 0.9. The clinic caught 90% of its sick patients.</span><span class="lesson-tryit-fb lesson-tryit-no">Recall is caught-over-truly-sick: TP / (TP + FN). Type it as TP / (TP + FN).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">TP &lt;- 45; FN &lt;- 5
+recall &lt;- TP / (TP + FN)   # 45 / 50 = 0.9
+recall</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">The dial you control</div>
+<h2>The threshold, the ROC curve, and AUC</h2>
+
+<p>Nothing forced the threshold to be 0.50. Lower it and the model flags more people: it catches more true cases (recall rises) but raises more false alarms (precision falls). Raise it and the reverse happens. Every threshold is a different operating point, a different confusion matrix.</p>
+
+<p>The <strong>ROC curve</strong> plots that whole trade in one picture: true-positive rate (recall) on the y-axis against false-positive rate on the x-axis, sweeping the threshold from high to low. The <strong>false-positive rate</strong> is \(FP/(FP+TN)\): of all the healthy people, the fraction the model wrongly flagged. A model that ranks sick above healthy hugs the top-left corner; random guessing rides the diagonal. The single number <strong>AUC</strong> (area under the curve) is the chance the model scores a random sick patient above a random healthy one: 1.0 is perfect, 0.5 is a coin flip.</p>
+
+<p>Drag the threshold below and watch the confusion matrix recount while the operating point slides along the curve.</p>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">When positives are rare</div>
+<h2>The precision-recall curve</h2>
+
+<p>ROC has a blind spot: when the negative class is huge, even a big pile of false positives barely moves the false-positive rate, so the ROC curve can look flattering on a badly imbalanced problem. The <strong>precision-recall (PR) curve</strong> does not let that hide. It plots precision against recall across thresholds, and because precision has false positives in its denominator, it reacts sharply when alarms are mostly wrong.</p>
+
+<p>The dashed line is the no-skill baseline: a model with no signal sits at precision equal to the prevalence, the fraction of people who are actually sick (here 0.10, since 20 of 200 have the disease). Run it on a 10%-prevalence version of the screen:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+score  &lt;- c(rbeta(20, 6, 3), rbeta(180, 2, 8))   # 20 sick (scores skew high), 180 healthy (skew low)
+actual &lt;- rep(c(1, 0), c(20, 180))                # 1 = disease, 0 = healthy: 10% prevalence
+
+thr &lt;- seq(0, 1, by = 0.05)
+pr  &lt;- t(sapply(thr, function(t) {
+  flag &lt;- score &gt;= t
+  tp &lt;- sum(flag &amp; actual == 1); fp &lt;- sum(flag &amp; actual == 0); fn &lt;- sum(!flag &amp; actual == 1)
+  c(recall = tp / (tp + fn), precision = if (tp + fp &gt; 0) tp / (tp + fp) else 1)
+}))
+
+plot(pr[, &quot;recall&quot;], pr[, &quot;precision&quot;], type = &quot;b&quot;, lwd = 2,
+     xlim = c(0, 1), ylim = c(0, 1), xlab = &quot;recall&quot;, ylab = &quot;precision&quot;,
+     main = &quot;Precision-recall curve (10% prevalence)&quot;)
+abline(h = mean(actual == 1), lty = 2)           # no-skill baseline = prevalence</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A good classifier stays high and to the right (high precision even at high recall). Watch precision sag as you push recall toward 1: catching the last few sick patients costs a flood of false alarms. For a rare-positive problem (disease, fraud, defects), trust the PR curve over the ROC curve.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read past the headline number</h2>
+
+<p>A hospital reports a model that detects a disease present in <strong>2% of patients</strong>, with <strong>98% accuracy</strong>. You dig in and find its <strong>recall is 0.05</strong>. What is actually going on, and what should you do?</p>
+<section class="exercise" data-exercise-id="Reading-a-Classifier-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model is excellent: 98% accuracy is hard to beat, ship it</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Accuracy is inflated by the 98% healthy majority; the model misses 95% of sick patients. Optimize recall, lower the threshold, and judge it with a precision-recall curve.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing is wrong: recall is always a bit lower than accuracy</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. With recall 0.05 it catches almost no real cases; the high accuracy just reflects the rare positive class. Lead with recall and PR, and move the threshold to catch more cases (accepting more false alarms).</div><div class="lesson-qfb lesson-qfb-no">There is no rule that recall tracks accuracy. Here recall (0.05) and accuracy (0.98) disagree wildly precisely because the classes are imbalanced, which is the whole warning sign.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1016/j.patrec.2005.10.010">Fawcett (2006), An introduction to ROC analysis, Pattern Recognition Letters</a> - the canonical, readable explanation of ROC space, the curve, and AUC.</li>
+
+<li><a href="https://doi.org/10.1371/journal.pone.0118432">Saito & Rehmsmeier (2015), The precision-recall plot is more informative than the ROC plot on imbalanced datasets, PLOS ONE</a> - the evidence behind preferring PR over ROC when positives are rare.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - classification, the confusion matrix, sensitivity and specificity, gently.</li>
+
+<li><a href="https://yardstick.tidymodels.org/">yardstick: tidymodels metrics</a> - the R package that computes every metric here on real model output.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Course complete</h2>
+
+<p>You can now read a classifier honestly. A confusion matrix splits predictions into true and false positives and negatives; accuracy, precision, recall and F1 each answer a different question off those four counts; accuracy alone lies when one class is rare; and the threshold, the ROC curve and the precision-recall curve let you tune and compare the trade between catching cases and raising false alarms.</p>
+
+<p>That closes the Classification course: kNN and the curse of dimensionality, Naive Bayes, discriminant analysis, decision trees, model geometry, and now evaluation. You have a full toolkit for turning a labeled dataset into a trustworthy classifier and proving it is trustworthy.</p>
+
+<p>Classification is a graded module in the Data Scientist track. Pass the assessment and it goes on your verified certificate, with a portfolio build to match.</p>
+</section>
+
+{% endraw %}

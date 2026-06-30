@@ -1,0 +1,346 @@
+---
+title: "ML Workflow Lesson 3: Train, Validation, Test, and Data Leakage"
+description: "Learn the train, validation and test split, how to evaluate a model honestly in R, and the data leakage mistakes (target, preprocessing, temporal) that fake good scores."
+keywords: "train validation test split, data leakage, target leakage, temporal leakage, train test split, model evaluation, holdout set, overfitting, machine learning, R"
+mathjax: true
+webr: true
+curriculum_id: "6.10.3"
+post_type: "LESSON"
+course_id: "ds-ml-workflow"
+course_title: "The Machine Learning Workflow in R"
+course_lesson: "3"
+course_total: "4"
+course_landing: "R-ML-Workflow-Course.html"
+course_next: "Your-First-End-to-End-Model-in-R.html"
+course_prev: "The-Bias-Variance-Tradeoff.html"
+lesson_access: "free"
+catalog_blurb: "Split data so the test score is honest, and avoid common data leaks."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 4</div>
+<h2>Train, Validation, Test, and Data Leakage</h2>
+
+<p>In Lesson 2 you saw that training error lies: a model can ace the data it learned from and still flop on new data. So the only honest verdict comes from data the model has never seen. This lesson is about setting that data aside correctly, and the subtle mistakes that secretly let the answer leak in.</p>
+
+<p>Meet Dev, an analyst at a small online lender. He builds a model to predict whether a new loan will <strong>default</strong> (the borrower stops repaying). His first version scores a thrilling <strong>98% accuracy</strong> on held-out loans. Two months after launch, on real applicants, it is no better than guessing. Nothing was broken. One column had been handing the model the answer. By the end of this lesson you will know exactly how that happens, and how to stop it.</p>
+
+<p>You will be able to:</p>
+
+<ul>
+
+<li>Explain why a held-out <strong>test set</strong> is the only honest stand-in for future, unseen data</li>
+
+<li>Split data into <strong>train / validation / test</strong> and say what each set is for</li>
+
+<li>Recognise and prevent <strong>data leakage</strong>: target, preprocessing, and temporal</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you know what training error, test error and overfitting are (Lesson 2: <a href="The-Bias-Variance-Tradeoff.html">The Bias-Variance Tradeoff</a>).</p>
+
+<p>The strip below is Dev's data, cut into the three sets. Flip the switch to sneak in a column built from the answer and watch the test score balloon. We unpack every piece of this over the next few steps.</p>
+<div class="lesson-widget" data-widget-type="data-split" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why hold data back</div>
+<h2>The test set is a stand-in for the future</h2>
+
+<p>Dev's real goal is not to score well on the 1,000 loans already sitting in his database. Those borrowers' fates are settled. His goal is to predict the <strong>next</strong> applicant, someone not in the data at all. He cannot test on the future because it has not happened yet, so he does the next best thing: he hides a slice of his current loans, trains as if they do not exist, then unhides them and checks. That hidden slice is the <strong>test set</strong>, and it role-plays the future.</p>
+
+<p>How honest is the verdict? With \(m\) held-out loans, where \(\hat{y}_i\) is the model's prediction for loan \(i\), \(y_i\) is what actually happened, and \(\mathbf{1}[\cdot]\) equals 1 when the prediction is wrong, the test error rate is</p>
+
+<p>\[ \widehat{\mathrm{Err}} \;=\; \frac{1}{m}\sum_{i=1}^{m} \mathbf{1}\!\left[\hat{y}_i \neq y_i\right]. \]</p>
+
+<p>This is just "the fraction of held-out loans the model got wrong." It is an honest estimate of future error for exactly one reason: the model never saw these rows while learning. The moment it does, the estimate is poisoned.</p>
+
+<p>One slice is not enough, though. Dev also needs to <em>choose</em> between models (which features? how complex?), and every choice he makes by peeking at a set burns that set's honesty. So practice splits the data three ways:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Set</th>
+<th>Share</th>
+<th>Its one job</th>
+<th>When you touch it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Train</strong></td>
+<td>~60%</td>
+<td>Fit the model: learn the coefficients, grow the trees</td>
+<td>Constantly, while fitting</td>
+</tr>
+<tr>
+<td><strong>Validation</strong></td>
+<td>~20%</td>
+<td>Tune and compare: pick features, complexity, settings</td>
+<td>Repeatedly, while choosing</td>
+</tr>
+<tr>
+<td><strong>Test</strong></td>
+<td>~20%</td>
+<td>The final, honest verdict on the chosen model</td>
+<td>Once, at the very end</td>
+</tr>
+</tbody>
+</table>
+
+<p>Here is that split in R. Each lesson runs in a fresh session, so we build Dev's loans inline, then carve out validation and test before doing anything else.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 1000
+loans &lt;- data.frame(
+  income   = round(rlnorm(n, log(45000), 0.4)),   # annual income, $
+  loan_amt = round(runif(n, 2000, 40000)),        # amount borrowed, $
+  term_mo  = sample(c(12, 24, 36, 48), n, TRUE),  # repayment term, months
+  age      = round(runif(n, 21, 70))
+)
+# whether each loan actually defaulted: risk rises with the debt-to-income ratio
+risk &lt;- plogis(-3.2 + 4.0 * (loans$loan_amt / loans$income))
+loans$defaulted &lt;- rbinom(n, 1, risk)
+
+set.seed(7)
+shuffle  &lt;- sample(nrow(loans))
+test_id  &lt;- shuffle[1:200]            # 20% held out as the final test
+val_id   &lt;- shuffle[201:400]          # 20% for tuning and comparing
+train_id &lt;- shuffle[401:1000]         # 60% to fit on
+
+train &lt;- loans[train_id, ]
+val   &lt;- loans[val_id, ]
+test  &lt;- loans[test_id, ]
+c(train = nrow(train), validation = nrow(val), test = nrow(test))
+#&gt; train validation       test
+#&gt;   600        200        200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When may you look at the test score?</h2>
+
+<p>Dev is trying three different feature sets and wants to keep the best one. At what point in the project should he look at how each one scores on the <strong>test</strong> set?</p>
+<section class="exercise" data-exercise-id="Train-Validation-Test-and-Data-Leakage-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Every time he changes the model, so he can track progress on real held-out data</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Whenever he compares two candidate models, to pick the winner</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Once, at the very end, after the model and all its settings are locked</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The test set is spent the instant a decision depends on it. Tune and compare on validation; unseal test exactly once, to report the final verdict.</div><div class="lesson-qfb lesson-qfb-no">Comparing and picking is the <strong>validation</strong> set's job. If the test set chooses the model, its score is no longer an honest estimate of future error.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The cardinal sin</div>
+<h2>Data leakage: when the answer sneaks into training</h2>
+
+<p>A split only protects you if the test set truly contains nothing the model could not have at prediction time. <strong>Data leakage</strong> is any information available while training that would <em>not</em> be available at the real moment of prediction. It is the most common way a model looks brilliant in development and falls apart in production, because the leaked information inflates every score, validation and test alike.</p>
+
+<p>The sharpest form is <strong>target leakage</strong>: a feature that is built from the answer itself. Write the label as \(y\) and the leaked feature as</p>
+
+<p>\[ X_{\text{leak}} \;=\; g(y), \]</p>
+
+<p>a function \(g\) of the very thing you are predicting. The model does not need to be clever; it just learns to invert \(g\) and read the answer straight off \(X_{\text{leak}}\). Accuracy soars. Then you deploy, the column is not there yet (or is always blank for a fresh case), and the model is lost.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The test question is never "does this feature predict well?" A leaked feature predicts <em>perfectly</em>. The question is "would I genuinely have this value, for this row, at the instant I make the prediction?" If not, it leaks, no matter how good it looks.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Target leakage, live</div>
+<h2>Dev's 98% mirage</h2>
+
+<p>Here is Dev's actual bug. His loans table has a column, <code>collections</code>, flagging whether the account was handed to a debt-collections agency. It is a fantastic predictor of default, because it only ever turns on <strong>after</strong> a borrower has already stopped paying. At the moment Dev scores a brand-new applicant, no one has been sent to collections yet, so the column is always 0. It is \(X_{\text{leak}} = g(y)\) in the flesh.</p>
+
+<p>Watch the score jump when it sneaks in. First the honest model, then the leaked one, both judged on the same held-out test set:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Honest model: only features Dev truly has when an application arrives
+honest &lt;- glm(defaulted ~ income + loan_amt + term_mo + age,
+              family = binomial, data = train)
+honest_pred &lt;- as.integer(predict(honest, newdata = test, type = &quot;response&quot;) &gt; 0.5)
+mean(honest_pred == test$defaulted)
+#&gt; [1] 0.81
+
+# Now add a column built from the answer: collections turns on AFTER default
+loans$collections &lt;- loans$defaulted * rbinom(nrow(loans), 1, 0.95)
+train_lk &lt;- loans[train_id, ]
+test_lk  &lt;- loans[test_id, ]
+
+leaked &lt;- glm(defaulted ~ collections + income + loan_amt,
+              family = binomial, data = train_lk)
+leaked_pred &lt;- as.integer(predict(leaked, newdata = test_lk, type = &quot;response&quot;) &gt; 0.5)
+mean(leaked_pred == test_lk$defaulted)
+#&gt; [1] 0.975</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The honest model is right about 81% of the time, a real edge over the roughly 74% you would get by betting every loan repays. Add one leaked column and the test score jumps to about 98%, exactly Dev's launch number, and exactly the score that evaporated in production. The test set did its job perfectly; the data fed into it was the problem.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Score the clean model honestly</h2>
+
+<p>The single most important habit is to judge a model on data it never trained on. Below is Dev's clean model, fit on <code>train</code>. Finish the line so <code>predict()</code> scores it on the <strong>held-out</strong> <code>test</code> set rather than on the training rows. Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Train-Validation-Test-and-Data-Leakage-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="newdata\s*=\s*test"><textarea class="lesson-tryit-input" spellcheck="false">clean &lt;- glm(defaulted ~ income + loan_amt + term_mo + age,
+             family = binomial, data = train)
+
+probs &lt;- predict(clean, ____, type = &quot;response&quot;)     # score the HELD-OUT loans
+preds &lt;- as.integer(probs &gt; 0.5)
+mean(preds == test$defaulted)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is honest evaluation: the held-out test loans give a trustworthy estimate of how Dev's model will do on the next real applicant.</span><span class="lesson-tryit-fb lesson-tryit-no">Point predict() at the held-out set with newdata = test. Scoring on the training rows is exactly how an overfit or leaky model hides.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">clean &lt;- glm(defaulted ~ income + loan_amt + term_mo + age,
+             family = binomial, data = train)
+
+probs &lt;- predict(clean, newdata = test, type = &quot;response&quot;)
+preds &lt;- as.integer(probs &gt; 0.5)
+mean(preds == test$defaulted)
+#&gt; [1] 0.81</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">A subtler leak</div>
+<h2>Preprocessing can leak too</h2>
+
+<p>Target leakage is the obvious villain. The quieter one hides in <strong>preprocessing</strong>. Suppose some incomes are missing and Dev fills the gaps with the average income, or he scales every feature to mean 0. If he computes that average (or that mean and standard deviation) over the <strong>whole</strong> dataset before splitting, the test rows have just contributed to a number the model uses. The test set peeked at itself.</p>
+
+<p>The fix is a discipline: <strong>every transform learns its parameters on the training set only</strong>, then applies them, unchanged, to validation and test.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 14 applicants' incomes ($1000s); two are missing. The last 4 are the held-out test.
+income &lt;- c(40, 52, 38, NA, 60, 48, NA, 56, 42, 48, 78, 90, 72, 96)
+rows   &lt;- data.frame(income = income)
+tr     &lt;- 1:10        # first 10 rows = training
+te     &lt;- 11:14       # last 4 rows  = held-out test
+
+# WRONG: fill missing income with the mean over ALL rows - test leaks into the fill value
+bad_fill  &lt;- mean(rows$income, na.rm = TRUE)
+# RIGHT: learn the fill value on TRAIN only, then apply it everywhere
+good_fill &lt;- mean(rows$income[tr], na.rm = TRUE)
+
+c(bad = round(bad_fill, 1), good = round(good_fill, 1))
+#&gt;  bad good
+#&gt;   60   48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The held-out applicants here happen to be higher earners, so letting them help compute the fill value drags it from the honest <strong>48</strong> up to <strong>60</strong>. That single number now carries information about the test set's own distribution, and the test score flatters the model. The same trap applies to scaling, encoding rare categories, and selecting features by correlation with the target: <strong>fit the transform on train, apply it to test.</strong></p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The leak that ignores the clock</div>
+<h2>Temporal leakage: train on the past, test on the future</h2>
+
+<p>Dev's loans arrive over time, and the world drifts: a softening economy slowly pushes default rates up. In production he will only ever have the <strong>past</strong> to predict the <strong>future</strong>. So his split must respect the clock: train on older loans, test on newer ones. A plain random shuffle breaks this, letting the model train on next quarter's loans to "predict" last quarter's, an impossible advantage that hides the drift.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+n     &lt;- 400
+month &lt;- rep(1:8, each = 50)                 # loans originated over 8 months
+p     &lt;- plogis(-3.4 + 0.34 * month)         # default rate drifts UP over time
+loans_t &lt;- data.frame(month = month, score = rnorm(n),
+                      defaulted = rbinom(n, 1, p))
+
+# RIGHT: a time-ordered split - fit on the past, judge on the future
+train_t &lt;- loans_t[loans_t$month &lt;= 6, ]
+test_t  &lt;- loans_t[loans_t$month &gt;= 7, ]
+
+c(past_default_rate   = round(mean(train_t$defaulted), 2),
+  future_default_rate = round(mean(test_t$defaulted),  2))
+#&gt; past_default_rate future_default_rate
+#&gt;              0.10                0.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The later months really do default about twice as often. A time-based split forces the model to face that harder, more realistic future, the same future production will hand it. A random split would shuffle easy past months in among the hard future ones, so the model trains on rows it could never have seen yet and overstates how good it is. Watch for temporal leakage whenever rows carry a date, and never shuffle time away.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Spot the leak</h2>
+
+<p>Dev lists three things in his pipeline. Which one is <strong>target leakage</strong>, the kind that makes a model look great in testing and fail on new applicants?</p>
+<section class="exercise" data-exercise-id="Train-Validation-Test-and-Data-Leakage-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">He uses the applicant's credit score, which is known when the application is submitted</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">He uses <code>collections</code>, a flag that only turns on after a borrower has already missed payments</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">He standardises income using the mean and standard deviation computed on the training set only</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. At the moment of prediction the loan is brand new, so <code>collections</code> is always 0. It is built from the outcome, the textbook target leak.</div><div class="lesson-qfb lesson-qfb-no">That is the correct, leak-free way to preprocess: learn the transform on train, apply it to test. No leak here.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>The honest-evaluation workflow</h2>
+
+<p>Every leak you have seen has the same cure: <strong>decide the order of operations before you touch the data, and never let the test set influence a choice.</strong> Four rules carry it.</p>
+
+<p>One honest limit to keep in mind: a test set is a consumable. Each time you look at its score and react, it leaks a little, so by the tenth model you compared on it, it is no longer truly unseen. That is the deeper reason validation exists, and why <strong>cross-validation</strong> (rotating the held-out slice, the subject of later sections) gives steadier estimates than a single split. Treat the test set like a sealed envelope: open it once.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Leakage is not a modelling bug you fix in the algorithm; it is a process bug you prevent in the <em>order</em> of your steps. Split first, and let the test set stay a stranger until the very end.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split first","sub":"carve out validation and test BEFORE imputing, scaling, or selecting anything"},{"title":"Fit on train","sub":"learn the model AND every transform on the training rows only"},{"title":"Tune on validation","sub":"compare features, complexity and settings here, never on test"},{"title":"Test once","sub":"score the single chosen model on test one time, then stop"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 5 (free PDF)</a> - resampling, validation sets, and why a held-out estimate of error matters.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 7 (free PDF)</a> - model assessment and selection, the full treatment of training vs test error.</li>
+
+<li><a href="https://doi.org/10.1145/2382577.2382579">Kaufman et al. (2012), "Leakage in Data Mining: Formulation, Detection, and Avoidance"</a> - the canonical paper that names and dissects data leakage.</li>
+
+<li><a href="https://rsample.tidymodels.org/">tidymodels: rsample documentation</a> - the R tooling for honest splits and resampling you will lean on in later lessons.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You can now split data into train, validation and test and say what each is for, evaluate a model honestly on data it never saw, and catch the three leaks (target, preprocessing, temporal) that inflate scores and wreck a model in production. Dev's 98% mirage will never fool you again.</p>
+
+<p>Next, Lesson 4: Your First End-to-End Model in R. You will take one dataset from raw rows to a fitted, evaluated, reproducible model, putting the honest split and leak-free habits from this lesson to work start to finish.</p>
+</section>
+
+{% endraw %}

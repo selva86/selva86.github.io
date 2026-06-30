@@ -1,0 +1,330 @@
+---
+title: "tidymodels Lesson 1: Preprocess with recipes"
+description: "Build a tidymodels recipe in R: one reusable pipeline that learns scaling, imputation and dummy coding on training data, then applies it to new data leak-free."
+keywords: "tidymodels, recipes, preprocessing in R, data leakage, prep and bake, feature engineering, step_normalize, step_dummy, imputation, train test split"
+mathjax: true
+webr: true
+curriculum_id: "6.50.1"
+post_type: "LESSON"
+course_id: "ds-tidymodels"
+course_title: "Modeling with tidymodels"
+course_lesson: "1"
+course_total: "7"
+course_landing: "R-tidymodels-Course.html"
+course_next: "Define-Models-with-parsnip.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Build a preprocessing pipeline that learns only on training data, leak-free."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 7</div>
+<h2>Preprocess with recipes</h2>
+
+<p>You have framed a problem, fit a regression, and trained a classifier. Real models need one more thing first: clean, model-ready data. Picture a lender sizing up twelve loan applicants: incomes run into the tens of thousands, ages sit near forty, one person's employment history is missing, and <code>home</code> is the words own, rent, or mortgage. No model can use that table as-is. A <code>recipe</code> is the tidymodels way to package the fix into one reusable object that learns from your training data and applies itself, identically, to everything else.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say why raw columns (different scales, text categories, missing values) are not model-ready</li>
+
+<li>Explain preprocessing leakage, the quiet mistake that makes your scores look better than they are</li>
+
+<li>Build a recipe, learn its numbers from the training set with <code>prep()</code>, and apply them to new data with <code>bake()</code></li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and use the <code>|&gt;</code> pipe, and you have met the <a href="Train-Validation-Test-and-Data-Leakage.html">train/test split and why leakage matters</a>.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"recipe()","sub":"declare the steps your data needs: impute, scale, dummy"},{"title":"prep()","sub":"learn the numbers (medians, means, sds) from the training set only"},{"title":"bake()","sub":"apply the learned recipe to any data: train, test, or future rows"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Raw data is not model-ready</h2>
+
+<p>Meet our running example: a lender deciding who is likely to default. Twelve applicants, each with an income, an age, how many months they have been employed, and whether they own, rent, or have a mortgage.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">loans &lt;- data.frame(
+  applicant = c(&quot;Maria&quot;,&quot;James&quot;,&quot;Priya&quot;,&quot;Ahmed&quot;,&quot;Lena&quot;,&quot;Tom&quot;,
+                &quot;Sara&quot;,&quot;Ravi&quot;,&quot;Nina&quot;,&quot;Omar&quot;,&quot;Eva&quot;,&quot;Liu&quot;),
+  income    = c(52000, 38000, 64000, 71000, 45000, 29000,
+                88000, 41000, 60000, 33000, 95000, 47000),
+  age       = c(41, 26, 35, 52, 29, 23, 48, 31, 39, 27, 55, 33),
+  employed  = c(60, 18, 40, 120, 22, 8, 96, 30, 54, NA, 140, 44),
+  home      = factor(c(&quot;own&quot;,&quot;rent&quot;,&quot;mortgage&quot;,&quot;own&quot;,&quot;rent&quot;,&quot;rent&quot;,
+                       &quot;mortgage&quot;,&quot;rent&quot;,&quot;mortgage&quot;,&quot;rent&quot;,&quot;own&quot;,&quot;mortgage&quot;)),
+  defaulted = factor(c(&quot;no&quot;,&quot;yes&quot;,&quot;no&quot;,&quot;no&quot;,&quot;yes&quot;,&quot;yes&quot;,
+                       &quot;no&quot;,&quot;no&quot;,&quot;no&quot;,&quot;yes&quot;,&quot;no&quot;,&quot;no&quot;))
+)
+loans
+#&gt;    applicant income age employed     home defaulted
+#&gt; 1      Maria  52000  41       60      own        no
+#&gt; 2      James  38000  26       18     rent       yes
+#&gt; 3      Priya  64000  35       40 mortgage        no
+#&gt; 4      Ahmed  71000  52      120      own        no
+#&gt; 5       Lena  45000  29       22     rent       yes
+#&gt; 6        Tom  29000  23        8     rent       yes
+#&gt; 7       Sara  88000  48       96 mortgage        no
+#&gt; 8       Ravi  41000  31       30     rent        no
+#&gt; 9       Nina  60000  39       54 mortgage        no
+#&gt; 10      Omar  33000  27       NA     rent       yes
+#&gt; 11       Eva  95000  55      140      own        no
+#&gt; 12       Liu  47000  33       44 mortgage        no</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things stop most models from using this as-is:</p>
+
+<ol>
+
+<li><strong>Different scales.</strong> Income runs into the tens of thousands; age sits around forty. A model that measures distance (kNN, SVM) or penalizes coefficients (lasso, ridge) will be dominated by income purely because its numbers are bigger.</li>
+
+<li><strong>Text categories.</strong> <code>home</code> is the words own, rent, mortgage. Most algorithms only do arithmetic, so a category has to become numbers.</li>
+
+<li><strong>A missing value.</strong> Omar's <code>employed</code> is <code>NA</code>. Many models refuse to run with a gap in the data.</li>
+
+</ol>
+
+<p>A recipe is how we fix all three, in one place, the right way.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap to avoid</div>
+<h2>The leakage trap</h2>
+
+<p>Here is the mistake almost everyone makes once. To put income and age on the same scale you <strong>standardize</strong> them: subtract the mean and divide by the standard deviation,</p>
+
+<p>\[ z = \frac{x - \bar{x}}{s} \]</p>
+
+<p>where \(x\) is one applicant's income, \(\bar{x}\) is the average income, and \(s\) is the standard deviation of income. The trap is hiding in \(\bar{x}\) and \(s\): they are numbers you have to <strong>estimate from data</strong>, and the only honest source for them is the training set. Compute them over the whole table and you have peeked at the rows you were supposed to hold back.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+idx   &lt;- sample(nrow(loans), 8)
+train &lt;- loans[idx, ]            # 8 applicants to learn from
+test  &lt;- loans[-idx, ]           # 4 held back, never seen in training
+
+mean(loans$income)   # the mean over ALL 12 applicants, test included
+#&gt; [1] 55250
+mean(train$income)   # the mean over the 8 training applicants only
+#&gt; [1] 56750</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those are different numbers. If you scale with <code>55250</code>, that value was shaped partly by the test applicants, so a little information about them has leaked into how you prepare the training data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Any number you learn from data, a mean, a standard deviation, a median used to fill gaps, the set of category levels, must be computed on the training set alone. Learn it from the full dataset and your test score becomes optimistic: you measured a model that had already glimpsed its own exam.</div></div>
+
+<p>This is exactly the bookkeeping a recipe does for you.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Spot the leak</h2>
+
+<p>You normalize <code>income</code> using the mean and standard deviation of the entire dataset, then split into train and test and fit a model. What is wrong?</p>
+<section class="exercise" data-exercise-id="Preprocess-with-recipes-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing is wrong; scaling a column never causes problems</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The mean and sd were computed using the test rows too, so test information leaked into preparation and the score will look better than it really is</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">You forgot to scale the target column, <code>defaulted</code>, as well</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Every statistic you learn (a mean, an sd, an imputation value, the category levels) must come from training rows only. Over the whole set, it is leakage.</div><div class="lesson-qfb lesson-qfb-no">The target is a category here and is not scaled. The issue is the source of the scaling statistics, not which columns get scaled.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The blueprint</div>
+<h2>A recipe is a blueprint</h2>
+
+<p>A recipe has two parts. First, <code>recipe(formula, data = train)</code> reads the column <strong>roles</strong> from a formula: what is the outcome, what are the predictors. Then you add <code>step_*</code> functions that declare the transformations, choosing columns with role-aware selectors like <code>all_numeric_predictors()</code> and <code>all_nominal_predictors()</code> instead of naming columns by hand.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+rec &lt;- recipe(defaulted ~ income + age + employed + home, data = train) |&gt;
+  step_impute_median(all_numeric_predictors()) |&gt;   # fill gaps with the median
+  step_normalize(all_numeric_predictors()) |&gt;       # mean 0, sd 1
+  step_dummy(all_nominal_predictors())              # categories -&gt; 0/1 columns
+summary(rec)            # the role each column will play
+#&gt; # A tibble: 5 x 4
+#&gt;   variable  type      role      source
+#&gt;   &lt;chr&gt;     &lt;list&gt;    &lt;chr&gt;     &lt;chr&gt;
+#&gt; 1 income    &lt;chr [2]&gt; predictor original
+#&gt; 2 age       &lt;chr [2]&gt; predictor original
+#&gt; 3 employed  &lt;chr [2]&gt; predictor original
+#&gt; 4 home      &lt;chr [3]&gt; predictor original
+#&gt; 5 defaulted &lt;chr [3]&gt; outcome   original</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The order matters: impute first (so there is no gap when we scale), then normalize, then dummy-code. But notice what has NOT happened yet. No median, no mean, no sd has been computed. The recipe is only a <strong>plan</strong>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(rec)[, c(&quot;number&quot;, &quot;operation&quot;, &quot;type&quot;, &quot;trained&quot;)]
+#&gt; # A tibble: 3 x 4
+#&gt;   number operation type          trained
+#&gt;    &lt;int&gt; &lt;chr&gt;     &lt;chr&gt;         &lt;lgl&gt;
+#&gt; 1      1 step      impute_median FALSE
+#&gt; 2      2 step      normalize     FALSE
+#&gt; 3      3 step      dummy         FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>trained</code> is <code>FALSE</code> for every step. A recipe is a list of instructions, like a cooking recipe written on a card. Nothing has been measured or mixed. That happens next.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"step_impute_median","sub":"fill each missing number with the training median"},{"title":"step_normalize","sub":"rescale each number to mean 0 and sd 1"},{"title":"step_dummy","sub":"turn each category into 0/1 indicator columns"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Learn the numbers</div>
+<h2>prep(): learn from the training set</h2>
+
+<p><code>prep()</code> runs the recipe against the training data and records the actual numbers each step needs: the median to fill Omar's gap, the mean and sd to scale each column, the set of <code>home</code> levels. This is the single moment any learning happens, and it happens on <code>train</code> alone.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prepped &lt;- prep(rec, training = train)
+tidy(prepped, number = 2)[, c(&quot;terms&quot;, &quot;statistic&quot;, &quot;value&quot;)]   # the normalize step
+#&gt; # A tibble: 6 x 3
+#&gt;   terms    statistic   value
+#&gt;   &lt;chr&gt;    &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 income   mean      56750
+#&gt; 2 age      mean         35.8
+#&gt; 3 employed mean         55.5
+#&gt; 4 income   sd        24737.
+#&gt; 5 age      sd           11.2
+#&gt; 6 employed sd           43.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the income mean: <code>56750</code>. That is exactly <code>mean(train$income)</code> from before, not the leaky <code>55250</code> over the full table. The recipe used the training rows and nothing else.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>prep()</code> is where a recipe is fit, like fitting a model. The learned values (medians, means, sds, factor levels) are frozen into the prepped recipe so they can be reused, unchanged, on any future data.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Apply the recipe</div>
+<h2>bake(): apply it to new data</h2>
+
+<p><code>bake()</code> takes a prepped recipe and applies its frozen numbers to a dataset. Hand it the held-out applicants and every test row is scaled with the <strong>training</strong> mean and sd, any gap is filled with the <strong>training</strong> median, and <code>home</code> is expanded into indicator columns.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bake(prepped, new_data = test)
+#&gt; # A tibble: 4 x 6
+#&gt;   income    age employed defaulted home_own home_rent
+#&gt;    &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt; &lt;fct&gt;        &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 -0.192  0.470    0.105 no               1         0
+#&gt; 2  0.576  1.45     1.50  no               1         0
+#&gt; 3 -0.475 -0.604   -0.779 yes              0         1
+#&gt; 4 -0.637 -0.425   -0.593 no               0         1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The text is gone: <code>home</code> became <code>home_own</code> and <code>home_rent</code> (the third level, mortgage, is the reference, so all-zero means mortgage). The numbers are centred near zero. No row was prepared using a statistic borrowed from itself.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Learn once on train (<code>prep</code>), apply anywhere (<code>bake</code>). Because the numbers come only from training, the recipe is <strong>leak-free</strong>; because they are frozen into one object, it is <strong>reusable</strong> on test data, on tomorrow's applicants, and on every resample you will meet in later lessons. The one rule: <code>prep()</code> on data that is genuinely your training set, never on the full table, or the leak comes right back.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>prep versus bake</h2>
+
+<p>In a recipe workflow, what is the difference between <code>prep()</code> and <code>bake()</code>?</p>
+<section class="exercise" data-exercise-id="Preprocess-with-recipes-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">They do the same thing; you can call whichever you prefer</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">prep() learns the parameters (medians, means, sds, factor levels) from the training data; bake() applies those frozen parameters to any dataset</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">prep() applies the transformations and bake() learns them from the data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Learning happens once, on train, in prep(); applying happens as often as you like, on train, test, or future rows, in bake().</div><div class="lesson-qfb lesson-qfb-no">It is the other way around: prep() learns from the training data, bake() applies what was learned.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Finish the recipe</h2>
+
+<p>This recipe imputes and normalizes, but it never turns the <code>home</code> categories into numbers, so a model would choke on the text. Add the missing step that dummy-codes the nominal predictors, then check it.</p>
+<section class="exercise" data-exercise-id="Preprocess-with-recipes-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="step_dummy"><textarea class="lesson-tryit-input" spellcheck="false">rec2 &lt;- recipe(defaulted ~ income + age + employed + home, data = train) |&gt;
+  step_impute_median(all_numeric_predictors()) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  ____(all_nominal_predictors())   # turn the home categories into 0/1 columns</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: step_dummy() expands each nominal predictor into 0/1 indicator columns, so the model sees numbers.</span><span class="lesson-tryit-fb lesson-tryit-no">You need the step that one-hot encodes categories: step_dummy(all_nominal_predictors()).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">rec2 &lt;- recipe(defaulted ~ income + age + employed + home, data = train) |&gt;
+  step_impute_median(all_numeric_predictors()) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_dummy(all_nominal_predictors())</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://recipes.tidymodels.org/">recipes package documentation (tidymodels)</a> - the official reference for <code>recipe()</code>, <code>prep()</code>, <code>bake()</code>, and the role-aware selectors.</li>
+
+<li><a href="https://www.tmwr.org/recipes">Tidy Modeling with R, ch. 8: Feature engineering with recipes</a> - Kuhn and Silge's book chapter, the canonical walk-through of building recipes.</li>
+
+<li><a href="http://www.feat.engineering/">Feature Engineering and Selection (Kuhn and Johnson)</a> - the deeper why behind scaling, encoding, and imputation choices.</li>
+
+<li><a href="https://recipes.tidymodels.org/reference/index.html">The full catalog of step_ functions</a> - every transformation you can compose, from <code>step_pca()</code> to <code>step_other()</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now spot preprocessing leakage and shut it down with a recipe: declare the steps once, <code>prep()</code> to learn the numbers from training data alone, <code>bake()</code> to apply them to anything. That single discipline, learn on train, apply anywhere, is the backbone of honest modeling.</p>
+
+<p>Next, Lesson 2: Define models with parsnip. You will give that prepared data to a model through one consistent interface, so you can switch from a logistic regression to a random forest without rewriting your code, the perfect partner for the recipe you just built.</p>
+</section>
+
+{% endraw %}

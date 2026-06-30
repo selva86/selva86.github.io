@@ -1,0 +1,452 @@
+---
+title: "Regression Modeling Lesson 8: GLMs Beyond Logistic"
+description: "Beyond logistic: the GLM family in R. Fit Poisson for counts, Gamma for skewed amounts, read rate ratios, spot overdispersion, match the model to the response."
+keywords: "GLM in R, Poisson regression, Gamma regression, glm family, link function, log link, rate ratio, overdispersion, quasipoisson, count data, generalized linear model"
+mathjax: true
+webr: true
+curriculum_id: "6.20.8"
+post_type: "LESSON"
+course_id: "ds-regression"
+course_title: "Regression Modeling in R"
+course_lesson: "8"
+course_total: "8"
+course_landing: "R-Regression-Modeling-Course.html"
+course_next: ""
+course_prev: "Logistic-Regression-Done-Properly.html"
+lesson_access: "free"
+catalog_blurb: "Fit the right model when your outcome is a count or a skewed amount."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 8 of 8</div>
+<h2>GLMs Beyond Logistic</h2>
+
+<p>In Lesson 7 you modeled a yes/no: will <em>this</em> customer buy an iced coffee? Logistic regression handled it by bending a straight line through a link function so its output stayed a valid probability. Here is the secret that lesson was hiding: logistic regression is not a special trick. It is one member of a whole family, and the same move solves a much wider set of problems.</p>
+
+<p>Priya has a new question, and it is not a yes/no. Some days her cart gets <strong>complaints</strong>, and she wants to know what drives them. A complaint count is a whole number: 0 on a calm Tuesday, 4 on a chaotic Saturday. A straight line would happily predict <em>minus 0.7 complaints</em>, which is nonsense. The fix is the same family idea, with a different distribution and a different link.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>See <code>lm</code> and logistic regression as two cases of one thing, the <strong>generalized linear model</strong>, defined by a family + a linear predictor + a link</li>
+
+<li>Fit a <strong>Poisson regression</strong> for a count with <code>glm()</code> and read its coefficients as <strong>rate ratios</strong></li>
+
+<li>Spot <strong>overdispersion</strong> and fix it, reach for <strong>Gamma</strong> when the response is a skewed amount, and match the right model to any response</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 7 (you can fit <code>lm()</code>, and you fit <code>glm(family = binomial)</code> and read odds ratios in <a href="Logistic-Regression-Done-Properly.html">Lesson 7</a>). You can run R. Every new term, family, link, linear predictor, rate ratio, overdispersion, is defined as it appears.</p>
+
+<p>That four-step recipe is the whole lesson. By the end you will run it without thinking.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Look at the response","sub":"is it a count, a positive amount, a yes or no, or a rate?"},{"title":"Pick the family","sub":"the distribution that matches: Poisson, Gamma, binomial, Gaussian"},{"title":"Pick the link","sub":"the function tying the average to a straight line: log, logit, identity"},{"title":"Fit with glm","sub":"same engine as lm, one family argument away"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The one idea</div>
+<h2>Every model so far was a GLM</h2>
+
+<p>A <strong>generalized linear model</strong> (GLM) is built from three pieces, and once you see them you see that <code>lm</code> and logistic regression were GLMs all along:</p>
+
+<ol>
+
+<li><strong>The linear predictor</strong> is the familiar straight-line part, a weighted sum of your predictors: \( \eta = \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k \). The Greek letter \( \eta \) ("eta") is just a name for that sum.</li>
+
+<li><strong>The link function</strong> \( g \) connects the linear predictor to \( \mu \), the <strong>mean</strong> (the expected value) of the response: \( g(\mu) = \eta \). The link is what lets a straight line model something that is not itself straight-line shaped.</li>
+
+<li><strong>The family</strong> is the distribution the response follows around that mean, and crucially, <em>how its variance behaves</em>.</li>
+
+</ol>
+
+<p>\[ g(\mu) = \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k \]</p>
+
+<p>Change the family and link, and you change which kind of response you can model, with the <em>same</em> fitting machinery underneath. Here is the whole course so far, plus where we are going, in one table:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>Response looks like</th>
+<th>Family</th>
+<th>Link \( g \)</th>
+<th>Coefficients read as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linear regression (<code>lm</code>)</td>
+<td>any number</td>
+<td>Gaussian</td>
+<td>identity</td>
+<td>added change in the mean</td>
+</tr>
+<tr>
+<td>Logistic regression</td>
+<td>yes / no</td>
+<td>binomial</td>
+<td>logit</td>
+<td>odds ratios (Lesson 7)</td>
+</tr>
+<tr>
+<td>Poisson regression</td>
+<td>a count: 0, 1, 2, ...</td>
+<td>Poisson</td>
+<td>log</td>
+<td>rate ratios (this lesson)</td>
+</tr>
+<tr>
+<td>Gamma regression</td>
+<td>a positive, skewed amount</td>
+<td>Gamma</td>
+<td>log</td>
+<td>multipliers on the mean</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">You do not learn a brand-new model for each kind of response. You learn ONE model, the GLM, and choose two settings: the family (what the response is) and the link (how to connect it to a line). Logistic regression was binomial + logit. The rest of this lesson is just other settings.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>A count breaks a straight line</h2>
+
+<p>Priya logs each day: how many <code>customers</code> she served and how many <code>complaints</code> she got. The complaint count sits on integer rails, 0, 1, 2, 3, and it clearly climbs on busier days. Plot it.</p>
+
+<p>Now imagine running an ordinary least-squares line through those rails, the tool from Lesson 1. Two things go wrong, and both are fatal:</p>
+
+<ul>
+
+<li><strong>It predicts impossible values.</strong> The line slopes up, so extend it down to a very quiet day and it predicts a <em>negative</em> number of complaints. A count can never be below zero.</li>
+
+<li><strong>It assumes the wrong spread.</strong> <code>lm</code> assumes the scatter around the line is the same everywhere (constant variance). But counts do not behave that way: a day that averages 0.2 complaints barely varies, while a day that averages 4 swings wildly. For counts, the variance grows <em>with</em> the mean.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A count is a non-negative whole number whose variability grows as it gets larger. A straight line, which is unbounded and assumes constant variance, is the wrong shape twice over. We need a family built for counts.</div></div>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":35,"y":0},{"x":42,"y":0},{"x":48,"y":1},{"x":55,"y":0},{"x":60,"y":1},{"x":68,"y":1},{"x":72,"y":0},{"x":80,"y":1},{"x":88,"y":2},{"x":95,"y":1},{"x":102,"y":2},{"x":110,"y":1},{"x":118,"y":3},{"x":125,"y":2},{"x":130,"y":4}],"geoms":["point"],"x":"customers","y":"complaints"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix for counts</div>
+<h2>Poisson regression: model the log of the rate</h2>
+
+<p>The <strong>Poisson</strong> distribution is the natural model for counts of independent events in a fixed window (complaints in a day, calls in an hour). Its mean \( \mu \) is the expected count, and it is the family we pick. For the link we use the <strong>log</strong>:</p>
+
+<p>\[ \log(\mu) = \beta_0 + \beta_1\,\text{customers} + \beta_2\,\text{weekend} \]</p>
+
+<p>where \( \mu \) is the expected number of complaints. Why the logarithm? Because inverting it gives \( \mu = e^{\beta_0 + \beta_1\,\text{customers} + \beta_2\,\text{weekend}} \), and \( e \) raised to <em>anything</em> is positive. The model can never predict a negative count, no matter how the predictors run. That single choice cures the first problem; the Poisson family, whose variance equals its mean, cures the second.</p>
+
+<p>A fresh R session starts empty, so build Priya's daily log first: 180 days, each with the day's <code>customers</code>, whether it was a <code>weekend</code>, and the resulting <code>complaints</code> count. Run this once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+n &lt;- 180
+days &lt;- data.frame(
+  customers = round(runif(n, 30, 130)),    # people served that day
+  weekend   = rbinom(n, 1, 0.30)           # 1 = Saturday or Sunday
+)
+# the true complaint rate rises with customers and on weekends; a bad-batch day adds extra spread
+lograte &lt;- -1.6 + 0.011 * days$customers + 0.6 * days$weekend
+days$complaints &lt;- rpois(n, exp(lograte) * rgamma(n, shape = 2, rate = 2))
+table(complaints = days$complaints)
+#&gt; complaints
+#&gt;  0  1  2  3  4  6  7
+#&gt; 98 48 22  7  2  2  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fitting is one call, the same <code>glm()</code> you used for logistic regression, with <code>family = poisson</code> instead of <code>binomial</code>. That one word tells R to fit on the log scale with the Poisson variance.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- glm(complaints ~ customers + weekend, data = days, family = poisson)
+round(coef(summary(fit)), 4)
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  -1.4276     0.2787 -5.1215   0.0000
+#&gt; customers     0.0097     0.0029  3.3761   0.0007
+#&gt; weekend       0.8842     0.1693  5.2223   0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table reads like <code>lm</code>'s, with the same crucial twist as Lesson 7: <strong>the estimates are on the log scale, not the count scale.</strong> The <code>weekend</code> coefficient of 0.884 means a weekend <em>adds</em> 0.884 to the log of the expected complaint count. Real (its z-value is 5.2, p essentially 0), but not something you can say to Priya yet, so we translate it back, just as you did with odds ratios.</p>
+
+<p>Exactly as exponentiating a logistic coefficient gave an odds ratio, exponentiating a Poisson coefficient turns <em>adding on the log scale</em> into <em>multiplying on the count scale</em>:</p>
+
+<p>\[ e^{\beta_1} = \frac{\text{expected count at } x+1}{\text{expected count at } x} \]</p>
+
+<p>So \( e^{\beta_1} \) is the <strong>rate ratio</strong>: the factor the expected count is multiplied by for a one-unit rise in that predictor, holding the others fixed. Exponentiate the whole table with its confidence interval in one line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(exp(cbind(RR = coef(fit), confint.default(fit))), 3)
+#&gt;                RR 2.5 % 97.5 %
+#&gt; (Intercept) 0.240 0.139  0.414
+#&gt; customers   1.010 1.004  1.015
+#&gt; weekend     2.421 1.737  3.374</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now it speaks plainly. A <strong>weekend multiplies the expected complaint count by about 2.42</strong>, well over double, with a 95% confidence interval from 1.74 to 3.37 (entirely above 1, so the weekend effect is clearly real). Each extra customer multiplies the rate by 1.010, a touch under 1% more; over ten extra customers that compounds to \( e^{10 \times 0.0097} \approx 1.10 \), about 10% more complaints. The intercept's 0.240 is the expected count on a zero-customer weekday, not meaningful here, which is the usual fate of an intercept when 0 is outside the data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A rate ratio multiplies the <em>expected count</em>, it does not add to it. "Weekend multiplies by 2.42" depends on the baseline: 2.42 times a quiet 0.3 is still under 1 complaint, but 2.42 times a busy 2.0 is nearly 5. Always combine the rate ratios back into a predicted count (next step) before you plan staffing around them.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does the weekend rate ratio mean?</h2>
+
+<p>The fitted Poisson model gives a <code>weekend</code> coefficient of <strong>0.884</strong> on the log scale, whose exponential is about <strong>2.42</strong>. Priya asks you what that 2.42 means. Which statement is correct?</p>
+<section class="exercise" data-exercise-id="GLMs-Beyond-Logistic-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A weekend adds 2.42 complaints to the day</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A weekend multiplies the expected number of complaints by about 2.42, holding customers fixed</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A weekend makes a complaint about 2.42 times more probable for each customer</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. exp(0.884) = 2.42 is the rate ratio: at the same customer count, the model expects about 2.42 times as many complaints on a weekend. It is a multiplier on the expected count, which you would still turn into an actual predicted count for any given day.</div><div class="lesson-qfb lesson-qfb-no">That is the logistic (odds/probability) reading from Lesson 7, applied to the wrong model. Poisson does not model a per-customer probability of "complaint vs no complaint"; it models the expected <em>count</em> of complaints, and 2.42 multiplies that count.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Predict expected complaints</h2>
+
+<p>Priya wants the actual expected complaint count for four kinds of day, not the log scale. As in Lesson 7, <code>predict()</code> defaults to the link (log) scale; you must ask for <code>type = &quot;response&quot;</code> to get a count back. Fill in the blank, then check it.</p>
+<section class="exercise" data-exercise-id="GLMs-Beyond-Logistic-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="[&quot;&#x27;]response[&quot;&#x27;]"><textarea class="lesson-tryit-input" spellcheck="false">new &lt;- data.frame(customers = c(40, 90, 90, 130),
+                  weekend   = c(0,  0,  1,   1))
+new$expected &lt;- round(predict(fit, newdata = new, type = ____), 2)   # we want an expected count
+new</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. type = response returns expected counts: 0.35 on a quiet weekday, 0.57 for a busier weekday, 1.39 once that busy day is a weekend, and 2.05 on a packed weekend. Same model, finally on a scale Priya can staff against.</span><span class="lesson-tryit-fb lesson-tryit-no">Ask for the response scale: type = "response" (in quotes). The default, type = "link", returns the log of the expected count, which Priya cannot use directly.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">new &lt;- data.frame(customers = c(40, 90, 90, 130),
+                  weekend   = c(0,  0,  1,   1))
+new$expected &lt;- round(predict(fit, newdata = new, type = &quot;response&quot;), 2)
+new
+#&gt;   customers weekend expected
+#&gt; 1        40       0     0.35
+#&gt; 2        90       0     0.57
+#&gt; 3        90       1     1.39
+#&gt; 4       130       1     2.05</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">When Poisson breaks</div>
+<h2>Overdispersion: more spread than Poisson allows</h2>
+
+<p>The Poisson family makes one strong promise: the variance equals the mean,</p>
+
+<p>\[ \operatorname{Var}(Y) = \mu. \]</p>
+
+<p>Real counts often break it. A "bad batch" day or a rude customer triggers a <em>cluster</em> of complaints, so the data scatters more than a clean Poisson would. This is <strong>overdispersion</strong>: \( \operatorname{Var}(Y) > \mu \). It does not bias your coefficients, but it makes the standard errors too small, so p-values look more impressive than they should. Always check for it. The diagnostic is the <strong>dispersion statistic</strong>, the average squared Pearson residual per degree of freedom; near 1 is healthy, well above 1 is overdispersed.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pearson    &lt;- residuals(fit, type = &quot;pearson&quot;)
+dispersion &lt;- sum(pearson^2) / df.residual(fit)
+round(dispersion, 2)
+#&gt; [1] 1.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 1.3 the data is modestly overdispersed, more spread than pure Poisson, enough to widen our error bars. The simplest fix is the <strong>quasi-Poisson</strong> family: it keeps the identical point estimates but inflates every standard error by \( \sqrt{1.3} \approx 1.14 \) to tell the honest story.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_q &lt;- glm(complaints ~ customers + weekend, data = days, family = quasipoisson)
+round(coef(summary(fit_q)), 4)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  -1.4276     0.3181 -4.4878   0.0000
+#&gt; customers     0.0097     0.0033  2.9584   0.0035
+#&gt; weekend       0.8842     0.1932  4.5761   0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimates are untouched (weekend is still 0.884, rate ratio 2.42), but <code>customers</code>' standard error grew from 0.0029 to 0.0033 and its p-value from 0.0007 to 0.0035. Both effects survive; we are just honestly less certain. When overdispersion is severe, the <strong>negative binomial</strong> model (<code>MASS::glm.nb</code>) is the standard heavier-duty alternative, and the rarer opposite, a dispersion well below 1, signals underdispersion.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Beyond counts</div>
+<h2>Gamma for a skewed positive amount</h2>
+
+<p>Counts are not the only response that breaks <code>lm</code>. Consider how many dollars a single customer spends. It is <strong>continuous</strong> (so not Poisson), strictly <strong>positive</strong>, and <strong>right-skewed</strong>: most tickets are small, a few are large, and the spread fans out as the average climbs. Here is a sample of Priya's tickets.</p>
+
+<p>That long right tail is exactly the <strong>Gamma</strong> family's home: a distribution for positive, skewed amounts whose variance grows with the <em>square</em> of the mean, \( \operatorname{Var}(Y) \propto \mu^2 \). Pair it with the same log link (keeping predictions positive and coefficients multiplicative), and the fit is one familiar call.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+m &lt;- 200
+tickets &lt;- data.frame(
+  member = rbinom(m, 1, 0.40),    # 1 = loyalty member
+  hot    = rbinom(m, 1, 0.50)     # 1 = a hot day
+)
+# mean spend rises for members and on hot days; gamma noise makes it positive and right-skewed
+mu_spend      &lt;- exp(1.4 + 0.30 * tickets$member + 0.25 * tickets$hot)
+tickets$spend &lt;- round(rgamma(m, shape = 4, rate = 4 / mu_spend), 2)
+gfit &lt;- glm(spend ~ member + hot, data = tickets, family = Gamma(link = &quot;log&quot;))
+round(exp(cbind(mult = coef(gfit), confint.default(gfit))), 3)
+#&gt;              mult 2.5 % 97.5 %
+#&gt; (Intercept) 4.195 3.773  4.664
+#&gt; member      1.425 1.247  1.629
+#&gt; hot         1.162 1.018  1.326</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because the link is again the log, the coefficients again read as multipliers on the mean. Baseline spend (a non-member on a cool day) is about <strong>$4.20</strong>; being a <code>member</code> multiplies the average ticket by <strong>1.43</strong> (about 43% more), and a <code>hot</code> day by 1.16. Same engine, same multiplicative reading, a different family chosen to fit the shape of money.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2.1},{"x":2.8},{"x":3.2},{"x":3.5},{"x":3.9},{"x":4.1},{"x":4.4},{"x":4.6},{"x":4.9},{"x":5.0},{"x":5.2},{"x":5.5},{"x":5.8},{"x":6.1},{"x":6.4},{"x":6.9},{"x":7.2},{"x":7.8},{"x":8.4},{"x":9.1},{"x":10.2},{"x":11.5},{"x":13.0},{"x":15.4}],"geoms":["histogram"],"x":"spend"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The recipe</div>
+<h2>Matching the model to the response</h2>
+
+<p>You now have the whole skill: look at the response, pick the family and link that fit it, and let <code>glm()</code> do the rest. This is the table to keep.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>If your response is...</th>
+<th>Example for Priya</th>
+<th>Use family</th>
+<th>with link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>any real number</td>
+<td>tomorrow's revenue</td>
+<td>Gaussian (plain <code>lm</code>)</td>
+<td>identity</td>
+</tr>
+<tr>
+<td>yes or no</td>
+<td>will this person buy</td>
+<td>binomial</td>
+<td>logit</td>
+</tr>
+<tr>
+<td>a count: 0, 1, 2, ...</td>
+<td>complaints in a day</td>
+<td>Poisson</td>
+<td>log</td>
+</tr>
+<tr>
+<td>an over-dispersed count</td>
+<td>complaints with bad-batch spikes</td>
+<td>quasi-Poisson / negative binomial</td>
+<td>log</td>
+</tr>
+<tr>
+<td>a positive, skewed amount</td>
+<td>dollars a customer spends</td>
+<td>Gamma</td>
+<td>log</td>
+</tr>
+<tr>
+<td>a proportion of trials</td>
+<td>7 refunds out of 50 sales</td>
+<td>binomial</td>
+<td>logit</td>
+</tr>
+</tbody>
+</table>
+
+<p>Powerful as it is, a GLM is honest only if you respect its limits:</p>
+
+<ul>
+
+<li><strong>Effects are multiplicative, not additive.</strong> With a log or logit link you read <code>exp(coef)</code>, a multiplier; a "constant rate ratio" is not a constant change in the count. Decide from predicted values, not raw coefficients.</li>
+
+<li><strong>The family is an assumption about the variance, so check it.</strong> Overdispersion for counts (the dispersion statistic), residual patterns for Gamma. The wrong family does not error out, it just lies quietly through its standard errors.</li>
+
+<li><strong>A GLM is still linear on the link scale.</strong> If the true effect bends (a U-shape in temperature), no link fixes that; you need splines or a GAM, the next stop beyond this course.</li>
+
+<li><strong>Significance is still not size or cause.</strong> As in Lessons 6 and 7, a tiny p-value means an effect is <em>real</em>, not large (read the rate ratio) and not causal (that lives in how the data was gathered).</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Match the response to the model</h2>
+
+<p>Priya wants to model the <strong>dollar amount</strong> each customer spends, so she can predict revenue per visit. The amount is always positive, has no fixed upper limit, and is right-skewed: most tickets are small, a few are large. Which GLM fits?</p>
+<section class="exercise" data-exercise-id="GLMs-Beyond-Logistic-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Poisson regression with a log link</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A Gamma model with a log link</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Ordinary linear regression (lm) on the raw amount</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Spend is positive, continuous and right-skewed, with variance that grows as the amount grows, exactly what the Gamma family describes. The log link keeps predictions positive and makes the coefficients read as multipliers on the mean.</div><div class="lesson-qfb lesson-qfb-no">An ordinary line assumes constant variance and a symmetric spread, and can predict a negative dollar amount for a quiet customer. Skewed, positive money breaks both assumptions, which is precisely the case Gamma exists for.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take GLMs further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - the gentlest rigorous intro; its Poisson-regression section mirrors exactly what we did here.</li>
+
+<li><a href="https://bookdown.org/roback/bookdown-BeyondMLR/">Beyond Multiple Linear Regression, Roback & Legler (free online book)</a> - a whole free book on Poisson, negative binomial and the wider GLM, with worked R.</li>
+
+<li><a href="https://stats.oarc.ucla.edu/r/dae/poisson-regression/">UCLA OARC: Poisson regression in R</a> - a careful worked example of fitting, reading rate ratios, and checking overdispersion.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/family.html">R documentation: family()</a> - the menu of every family and link <code>glm()</code> accepts, the settings you choose from.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 8 complete</h2>
+
+<p>You can now reach past logistic regression to the whole <strong>generalized linear model</strong> family. A GLM is three choices, a <strong>family</strong> (what the response is), a <strong>linear predictor</strong> (the straight-line part), and a <strong>link</strong> (how to connect them), and <code>lm</code> and logistic regression are just two settings of it. For a count you fit <code>glm(family = poisson)</code>, read coefficients as <strong>rate ratios</strong> (<code>exp(beta)</code>, a multiplier on the expected count), predict with <code>type = &quot;response&quot;</code>, and check for <strong>overdispersion</strong>, switching to quasi-Poisson or negative binomial when the variance outruns the mean. For a positive, skewed amount you reach for <strong>Gamma</strong> with a log link. The skill underneath all of it is one habit: look at your response, then match the family and link to it.</p>
+
+<p>That completes Regression Modeling in R. You started by fitting a single line to minimize squared error and finished able to model numbers, yes/no outcomes, counts and skewed amounts, all from the one idea of a linear predictor seen through the right link. From here, the Classification and Boosting courses pick up where a linear-on-the-link model stops bending.</p>
+</section>
+
+{% endraw %}

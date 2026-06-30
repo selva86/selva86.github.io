@@ -1,0 +1,387 @@
+---
+title: "Gradient Boosting Lesson 2: LightGBM and CatBoost in R"
+description: "Meet LightGBM and CatBoost in R: histogram split-finding for speed, native categorical handling that beats one-hot encoding, why target encoding leaks, and how to choose between them and XGBoost."
+keywords: "LightGBM in R, CatBoost in R, gradient boosting, histogram binning, native categorical features, target encoding leakage, ordered target statistics, XGBoost vs LightGBM, lgb.train, boosting"
+mathjax: true
+webr: true
+curriculum_id: "6.40.2"
+post_type: "LESSON"
+course_id: "ds-boosting"
+course_title: "Gradient Boosting in R"
+course_lesson: "2"
+course_total: "6"
+course_landing: "R-Gradient-Boosting-Course.html"
+course_next: "The-Hyperparameters-That-Matter.html"
+course_prev: "Gradient-Boosting-from-Scratch.html"
+lesson_access: "free"
+catalog_blurb: "The modern fast boosters, how they handle categories, and which one to pick."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 6</div>
+<h2>LightGBM and CatBoost in R</h2>
+
+<p>In Lesson 1 you hand-built a booster from <code>rpart</code> stumps for Sam's single bike kiosk: start at the mean, fit each new tree to the residuals, add a shrunken slice scaled by the learning rate. It worked. But it was slow, and it only knew how to read one number, the temperature.</p>
+
+<p>Sam's kiosk has since grown into a chain of 12 across the city. Every rental record now also carries which kiosk it came from and what the weather was, and there are far more days to learn from. Your hand-rolled loop would crawl through all that data, and it has no idea what to do with a "kiosk" column that is text, not a number. Closing exactly those two gaps, raw speed and handling categories, is what LightGBM and CatBoost were built for.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why histogram (binned) split-finding makes these boosters so fast</li>
+
+<li>Explain why one-hot encoding fails on high-cardinality categories, and how LightGBM and CatBoost split on categories directly</li>
+
+<li>See why naive target encoding leaks, and how CatBoost's ordered target statistics fix it</li>
+
+<li>Choose between LightGBM, CatBoost and XGBoost for a given job</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 (<a href="Gradient-Boosting-from-Scratch.html">Gradient Boosting from Scratch</a>: residuals, the learning rate, shallow trees in sequence). You can run R and you know what a factor (categorical) column is.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Histogram splits","sub":"bin each feature so the tree tries a few hundred edges, not every value"},{"title":"Native categories","sub":"split on text columns directly, no one-hot blow-up"},{"title":"Pick the right tool","sub":"LightGBM for speed, CatBoost for categories, both beat hand-rolling"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why they are fast</div>
+<h2>Histogram split-finding</h2>
+
+<p>Recall how a tree picks a split. At each node it scans a feature and tries a threshold, keeping the cut that best separates the data. The plain method (the one your <code>rpart</code> stumps used) is exact: sort the rows by the feature and test a threshold between every pair of neighbouring values.</p>
+
+<p>For one feature that is about \(N - 1\) candidate splits, where \(N\) is the number of rows reaching that node. Across \(d\) features the work at a single node is on the order of \(O(N d)\), and the booster repeats it at every node, of every tree. On Sam's old 24-day kiosk that was nothing. On the full chain it is the bottleneck.</p>
+
+<p>The fix that defines a modern booster: <strong>bin each feature once</strong> into a small, fixed number of buckets, say \(B = 255\). Now the tree only tries the \(B - 1\) bin edges, so the per-node work drops to \(O(B d)\). Let us build Sam's chain and see the collapse for real. (Each lesson runs in a fresh R session, so we build the data right here, run this once.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 1500
+kiosks &lt;- c(&quot;Riverside&quot;,&quot;Old Town&quot;,&quot;Harbor&quot;,&quot;University&quot;,&quot;Market Sq&quot;,&quot;North Park&quot;,
+            &quot;Airport&quot;,&quot;Stadium&quot;,&quot;Lakeside&quot;,&quot;West End&quot;,&quot;Central&quot;,&quot;Suburb Mall&quot;)
+
+sales &lt;- data.frame(
+  temp    = runif(n, -2, 36),                          # daily high (deg C), full sensor precision
+  kiosk   = factor(sample(kiosks, n, replace = TRUE)), # which of the 12 kiosks
+  weather = factor(sample(c(&quot;sunny&quot;,&quot;cloudy&quot;,&quot;rainy&quot;), n, replace = TRUE,
+                          prob = c(0.5, 0.3, 0.2))),
+  weekend = rbinom(n, 1, 2/7)                           # 1 on Sat or Sun
+)
+
+kiosk_base &lt;- setNames(runif(length(kiosks), 60, 260), kiosks)  # each kiosk's own baseline demand
+sales$rentals &lt;- round(
+  kiosk_base[as.character(sales$kiosk)] +
+  260 * exp(-((sales$temp - 22)^2) / 120) +                     # demand peaks near 22 deg C
+  ifelse(sales$weather == &quot;rainy&quot;, -70,
+         ifelse(sales$weather == &quot;cloudy&quot;, -20, 0)) +
+  sales$weekend * 55 +
+  rnorm(n, 0, 25)
+)
+
+nrow(sales)            # rows: plenty for split-finding speed to matter
+#&gt; [1] 1500
+nlevels(sales$kiosk)   # a categorical with 12 levels
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now count the candidate splits for temperature the two ways. Exact split-finding would consider every distinct value; histogram binning collapses them to a fixed handful. (We bin into 32 here so the drop is easy to see on screen; 255 is the common default.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">length(unique(sales$temp))          # exact method: one candidate split per distinct value
+#&gt; [1] 1500
+
+sales$temp_bin &lt;- cut(sales$temp, breaks = 32, labels = FALSE)
+length(unique(sales$temp_bin))      # histogram method: at most 32 bin edges to scan
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Binning trades a sliver of resolution for a large speed and memory win: candidate splits per feature fall from about \(N\) to a fixed \(B\), no matter how many rows you have. That one change is most of why LightGBM and CatBoost train so much faster than the loop you wrote by hand.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does binning buy?</h2>
+
+<p>Binning a continuous feature into a few hundred buckets before searching for splits mainly buys a booster what?</p>
+<section class="exercise" data-exercise-id="LightGBM-and-CatBoost-in-R-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Speed: the tree scans a few hundred bin edges instead of every distinct value, at a usually negligible cost in accuracy</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Higher accuracy, because grouping values removes noise from the data</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The ability to handle categorical (text) features</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Fewer candidate splits per node means far less work, and the lost resolution between bin edges almost never changes which feature wins. Speed and memory, for a sliver of precision.</div><div class="lesson-qfb lesson-qfb-no">Binning applies to continuous features. Categorical columns are handled by a different mechanism, which is exactly the next thing you will meet.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The categorical problem</div>
+<h2>The one-hot trap</h2>
+
+<p>Sam's <code>kiosk</code> column is text: 12 location names. A tree cannot split on text directly, so the reflex is one-hot encoding, turn the one column into a 0/1 indicator column per category. Watch what that does to the width of the data.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">onehot &lt;- model.matrix(~ kiosk - 1, data = sales)   # one 0/1 column per kiosk
+dim(onehot)                                          # rows x columns
+#&gt; [1] 1500   12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Twelve kiosks is mild. But one-hot scales with the number of categories, not the number of rows. A <code>zip_code</code> with 5,000 values becomes 5,000 sparse columns; each split can only ask "is it this one category, yes or no," so the data fragments into thin slivers and the tree struggles to find a good cut.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">High-cardinality categoricals (zip codes, product IDs, user IDs) are where one-hot hurts most: the feature space explodes, memory balloons, and splits become weak. This is the everyday pain that native categorical handling removes.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">How they really do it</div>
+<h2>Native categorical handling</h2>
+
+<p>LightGBM and CatBoost never make those columns. They split on a category column <strong>directly</strong>: LightGBM sorts the categories by their average target and finds the single best way to partition them in one split, so 12 (or 5,000) categories cost roughly a sorted pass, not an exploded matrix.</p>
+
+<p>CatBoost leans even harder on the target. The simplest version is <strong>target encoding</strong>: replace each category with the mean target seen for it. One number per category, no new columns.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target encoding: replace each kiosk with the mean rentals at that kiosk.
+sales$kiosk_te &lt;- ave(sales$rentals, sales$kiosk, FUN = mean)
+head(sales[, c(&quot;kiosk&quot;, &quot;rentals&quot;, &quot;kiosk_te&quot;)], 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Neat, but it hides a trap. Each row's encoded value was computed from a group that <strong>includes that row's own target</strong>. For a rare category, the code is basically the row's own answer leaking back in as a feature. Make a kiosk that appears exactly once and watch:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A brand-new kiosk with a single record:
+demo &lt;- rbind(
+  data.frame(kiosk = as.character(sales$kiosk[1:5]), rentals = sales$rentals[1:5]),
+  data.frame(kiosk = &quot;Pop-up&quot;, rentals = 999)
+)
+demo$kiosk_te &lt;- ave(demo$rentals, demo$kiosk, FUN = mean)
+demo$kiosk_te[demo$kiosk == &quot;Pop-up&quot;]   # its code is exactly its own rentals
+#&gt; [1] 999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Pop-up code is 999, the very value we are trying to predict. A model would look brilliant in training and fall apart on new data. This is <strong>target leakage</strong>.</p>
+
+<p>CatBoost's fix is <strong>ordered target statistics</strong>: shuffle the rows into a random order, then encode each row using only the rows that came <em>before</em> it.</p>
+
+<p>\[ \hat{x}_i = \frac{\sum_{j \prec i,\; c_j = c_i} y_j \;+\; a\,p}{\bigl|\{\, j \prec i : c_j = c_i \,\}\bigr| \;+\; a} \]</p>
+
+<p>Here \(c_i\) is row \(i\)'s category, \(y_j\) is the target of an earlier row \(j\), and \(j \prec i\) means "\(j\) comes before \(i\) in the random order." \(p\) is a prior (the global mean target) and \(a > 0\) is a smoothing weight that pulls thin categories toward \(p\). Because the sum runs only over earlier rows, row \(i\) never sees its own \(y_i\), so the leak is closed.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Plain target encoding with the full group mean (the <code>ave</code> trick above) leaks, and the leak is invisible until you score new data. Use a leakage-safe scheme: CatBoost does this automatically, or do it inside a cross-validation fold by hand.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Target-encode the weather</h2>
+
+<p>You just saw target encoding on <code>kiosk</code>. Apply the same idea to the <code>weather</code> column: replace each weather type with its mean rentals. The pattern is <code>ave(target, group, FUN = ...)</code>. Fill in the function that turns a group's rentals into one number.</p>
+<section class="exercise" data-exercise-id="LightGBM-and-CatBoost-in-R-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="FUN\s*=\s*mean"><textarea class="lesson-tryit-input" spellcheck="false">sales$weather_te &lt;- ave(sales$rentals, sales$weather, FUN = ____)
+tapply(sales$weather_te, sales$weather, mean)   # one encoded value per weather type</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: the encoding for each weather type is the mean rentals seen for it. (And yes, the full-group mean leaks; CatBoost would compute it from earlier rows only.)</span><span class="lesson-tryit-fb lesson-tryit-no">You want the group average, so pass FUN = mean. That collapses each weather type to its mean rentals.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">sales$weather_te &lt;- ave(sales$rentals, sales$weather, FUN = mean)
+tapply(sales$weather_te, sales$weather, mean)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Train it for real</h2>
+
+<p>Here is the real workflow for both libraries on Sam's chain. One thing first: LightGBM and CatBoost are compiled C++ libraries, so unlike every snippet above they do <strong>not</strong> run in the interactive session here. Install each once and run these blocks in R on your own machine.</p>
+
+<p>LightGBM takes a numeric matrix plus the names of the columns that are categorical, and splits on them natively (no one-hot):</p>
+
+<pre><code class="language-r"># install.packages(&quot;lightgbm&quot;)
+library(lightgbm)
+
+X &lt;- data.matrix(sales[, c(&quot;temp&quot;, &quot;kiosk&quot;, &quot;weather&quot;, &quot;weekend&quot;)])  # factors -&gt; integer codes
+y &lt;- sales$rentals
+
+dtrain &lt;- lgb.Dataset(X, label = y,
+                      categorical_feature = c(&quot;kiosk&quot;, &quot;weather&quot;))   # handled natively
+
+params &lt;- list(
+  objective     = &quot;regression&quot;,
+  metric        = &quot;rmse&quot;,
+  num_leaves    = 31,      # leaf-wise growth: the main complexity knob
+  learning_rate = 0.05,
+  max_bin       = 255      # the histogram resolution from step 2
+)
+
+model &lt;- lgb.train(params, dtrain, nrounds = 500)
+preds &lt;- predict(model, X)</code></pre>
+
+<p>CatBoost is even less fuss: hand it the factors as-is and it applies ordered target statistics internally.</p>
+
+<pre><code class="language-r"># CatBoost ships from its own release page, not CRAN; install once, then:
+library(catboost)
+
+pool &lt;- catboost.load_pool(
+  data  = sales[, c(&quot;temp&quot;, &quot;kiosk&quot;, &quot;weather&quot;, &quot;weekend&quot;)],
+  label = sales$rentals,
+  cat_features = c(1, 2)        # 0-based: kiosk and weather
+)
+
+model &lt;- catboost.train(pool, params = list(
+  loss_function = &quot;RMSE&quot;,
+  iterations    = 500,
+  learning_rate = 0.05,
+  depth         = 6
+))</code></pre>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<div class="lesson-step-eyebrow">Read what it learned</div>
+<h2>Which features mattered</h2>
+
+<p>A trained booster ranks its features by <strong>gain</strong>: how much each feature improved the loss, summed over every split that used it. On Sam's chain, temperature dominates (it drives the rental hump), the kiosk's own baseline comes next, then the weekend lift and the weather. Run this locally on the model above:</p>
+
+<pre><code class="language-r">imp &lt;- lgb.importance(model)   # columns: Feature, Gain, Cover, Frequency
+imp</code></pre>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Gain importance says a feature was <em>useful for splitting</em>, not that it <em>causes</em> the outcome, and it can flatter high-cardinality features that simply offer more places to split. For decisions that matter, confirm with permutation importance or SHAP values.</div></div>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"temperature","value":100},{"label":"kiosk location","value":74},{"label":"weekend","value":41},{"label":"weather","value":29}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Pick the right booster</h2>
+
+<p>Sam adds three more text columns to the chain data: <code>neighborhood</code>, <code>promo_code</code> and <code>supplier</code>, each with dozens to hundreds of distinct values, on about 3,000 rows. He wants strong accuracy with little tuning and little preprocessing. Which is the most natural first reach?</p>
+<section class="exercise" data-exercise-id="LightGBM-and-CatBoost-in-R-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">CatBoost: it handles the high-cardinality text columns natively with leakage-safe ordered target statistics, and its defaults are strong on smaller data</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">One-hot encode every text column, then train XGBoost</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">LightGBM with every text column left as raw strings</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Lots of high-cardinality categoricals plus a smallish, low-tuning brief is CatBoost's home turf: feed the raw factors, and ordered target statistics encode them without leaking or exploding the feature space.</div><div class="lesson-qfb lesson-qfb-no">LightGBM is excellent, but it expects you to integer-code the categories and mark them, and its defaults overfit small data more readily than CatBoost's. More setup and tuning than this brief calls for.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">When to reach for which</div>
+<h2>LightGBM vs CatBoost vs XGBoost</h2>
+
+<p>All three are histogram-based gradient boosters, and any of them will serve you well. The differences decide which is the <em>first</em> thing you reach for.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>LightGBM</th>
+<th>CatBoost</th>
+<th>XGBoost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Split finding</td>
+<td>histogram (binned)</td>
+<td>histogram (binned)</td>
+<td>histogram or exact</td>
+</tr>
+<tr>
+<td>Tree growth</td>
+<td>leaf-wise (deepens where it helps most)</td>
+<td>symmetric (same split across a level)</td>
+<td>level-wise by default</td>
+</tr>
+<tr>
+<td>Categorical features</td>
+<td>native split, integer-coded</td>
+<td>native, ordered target statistics</td>
+<td>encode first (one-hot or target)</td>
+</tr>
+<tr>
+<td>Speed on big data</td>
+<td>fastest</td>
+<td>fast</td>
+<td>fast</td>
+</tr>
+<tr>
+<td>Defaults</td>
+<td>strong, can overfit small data</td>
+<td>strongest, holds up on small or noisy data</td>
+<td>solid, huge ecosystem</td>
+</tr>
+<tr>
+<td>Reach for it when</td>
+<td>data is large and speed matters</td>
+<td>many categoricals, you want great defaults</td>
+<td>you want the mature, widely supported tool</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">There is no universally best booster. LightGBM's leaf-wise growth wins on large data but overfits small data faster; CatBoost's symmetric trees plus ordered encoding make it the safe default when categoricals dominate; XGBoost is the most battle-tested with the widest tooling. Knowing the trade-off is the skill, not memorising a winner.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree">Ke et al. (2017), LightGBM: A Highly Efficient Gradient Boosting Decision Tree (NeurIPS)</a> - the paper behind histogram binning and leaf-wise growth.</li>
+
+<li><a href="https://arxiv.org/abs/1706.09516">Prokhorenkova et al. (2018), CatBoost: unbiased boosting with categorical features</a> - introduces ordered target statistics and ordered boosting, the leakage fix you saw.</li>
+
+<li><a href="https://lightgbm.readthedocs.io/en/latest/Features.html">LightGBM docs: Features</a> - how histogram split-finding and leaf-wise growth work, with the speed and memory wins.</li>
+
+<li><a href="https://catboost.ai/docs/en/concepts/algorithm-main-stages_cat-to-numberic">CatBoost docs: transforming categorical features to numerical</a> - the exact ordered target-statistic encoding, from the source.</li>
+
+<li><a href="https://cran.r-project.org/package=lightgbm">lightgbm on CRAN</a> - install the R package and the <code>lgb.Dataset</code> / <code>lgb.train</code> API used here.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You now know what makes a modern booster modern: histogram split-finding collapses candidate splits from one-per-value to a fixed handful of bins, and native categorical handling skips the one-hot blow-up, with CatBoost's ordered target statistics encoding categories without leaking the answer. You saw the LightGBM and CatBoost training code, read a feature-importance ranking, and learned which to reach for first.</p>
+
+<p>Next, Lesson 3: The Hyperparameters That Matter. You met <code>num_leaves</code>, <code>learning_rate</code>, <code>max_bin</code> and <code>nrounds</code> in passing here; now you will learn the few knobs that actually move a booster, how they trade off against each other, and how to set them without endless guessing.</p>
+</section>
+
+{% endraw %}
