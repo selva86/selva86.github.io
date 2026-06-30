@@ -1,0 +1,297 @@
+---
+title: "Feature Engineering Lesson 6: Imputing Missing Values in Features"
+description: "Impute missing features in R the leak-free way: median, group, kNN and model-based fills learned on the training set only, plus a missing-value flag, all inside the modeling pipeline."
+keywords: "imputation, missing values, feature engineering, data leakage, median imputation, kNN imputation, model-based imputation, missing indicator, recipes, step_impute, train test split, R"
+mathjax: true
+webr: true
+curriculum_id: "6.60.6"
+post_type: "LESSON"
+course_id: "ds-feature-engineering"
+course_title: "Feature Engineering in R"
+course_lesson: "6"
+course_total: "7"
+course_landing: "R-Feature-Engineering-Course.html"
+course_next: "Feature-Selection-and-Spotting-Leakage.html"
+course_prev: "Features-from-Dates-Text-and-Geo.html"
+lesson_access: "free"
+catalog_blurb: "How to fill missing values without distorting results or leaking the test set."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 7</div>
+<h2>Imputing Missing Values in Features</h2>
+
+<p>You are building a model to predict the monthly rent of city apartments. Your scraper pulled 240 listings, each with the number of bedrooms, the floor, the rent, and the floor area in square feet. Floor area is the single strongest clue to rent. And about one listing in seven has it blank, because that landlord just never filled the box in.</p>
+
+<p>Most models will not even start with a hole in the data. So you have to put a number in every gap. The catch, and the whole point of this lesson, is that the obvious ways to do it quietly cheat: they let your test set sneak into the answer, and they flatten the very signal you are trying to model. Here you will fill gaps the honest way.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Impute a numeric feature with the median and keep a flag that remembers where the gap was</li>
+
+<li>Explain why imputation <strong>leaks</strong> unless the fill is learned on the training set alone, and do it leak-free</li>
+
+<li>Fill smarter by borrowing from similar rows (a group, the nearest neighbours, a small model)</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can write a <code>mutate()</code> and a pipe (<a href="The-dplyr-Verbs.html">The dplyr Verbs</a>), you know what a train/test split and data leakage are (<a href="Train-Validation-Test-and-Data-Leakage.html">Train/Validation/Test and Data Leakage</a>), and you have met <code>NA</code> and the three missingness mechanisms (<a href="Missing-Value-Treatment.html">Missing Value Treatment</a>). The new ideas are taught from scratch.</p>
+
+<p>Press Run on the table below: each blank floor area is filled with the column median, the simplest possible stand-in.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"caption":"Each missing floor area filled with the column median, the plainest stand-in. The green area_filled column keeps every listing instead of throwing the blank ones away.","before":{"cols":["id","bedrooms","area_sqft","rent"],"rows":[[101,1,540,1850],[102,2,null,2600],[103,3,1180,3500],[104,2,880,2550],[105,1,null,1700],[106,4,1520,4200]]},"after":{"cols":["id","bedrooms","area_sqft","rent","area_filled"],"rows":[[101,1,540,1850,540],[102,2,null,2600,1030],[103,3,1180,3500,1180],[104,2,880,2550,880],[105,1,null,1700,1030],[106,4,1520,4200,1520]]},"code":"library(dplyr)\n# Blanks scrape in as \"\" - make the gaps explicit, then fill with the median.\ndf %>%\n  mutate(area_sqft = as.numeric(na_if(area_sqft, \"\")),\n         area_filled = ifelse(is.na(area_sqft),\n                              median(area_sqft, na.rm = TRUE), area_sqft))"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why you cannot skip it</div>
+<h2>A gap is not a number, so the model stops</h2>
+
+<p>Hand a linear regression, a glmnet, or a kNN a column with a single <code>NA</code> in it and most of them refuse to run, or silently drop every row that has one. With about one in seven listings missing its area, dropping those rows would throw away a seventh of your data before training even begins, and in the <a href="Missing-Value-Treatment.html">last lesson on missing data</a> you saw the worse problem: the rows that go missing are rarely a fair sample, so deleting them bends the answer.</p>
+
+<p>So the move in a modeling pipeline is almost always to <strong>impute</strong>: put a plausible number in each gap and keep the row. Here is the shift in mindset that makes this a feature-engineering lesson and not just data cleaning. A filled value is not a recovered measurement; it is a <strong>new feature you are manufacturing</strong>, a deliberate guess. And like any feature, it can be built carelessly (leaking, distorting) or built well.</p>
+
+<p>First, the data. Each lesson runs in a fresh R session, so we build the 240 listings right here (run this once). The area depends on the number of bedrooms, with some noise, exactly the kind of structure a smart fill can exploit later.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+set.seed(42)
+n &lt;- 240
+flats &lt;- data.frame(
+  bedrooms = sample(1:4, n, replace = TRUE, prob = c(.30, .40, .20, .10)),
+  floor    = sample(1:18, n, replace = TRUE)
+)
+flats$area_sqft &lt;- round(320 * flats$bedrooms + rnorm(n, 0, 110) + 180)
+flats$rent      &lt;- round(2.1 * flats$area_sqft + 240 * flats$bedrooms + rnorm(n, 0, 250))
+
+# Knock a blank into 36 of the 240 floor areas (the landlord left the box empty).
+set.seed(7)
+flats$area_sqft[sample(n, 36)] &lt;- NA
+
+colSums(is.na(flats))
+#&gt; bedrooms    floor area_sqft     rent
+#&gt;        0        0       36        0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirty-six blanks, all in <code>area_sqft</code>, one listing in seven. Now the question that drives the rest of the lesson: what number do we put in each one?</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The plain fix, and its cost</div>
+<h2>Fill with the median, and remember the gap</h2>
+
+<p>The plainest fill is a single central value for the whole column. Replace each missing area with \(m = \text{median}(x_{\text{obs}})\), where \(x_{\text{obs}}\) are the areas that <strong>were</strong> recorded and \(m\) is their middle value. We reach for the median rather than the mean because floor area is right-skewed (a few large penthouses), and the median shrugs those off while the mean gets dragged upward.</p>
+
+<p>But filling many gaps with one identical number does something you must own. Every imputed listing now sits exactly at \(m\), so the column's natural spread shrinks. Watch it happen on the real data:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">filled &lt;- ifelse(is.na(flats$area_sqft),
+                 median(flats$area_sqft, na.rm = TRUE),
+                 flats$area_sqft)
+
+c(sd_observed = round(sd(flats$area_sqft, na.rm = TRUE)),
+  sd_filled   = round(sd(filled)))
+#&gt; sd_observed   sd_filled
+#&gt;         320         296</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standard deviation (the typical distance of a value from the average, our measure of spread) drops once the gaps collapse onto one point. The fill also weakens the real area-to-rent correlation, because 36 listings now carry an area that ignores everything else about them.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A constant fill keeps every row but flattens the column: less spread, weaker correlations. That is the price of the simplest imputation, and it is exactly why we keep a record of which values were guessed, and why the smarter fills later in this lesson exist.</div></div>
+
+<p>That record is a second engineered feature: a <strong>missing-value indicator</strong>, a 0/1 column that is 1 wherever the area was originally blank. It costs nothing and it lets the model learn whether a missing area is itself a signal (maybe blank-area listings are systematically older, or cheaper). You will build both the fill and the flag next.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Impute the area, keep the flag</h2>
+
+<p>Fill every missing <code>area_sqft</code> with the column median, and in the same step add <code>area_was_missing</code>, a 0/1 flag that records where the gap was. The flag is computed <strong>first</strong>, from the original column, before the fill erases the evidence. You write the median stand-in that goes into <code>ifelse()</code>; remember <code>na.rm = TRUE</code> so the median ignores the blanks themselves.</p>
+<section class="exercise" data-exercise-id="Imputing-Missing-Values-in-Features-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="median\s*\(\s*area_sqft\s*,\s*na\.rm\s*=\s*TRUE"><textarea class="lesson-tryit-input" spellcheck="false">flats_imp &lt;- flats %&gt;%
+  mutate(
+    area_was_missing = as.integer(is.na(area_sqft)),
+    area_sqft        = ifelse(is.na(area_sqft), ____, area_sqft)
+  )
+sum(flats_imp$area_was_missing)   # how many we filled</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is mean's sturdier cousin: median(area_sqft, na.rm = TRUE) is computed from the recorded areas and dropped into every gap, while area_was_missing quietly remembers which 36 rows were guessed.</span><span class="lesson-tryit-fb lesson-tryit-no">Inside ifelse() put the median of the recorded areas: median(area_sqft, na.rm = TRUE). The na.rm = TRUE tells it to ignore the blanks when computing that middle value.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">flats_imp &lt;- flats %&gt;%
+  mutate(
+    area_was_missing = as.integer(is.na(area_sqft)),
+    area_sqft        = ifelse(is.na(area_sqft),
+                              median(area_sqft, na.rm = TRUE), area_sqft)
+  )
+sum(flats_imp$area_was_missing)
+#&gt; [1] 36</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Mean or median?</h2>
+
+<p>Floor area in your listings is right-skewed: most flats are small to mid-sized, but a handful of luxury units run very large. You are about to fill the blanks with one central value. Why is the <strong>median</strong> the safer default than the <strong>mean</strong> here?</p>
+<section class="exercise" data-exercise-id="Imputing-Missing-Values-in-Features-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The mean cannot be computed when a column has any NA values.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The few very large flats drag the mean upward, so it overstates a typical area; the median sits at the middle and is barely moved by those outliers.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The median changes the column's spread less than the mean does.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. On right-skewed data the mean is pulled toward the long tail, so mean-imputing makes every blank flat look larger than a typical one. The median stays at the centre of the data and gives a sturdier stand-in.</div><div class="lesson-qfb lesson-qfb-no">Both replace the gaps with a single constant, so both shrink the spread by the same amount. The reason to prefer the median is that its central value is more representative on skewed data, not that it preserves spread.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap that defines this lesson</div>
+<h2>Imputation learns something, so it can leak</h2>
+
+<p>Look again at what you just did: you computed <code>median(area_sqft, na.rm = TRUE)</code> over the data and used it to fill the gaps. That median is a thing <strong>learned from the rows</strong>. And the iron rule of honest modeling is that anything learned must be learned from the <strong>training set only</strong>, never from the test set.</p>
+
+<p>If you compute the median over the <em>whole</em> dataset, including the test listings, and then split, the fill value has already peeked at the test rows. Your test score gets a small, invisible boost it would never get on genuinely new listings, where no test median exists. That is <strong>leakage</strong>: information from outside the training fold sneaking into the model. Drag the toggle below to feel how a leaked feature inflates a test score to something too good to be true.</p>
+
+<p>The fix is a discipline, not a function. Split first. Then learn the fill on the training rows alone:</p>
+
+<p>\[ m_{\text{train}} = \text{median}(x_{\text{train, obs}}) \]</p>
+
+<p>where \(x_{\text{train, obs}}\) are the recorded areas <strong>in the training set</strong>. Store that one number, and use the same \(m_{\text{train}}\) to fill the gaps in the training set and in the test set. The test rows never get a vote in what the fill is; they only receive it.</p>
+<div class="lesson-widget" data-widget-type="data-split" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fill it leak-free</h2>
+
+<p>Split the listings, then learn the fill on the training rows only. Complete the line that computes <code>fill_value</code>: it must take the median of the <strong>training</strong> areas, not the whole dataset. Then the same number is applied to both sets.</p>
+<section class="exercise" data-exercise-id="Imputing-Missing-Values-in-Features-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="median\s*\(\s*train\$area_sqft"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(1)
+idx   &lt;- sample(nrow(flats), 0.7 * nrow(flats))
+train &lt;- flats[idx, ]
+test  &lt;- flats[-idx, ]
+
+# Learn the fill on the TRAINING rows alone:
+fill_value &lt;- median(____$area_sqft, na.rm = TRUE)
+
+# Apply that one stored number to BOTH sets:
+train$area_sqft[is.na(train$area_sqft)] &lt;- fill_value
+test$area_sqft[is.na(test$area_sqft)]   &lt;- fill_value
+fill_value</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly right: the fill is median(train$area_sqft, na.rm = TRUE), learned on training rows only. The test gaps receive that stored number but never influence it, so the test set stays an honest stand-in for the future.</span><span class="lesson-tryit-fb lesson-tryit-no">Take the median of the TRAINING areas: median(train$area_sqft, na.rm = TRUE). Using flats (the whole dataset) would let the test rows shape the fill, which is the leak you are trying to avoid.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(1)
+idx   &lt;- sample(nrow(flats), 0.7 * nrow(flats))
+train &lt;- flats[idx, ]
+test  &lt;- flats[-idx, ]
+
+fill_value &lt;- median(train$area_sqft, na.rm = TRUE)
+
+train$area_sqft[is.na(train$area_sqft)] &lt;- fill_value
+test$area_sqft[is.na(test$area_sqft)]   &lt;- fill_value
+fill_value
+#&gt; [1] 820</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fill smarter</div>
+<h2>Borrow from similar rows</h2>
+
+<p>A single median ignores everything else you know about a flat. A blank 1-bedroom studio and a blank 4-bedroom both get the same 820 sq ft, which is too big for one and too small for the other. The smarter fills use the <strong>other columns</strong> to make a tailored guess.</p>
+
+<p>The simplest version groups by a key feature and fills from that group. Fill a blank with the median area of flats with the <strong>same number of bedrooms</strong>, and a studio gets a studio-sized guess. Press Run:</p>
+
+<p><strong>k-nearest-neighbours (kNN) imputation</strong> generalises that idea past a single grouping column. For a flat with a blank area, it finds the \(k\) recorded flats most similar across the <em>other</em> features (bedrooms, floor, rent) and averages their areas:</p>
+
+<p>\[ \hat{x}_i = \frac{1}{k} \sum_{j \in N_k(i)} x_j \]</p>
+
+<p>where \(N_k(i)\) is the set of the \(k\) nearest recorded flats to flat \(i\) (nearest by distance over the other columns) and \(x_j\) is the recorded area of neighbour \(j\).</p>
+
+<p><strong>Model-based imputation</strong> goes one step further and fits an actual model to predict the missing column from the others, learned on the rows that have it, then predicts the gaps:</p>
+
+<p>\[ \hat{x}_i = \hat\beta_0 + \hat\beta_1\,\text{bedrooms}_i + \hat\beta_2\,\text{floor}_i \]</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+idx   &lt;- sample(nrow(flats), 0.7 * nrow(flats))
+train &lt;- flats[idx, ]
+have  &lt;- train[!is.na(train$area_sqft), ]   # training flats that HAVE an area
+miss  &lt;- which(is.na(train$area_sqft))       # the gaps to fill
+
+# Learn area from the other columns, on the recorded rows only:
+area_model &lt;- lm(area_sqft ~ bedrooms + floor, data = have)
+train$area_sqft[miss] &lt;- round(predict(area_model, train[miss, ]))
+
+round(coef(area_model), 1)
+#&gt; (Intercept)    bedrooms       floor
+#&gt;       186.2       321.4         0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bedrooms coefficient near 320 is exactly the relationship we built into the data: each extra bedroom adds about 320 sq ft, while floor barely moves area (coefficient near zero, as it should be). A model-based fill hands each gap a value that honours that relationship instead of one flat number.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Two cautions. First, these smarter fills still <strong>learn from the rows</strong>, so the same leak rule applies: fit the group medians, the neighbours, or the regression on the training fold only (a recipe's <code>step_impute_knn()</code> or <code>step_impute_linear()</code> does this for you). Second, filling with a single best guess pretends you are certain about a value you are not. When that uncertainty matters for inference, <strong>multiple imputation</strong> (the <code>mice</code> package) fills each gap several times to carry the doubt forward, rather than hiding it.</div></div>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"caption":"The same two gaps, now filled with the median area of flats that have the SAME number of bedrooms. The 1-bed gets a small area, the 2-bed a larger one, instead of one flat 1030 for both.","before":{"cols":["id","bedrooms","area_sqft","rent"],"rows":[[101,1,540,1850],[102,2,null,2600],[103,3,1180,3500],[104,2,880,2550],[105,1,null,1700],[106,4,1520,4200]]},"after":{"cols":["id","bedrooms","area_sqft","rent","area_smart"],"rows":[[101,1,540,1850,540],[102,2,null,2600,880],[103,3,1180,3500,1180],[104,2,880,2550,880],[105,1,null,1700,540],[106,4,1520,4200,1520]]},"code":"library(dplyr)\ndf %>%\n  mutate(area_sqft = as.numeric(na_if(area_sqft, \"\"))) %>%\n  group_by(bedrooms) %>%\n  mutate(area_smart = ifelse(is.na(area_sqft),\n                            median(area_sqft, na.rm = TRUE), area_sqft)) %>%\n  ungroup()"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Spot the leak</h2>
+
+<p>A teammate reports a great cross-validation score on the rent model. Their pipeline does this, in order: (1) fill every missing <code>area_sqft</code> with the median area of the <strong>full</strong> dataset, (2) split into folds, (3) cross-validate. You are suspicious. What is wrong, and what would fix it?</p>
+<section class="exercise" data-exercise-id="Imputing-Missing-Values-in-Features-step9" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The median was computed over all rows before splitting, so every fold's validation rows helped set the fill they are later scored on: leakage. Move the imputation inside the fold (learn the median on each fold's training part only).</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing is wrong: the median is a single number, so it cannot carry enough information to leak.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The mistake is using the median at all; a mean computed the same way would not leak.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Imputing before the split lets validation data influence the fill, so the score is optimistic. The fix is to make imputation part of the resampled pipeline (a recipe inside the fold), so each fill is learned on training rows alone.</div><div class="lesson-qfb lesson-qfb-no">The statistic is not the problem; the timing is. A mean computed over the full dataset before splitting leaks in exactly the same way. Any fill learned before the split, mean, median, kNN or model, sees the validation rows.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.feat.engineering/">Kuhn & Johnson, <em>Feature Engineering and Selection</em> (free online)</a> - the chapter on missing data and imputation, written for the modeling pipeline you are building here.</li>
+
+<li><a href="https://stefvanbuuren.name/fimd/">van Buuren, <em>Flexible Imputation of Missing Data</em> (free online)</a> - the standard modern text; explains why a single imputed value understates uncertainty and how multiple imputation (<code>mice</code>) fixes it.</li>
+
+<li><a href="https://recipes.tidymodels.org/reference/step_impute_knn.html">tidymodels recipes: step_impute_knn() reference</a> - the leak-free way to impute inside a pipeline, with <code>step_impute_median</code>, <code>step_impute_linear</code> and friends alongside it.</li>
+
+<li><a href="https://scikit-learn.org/stable/common_pitfalls.html">scikit-learn user guide: Common pitfalls and recommended practices</a> - the clearest short write-up of why fitting any preprocessing (including imputation) on all the data leaks, with the train-only fix.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 6 complete</h2>
+
+<p>You can now treat a hole in a feature as something you engineer with care. You filled gaps with the median and kept an <code>area_was_missing</code> flag so the model still knows where the guesses are; you saw a constant fill shrink the column's spread, the price of the simplest method. Most importantly, you learned the rule that runs through this whole section: imputation <strong>learns</strong> a value, so it must learn it on the training set alone, or it leaks. And you went beyond one flat number to fills that borrow from similar rows, by group, by nearest neighbours, by a small model, each handing a blank a value that respects everything else you know about that flat.</p>
+
+<p>Next, Lesson 7: Feature Selection and Spotting Leakage. You have now seen leakage sneak in through an innocent-looking fill. In the finale you will learn to choose the features that actually earn their place, and to catch the more dangerous leaks, the ones hiding inside a feature itself, before they flatter a score you cannot trust.</p>
+</section>
+
+{% endraw %}
