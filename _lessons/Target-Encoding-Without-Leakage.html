@@ -1,0 +1,354 @@
+---
+title: "Feature Engineering Lesson 2: Target Encoding Without Leakage"
+description: "Target encoding turns a high-cardinality category into one number, the target mean. Do it out-of-fold in R so the encoding never sees the answer it scores."
+keywords: "target encoding, mean encoding, impact encoding, data leakage, out-of-fold encoding, high cardinality, categorical features, feature engineering, R"
+mathjax: true
+webr: true
+curriculum_id: "6.60.2"
+post_type: "LESSON"
+course_id: "ds-feature-engineering"
+course_title: "Feature Engineering in R"
+course_lesson: "2"
+course_total: "7"
+course_landing: "R-Feature-Engineering-Course.html"
+course_next: "Scaling-and-Transformations.html"
+course_prev: "Encoding-Categorical-Variables.html"
+lesson_access: "free"
+catalog_blurb: "How to turn a category into a number without leaking the answer."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 7</div>
+<h2>Target Encoding Without Leakage</h2>
+
+<p>In Lesson 1 you one-hot encoded categories: each level became its own 0/1 column. That works until a column has hundreds of levels and the table explodes. There is a tidier trick, and a trap hiding inside it.</p>
+
+<p>Meet Maya, a data scientist at a real-estate startup. She predicts a home's <strong>sale price</strong>, and her data labels every home with one of <strong>40 neighborhoods</strong>. Instead of 40 sparse columns, she replaces each neighborhood with a single number: the average price of homes there. Her model's accuracy jumps. Then she checks it the honest way, and the gain evaporates. A column built from pure noise had "explained" a third of the price. By the end of this lesson you will know exactly how that happens, and the one habit that fixes it.</p>
+
+<p>You will be able to:</p>
+
+<ul>
+
+<li>Explain what target encoding is and when to reach for it instead of one-hot</li>
+
+<li>Diagnose why naive target encoding leaks the answer, worst of all for rare categories</li>
+
+<li>Encode <strong>out-of-fold</strong> in R so no row ever sees its own target, and smooth the rare levels</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, you know one-hot and ordinal encoding (<a href="Encoding-Categorical-Variables.html">Lesson 1</a>), and you know what training data, a test set, and <a href="Train-Validation-Test-and-Data-Leakage.html">data leakage</a> are.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"df %>% group_by(neighborhood) %>% mutate(nb_price = mean(price)) %>% ungroup()","caption":"Target encoding swaps a neighborhood for the average price seen there: one number a model can use, instead of dozens of sparse yes/no columns.","before":{"cols":["home","neighborhood","price"],"rows":[["#1","Eastside",420],["#2","Eastside",510],["#3","Eastside",450],["#4","Harbor",880],["#5","Harbor",920],["#6","Lakeview",660]]},"after":{"cols":["home","neighborhood","price","nb_price"],"rows":[["#1","Eastside",420,460],["#2","Eastside",510,460],["#3","Eastside",450,460],["#4","Harbor",880,900],["#5","Harbor",920,900],["#6","Lakeview",660,660]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>When one-hot encoding runs out of room</h2>
+
+<p>One-hot encoding gives every category its own 0/1 column. For a tidy <code>contract</code> column with two levels (monthly, annual) that is perfect. But Maya's <code>neighborhood</code> has 40 levels, so one-hot turns one column into 40, almost all of them zero in any given row. Push that to real data (5,000 zip codes, 50,000 product ids) and you get a vast, sparse table that is slow to fit and starves rare levels of data.</p>
+
+<p>Let us see the shape of Maya's problem. Each lesson runs in a fresh R session, so we build her homes inline (run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n     &lt;- 600
+hoods &lt;- paste0(&quot;NB&quot;, sprintf(&quot;%02d&quot;, 1:40))
+w     &lt;- 1 / seq_len(40)                                  # a few busy neighborhoods, a long rare tail
+neighborhood &lt;- sample(hoods, n, replace = TRUE, prob = w)
+level &lt;- setNames(round(runif(40, 250, 850)), hoods)      # each neighborhood's true price level ($1000s)
+homes &lt;- data.frame(
+  neighborhood = factor(neighborhood, levels = hoods),
+  sqft  = round(runif(n, 800, 3000)),
+  price = round(level[neighborhood] + rnorm(n, 0, 35))    # price tracks the neighborhood, plus noise
+)
+
+length(unique(homes$neighborhood))                        # distinct neighborhoods in the data
+#&gt; [1] 40
+sort(table(homes$neighborhood))[1:5]                      # the five rarest: some have a single sale
+#&gt; NB32 NB35 NB39 NB40 NB29
+#&gt;    1    1    2    2    3
+ncol(model.matrix(~ neighborhood - 1, droplevels(homes))) # columns one-hot would create
+#&gt; [1] 40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Forty columns from one, and the rarest neighborhoods carry just one or two sales each. Those single-sale levels are the ones the trap will spring on. Hold that thought.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>Target encoding: a category becomes its target's average</h2>
+
+<p>Target encoding (also called mean or impact encoding) throws away the 40 columns and keeps <strong>one</strong>. For each neighborhood it computes the average sale price of the homes in it, then replaces the neighborhood label with that number. Expensive neighborhoods get a high number, cheap ones a low number, and the model reads the category as a single, ordered, informative feature.</p>
+
+<p>Write it precisely. For a category \(c\) (one neighborhood), let \(x_i\) be the category of home \(i\) and \(y_i\) its sale price. Target encoding replaces the category with the mean target over the rows in it:</p>
+
+<p>\[ \hat{e}_c \;=\; \frac{1}{n_c}\sum_{i:\,x_i = c} y_i, \]</p>
+
+<p>where \(n_c\) is the number of homes in category \(c\) and the sum runs over exactly those homes. In plain words: the encoded value of a neighborhood is the average price of the homes that are in it. Here are the busiest neighborhoods and the number each would become:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+homes %&gt;%
+  group_by(neighborhood) %&gt;%
+  summarise(n_sales = n(), avg_price = round(mean(price)), .groups = &quot;drop&quot;) %&gt;%
+  arrange(desc(n_sales)) %&gt;%
+  head(6)
+#&gt; # A tibble: 6 x 3
+#&gt;   neighborhood n_sales avg_price
+#&gt;   &lt;fct&gt;          &lt;int&gt;     &lt;dbl&gt;
+#&gt; 1 NB01             143       518
+#&gt; 2 NB02              70       619
+#&gt; 3 NB03              53       506
+#&gt; 4 NB05              33       361
+#&gt; 5 NB04              31       671
+#&gt; 6 NB06              23       351</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>NB01 has 143 sales averaging $518k, so every NB01 home gets the number 518. With dozens or hundreds of sales behind it, that average is a stable, trustworthy summary. The danger lives at the other end of the table.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What number does a one-sale neighborhood get?</h2>
+
+<p>In Maya's data the neighborhood <strong>Lakeview</strong> appears for exactly <strong>one</strong> home, which sold for <strong>$660k</strong>. Using the naive rule above (average the price over all homes in the neighborhood), what value does target encoding assign to Lakeview?</p>
+<section class="exercise" data-exercise-id="Target-Encoding-Without-Leakage-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">$660k, the price of that single home</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The average price across all neighborhoods</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Zero, because one sale is too little data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. With one sale the category mean is just that home's own price, so the encoded feature has quietly become a copy of the answer for that row. Remember this.</div><div class="lesson-qfb lesson-qfb-no">Target encoding still returns a mean from whatever rows exist; with one row that mean is that row's price. The whole danger is that it hands back a value, and that value is the answer.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>The hidden leak: the encoding peeks at its own answer</h2>
+
+<p>Look again at the formula and notice what is in the sum. When we encode home \(i\), the average \(\hat{e}_c\) is taken over all homes in its category, <strong>including home \(i\) itself</strong>. Pull that one term out:</p>
+
+<p>\[ \hat{e}_c \;=\; \frac{1}{n_c}\Big( y_i \;+\!\! \sum_{\substack{j:\,x_j = c \\ j \ne i}} y_j \Big). \]</p>
+
+<p>The encoded value Maya feeds the model for home \(i\) literally contains \(y_i\), the very price she is trying to predict. For a busy neighborhood with \(n_c = 143\), one home's price is a drop in the bucket and barely tilts the average. But for a single-sale neighborhood, \(n_c = 1\) and the formula collapses to \(\hat{e}_c = y_i\): the feature <strong>is</strong> the answer. This is <a href="Train-Validation-Test-and-Data-Leakage.html">data leakage</a> wearing a disguise, not a leftover column from the raw data, but a leak Maya engineered into a feature herself.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A target-encoded value must never be allowed to see the target of the row it is scoring. Naive encoding breaks that rule for every row, and breaks it completely for rare categories.</div></div>
+
+<p>The flip below makes the feel of a leak concrete: an honest split scores about 0.78, then flip the switch to sneak in a column built from the answer and watch the score balloon to a too-good-to-be-true 0.99.</p>
+<div class="lesson-widget" data-widget-type="data-split" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The smoking gun</div>
+<h2>Watch noise masquerade as signal</h2>
+
+<p>If a leaked feature looks brilliant, then a feature with <strong>no real signal at all</strong> should look brilliant too once we leak it. Let us prove it. We add a column of pure noise to Maya's data: a random <code>tag</code>, like a listing id, with nothing to do with price. Naive target encoding of that noise, then a one-feature model:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A column with NO link to price: a random tag, think a near-unique listing id
+set.seed(99)
+homes$tag &lt;- factor(sample(paste0(&quot;T&quot;, 1:180), nrow(homes), replace = TRUE))
+
+# Naive in-fold target encoding: each row's value = its tag's mean price, computed over
+# ALL rows of that tag, including this row's own price.
+naive &lt;- homes %&gt;% group_by(tag) %&gt;% mutate(tag_te = mean(price)) %&gt;% ungroup()
+round(summary(lm(price ~ tag_te, data = naive))$r.squared, 2)   # how much of price does noise &quot;explain&quot;?
+#&gt; [1] 0.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A column of random noise just "explained" 32% of sale price. That number is a mirage: with about three homes per tag, each tag's mean is dragged toward the row's own price, so the encoding partly memorises the answer. Now encode the <strong>same</strong> noise column the leak-free way, computing each row's tag mean from other rows only (the out-of-fold method we build next), and ask R the honest question:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Out-of-fold encoding of the SAME noise tag: each row's mean uses only OTHER folds
+set.seed(7)
+fold &lt;- sample(rep(1:5, length.out = nrow(homes)))
+homes$tag_oof &lt;- NA_real_
+for (k in 1:5) {
+  tag_mean &lt;- tapply(homes$price[fold != k], homes$tag[fold != k], mean)   # the other four folds
+  homes$tag_oof[fold == k] &lt;- tag_mean[as.character(homes$tag[fold == k])]
+}
+homes$tag_oof[is.na(homes$tag_oof)] &lt;- mean(homes$price)   # a tag unseen in the other folds -&gt; global mean
+round(summary(lm(price ~ tag_oof, data = homes))$r.squared, 2)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Zero. Encoded honestly, the noise is exposed as noise. The gap between 0.32 and 0.00 is exactly the leak, and it is invisible unless you encode the right way.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Out-of-fold encoding</h2>
+
+<p>The cure follows straight from the rule: never let a row's encoded value depend on that row's own target. So compute each row's category mean from <strong>other</strong> rows. The clean, general way to do this is to borrow the idea of cross-validation folds.</p>
+
+<p>Split the training rows into \(K\) equal groups, called folds (five is a common choice). To encode the rows in fold \(k\), use the category means computed only from the rows <strong>not</strong> in fold \(k\):</p>
+
+<p>\[ \hat{e}_c^{(-k)} \;=\; \frac{1}{n_c^{(-k)}}\sum_{\substack{j:\,x_j = c \\ j \notin \text{fold } k}} y_j, \]</p>
+
+<p>where \(n_c^{(-k)}\) counts the homes of category \(c\) that lie outside fold \(k\). Because home \(i\) sits inside fold \(k\), its own price \(y_i\) is never in that sum. Rotate through all \(K\) folds and every row gets an encoding built from data it never appears in. For a brand-new home at prediction time, there is no leakage to worry about, so you encode it with the category means from the whole training set.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split into folds","sub":"cut the training rows into K equal folds, often five"},{"title":"Hold one fold out","sub":"pick fold k as the rows you are about to encode"},{"title":"Encode from the rest","sub":"set each held-out row to its category mean computed on the OTHER folds only"},{"title":"Rotate and repeat","sub":"do this for every fold, so no row ever sees its own target"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Encode neighborhood out-of-fold</h2>
+
+<p>Here is the out-of-fold loop for the <strong>real</strong> <code>neighborhood</code> column. The one missing piece is the part that says "use only the other folds." Fill in both blanks so each home in fold <code>k</code> is encoded from the homes that are <strong>not</strong> in fold <code>k</code>.</p>
+<section class="exercise" data-exercise-id="Target-Encoding-Without-Leakage-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="fold\s*!=\s*k"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(7)
+fold &lt;- sample(rep(1:5, length.out = nrow(homes)))   # label every home with a fold 1..5
+homes$nb_oof &lt;- NA_real_
+
+for (k in 1:5) {
+  # Encode the homes in fold k using only the OTHER folds:
+  nb_mean &lt;- tapply(homes$price[____], homes$neighborhood[____], mean)
+  homes$nb_oof[fold == k] &lt;- nb_mean[as.character(homes$neighborhood[fold == k])]
+}
+homes$nb_oof[is.na(homes$nb_oof)] &lt;- mean(homes$price)   # a fold may miss a rare neighborhood
+round(summary(lm(price ~ nb_oof, data = homes))$r.squared, 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Out-of-fold done right: each home is encoded from neighbours it never shared a fold with, so nothing leaks. The real neighborhood signal still scores about 0.93, honestly this time.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the OTHER folds: fold != k. Indexing with fold == k would encode each home partly from itself, the leak you are removing.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(7)
+fold &lt;- sample(rep(1:5, length.out = nrow(homes)))
+homes$nb_oof &lt;- NA_real_
+
+for (k in 1:5) {
+  nb_mean &lt;- tapply(homes$price[fold != k], homes$neighborhood[fold != k], mean)
+  homes$nb_oof[fold == k] &lt;- nb_mean[as.character(homes$neighborhood[fold == k])]
+}
+homes$nb_oof[is.na(homes$nb_oof)] &lt;- mean(homes$price)
+round(summary(lm(price ~ nb_oof, data = homes))$r.squared, 2)
+#&gt; [1] 0.93</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The last rough edge</div>
+<h2>Rare categories still need a hand: smoothing</h2>
+
+<p>Out-of-fold encoding stops a row from seeing its own answer, but it cannot conjure data that is not there. A neighborhood with two sales still gets a mean built on two numbers, which is jumpy and unreliable. The standard remedy is <strong>smoothing</strong>: pull each category's mean toward the overall average, hard for rare categories and barely at all for common ones.</p>
+
+<p>\[ \hat{e}_c \;=\; \frac{n_c\,\bar{y}_c + m\,\bar{y}}{n_c + m}, \]</p>
+
+<p>where \(\bar{y}_c\) is the category's own mean, \(\bar{y}\) is the global mean of the target, \(n_c\) is the category's size, and \(m\) is a smoothing weight you choose (read it as \(m\) imaginary homes pinned at the global average). When \(n_c\) is large the category's own mean wins; when \(n_c\) is tiny the global mean takes over. Watch the rarest neighborhoods get reeled in:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">global &lt;- mean(homes$price)
+m      &lt;- 20                                   # smoothing strength: 20 pseudo-homes at the global mean
+homes %&gt;%
+  group_by(neighborhood) %&gt;%
+  summarise(n_sales  = n(),
+            raw_mean = round(mean(price)),
+            smoothed = round((n() * mean(price) + m * global) / (n() + m)),
+            .groups  = &quot;drop&quot;) %&gt;%
+  arrange(n_sales) %&gt;%
+  head(6)
+#&gt; # A tibble: 6 x 4
+#&gt;   neighborhood n_sales raw_mean smoothed
+#&gt;   &lt;fct&gt;          &lt;int&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 NB32               1      512      544
+#&gt; 2 NB35               1      338      535
+#&gt; 3 NB39               2      686      558
+#&gt; 4 NB40               2      580      548
+#&gt; 5 NB29               3      253      507
+#&gt; 6 NB36               3      657      560</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The global mean here is about $545k. Notice NB35: its lone sale of $338k would be a wild, untrustworthy encoding, but smoothing reels it almost all the way back to $535k, because one sale is barely evidence at all. A 143-sale neighborhood would hardly move.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">In a real project you do not hand-roll this. The tidymodels <code>embed</code> package does smoothed, out-of-fold target encoding for you inside a leak-safe recipe. Run this one locally:</div></div>
+
+<pre><code class="language-r">library(recipes)
+library(embed)   # supervised encoding steps for recipes
+
+rec &lt;- recipe(price ~ neighborhood + sqft, data = train) %&gt;%
+  step_lencode_mixed(neighborhood, outcome = vars(price))   # smoothed, partially-pooled target encoding
+
+prepped   &lt;- prep(rec, training = train)   # learns the encoding on TRAIN only
+train_enc &lt;- bake(prepped, new_data = train)
+test_enc  &lt;- bake(prepped, new_data = test)   # new homes encoded with train means, no leak</code></pre>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which procedure is leak-free?</h2>
+
+<p>Maya wants a target-encoded <code>neighborhood</code> column she can trust when she compares models with cross-validation. Which of these is the leak-free way to build it?</p>
+<section class="exercise" data-exercise-id="Target-Encoding-Without-Leakage-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Compute each neighborhood's mean price on the whole dataset, then split into train and test</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">For each row, use its neighborhood's mean from rows in OTHER folds only, filling unseen neighborhoods with the global mean</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Compute each neighborhood's mean including the current row, but only on the training set</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Out-of-fold encoding guarantees a row's value never depends on its own target, so the cross-validation score is honest.</div><div class="lesson-qfb lesson-qfb-no">Splitting first stops the TEST set leaking, but inside training each row still peeks at its own price, so the feature looks stronger in cross-validation than it truly is. Encode out-of-fold.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1145/507533.507538">Micci-Barreca (2001), A Preprocessing Scheme for High-Cardinality Categorical Attributes, SIGKDD Explorations 3(1)</a> - the original paper that introduced smoothed target (impact) encoding.</li>
+
+<li><a href="https://embed.tidymodels.org/">tidymodels embed package documentation</a> - the <code>step_lencode_*</code> steps that do leak-safe target encoding for you inside a recipe.</li>
+
+<li><a href="https://doi.org/10.1145/2382577.2382579">Kaufman et al. (2012), Leakage in Data Mining: Formulation, Detection, and Avoidance</a> - the canonical paper naming and dissecting data leakage.</li>
+
+<li><a href="https://bookdown.org/max/FES/">Kuhn and Johnson, Feature Engineering and Selection (free online)</a> - the chapter on encoding categorical predictors covers effect encoding and its risks in depth.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now turn a high-cardinality category into a single informative number with target encoding, see why the naive version leaks the answer (and leaks it completely for rare levels), encode out-of-fold in R so no row ever sees its own target, and smooth the rare categories so their estimates stay sane. Maya's noise-explains-a-third-of-price mirage will never fool you again.</p>
+
+<p>Next, Lesson 3: Scaling and Transformations. You will center, scale, and reshape numeric features (log, Box-Cox, Yeo-Johnson), learn which models care about scale and which do not, and keep every transform leak-free by fitting it on the training data alone, the same discipline you used here.</p>
+</section>
+
+{% endraw %}
