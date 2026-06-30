@@ -1,0 +1,269 @@
+---
+title: "ML Workflow Lesson 2: The Bias-Variance Tradeoff"
+description: "Master the bias-variance tradeoff: why simple models underfit, flexible ones overfit, the U-shaped test-error curve, and how to measure it honestly in R."
+keywords: "bias-variance tradeoff, overfitting, underfitting, model complexity, generalization error, train test error, bias variance decomposition, machine learning, R"
+mathjax: true
+webr: true
+curriculum_id: "6.10.2"
+post_type: "LESSON"
+course_id: "ds-ml-workflow"
+course_title: "The Machine Learning Workflow in R"
+course_lesson: "2"
+course_total: "4"
+course_landing: "R-ML-Workflow-Course.html"
+course_next: "Train-Validation-Test-and-Data-Leakage.html"
+course_prev: "Framing-a-Problem-as-ML.html"
+lesson_access: "free"
+catalog_blurb: "Why a more flexible model is not always a more accurate one."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 4</div>
+<h2>The Bias-Variance Tradeoff</h2>
+
+<p>In Lesson 1 we turned a fuzzy business question into a precise prediction problem. Now we meet the single idea that decides whether your model actually works on new data.</p>
+
+<p>Maya, a real-estate analyst, wants to predict a home's sale price from its size. Her first model is a flat rule: "every house is worth about $380k." It is steady, and steadily wrong. Her second model is a wildly flexible curve that passes through every single house she has on record. It is perfect on her records, and useless on the next house that comes up for sale. Both failed, in opposite ways. The space between them is what this lesson is about.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Name <strong>bias</strong> and <strong>variance</strong> as two separate sources of a model's error</li>
+
+<li>Explain why making a model more flexible trades one for the other, giving the famous U-shaped error curve</li>
+
+<li>Spot overfitting and underfitting from the gap between training and test error, and measure it in R</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you know what a training set and a test set are (Lesson 1).</p>
+<div class="lesson-widget" data-widget-type="bias-variance-target" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The two ways to miss</div>
+<h2>A model can be wrong in two different ways</h2>
+
+<p>Think of the dartboard above. The bullseye is the truth: a home's real price. Each dart is one model's prediction. Now picture something subtle but important: we never train on "the" data, we train on <em>one sample</em> of homes that happened to land in our spreadsheet. Draw a different sample next month and we would fit a slightly different model, throwing a slightly different dart.</p>
+
+<p>That gives two completely separate ways to miss:</p>
+
+<ul>
+
+<li><strong>Bias</strong> is <em>aim</em>. If every dart lands in the same spot but that spot is off to one side, the model is consistently, systematically wrong. Maya's flat "$380k for everyone" rule has high bias: it ignores size, so it is always too high for tiny homes and too low for mansions, no matter which sample she trains on.</li>
+
+<li><strong>Variance</strong> is <em>spread</em>. If the darts scatter all over the board, the model is wildly sensitive to which exact homes it saw. Maya's wiggly curve has high variance: feed it next month's listings and it draws a completely different shape.</li>
+
+</ul>
+
+<p>Slide the two controls below. Move <strong>bias</strong> to shove the cluster off the bullseye; move <strong>variance</strong> to scatter the darts. Watch the readout split the total error into a bias part and a variance part.</p>
+
+<p>The goal, the tight cluster on the bullseye, needs <em>both</em> low. The trouble is that the usual ways of lowering one tend to raise the other.</p>
+<div class="lesson-widget" data-widget-type="bias-variance-target" data-widget-config='{"bias":1.2,"variance":0.4}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting numbers on it</div>
+<h2>The error splits into exactly three pieces</h2>
+
+<p>That "two ways to miss" intuition is not hand-waving, it is an exact equation. Pick one specific house, say a 2,000 sq ft home, and call its true price \(f(x_0)\). The model we trained on one particular sample predicts \(\hat f(x_0)\). Now imagine redrawing the training sample over and over and refitting each time; the <em>average</em> of all those predictions is \(\mathbb{E}[\hat f(x_0)]\), where \(\mathbb{E}[\cdot]\) just means "average over many training samples."</p>
+
+<p>The expected squared error at that house then breaks into three terms that do not overlap:</p>
+
+<p>\[ \underbrace{\mathbb{E}\big[(y_0 - \hat f(x_0))^2\big]}_{\text{expected error}} = \underbrace{\big(\mathbb{E}[\hat f(x_0)] - f(x_0)\big)^2}_{\text{bias}^2} + \underbrace{\mathbb{E}\big[(\hat f(x_0) - \mathbb{E}[\hat f(x_0)])^2\big]}_{\text{variance}} + \underbrace{\sigma^2}_{\text{noise}} \]</p>
+
+<p>Reading it left to right: <strong>bias</strong> is how far the <em>average</em> prediction sits from the truth (the dashed line on the dartboard). <strong>Variance</strong> is how much individual predictions bounce around that average (the spread of the darts). And \(\sigma^2\) is the <strong>irreducible noise</strong>: the slice of price driven by things size can never explain, a motivated seller, a brand-new kitchen, plain luck.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">You can trade bias for variance, but you cannot send both to zero at once, and the noise term \(\sigma^2\) sets a hard floor that no model, however clever, ever beats.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Aim or spread?</h2>
+
+<p>A model gives almost the same prediction no matter which sample of homes it is trained on, but that prediction is consistently about $40k too low. In bias-variance terms, what does this model have?</p>
+<section class="exercise" data-exercise-id="The-Bias-Variance-Tradeoff-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">High variance, low bias</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">High bias, low variance</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">High bias and high variance</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Stable across samples (low variance) but systematically off target (high bias): the tight-but-off-the-bullseye dartboard, the signature of a too-simple model.</div><div class="lesson-qfb lesson-qfb-no">Not high variance: the predictions are stable from sample to sample. Only the aim is off, which is bias.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The dial that controls both</div>
+<h2>Complexity trades bias for variance</h2>
+
+<p>So what moves a model along the bias-variance line? <strong>Complexity</strong>: how flexible a shape the model is allowed to draw. A straight line is rigid (it can only tilt). A high-degree polynomial is flexible (it can wiggle through anything).</p>
+
+<ul>
+
+<li><strong>Too simple</strong> (low complexity): the model cannot bend to the real pattern, so it has <strong>high bias</strong>. Both training and test error stay high. This is <strong>underfitting</strong>.</li>
+
+<li><strong>Too flexible</strong> (high complexity): the model bends to fit every random bump in the training sample, so it has <strong>high variance</strong>. Training error keeps falling, but test error climbs because those bumps were noise, not signal. This is <strong>overfitting</strong>.</li>
+
+</ul>
+
+<p>Because complexity pushes bias down while pulling variance up, the error you actually care about, error on <em>new</em> data, traces a <strong>U</strong>: it falls as the model gets flexible enough to catch the real pattern, bottoms out at a sweet spot, then rises as the model starts memorizing noise.</p>
+
+<p>Drag the complexity slider below to feel it. The training curve slides down forever; the test curve dips, then turns back up. Then press Run to fit the very same polynomials to noisy data in R and see the two curves come out of real numbers.</p>
+<div class="lesson-widget" data-widget-type="bias-variance" data-widget-config='{"start":3}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Watch it happen</div>
+<h2>Overfitting, live</h2>
+
+<p>Does this only bite when you are predicting a number like price? Not at all. Maya also asks a yes/no question about the same homes: will this listing <strong>sell fast</strong> (within 30 days) or <strong>sell slow</strong>? That is a classification problem, and the exact same tradeoff governs it.</p>
+
+<p>Below is a real model fit in your browser. Each dot is a past listing, placed by two features; blue listings sold slow, orange sold fast. Drag the complexity slider. At low complexity the boundary is a smooth line that captures the broad trend. Crank it up and watch the boundary carve tiny islands around individual oddball listings: training accuracy marches toward 100%, while the test accuracy (the hollow points it never trained on) peaks and then falls. That falling test score is variance, made visible.</p>
+
+<p>A shallow model underfits. A deep one memorizes. The sweet spot sits in the middle, and you cannot find it by looking at training accuracy alone.</p>
+<div class="lesson-widget" data-widget-type="decision-region" data-widget-config='{"dataset":"two-blobs-diag","control":"max-depth","min":1,"max":10,"start":3,"showTest":true,"noise":"planted","seed":7,"labels":{"c0":"sells slow","c1":"sells fast"},"metrics":["train_acc","test_acc","verdict"]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which model ships?</h2>
+
+<p>You fit two models on the same data and score both on the same held-out test set, measuring error with RMSE (the typical prediction error, in thousands of dollars; lower is better). Model A: training RMSE 14, test RMSE 27. Model B (simpler): training RMSE 18, test RMSE 16. Which one should Maya put into production, and why?</p>
+<section class="exercise" data-exercise-id="The-Bias-Variance-Tradeoff-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Model A, because its training error (14) is the lowest, so it learned the data best</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Model B, because its test error (16) is lowest, so it will generalize better to new homes</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither, because you cannot compare models of different complexity</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Test error is the price you pay on data the model has never seen. B's small train-to-test gap means it overfits less and generalizes better, even though its training error is higher.</div><div class="lesson-qfb lesson-qfb-no">You can, and you should, as long as you judge them on the SAME held-out test set, which is exactly what these numbers are.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Now in R</div>
+<h2>Measure the tradeoff on Maya's homes</h2>
+
+<p>Time to make the U-curve concrete. Each lesson runs in a fresh R session, so we build Maya's dataset right here: 120 homes whose price follows a gentle curve in size (rising, then flattening as size hits the point where buyers stop paying more), plus real-world noise. We hold out 40 of them as a test set the model never sees while fitting.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n     &lt;- 120
+size  &lt;- round(runif(n, 800, 3500))                  # house size, square feet
+truth &lt;- 120 + 0.20 * size - 0.000035 * size^2       # the real price curve, $1000s
+price &lt;- round(truth + rnorm(n, 0, 18))              # truth + real-world noise
+houses &lt;- data.frame(size = size, price = price)
+
+set.seed(7)
+test_id &lt;- sample(n, 40)             # hold out 40 homes to judge the model honestly
+train   &lt;- houses[-test_id, ]
+test    &lt;- houses[ test_id, ]
+c(train_homes = nrow(train), test_homes = nrow(test))
+#&gt; train_homes  test_homes
+#&gt;          80          40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now fit three models of rising flexibility (a straight line, a gentle degree-3 curve, and a frantic degree-15 curve) and score each one on the homes it trained on versus the held-out homes. RMSE is the typical prediction error in thousands of dollars: lower is better.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse &lt;- function(actual, predicted) sqrt(mean((actual - predicted)^2))
+
+for (d in c(1, 3, 15)) {
+  fit &lt;- lm(price ~ poly(size, d), data = train)
+  tr  &lt;- rmse(train$price, predict(fit))
+  te  &lt;- rmse(test$price,  predict(fit, newdata = test))
+  cat(sprintf(&quot;degree %2d   train RMSE %5.1f   test RMSE %5.1f\n&quot;, d, tr, te))
+}
+#&gt; degree  1   train RMSE  26.2   test RMSE  22.5
+#&gt; degree  3   train RMSE  17.8   test RMSE  16.5
+#&gt; degree 15   train RMSE  14.5   test RMSE  26.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the three rows as the whole lesson in one table. The <strong>straight line</strong> (degree 1) is off on both train and test (26.2 and 22.5): it is too rigid to follow the curve, the classic high-bias <strong>underfit</strong>. The <strong>degree-3 curve</strong> is the sweet spot: lowest test error (16.5). The <strong>degree-15 curve</strong> has the lowest <em>training</em> error of all (14.5) yet the worst <em>test</em> error (26.9): it chased the noise, the classic high-variance <strong>overfit</strong>. Training error alone would have picked the worst model.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Judge a flexible model honestly</h2>
+
+<p>Here is an even more flexible degree-12 model. The dangerous move is to trust its training error. Your job: finish the line that scores it on the <strong>held-out</strong> homes, the 40 it never saw during fitting. Fill in the blank so <code>predict()</code> runs on the test set.</p>
+<section class="exercise" data-exercise-id="The-Bias-Variance-Tradeoff-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="newdata\s*=\s*test"><textarea class="lesson-tryit-input" spellcheck="false">flex &lt;- lm(price ~ poly(size, 12), data = train)
+
+train_rmse &lt;- rmse(train$price, predict(flex))            # error on homes it trained on
+test_rmse  &lt;- rmse(test$price,  predict(flex, ____))      # error on held-out homes
+c(train = round(train_rmse, 1), test = round(test_rmse, 1))</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is honest evaluation. The test error (20.1) is much worse than the training error (15.5), the overfitting gap laid bare.</span><span class="lesson-tryit-fb lesson-tryit-no">Tell predict() to use the held-out homes: predict(flex, newdata = test). Evaluating on train alone is exactly how overfitting hides.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">flex &lt;- lm(price ~ poly(size, 12), data = train)
+
+train_rmse &lt;- rmse(train$price, predict(flex))
+test_rmse  &lt;- rmse(test$price,  predict(flex, newdata = test))
+c(train = round(train_rmse, 1), test = round(test_rmse, 1))
+#&gt; train  test
+#&gt;  15.5  20.1</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">So what do you do</div>
+<h2>Finding the sweet spot</h2>
+
+<p>The U-curve has a bottom, but it is invisible if you only look at training error, which always smiles on more complexity. A few honest moves get you near the minimum:</p>
+
+<ul>
+
+<li><strong>Always judge on data the model did not train on.</strong> The train-to-test gap is your overfitting gauge. A small gap with low test error is the goal.</li>
+
+<li><strong>Use a validation set or cross-validation to tune complexity</strong>, instead of peeking at the test set repeatedly. That is the subject of Lesson 3, and it is how you choose the degree without fooling yourself.</li>
+
+<li><strong>Prefer the simplest model within noise of the best.</strong> If degree 3 and degree 5 score the same on held-out data, ship degree 3: less variance, easier to explain, less to break.</li>
+
+<li><strong>Get more data when you can.</strong> More training homes shrink variance, which lets you afford a more flexible model before it starts overfitting, nudging the whole sweet spot rightward.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">"More flexible" is not "more accurate." The model that wins on new data is the one that balances bias and variance, not the one that fits the training data best.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 2 (free PDF)</a> - the clearest first treatment of the bias-variance tradeoff, with the U-curve picture.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 7 (free PDF)</a> - the full derivation of the error decomposition and model assessment.</li>
+
+<li><a href="https://arxiv.org/abs/1812.11118">Belkin et al. (2019), "Reconciling modern machine learning and the bias-variance trade-off"</a> - the "double descent" result showing where the classic U-curve story needs an update for huge models.</li>
+
+<li><a href="https://rsample.tidymodels.org/">tidymodels: rsample documentation</a> - the R tooling for the honest resampling you will use in Lesson 3.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now name the two halves of a model's error, explain why complexity trades one for the other, and read overfitting straight off the gap between training and test error, in a dartboard, a U-curve, and a real RMSE table in R.</p>
+
+<p>Next, Lesson 3: Train, validation, test, and data leakage. You will learn how to split your data so the test set stays honest, and the cardinal sins (leakage) that quietly inflate your scores and wreck the model in production.</p>
+</section>
+
+{% endraw %}
