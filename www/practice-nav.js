@@ -81,6 +81,27 @@ window.XN_HUBS=[
       '<span class="xn-fl"><a href="/exercises/">Browse the full library '+ARR+'</a></span></div>';
   }
 
+  // ---- mobile sheet: a full-screen, tap-to-expand version of the same catalog ----
+  function mobileSheetHTML(){
+    var cats = window.XN_HUBS.map(function(cat,i){
+      var groups = cat[3].map(function(sg){
+        var hubs = sg[1].map(function(h){ return '<a class="xn-shub" href="/'+h[1]+'.html">'+esc(h[0])+'</a>'; }).join('');
+        return '<div class="xn-ssgl">'+esc(sg[0])+'</div><div class="xn-shubs">'+hubs+'</div>';
+      }).join('');
+      return '<div class="xn-scatw"><button class="xn-scat" data-i="'+i+'" aria-expanded="false">'+
+        '<span class="xn-cg">'+svg(cat[1])+'</span><span class="xn-scn">'+esc(cat[0])+'</span>'+
+        '<span class="xn-cc">'+catCount(cat)+'</span>'+
+        '<svg class="xn-schev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>'+
+        '<div class="xn-spanel" hidden>'+groups+'</div></div>';
+    }).join('');
+    return '<div class="xn-sheet-hd"><span class="xn-sheet-t">Practice</span><button class="xn-sheet-x" aria-label="Close">&times;</button></div>'+
+      '<div class="xn-sheet-strip">'+TOTAL+' hubs &middot; 2,904 problems &middot; graded the moment you press Check</div>'+
+      '<div class="xn-sheet-body">'+cats+
+        '<div class="xn-scatw"><a class="xn-scat xn-scat-q" href="/certifications"><span class="xn-cg">'+svg('MEDAL')+'</span><span class="xn-scn">Mastery Quizzes</span><span class="xn-cc">11</span>'+ARR+'</a></div>'+
+      '</div>'+
+      '<a class="xn-sheet-foot" href="/exercises/">Browse the full library '+ARR+'</a>';
+  }
+
   function userStrip(streak, xp){
     var k = (streak && streak > 0) ? (streak + '-day streak' + (xp ? (' &middot; ' + xp + ' XP') : ''))
                                    : (xp ? (xp + ' XP earned') : 'your progress is saved');
@@ -95,7 +116,7 @@ window.XN_HUBS=[
     if (!link || link.closest('.xn-wrap')) return;
 
     if (!document.querySelector('link[data-xn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=2';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=3';
       l.setAttribute('data-xn-css', ''); document.head.appendChild(l);
     }
 
@@ -132,6 +153,27 @@ window.XN_HUBS=[
     link.addEventListener('click', function(e){ if (window.innerWidth > 980){ e.preventDefault(); setOpen(!open); } });
     document.addEventListener('click', function(e){ if (open && !wrap.contains(e.target)) setOpen(false); });
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && open) setOpen(false); });
+
+    // mobile: tap the hamburger "Exercises" -> full-screen catalog sheet (tap-to-expand)
+    var sheet = null;
+    function ensureSheet(){
+      if (sheet) return;
+      sheet = document.createElement('div'); sheet.className = 'xn-sheet'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Practice catalog');
+      sheet.innerHTML = mobileSheetHTML(); document.body.appendChild(sheet);
+      sheet.querySelector('.xn-sheet-x').addEventListener('click', closeSheet);
+      sheet.querySelectorAll('.xn-scat[data-i]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var pnl = b.nextElementSibling, on = b.getAttribute('aria-expanded') === 'true';
+          b.setAttribute('aria-expanded', on ? 'false' : 'true'); if (pnl) pnl.hidden = on;
+        });
+      });
+    }
+    function openSheet(){ ensureSheet(); document.documentElement.classList.add('xn-lock'); sheet.classList.add('xn-sheet-open'); }
+    function closeSheet(){ if (sheet) sheet.classList.remove('xn-sheet-open'); document.documentElement.classList.remove('xn-lock'); }
+    Array.prototype.forEach.call(document.querySelectorAll('.mnav-link[href="/exercises/"]'), function(a){
+      a.addEventListener('click', function(e){ if (window.innerWidth <= 980){ e.preventDefault(); openSheet(); } });
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
 
     // personalization: default is visitor; swap to signed-in when authenticated.
     var strip = drop.querySelector('[data-xn-strip]');
