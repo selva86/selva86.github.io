@@ -33,12 +33,23 @@
   function toSignin(){location.replace('/signin.html?next=/dashboard.html');}
   function fmtDate(sec){try{return new Date(sec*1000).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});}catch(e){return '';}}
 
+  // Arriving via "Start free" (?start) means the visitor came to BEGIN a course. Lead with
+  // "Your courses", greet them with a fresh-start welcome, and tuck away the empty reading-
+  // resume block. A returning visitor still sees their reading-resume - just below the courses.
+  var courseFirst=/[?&]start(?:=|&|$)/.test(location.search);
+  if(courseFirst){
+    var _m=document.querySelector('main.wrap'),_c=$('dh-courses'),_r=$('dh-resume');
+    if(_m&&_c&&_r)_m.insertBefore(_c,_r);
+    var _h1=document.querySelector('.hello h1');if(_h1&&_h1.firstChild&&_h1.firstChild.nodeType===3)_h1.firstChild.textContent='Welcome';
+  }
+
   function tile(big,label,cls,delta){return '<div class="stat'+(cls?' '+cls:'')+'"><b class="mono">'+big+'</b><span>'+label+'</span>'+(delta?'<span class="delta">'+esc(delta)+'</span>':'')+'</div>';}
   function row(icon,title,sub,href,end){return '<a class="row" href="'+href+'">'+ic(icon)+'<span class="rt"><b>'+esc(title)+'</b><span>'+esc(sub)+'</span></span>'+end+'</a>';}
 
   function renderResume(item){
     var el=$('dh-resume');
-    if(!item){el.innerHTML='<section class="resume" style="--c:var(--core)"><span class="ck">Start learning</span><h2 class="disp">Begin the roadmap</h2><div class="clip">Pick a track and your first lesson is one click away.</div><div class="go"><a class="primary" href="/roadmap/">Browse the roadmap <span class="a">&rarr;</span></a></div></section>';return;}
+    if(!item){if(courseFirst){el.hidden=true;return;}el.innerHTML='<section class="resume" style="--c:var(--core)"><span class="ck">Start learning</span><h2 class="disp">Begin the roadmap</h2><div class="clip">Pick a track and your first lesson is one click away.</div><div class="go"><a class="primary" href="/roadmap/">Browse the roadmap <span class="a">&rarr;</span></a></div></section>';return;}
+    el.hidden=false;
     var pct=Math.max(2,Math.min(100,item.scroll_pct||0));
     el.innerHTML='<section class="resume" style="--c:var(--ds)"><span class="ck">Continue learning</span>'+
       '<h2 class="disp">'+esc(titleFor(item.slug))+'</h2>'+
@@ -119,7 +130,8 @@
         '<div class="pbar"><div class="pfill" style="width:'+w+'%"></div></div>'+
         '<div class="dh-course-go">'+btn+'<a class="ghost" href="/roadmap/'+t.page+'.html">View track</a></div></div>';
     }).join('');
-    if(html){host.innerHTML=html;var sec=$('dh-courses');if(sec)sec.hidden=false;}
+    if(html){host.innerHTML=html;var sec=$('dh-courses');if(sec){sec.hidden=false;
+      if(courseFirst){var ck=sec.querySelector('.ck');if(ck)ck.textContent='Start here';var h2=sec.querySelector('h2.disp');if(h2)h2.textContent='Pick a course and dive in';}}}
   }
 
   function render(d){
@@ -130,7 +142,7 @@
 
     setText('dh-name', first?(', '+first):'');
     var sub=$('dh-sub'); sub.classList.remove('dh-skel');
-    sub.innerHTML= streak>0 ? ('You are on a <b>'+streak+'-day streak.</b> Pick up where you left off.') : 'Pick up where you left off.';
+    sub.innerHTML= courseFirst ? 'You are all set. Pick a free course below and start learning.' : (streak>0 ? ('You are on a <b>'+streak+'-day streak.</b> Pick up where you left off.') : 'Pick up where you left off.');
     if(streak>0){setText('dh-streakn',streak);$('dh-streakchip').hidden=false;}
 
     var best=stats.longest_streak_days||streak;
