@@ -1,0 +1,291 @@
+---
+title: "Feature Engineering Lesson 4: Interaction and Spline Features"
+description: "Make a linear model bend without overfitting: interaction terms for conditional effects, plus polynomials and natural splines that fit curved relationships."
+keywords: "interaction features, spline features, polynomial features, natural splines, basis expansion, nonlinear regression, leak-free pipeline, feature engineering, R"
+mathjax: true
+webr: true
+curriculum_id: "6.60.4"
+post_type: "LESSON"
+course_id: "ds-feature-engineering"
+course_title: "Feature Engineering in R"
+course_lesson: "4"
+course_total: "7"
+course_landing: "R-Feature-Engineering-Course.html"
+course_next: "Features-from-Dates-Text-and-Geo.html"
+course_prev: "Scaling-and-Transformations.html"
+lesson_access: "free"
+catalog_blurb: "How to let a linear model capture curves and conditional effects without overfitting."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 7</div>
+<h2>Interaction and Spline Features</h2>
+
+<p>In Lesson 3 you reshaped a single feature's <em>distribution</em>, taming skew so a model could use it. This lesson reshapes something different: the model's <em>flexibility</em>. We hand a plain linear model the power to bend.</p>
+
+<p>Meet our running example. A small ice-cream cart on a seaside promenade writes down, for each day, the high temperature, whether it was a weekend, and how many cups it sold. Sales climb as the day warms up, peak around a perfect beach afternoon near 28C, then fall when it gets too hot to stand in line. That shape is a curve, and a straight line cannot follow it.</p>
+
+<p>Drag the line in the chart below. Each dot is a day: warmer to the right, more cups sold higher up. However you tilt the line, it misses. The red squares (each one a squared error) never shrink away, because the relationship bends and a line does not.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Build an interaction so one feature's effect can depend on another</li>
+
+<li>Use polynomials and splines to fit a curved relationship with <code>lm()</code></li>
+
+<li>Add just enough flexibility to capture the shape without overfitting</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit <code>lm()</code> and read a coefficient (<a href="OLS-Regression-from-Scratch.html">OLS Regression from Scratch</a>), and you have met dummy-coding a factor (<a href="Encoding-Categorical-Variables.html">Encoding Categorical Variables</a>).</p>
+<div class="lesson-widget" data-widget-type="ols-fit" data-widget-config='{"points":[{"x":1,"y":2.2},{"x":2,"y":3.4},{"x":3,"y":4.5},{"x":4,"y":5.3},{"x":5,"y":5.6},{"x":6,"y":5.4},{"x":7,"y":4.7},{"x":8,"y":3.6},{"x":9,"y":2.3}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Why a linear model is "straight"</h2>
+
+<p>Suppose we just hand the cart's two features to <code>lm()</code>. The fitted equation looks like this:</p>
+
+<p>\( \widehat{\text{sales}} = \beta_0 + \beta_1\,\text{temp} + \beta_2\,\text{weekend} \)</p>
+
+<p>Reading the symbols: \(\widehat{\text{sales}}\) is the predicted number of cups; \(\text{temp}\) is the day's temperature; \(\text{weekend}\) is a 0/1 dummy (1 on weekends, 0 otherwise); \(\beta_0\) is the intercept; \(\beta_1\) is cups per extra degree; \(\beta_2\) is the flat weekend bump. "Linear" means the prediction is a weighted sum of the columns, that is, linear in the coefficients \(\beta\).</p>
+
+<p>That innocent-looking equation makes two rigid promises:</p>
+
+<ul>
+
+<li><strong>One straight slope.</strong> \(\beta_1\) is a single number, so every extra degree adds the <em>same</em> cups whether it is 14C or 34C. No hump allowed.</li>
+
+<li><strong>A parallel shift.</strong> Weekend only adds a flat \(\beta_2\); the temperature slope is identical on weekdays and weekends, so the two groups can never differ in how strongly heat drives sales.</li>
+
+</ul>
+
+<p>Real life breaks both promises, and there is a clean fix for each. <strong>Fix 1, interactions:</strong> let one feature's slope depend on another. <strong>Fix 2, basis expansion:</strong> let a single feature's effect curve. The rest of the lesson is those two moves.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fix 1</div>
+<h2>When one feature's effect depends on another</h2>
+
+<p>Picture two hot days at the cart. On a hot <em>weekday</em> most people are at work, so a few extra walk-ups buy a cup. On a hot <em>weekend</em> the whole promenade is packed, so the same extra degree converts a much bigger crowd. Heat pays off more on weekends: the temperature <em>slope</em> is steeper there. A flat weekend bump (\(\beta_2\)) simply cannot say that, because it shifts every day up by the same amount no matter the temperature.</p>
+
+<p>The fix is an <strong>interaction term</strong>, a new column that is the <em>product</em> of the two features:</p>
+
+<p>\( \widehat{\text{sales}} = \beta_0 + \beta_1\,\text{temp} + \beta_2\,\text{weekend} + \beta_3\,(\text{temp}\times\text{weekend}) \)</p>
+
+<p>Now read the temperature slope by group. On a weekday \(\text{weekend}=0\), so the product term vanishes and the slope is just \(\beta_1\). On a weekend \(\text{weekend}=1\), so the slope becomes \(\beta_1 + \beta_3\). The interaction coefficient \(\beta_3\) is exactly <em>how much steeper</em> the weekend slope is. If \(\beta_3 > 0\), each degree sells more cups on weekends than on weekdays.</p>
+
+<p>The chart fits one straight line per group. Press Run: the weekend line climbs faster than the weekday line. Two non-parallel lines are the visual signature of an interaction.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"x":"temp","y":"sales","geoms":["point"],"data":[{"x":14,"y":118,"fill":"weekday"},{"x":18,"y":128,"fill":"weekday"},{"x":22,"y":135,"fill":"weekday"},{"x":26,"y":141,"fill":"weekday"},{"x":30,"y":146,"fill":"weekday"},{"x":14,"y":150,"fill":"weekend"},{"x":18,"y":168,"fill":"weekend"},{"x":22,"y":182,"fill":"weekend"},{"x":26,"y":198,"fill":"weekend"},{"x":30,"y":210,"fill":"weekend"}],"code":{"point":"ggplot(df, aes(temp, sales, color = group)) +\n  geom_point(size = 2) +\n  geom_smooth(method = \"lm\", se = FALSE)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Build the interaction in R</h2>
+
+<p>First, the cart's data. Each lesson runs in a fresh R session, so we generate a realistic season right here (run this once):</p>
+<section class="exercise" data-exercise-id="Interaction-and-Spline-Features-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="temp\s*[*:]\s*weekend"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(1)
+n &lt;- 200
+temp    &lt;- round(runif(n, 12, 38), 1)        # the day's high temperature, in Celsius
+weekend &lt;- rbinom(n, 1, 0.30)                # 1 on weekends (busier promenade), else 0
+# Cups sold: a hump in temperature (best near 28C, then too hot to linger),
+# plus a weekend crowd that makes every degree count for more.
+mu    &lt;- 40 + 9 * temp - 0.16 * temp^2 + weekend * (15 + 0.9 * temp)
+sales &lt;- round(mu + rnorm(n, 0, 12))         # add ordinary day-to-day noise
+cart  &lt;- data.frame(
+  temp    = temp,
+  weekend = factor(weekend, labels = c(&quot;weekday&quot;, &quot;weekend&quot;)),
+  sales   = sales
+)
+str(cart)
+#&gt; 'data.frame':  200 obs. of  3 variables:
+#&gt;  $ temp   : num  ...
+#&gt;  $ weekend: Factor w/ 2 levels &quot;weekday&quot;,&quot;weekend&quot;: ...
+#&gt;  $ sales  : num  ...</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes. temp * weekend adds the product column, so weekday and weekend get different temperature slopes.</span><span class="lesson-tryit-fb lesson-tryit-no">Type temp <em> weekend - the </em> expands to temp + weekend + temp:weekend.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">fit_int &lt;- lm(sales ~ temp * weekend, data = cart)
+round(coef(fit_int), 2)
+#&gt;         (Intercept)                temp      weekendweekend  temp:weekendweekend
+#&gt;              131.00                1.05               14.80                 0.91
+# Your numbers will be close (the season is randomly generated). The last term,
+# temp:weekendweekend, is positive: each degree adds ~0.9 cups MORE on weekends.</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the interaction</h2>
+
+<p>Your fitted model gives a positive <code>temp:weekendweekend</code> coefficient (about +0.9). What does that one number tell you?</p>
+<section class="exercise" data-exercise-id="Interaction-and-Spline-Features-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">On weekends, each extra degree adds about 0.9 cups MORE than it does on a weekday, so the temperature slope is steeper on weekends.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Weekends sell about 0.9 more cups than weekdays, no matter the temperature.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Temperature has no effect on weekday sales.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The interaction is the DIFFERENCE in slopes: the weekday slope is b1 and the weekend slope is b1 + b3, so b3 is the extra cups-per-degree you get on weekends.</div><div class="lesson-qfb lesson-qfb-no">Weekday sales still rise with temperature at slope b1. The interaction only says the weekend slope is steeper, not that the weekday slope is zero.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fix 2, part one</div>
+<h2>Polynomials: bend the line with powers</h2>
+
+<p>Interactions handled the weekend twist. Now the harder problem: sales versus temperature is not a line at all, it is a hump. No interaction fixes that, because the bend lives in temperature itself.</p>
+
+<p>Here is the trick, called <strong>basis expansion</strong>: keep <code>lm()</code>, but feed it extra columns built from temperature. The simplest is to add temperature squared.</p>
+
+<p>\( \widehat{\text{sales}} = \beta_0 + \beta_1\,\text{temp} + \beta_2\,\text{temp}^2 \)</p>
+
+<p>With a negative \(\beta_2\) that is a downward parabola: it rises, peaks, and falls, exactly the hump we need. And notice the prediction is still a weighted sum of columns, so it is still a <em>linear model</em> (linear in the \(\beta\)'s). We did not change the engine, only the columns we feed it. <code>poly(temp, 2)</code> builds those columns for you.</p>
+
+<p>Run the chart. The degree-2 curve (red) hugs the hump. But greed is tempting: if 2 is good, why not 9? The degree-9 curve (blue) threads closer to individual points in the middle, then flails at the edges, inventing swings the data never showed. That edge wildness is the <strong>Runge phenomenon</strong>, and it is overfitting in plain sight.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ggplot(cart, aes(temp, sales)) +
+  geom_point(alpha = 0.35) +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ poly(x, 2),
+              se = FALSE, colour = &quot;firebrick&quot;) +    # degree 2: a clean hump
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ poly(x, 9),
+              se = FALSE, colour = &quot;steelblue&quot;) +    # degree 9: wiggles at the edges
+  labs(title = &quot;Degree 2 fits the hump; degree 9 wiggles at the ends&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A high-degree polynomial is one stiff curve forced to bend everywhere at once. To wiggle through the middle it must lurch at the ends. More degree buys edge chaos, not a better fit.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fix 2, part two</div>
+<h2>Splines: bend locally, stay calm at the edges</h2>
+
+<p>A polynomial bends with one global formula, which is why pushing it harder makes the <em>whole</em> curve thrash. A <strong>spline</strong> fixes this by going local.</p>
+
+<p>Picture cutting the temperature axis at a few points called <strong>knots</strong>. Between each pair of knots the spline fits its own little cubic curve, and the pieces are joined so smoothly you cannot see the seams (the value and the slope match at every knot). Because each piece only answers for its own stretch of temperature, a wiggle on the hot end cannot ripple back and disturb the cool end.</p>
+
+<p>A <strong>natural</strong> cubic spline adds one more rule: beyond the outermost knots it must go straight. That tames exactly the edge flailing that wrecked the degree-9 polynomial. You set the flexibility with one knob, the <strong>degrees of freedom</strong> (<code>df</code>): roughly the number of basis columns, and so the number of separate bends the curve is allowed. More <code>df</code>, more bend.</p>
+
+<p>\( \widehat{\text{sales}} = \beta_0 + \beta_1 b_1(\text{temp}) + \dots + \beta_k b_k(\text{temp}) \)</p>
+
+<p>Each \(b_j(\text{temp})\) is one spline basis column that <code>splines::ns()</code> computes from temperature, and \(k\) is the <code>df</code>. It is the same <code>lm()</code> as ever, just fed these cleverly shaped columns. Run it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ggplot(cart, aes(temp, sales)) +
+  geom_point(alpha = 0.35) +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ splines::ns(x, df = 4),
+              se = FALSE, colour = &quot;firebrick&quot;) +
+  labs(title = &quot;Natural spline (df = 4): bends to the hump, straight at the edges&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A natural spline with <code>df = 4</code> adds four basis columns, so the model has five coefficients (the intercept plus one per column):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_ns &lt;- lm(sales ~ splines::ns(temp, df = 4), data = cart)
+length(coef(fit_ns))   # intercept + 4 spline columns
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Spline or high-degree polynomial?</h2>
+
+<p>For the cart's hump you could use a degree-9 polynomial or a natural spline with <code>df = 4</code>. Why is the natural spline usually the safer choice?</p>
+<section class="exercise" data-exercise-id="Interaction-and-Spline-Features-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A spline can fit any dataset with exactly zero error, so it is always more accurate.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It bends locally between knots and a natural spline stays straight in the tails, so it captures the hump without the wild edge swings a high-degree polynomial produces.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Polynomials cannot represent curved relationships at all.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Local pieces plus straight tails give controlled, stable flexibility: the same shape with far less edge chaos.</div><div class="lesson-qfb lesson-qfb-no">They can. A degree-2 polynomial already drew the hump. The problem is only that HIGH-degree polynomials wiggle at the edges, which splines avoid.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Use it responsibly</div>
+<h2>How much to bend, without leaking</h2>
+
+<p>Every bend you add is borrowed flexibility, and flexibility is paid for in <strong>variance</strong>: a more flexible model swings more from one sample of days to the next, the same overfitting you watched in the degree-9 curve. So <code>df</code> is not a free dial, it is the exact knob from the bias-variance tradeoff. Too low and you miss the hump (underfit); too high and you chase noise (overfit).</p>
+
+<p>You do not guess it. You let the data choose, by trying a few values of <code>df</code> and keeping the one with the best <strong>cross-validated</strong> error, the honest held-out score from earlier in the course, never the training fit (which always rewards more bend).</p>
+
+<p>And one trap, the theme of this whole course: a spline is a <em>learned</em> transform. Its knots are placed at quantiles of the data you give it, so if you build the basis on all your rows before splitting, the test set has leaked into your features. The fix is to make the basis part of the pipeline, fit on the training fold and replayed, with the same knots, on the test fold. In tidymodels that is one step:</p>
+
+<pre><code class="language-r"># In a tidymodels pipeline (the recipes package), the spline lives INSIDE the
+# recipe: prep() learns the knots from the TRAINING rows only, and bake() reuses
+# those exact knots on new data, so nothing leaks.
+rec &lt;- recipe(sales ~ temp + weekend, data = train) |&gt;
+  step_ns(temp, deg_free = 4) |&gt;                  # natural-spline basis for temp
+  step_dummy(weekend) |&gt;                           # weekend -&gt; a 0/1 column
+  step_interact(~ starts_with(&quot;temp_ns&quot;):weekend_weekend)   # spline-by-weekend interaction
+
+# Then tune deg_free with cross-validation; the knots come only from each fold.</code></pre>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Where can a spline leak?</h2>
+
+<p>A teammate builds the natural-spline basis for <code>temp</code> on the full dataset, then splits into train and test to score the model. The numbers look great. What went wrong?</p>
+<section class="exercise" data-exercise-id="Interaction-and-Spline-Features-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing went wrong. A spline basis is a fixed mathematical formula, so it cannot leak.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The knots are learned from the data, so building the basis on every row lets the test rows shape the features. The basis must be fit on the training fold and replayed, with the same knots, on the test fold.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Splines can never be combined with a train and test split.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A spline is a learned transform, so it belongs inside the pipeline: prep() learns the knots from training rows only, and bake() replays those same knots on new data.</div><div class="lesson-qfb lesson-qfb-no">They can, and should. You fit the basis on the training fold and reuse those exact knots on the test fold, which is exactly what step_ns() inside a recipe does.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 7 "Moving Beyond Linearity" (free PDF)</a> - the gentlest full treatment of polynomials, splines and GAMs.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 5 "Basis Expansions and Regularization" (free PDF)</a> - the math of spline bases and why natural splines behave at the edges.</li>
+
+<li><a href="https://doi.org/10.1186/s12874-019-0666-3">Perperoglou et al. (2019), "A review of spline function procedures in R", BMC Med Res Methodol</a> - which spline function to reach for in R, and the trade-offs.</li>
+
+<li><a href="https://recipes.tidymodels.org/reference/step_ns.html">recipes: step_ns() reference (tidymodels)</a> - the leak-free way to put a spline inside a modeling pipeline.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You gave a linear model two new powers: interactions, so one feature's effect can depend on another, and basis expansion (polynomials and splines), so a single feature's effect can curve. And you saw the catch: every bend costs variance, so you choose <code>df</code> by cross-validation and fit the basis inside a leak-free pipeline.</p>
+
+<p>Next, Lesson 5: Features from Dates, Text and Geo. The signal is often hiding in columns that are not numbers yet, a timestamp, a product name, a pair of coordinates, and you will learn to pull model-ready features out of all three.</p>
+</section>
+
+{% endraw %}
