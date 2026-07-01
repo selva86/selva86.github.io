@@ -1,0 +1,474 @@
+---
+title: "Causal Inference Lesson 5: When You Cannot Randomize"
+description: "You cannot always randomize. See how matching and difference-in-differences recover a causal effect from observational data, and the assumption each one buys."
+keywords: "difference-in-differences, matching, causal inference in R, parallel trends, natural experiment, confounding, observational data, selection bias, average treatment effect"
+mathjax: true
+webr: true
+curriculum_id: "6.10.5"
+post_type: "LESSON"
+course_id: "ds-causal"
+course_title: "Causal Inference in R"
+course_lesson: "5"
+course_total: "5"
+course_landing: "R-Causal-Inference-Course.html"
+course_next: ""
+course_prev: "Reading-an-Experiment.html"
+lesson_access: "free"
+catalog_blurb: "Estimate a causal effect when you cannot run a randomized experiment."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 5</div>
+<h2>When You Cannot Randomize</h2>
+
+<p>In Lesson 4 you turned Riverside Books' A/B test into an honest, bounded conclusion. That test was clean because Riverside got to flip a coin: each visitor was randomly shown the old page or the new panel, so the two groups were alike in every way except the one thing being tested. Randomization is what made the causal claim easy.</p>
+
+<p>Most real questions do not come with a coin flip. The change already happened before anyone thought to test it. Or randomizing would be impossible, unfair, or absurd: you cannot randomly assign customers to "loves reading" or "does not," and you cannot give half your city free shipping while charging the other half just to measure it. When you cannot randomize, you are left with data the world handed you, and a hard job: recover a causal effect anyway, honestly.</p>
+
+<p>This lesson gives you the two workhorse tools for exactly that, and, just as importantly, teaches you to name the price each one charges. Every method below buys a causal answer with one assumption you can never fully prove. The map below is the whole lesson.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why comparing two groups that <strong>chose</strong> themselves is biased, and measure that bias against the truth</li>
+
+<li>Build a <strong>matched</strong> comparison group in R, and state the assumption it rests on</li>
+
+<li>Compute a <strong>difference-in-differences</strong> estimate, read the counterfactual it draws, and state the assumption <em>it</em> rests on</li>
+
+<li>Pick a method by the assumption you can actually defend, and scope your causal claim honestly</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you finished <a href="Correlation-Causation-and-Potential-Outcomes.html">Lesson 1</a> (confounding, potential outcomes \(Y(0)\) and \(Y(1)\), what a causal effect is) and <a href="Reading-an-Experiment.html">Lessons 3 to 4</a> (a randomized A/B test, the confidence interval). You can run R and take a mean. Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"You cannot randomize","sub":"the change already happened, or a fair coin flip is impossible"},{"title":"Matching","sub":"build a comparison group that looks like the treated one"},{"title":"Difference-in-differences","sub":"compare the change over time, treated versus untreated"},{"title":"Name the price","sub":"each method buys a causal answer with one assumption you must defend"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>Comparing groups that chose themselves</h2>
+
+<p>Here is Riverside's new problem. It launched a free <strong>membership</strong> (early access to sales, a nicer wish-list), and the numbers look great: members spend far more than non-members. Marketing wants to credit the membership. But nobody was <em>assigned</em> to join. Customers who signed up were the keen ones, the people who already spent more. So the two groups were never alike, and the raw gap mixes two things: any real effect of the membership, plus the head start the joiners already had.</p>
+
+<p>We can see the trap exactly, because we will build the data ourselves and secretly plant a known truth. Each customer has a <code>prior</code> (last year's spend) and a <code>spend</code> (this year's). We set the real membership effect to exactly <strong>$5</strong>, and let members be the higher-<code>prior</code> customers to begin with. Each lesson runs in its own fresh R session, so we build everything inline.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Riverside launched a free membership. Members later spent more, but customers
+# CHOSE to join, so the two groups were never alike to begin with.
+control &lt;- data.frame(prior = c(40, 45, 50, 55, 60, 70, 80, 90))  # non-members: last year's spend
+control$spend &lt;- control$prior                 # with no membership, this year just tracks last year
+
+member &lt;- data.frame(prior = c(55, 60, 70, 80, 90))               # joiners: already bigger spenders
+member$spend  &lt;- member$prior + 5              # membership adds exactly $5 (the truth we planted)
+
+naive &lt;- mean(member$spend) - mean(control$spend)   # the tempting comparison
+c(member_avg = mean(member$spend), nonmember_avg = mean(control$spend), naive_gap = naive)
+#&gt;    member_avg nonmember_avg     naive_gap 
+#&gt;         76.00         61.25         14.75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The naive gap is <strong>$14.75</strong>, almost three times the true $5. Written as a formula, the comparison you were tempted to make is not the effect alone:</p>
+
+<p>\[ \underbrace{\bar Y_{\text{members}} - \bar Y_{\text{non-members}}}_{\text{naive gap } = \$14.75} \;=\; \underbrace{\tau}_{\text{true effect } = \$5} \;+\; \underbrace{\text{selection bias}}_{\text{joiners already spent more}}, \]</p>
+
+<p>where \(\bar Y\) is a group's average spend and \(\tau\) (tau) is the causal effect we want. The extra \$9.75 is <strong>selection bias</strong>: the difference in what the two groups would have spent even with no membership at all. The picture makes the head start obvious.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+grp &lt;- rbind(
+  data.frame(group = &quot;non-members&quot;, prior = control$prior),
+  data.frame(group = &quot;members&quot;,     prior = member$prior)
+)
+ggplot(grp, aes(prior, group)) +
+  geom_point(size = 3.4, colour = &quot;#1f7a55&quot;, alpha = 0.75) +
+  labs(x = &quot;Prior-year spend ($)&quot;, y = NULL,
+       title = &quot;Members were bigger spenders BEFORE they ever joined&quot;,
+       subtitle = &quot;A coin flip would have mixed the two rows together; self-selection did not&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first tool</div>
+<h2>Matching: compare like with like</h2>
+
+<p>If the problem is that members and non-members are not comparable, the fix is to <em>make</em> them comparable. <strong>Matching</strong> does the simplest possible version: for each treated unit, find an untreated unit that looks like it on the things you measured, and compare only within those look-alike pairs. Match a member who spent $70 last year to a non-member who also spent about $70, and the head start cancels, because both would have spent about the same without any membership.</p>
+
+<p>Here it is from scratch, no special package: for every member, pick the non-member with the closest <code>prior</code> spend, and take that look-alike's outcome as the member's stand-in for "what would have happened without joining."</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># For each member, find the non-member with the closest prior-year spend,
+# and use that look-alike's outcome as the &quot;what if they had not joined&quot; value.
+matched_ctrl &lt;- sapply(member$prior, function(p) {
+  control$spend[which.min(abs(control$prior - p))]   # the nearest non-member's spend
+})
+pairs &lt;- data.frame(member_prior = member$prior,
+                    member_spend = member$spend,
+                    matched_control_spend = matched_ctrl,
+                    pair_effect = member$spend - matched_ctrl)
+pairs
+#&gt;   member_prior member_spend matched_control_spend pair_effect
+#&gt; 1           55           60                    55           5
+#&gt; 2           60           65                    60           5
+#&gt; 3           70           75                    70           5
+#&gt; 4           80           85                    80           5
+#&gt; 5           90           95                    90           5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every pair now differs by exactly the effect, and averaging the pair effects gives the honest number:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">att &lt;- mean(pairs$pair_effect)   # the average effect for the members who actually joined
+att
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Matching recovered the true <strong>$5</strong>. The inflated $14.75 was the confounder talking; comparing like with like silenced it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ests &lt;- data.frame(
+  label = c(&quot;Naive difference&quot;, &quot;Matched, like for like&quot;, &quot;True planted effect&quot;),
+  value = c(14.75, 5, 5)
+)
+ests$label &lt;- factor(ests$label, levels = rev(ests$label))   # keep the reading order top to bottom
+ggplot(ests, aes(value, label)) +
+  geom_col(fill = &quot;#1f7a55&quot;, width = 0.6) +
+  geom_text(aes(label = value), hjust = -0.15, size = 4.2) +
+  xlim(0, 17) +
+  labs(x = &quot;Estimated membership effect ($)&quot;, y = NULL,
+       title = &quot;Comparing like with like collapses the inflated gap&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the whole idea, but it works only under a strong assumption. Matching balanced the groups on <code>prior</code> spend, and on anything else you fed it, and on <strong>nothing else</strong>. Formally, matching needs</p>
+
+<p>\[ \{Y(0), Y(1)\} \perp T \mid X, \qquad 0 < \Pr(T = 1 \mid X) < 1, \]</p>
+
+<p>read as: once you condition on the measured covariates \(X\), which treatment \(T\) a unit got (\(1\) = joined, \(0\) = did not) carries no more information about its potential outcomes \(Y(0), Y(1)\), and both groups actually overlap on \(X\) (there is <em>someone</em> to match to). The first part is called <strong>unconfoundedness</strong> or <strong>ignorability</strong>; the second is <strong>overlap</strong>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Matching can only balance what you measured. If members also differ on something you never recorded, say they simply love reading more, that hidden driver stays baked into your $5, and matching will not warn you. Randomization balances the unmeasured things for free; matching does not.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What did matching actually buy?</h2>
+
+<p>Riverside matched members to non-members on prior spend, and the estimated effect fell from $14.75 to $5. A colleague concludes: "Matching removed the confounding, so $5 is the true causal effect, done." What is the honest caveat?</p>
+<section class="exercise" data-exercise-id="When-You-Cannot-Randomize-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Matching balanced prior spend and anything else you measured, but not what you did not; if members also differ on some unmeasured trait, that difference is still inside the $5</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Matching is invalid here because the two groups had different average prior spend to begin with</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The $5 must be wrong, because a matched estimate is always smaller than the naive one</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Matching buys unconfoundedness <em>given the measured covariates</em>. It is a real improvement over the naive gap, but it is only as trustworthy as the list of things you matched on. A hidden common cause survives it.</div><div class="lesson-qfb lesson-qfb-no">There is no such rule. Matching moved the estimate down here only because the confounder inflated the naive gap; when the confounder points the other way, matching moves the estimate up. It corrects, it does not always shrink.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second tool</div>
+<h2>Difference-in-differences: use before and after</h2>
+
+<p>Matching needs look-alike individuals. But some changes hit a whole group at once, with no per-person control to match to. Riverside just switched on <strong>free shipping</strong> in its <strong>West</strong> market on a known date, and left its <strong>East</strong> market on the old policy. You cannot match a West customer to a West customer who did not get free shipping, because every West customer got it.</p>
+
+<p>The trick is to bring in <strong>time</strong>. Compare West's spend <em>before and after</em> the launch, then subtract off East's <em>before-and-after</em> change over the same window. East never got free shipping, so its change is a clean picture of the season, the economy, everything that would have nudged West too. Whatever West did <em>beyond</em> that is the effect. That is <strong>difference-in-differences (DiD)</strong>: a difference over time, minus a difference over time.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Free shipping launched in WEST on a known date; EAST kept the old policy and shows
+# the trend West would have followed anyway. Four customers per cell, means built exact.
+cell &lt;- function(mu) mu + c(-3, -1, 1, 3)          # 4 customers; their mean is exactly mu
+did &lt;- data.frame(
+  region = rep(c(&quot;East&quot;, &quot;East&quot;, &quot;West&quot;, &quot;West&quot;), each = 4),
+  period = rep(c(&quot;before&quot;, &quot;after&quot;, &quot;before&quot;, &quot;after&quot;), each = 4),
+  spend  = c(cell(42), cell(46), cell(50), cell(60))
+)
+
+m &lt;- tapply(did$spend, list(did$region, did$period), mean)   # the four group means
+m
+#&gt;      before after
+#&gt; East     42    46
+#&gt; West     50    60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the four numbers. East drifted up $4 on its own (42 to 46). West rose $10 (50 to 60), but $4 of that was just the same drift that lifted East. The difference-in-differences strips the shared drift out:</p>
+
+<p>\[ \widehat{\text{DiD}} = \big(\bar Y^{\,\text{West}}_{\text{after}} - \bar Y^{\,\text{West}}_{\text{before}}\big) - \big(\bar Y^{\,\text{East}}_{\text{after}} - \bar Y^{\,\text{East}}_{\text{before}}\big), \]</p>
+
+<p>where each \(\bar Y\) is one of the four group means above. Plugging in: \((60 - 50) - (46 - 42) = 10 - 4 = 6\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">did_hand &lt;- (m[&quot;West&quot;,&quot;after&quot;] - m[&quot;West&quot;,&quot;before&quot;]) - (m[&quot;East&quot;,&quot;after&quot;] - m[&quot;East&quot;,&quot;before&quot;])
+did_hand
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So free shipping is worth about <strong>$6</strong> per customer, not the $10 a naive before-and-after on West alone would have claimed, and not the $14 you would get comparing West to East after the fact. The picture shows why: East's line is the ruler.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+# Four observed means, plus the COUNTERFACTUAL: where West would have landed if it had
+# only followed East's +4 change. The gap from that dashed point to West's real value is the effect.
+plot_df &lt;- data.frame(
+  period = factor(c(&quot;before&quot;,&quot;after&quot;,&quot;before&quot;,&quot;after&quot;), levels = c(&quot;before&quot;,&quot;after&quot;)),
+  region = c(&quot;East&quot;,&quot;East&quot;,&quot;West&quot;,&quot;West&quot;),
+  spend  = c(42, 46, 50, 60)
+)
+counterfactual &lt;- data.frame(period = factor(c(&quot;before&quot;,&quot;after&quot;), levels = c(&quot;before&quot;,&quot;after&quot;)),
+                             spend = c(50, 54))     # West's start, then start + East's +4 change
+ggplot(plot_df, aes(period, spend, colour = region, group = region)) +
+  geom_line(linewidth = 1.1) + geom_point(size = 3.2) +
+  geom_line(data = counterfactual, aes(period, spend, group = 1),
+            linetype = &quot;dashed&quot;, colour = &quot;grey45&quot;, inherit.aes = FALSE) +
+  annotate(&quot;text&quot;, x = 2, y = 57, label = &quot;effect = $6&quot;, hjust = 1.05) +
+  scale_colour_manual(values = c(East = &quot;#b5631a&quot;, West = &quot;#1f7a55&quot;)) +
+  labs(x = NULL, y = &quot;Average monthly spend ($)&quot;,
+       title = &quot;West rose more than East, and the extra rise is the effect&quot;,
+       subtitle = &quot;Dashed line: where West would have landed if it had only tracked East&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Under the hood</div>
+<h2>It is really just one regression</h2>
+
+<p>You do not compute difference-in-differences by hand in practice. It falls straight out of a single regression, which is handy, because a regression also hands you the standard error and confidence interval you met in Lesson 4, for free.</p>
+
+<p>First, a reminder of what "fit a regression" even means, since DiD leans on it. A regression finds the line that makes the total <strong>squared</strong> error as small as possible: for each point it measures the vertical miss to the line, squares it, and picks the slope and intercept that shrink the sum of those squares. Drag the line below and watch the squares, and their total, grow and shrink; the "Snap" button jumps to the least-squares answer.</p>
+
+<p>Now the DiD trick. Code two 0/1 flags: <code>treated</code> (is this the West market?) and <code>post</code> (is this after the launch?). Regress spend on both flags <strong>and their interaction</strong>. The interaction coefficient, the effect of being West <em>and</em> after at the same time, is exactly the difference-in-differences.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">did$treated &lt;- as.integer(did$region == &quot;West&quot;)   # 1 = the free-shipping (West) market
+did$post    &lt;- as.integer(did$period == &quot;after&quot;)   # 1 = after the launch date
+fit &lt;- lm(spend ~ treated * post, data = did)
+coef(fit)
+#&gt;  (Intercept)      treated         post treated:post 
+#&gt;           42            8            4            6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every coefficient is a piece of the story. The intercept ($42) is East before the launch. <code>treated</code> ($8) is how much higher West started. <code>post</code> ($4) is the shared drift East shows. And <code>treated:post</code> is <strong>$6</strong>, the same difference-in-differences, now with a standard error attached (run <code>summary(fit)</code> or <code>confint(fit)</code> to see it, exactly as in Lesson 4). One line of <code>lm</code> gives you the estimate <em>and</em> its uncertainty.</p>
+<div class="lesson-widget" data-widget-type="ols-fit" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The price</div>
+<h2>What difference-in-differences buys: parallel trends</h2>
+
+<p>Difference-in-differences used East as the ruler for West. That only works if East really is a fair ruler, and that is the assumption you are buying. It is called <strong>parallel trends</strong>: absent the treatment, the two groups would have changed by the same amount. In symbols,</p>
+
+<p>\[ \mathbb{E}\!\left[\,Y_{\text{after}}(0) - Y_{\text{before}}(0) \mid \text{West}\,\right] \;=\; \mathbb{E}\!\left[\,Y_{\text{after}}(0) - Y_{\text{before}}(0) \mid \text{East}\,\right], \]</p>
+
+<p>where \(Y(0)\) is the spend a group <em>would</em> have had with <strong>no</strong> free shipping. In plain words: without the launch, West's change would have equaled East's change. Notice the trap, this is about the world where West was <em>not</em> treated, which we never observe, so parallel trends can never be fully proven. You can only make it <em>credible</em>, and the usual way is to look at the periods <strong>before</strong> the launch: if the two markets moved in step back then, it is reasonable they would have kept doing so.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+# Support (never prove) parallel trends: look at the months BEFORE free shipping.
+# If East and West moved in step before the launch, the assumption is believable.
+pre &lt;- data.frame(
+  month  = rep(1:4, 2),
+  region = rep(c(&quot;East&quot;, &quot;West&quot;), each = 4),
+  spend  = c(39, 40, 41, 42,     # East drifts up $1 a month
+             47, 48, 49, 50)     # West drifts up $1 a month, in parallel
+)
+ggplot(pre, aes(month, spend, colour = region)) +
+  geom_line(linewidth = 1.1) + geom_point(size = 2.6) +
+  scale_colour_manual(values = c(East = &quot;#b5631a&quot;, West = &quot;#1f7a55&quot;)) +
+  labs(x = &quot;Month before the launch&quot;, y = &quot;Average monthly spend ($)&quot;,
+       title = &quot;Before free shipping, the two markets moved in parallel&quot;,
+       subtitle = &quot;Parallel PRE-trends make the parallel-trends assumption credible&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">If West was already pulling away from East <em>before</em> free shipping, say West was booming and East was flat, then difference-in-differences mistakes that pre-existing divergence for an effect. The method cannot tell a real treatment effect from two groups that were already drifting apart. Always plot the pre-trends before you trust the number.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which assumption is doing the work?</h2>
+
+<p>Difference-in-differences gave a $6 effect for free shipping in the West market. Which single assumption is carrying that causal claim, and what would break it?</p>
+<section class="exercise" data-exercise-id="When-You-Cannot-Randomize-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Parallel trends: without free shipping, West would have changed by the same amount East did. It breaks if West was already pulling ahead of East before the launch, because then that pre-existing divergence gets counted as the effect</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That West and East had the same average spend before the launch; if the before levels differ, DiD is invalid</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">That customers were randomly assigned to the West or East market; without random assignment DiD cannot be used</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. DiD subtracts East's change as a stand-in for West's missing counterfactual change, which is only fair if the two would have trended together. A diverging pre-trend is exactly what invalidates it.</div><div class="lesson-qfb lesson-qfb-no">DiD exists precisely because there was no random assignment. It never assumes it. What it assumes instead is that the untreated groups would have <em>trended</em> together over time.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute a difference-in-differences</h2>
+
+<p>Riverside's <strong>North</strong> store launched a loyalty-points program; its <strong>South</strong> store did not, and serves as the control. Average monthly spend went <strong>30 to 38</strong> at North and <strong>28 to 31</strong> at South. Finish the difference-in-differences: subtract the control store's own change (the second difference) from North's change, so any trend hitting both stores cancels.</p>
+<section class="exercise" data-exercise-id="When-You-Cannot-Randomize-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="south_after\s*-\s*south_before"><textarea class="lesson-tryit-input" spellcheck="false"># North store launched loyalty points; South store did not (the control).
+north_before &lt;- 30; north_after &lt;- 38
+south_before &lt;- 28; south_after &lt;- 31
+# Fill in the SECOND difference so this is a difference-in-differences:
+did_estimate &lt;- (north_after - north_before) - ____
+did_estimate</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right, $5. North rose $8, but South rose $3 on its own, so only $8 minus $3 = $5 is left for loyalty points to explain, AND only if the two stores would otherwise have trended together (parallel trends again).</span><span class="lesson-tryit-fb lesson-tryit-no">You need the control store's own change as the second difference: (south_after - south_before). Subtract it from North's change so any shared trend cancels out.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">north_before &lt;- 30; north_after &lt;- 38
+south_before &lt;- 28; south_after &lt;- 31
+did_estimate &lt;- (north_after - north_before) - (south_after - south_before)
+did_estimate
+#&gt; [1] 5</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Which method, and what it costs you</h2>
+
+<p>You now have three ways to compare a treated group to an untreated one, and the whole point of this lesson is that they differ not in arithmetic but in the <strong>assumption</strong> each one quietly charges. Line them up:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>What it assumes</th>
+<th>When it breaks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Naive comparison</td>
+<td>the two groups were already alike</td>
+<td>almost always: they chose their own group</td>
+</tr>
+<tr>
+<td>Matching</td>
+<td>no <em>unmeasured</em> common cause, and the groups overlap</td>
+<td>a hidden driver you never measured</td>
+</tr>
+<tr>
+<td>Difference-in-differences</td>
+<td>parallel trends: equal change without treatment</td>
+<td>the groups were already drifting apart</td>
+</tr>
+</tbody>
+</table>
+
+<p>None of these assumptions can be fully tested from the data you have, which is the permanent difference between a randomized experiment and an observational one. Randomization <em>earns</em> comparability; matching and difference-in-differences <em>assume</em> it, in a specific, nameable way. That is not a reason to avoid them, they are often the only tools you get, it is a reason to always say out loud which assumption you are leaning on, show the evidence for it (balance tables for matching, pre-trend plots for DiD), and scope the claim to what that assumption supports.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://mixtape.scunning.com/">Cunningham, Causal Inference: The Mixtape (free online)</a> - a friendly, worked treatment of matching and difference-in-differences with real studies and R/Stata code.</li>
+
+<li><a href="https://doi.org/10.1214/09-STS313">Stuart (2010), Matching Methods for Causal Inference: A Review and a Look Forward</a> - the standard survey of how matching works and exactly where it fails.</li>
+
+<li><a href="https://kosukeimai.github.io/MatchIt/articles/MatchIt.html">MatchIt: Getting Started (R package vignette)</a> - the practical R toolkit for doing matching properly, well past the from-scratch version here.</li>
+
+<li><a href="https://www.nber.org/papers/w4509">Card and Krueger (1994), Minimum Wages and Employment (NBER working paper)</a> - the famous natural experiment that put difference-in-differences on the map.</li>
+
+<li><a href="https://www.mostlyharmlesseconometrics.com/">Angrist and Pischke, Mostly Harmless Econometrics</a> - the reference on these designs and the assumptions they demand.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You can now attack a causal question even when a coin flip is off the table. You saw why comparing groups that chose themselves is biased, and measured that bias ($14.75 naive versus a true $5) against a planted truth. You built a <strong>matched</strong> comparison from scratch to recover the honest effect, and named its price: no <em>unmeasured</em> confounders, plus overlap. You computed <strong>difference-in-differences</strong> on Riverside's free-shipping rollout, read the $6 effect off the counterfactual East drew, saw it fall out of a single regression, and named <em>its</em> price: parallel trends. And you lined all three methods up by the assumption each one charges, because that ledger, not the arithmetic, is what separates a defensible causal claim from a hopeful one.</p>
+
+<p>That closes <strong>Causal Inference in R</strong>. Across five lessons you went from "correlation is not causation" and the potential-outcomes idea, through causal diagrams, designing and reading a randomized experiment, to recovering causal effects when you cannot randomize at all. The through-line: a causal claim is only ever as strong as the assumption behind it, so state it, defend it, and scope it. Take that discipline into every "did it work?" question you meet next.</p>
+</section>
+
+{% endraw %}
