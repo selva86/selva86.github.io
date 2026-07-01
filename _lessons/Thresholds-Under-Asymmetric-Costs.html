@@ -1,0 +1,342 @@
+---
+title: "Imbalanced Classification Lesson 3: Thresholds Under Asymmetric Costs"
+description: "A missed fraud costs far more than a false alarm, so leave the data alone and move the decision threshold. Find the cost-optimal cutoff in R, step by step."
+keywords: "classification threshold, asymmetric costs, cost-sensitive classification, decision threshold, false negative cost, expected cost, imbalanced classification, R"
+mathjax: true
+webr: true
+curriculum_id: "6.80.3"
+post_type: "LESSON"
+course_id: "ds-imbalanced-classification"
+course_title: "Imbalanced Classification in R"
+course_lesson: "3"
+course_total: "6"
+course_landing: "R-Imbalanced-Classification-Course.html"
+course_next: "ROC-PR-Lift-and-Gains-Curves.html"
+course_prev: "Class-Imbalance-and-Resampling.html"
+lesson_access: "free"
+catalog_blurb: "Set the cutoff by what each error costs, not a default 0.5."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 6</div>
+<h2>Thresholds Under Asymmetric Costs</h2>
+
+<p>SecureBank's fraud model looks at a $900 online purchase and returns one number: a 34% chance it is fraud. The model has done its job. Now a human decision is left: flag it, or let it through? Answer "flag it only if the chance is above 50%" and the bank waves through every fraud the model rated under a coin flip. Each one it waves through is a $500 chargeback.</p>
+
+<p>In Lesson 2 you rebalanced the training data to catch more fraud, and paid for it in precision and distorted probabilities. This lesson does not touch the data or retrain anything. It moves one dial, the decision threshold, and lets the cost of each mistake decide where that dial should sit.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Explain why the default 0.5 cutoff is arbitrary, and that moving it changes predictions with no retraining</li>
+
+<li>Read an asymmetric cost matrix and decide which way to move the threshold</li>
+
+<li>Price a set of predictions in R and sweep the threshold to find the cheapest cutoff</li>
+
+<li>Use the cost-optimal threshold formula to pick a cutoff directly</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit a classifier that outputs a probability (<a href="Logistic-Regression-Done-Properly.html">Logistic Regression Done Properly</a>), and you know precision, recall and a confusion matrix (<a href="Class-Imbalance-and-Resampling.html">Class Imbalance and Resampling</a>).</p>
+
+<p>Drag the threshold below and watch the flagged points, and the mistakes, change.</p>
+<div class="lesson-widget" data-widget-type="logistic-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>The score, not the label</h2>
+
+<p>A classifier does not really output "fraud" or "legit". It outputs a <strong>probability</strong>: SecureBank's model gives that $900 purchase a fraud probability of \(p = 0.34\). The yes/no label only appears when you compare that probability to a cutoff.</p>
+
+<p>That is the decision rule, and it is the whole game:</p>
+
+<p>\[ \hat{y} = 1 \iff p \ge t \]</p>
+
+<p>Here \(p\) is the model's predicted probability of the positive class (fraud), \(t\) is the <strong>threshold</strong> you choose, and \(\hat{y} = 1\) means "predict fraud". Most software defaults to \(t = 0.5\), so people forget it is a choice at all. It is not a law of the model; it is a knob. Slide the threshold on the curve in the previous step and the same fixed S-curve keeps its shape while the cutoff line, and the set of flagged transactions, moves.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Training fixes the probabilities. The threshold is a separate, after-the-fact decision. You can change it in one line, with no retraining, and it is the single lever that trades missed fraud against false alarms.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why the cutoff matters</div>
+<h2>Not all mistakes cost the same</h2>
+
+<p>At \(t = 0.5\) that $900 purchase (scored 0.34) is let through. If it really was fraud, the bank eats a <strong>$500 chargeback</strong>. Flagging a legit purchase instead is not free either, a review call and a briefly annoyed customer, but it is nowhere near as expensive. Put real numbers on the four outcomes:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model decides</th>
+<th>Actually legit</th>
+<th>Actually fraud</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Flag</strong> (predict fraud)</td>
+<td>false positive: <strong>$100</strong></td>
+<td>true positive: $0</td>
+</tr>
+<tr>
+<td><strong>Allow</strong> (predict legit)</td>
+<td>true negative: $0</td>
+<td>false negative: <strong>$500</strong></td>
+</tr>
+</tbody>
+</table>
+
+<p>A <strong>false positive</strong> (FP) is a legit transaction we flagged, a false alarm. A <strong>false negative</strong> (FN) is a real fraud we let through, a miss. Here a miss costs five times a false alarm. That imbalance in the <em>costs</em> (not the class counts of Lesson 2) is what "asymmetric costs" means.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">When the two errors cost the same, 0.5 is a sensible cutoff. The moment one error is more expensive than the other, 0.5 is almost never the right place to stand, and the more lopsided the costs, the further you should move.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which way do you move it?</h2>
+
+<p>A missed fraud costs SecureBank $500; a false alarm costs $100. You are still using the default cutoff of 0.5. To act on those costs, which way should you move the threshold?</p>
+<section class="exercise" data-exercise-id="Thresholds-Under-Asymmetric-Costs-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Lower it, so the model flags more transactions</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Raise it, so the model flags fewer transactions</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Leave it at 0.5; the threshold has nothing to do with costs</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A miss is five times costlier than a false alarm, so you accept more false alarms to catch more fraud. Lowering the cutoff flags anything above a smaller probability.</div><div class="lesson-qfb lesson-qfb-no">0.5 is only a default. The threshold is exactly the knob that trades false alarms against missed fraud, so the costs are what should set it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">See the trade</div>
+<h2>Every cutoff is a different confusion matrix</h2>
+
+<p>There is no cutoff that makes both errors disappear. Lowering the threshold catches more real positives (fewer false negatives) but flags more negatives too (more false positives). Drag the threshold below. The confusion matrix on the right recounts, and the operating point slides along the curve of every possible threshold at once.</p>
+
+<p>Each position is one confusion matrix. Choosing a threshold means choosing one point on that curve, and the costs tell you which point is worth standing on.</p>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Put a number on it</div>
+<h2>Price the whole batch</h2>
+
+<p>To choose well, stop eyeballing and add up the money. At a threshold \(t\), the total cost of a batch of predictions is just the mistakes times their prices:</p>
+
+<p>\[ \text{Cost}(t) = C_{FN}\cdot \text{FN}(t) + C_{FP}\cdot \text{FP}(t) \]</p>
+
+<p>where \(C_{FN}\) and \(C_{FP}\) are the dollar costs of a miss and a false alarm, and \(\text{FN}(t)\) and \(\text{FP}(t)\) are how many of each you make at that cutoff. Let us compute it on a real batch. Each lesson runs in a fresh R session, so we build the scored transactions right here (run this once).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># SecureBank's model already scored a batch of 28 card transactions.
+# score  = the model's estimated P(fraud); actual = what really happened (1 = fraud).
+score &lt;- c(0.01, 0.01, 0.02, 0.02, 0.02, 0.03, 0.03, 0.04, 0.04, 0.05,
+           0.05, 0.06, 0.07, 0.08, 0.09, 0.11, 0.13, 0.15, 0.16, 0.22,   # 20 legit
+           0.19, 0.27, 0.41, 0.55, 0.68, 0.80, 0.89, 0.96)               # 8 fraud
+actual &lt;- c(rep(0, 20), rep(1, 8))
+table(actual)
+#&gt; actual
+#&gt;  0  1 
+#&gt; 20  8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now put the prices in and write the cost as a function of the threshold:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cost_FN &lt;- 500   # dollars per missed fraud (a chargeback the bank refunds)
+cost_FP &lt;- 100   # dollars per false alarm (a review call + an annoyed customer)
+
+total_cost &lt;- function(t) {
+  flag &lt;- score &gt;= t                 # flag &quot;fraud&quot; when the score clears the cutoff t
+  FN &lt;- sum(!flag &amp; actual == 1)     # real fraud we let through
+  FP &lt;- sum( flag &amp; actual == 0)     # legit transactions we flagged
+  FN * cost_FN + FP * cost_FP
+}
+
+total_cost(0.50)                     # the price of the default cutoff
+#&gt; [1] 1500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The default cutoff misses three of the eight frauds. Three chargebacks at $500 is <strong>$1,500</strong> for this one batch. The question is whether a different cutoff does better.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>The cost-optimal cutoff</h2>
+
+<p>You could try every threshold and keep the cheapest. You can also derive the best one directly. Look at a single transaction the model scores at probability \(p\), and weigh the two choices by their expected cost:</p>
+
+<ul>
+
+<li><strong>Flag it.</strong> You are wrong only if it was actually legit, which happens with probability \(1 - p\). Expected cost: \((1 - p)\,C_{FP}\).</li>
+
+<li><strong>Let it through.</strong> You are wrong only if it was actually fraud, which happens with probability \(p\). Expected cost: \(p\,C_{FN}\).</li>
+
+</ul>
+
+<p>Flagging is the cheaper move exactly when \((1 - p)\,C_{FP} < p\,C_{FN}\). Solve that for \(p\) and the cutoff falls out:</p>
+
+<p>\[ t^* = \frac{C_{FP}}{C_{FP} + C_{FN}} \]</p>
+
+<p>For SecureBank that is \(100 / (100 + 500) = 0.167\), not 0.5. Now confirm it by brute force: sweep every cutoff and price each one.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try every cutoff between the scores and price each one.
+grid &lt;- seq(0.005, 0.995, by = 0.01)
+cost &lt;- sapply(grid, total_cost)
+
+grid[which.min(cost)]                # the cheapest cutoff
+#&gt; [1] 0.165
+min(cost)                            # its total cost
+#&gt; [1] 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t_star &lt;- cost_FP / (cost_FP + cost_FN)   # the closed-form optimum
+t_star
+#&gt; [1] 0.1666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The brute-force sweep bottoms out at 0.165, right where the formula points (0.167). Standing there instead of at 0.5 changes everything about this batch:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same model, same scores. Only the cutoff moved.
+rbind(
+  &quot;cutoff 0.50&quot; = c(caught = sum(score &gt;= 0.50 &amp; actual == 1),
+                    missed = sum(score &lt;  0.50 &amp; actual == 1),
+                    alarms = sum(score &gt;= 0.50 &amp; actual == 0)),
+  &quot;cutoff 0.17&quot; = c(caught = sum(score &gt;= 0.17 &amp; actual == 1),
+                    missed = sum(score &lt;  0.17 &amp; actual == 1),
+                    alarms = sum(score &gt;= 0.17 &amp; actual == 0))
+)
+#&gt;             caught missed alarms
+#&gt; cutoff 0.50      5      3      0
+#&gt; cutoff 0.17      8      0      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Moving the cutoff from 0.50 to 0.17 caught all eight frauds instead of five, at the price of one false alarm. Total cost fell from $1,500 to $100. Same model, same data, no retraining, one number changed.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Write the optimal-cutoff formula</h2>
+
+<p>The cost-optimal threshold is the false-alarm cost divided by the sum of both error costs. Fill in the denominator, then check it.</p>
+<section class="exercise" data-exercise-id="Thresholds-Under-Asymmetric-Costs-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="cost_F[PN]\s*\+\s*cost_F[PN]"><textarea class="lesson-tryit-input" spellcheck="false">cost_FP &lt;- 100    # a false alarm
+cost_FN &lt;- 500    # a missed fraud
+t_star &lt;- cost_FP / (____)   # the cost-optimal cutoff
+t_star</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: cost_FP / (cost_FP + cost_FN) = 100 / 600 = 0.167. As the miss cost grows, that fraction shrinks toward 0, pushing the cutoff down.</span><span class="lesson-tryit-fb lesson-tryit-no">The denominator is the SUM of both costs: cost_FP + cost_FN. So t_star = cost_FP / (cost_FP + cost_FN).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">cost_FP &lt;- 100
+cost_FN &lt;- 500
+t_star &lt;- cost_FP / (cost_FP + cost_FN)
+t_star
+#&gt; [1] 0.1666667</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Push the costs to an extreme</h2>
+
+<p>A hospital screens for a serious disease. A missed case (false negative) is catastrophic, while a false alarm just triggers a cheap follow-up test, so \(C_{FN}\) is enormous next to \(C_{FP}\). Using \(t^* = C_{FP} / (C_{FP} + C_{FN})\), where does the optimal threshold go?</p>
+<section class="exercise" data-exercise-id="Thresholds-Under-Asymmetric-Costs-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Toward 0, so you flag almost everyone for follow-up</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Toward 1, so you flag almost no one</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It stays at 0.5 regardless of the costs</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. As \(C_{FN}\) dwarfs \(C_{FP}\), the fraction \(C_{FP}/(C_{FP}+C_{FN})\) shrinks toward 0. You set a very low bar: catch every possible case and accept many false alarms, because a miss is the disaster.</div><div class="lesson-qfb lesson-qfb-no">0.5 is optimal only when the two errors cost the same. Here they differ by a huge factor, so \(t^*\) moves far off 0.5.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>When moving the threshold is the right fix</h2>
+
+<p>Threshold-moving is the cheapest tool in the imbalance toolkit: no retraining, no new data, one number. But it rests on assumptions worth stating out loud.</p>
+
+<ol>
+
+<li><strong>It needs trustworthy probabilities.</strong> \(t^<em>\) is only truly optimal if the model's scores are </em>calibrated*, so a 0.2 really means a 20% chance. Resampling (Lesson 2) and many models distort that. When the probabilities are off, the sweep still finds a good cutoff empirically, but the formula's value can be wrong. Fixing the probabilities themselves is Lesson 5.</li>
+
+<li><strong>It needs known, stable costs.</strong> If a chargeback is $500 today and $50 next quarter, so is the optimal cutoff. Revisit \(t^*\) when the costs change.</li>
+
+<li><strong>Pick the threshold on validation data, never the test set.</strong> Sweeping thresholds is a form of tuning. Choose the cutoff on a validation split, then report performance on an untouched test set, exactly the discipline from Lesson 2.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Threshold-moving changes <em>decisions</em>, not the <em>model</em>. If the ranking of scores is poor (a low AUC), no cutoff will save it, and you need a better model, more data, or the class weights and resampling from earlier lessons. Moving the threshold only helps when the model already separates the classes reasonably well.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://cseweb.ucsd.edu/~elkan/rescale.pdf">Elkan (2001), The Foundations of Cost-Sensitive Learning (IJCAI)</a> - the paper that derives the optimal threshold from a cost matrix, the source of the \(t^*\) formula.</li>
+
+<li><a href="https://doi.org/10.1023/A:1007601015854">Provost and Fawcett (2001), Robust Classification for Imprecise Environments, Machine Learning 42</a> - how to choose an operating point when costs and class rates are uncertain.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - a gentle treatment of thresholds, confusion matrices and the sensitivity/specificity trade-off.</li>
+
+<li><a href="https://probably.tidymodels.org/">probably: post-processing class probabilities (tidymodels)</a> - the R package that tunes a classification threshold for your chosen metric, the production version of the sweep you did here.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You saw that a classifier outputs probabilities, that the 0.5 cutoff is an arbitrary default, and that when a miss costs far more than a false alarm you move that cutoff down. You priced a batch in R, swept the threshold to the cheapest point, and derived the same answer directly with \(t^* = C_{FP}/(C_{FP}+C_{FN})\), cutting this batch's cost from $1,500 to $100 without retraining.</p>
+
+<p>One cutoff is one point on a curve. Next you will study the whole curve.</p>
+
+<p>Next, Lesson 4: ROC, PR, Lift and Gains Curves. You will see every threshold at once, and learn why a precision-recall curve tells the truth about a rare positive where an ROC curve can flatter it.</p>
+</section>
+
+{% endraw %}
