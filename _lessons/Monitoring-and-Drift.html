@@ -1,0 +1,344 @@
+---
+title: "Machine Learning in Production Lesson 5: Monitoring and drift"
+description: "Model monitoring and drift in R: why a launched model decays, detect data drift with PSI, tell it from concept drift, and know when to retrain."
+keywords: "model monitoring, data drift, concept drift, population stability index, PSI in R, when to retrain, MLOps monitoring, model decay, distribution shift, model performance monitoring"
+mathjax: true
+webr: true
+curriculum_id: "6.120.5"
+post_type: "LESSON"
+course_id: "ds-production"
+course_title: "Machine Learning in Production"
+course_lesson: "5"
+course_total: "6"
+course_landing: "R-ML-Production-Course.html"
+course_next: "An-ML-System-Design-Checklist.html"
+course_prev: "Batch-vs-Real-Time-Inference.html"
+lesson_access: "free"
+catalog_blurb: "Spot when a live model's inputs or accuracy drift, and when to retrain."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 6</div>
+<h2>Monitoring and drift</h2>
+
+<p>Dev's meal-kit cancellation model launched three months ago at about 79% accuracy, and everyone moved on. This morning the retention team notices something odd: the discount emails the model targets are landing on subscribers who were never going to leave, while the ones quietly cancelling get nothing. Nobody changed a line of code. The model did not break. The world it was trained on did.</p>
+
+<p>That is drift, and it is the quietest failure in machine learning: no error, no crash, just decisions getting worse while every dashboard stays green. This lesson is about catching it before your users do.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a model that was accurate at launch decays even though its code never changes</li>
+
+<li>Detect data drift by comparing live inputs to what the model trained on, and put a number on it with the population stability index (PSI)</li>
+
+<li>Tell data drift from concept drift, and decide when a monitoring signal means it is time to retrain</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 4 (predictions flowing in <a href="Batch-vs-Real-Time-Inference.html">batch or real time</a>), and you can [fit a model and read <code>predict</code> output](Your-First-End-to-End-Model-in-R.html).</p>
+<div class="lesson-widget" data-widget-type="drift-monitor" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why models decay</div>
+<h2>A model is a snapshot of a world that keeps moving</h2>
+
+<p>When Dev trained the cancellation model, it learned the patterns in one specific slice of time: last quarter's subscribers, last quarter's prices, last quarter's reasons for leaving. Training freezes those patterns into fixed coefficients. From that moment the model is a photograph, and photographs do not update themselves.</p>
+
+<p>Then the world moves. Two months after launch a cheaper rival, FreshBox, opens for business. Boxes get discounted to compete, so the typical price a subscriber pays drifts down. And the reason people cancel changes: where idle weeks used to be the main signal, now even loyal, long-tenure customers leave, lured by the cheaper option. The model never saw any of this. It keeps applying last quarter's rules to this quarter's world, and quietly gets them wrong.</p>
+
+<p>We do not have to take this on faith. Let us rebuild Dev's model from scratch, then score it on a fresh batch from the launch-era world and on a batch from the world three months later, and read the two accuracies side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Dev's meal-kit cancellation model, rebuilt from scratch. Each lesson runs in a
+# fresh R session, so we simulate the subscribers it trained on, inline.
+clip &lt;- function(x, lo, hi) pmax(lo, pmin(hi, x))
+set.seed(1)
+n &lt;- 1500
+launch &lt;- data.frame(
+  weeks_since   = rpois(n, 3),                              # weeks since last order
+  boxes_ordered = rpois(n, 8) + 1,                          # lifetime boxes
+  spend_per_box = round(clip(rnorm(n, 15, 3.5), 6, 24), 1)  # dollars per box
+)
+# The world at launch: idle weeks drive cancellation; price does not matter yet.
+launch$cancelled &lt;- rbinom(n, 1,
+  plogis(-3.5 + 1.15 * launch$weeks_since - 0.06 * launch$boxes_ordered))
+model &lt;- glm(cancelled ~ weeks_since + boxes_ordered + spend_per_box,
+             data = launch, family = binomial)
+
+accuracy &lt;- function(batch)
+  mean((predict(model, batch, type = &quot;response&quot;) &gt; 0.5) == batch$cancelled)
+
+# A fresh batch from the world the model launched in
+set.seed(11)
+launch_batch &lt;- data.frame(
+  weeks_since = rpois(500, 3), boxes_ordered = rpois(500, 8) + 1,
+  spend_per_box = round(clip(rnorm(500, 15, 3.5), 6, 24), 1))
+launch_batch$cancelled &lt;- rbinom(500, 1,
+  plogis(-3.5 + 1.15 * launch_batch$weeks_since - 0.06 * launch_batch$boxes_ordered))
+
+# Three months later: FreshBox (cheaper) has launched. Boxes are cheaper (spend drifts
+# down) and even loyal customers now leave, so price starts to predict churn.
+set.seed(12)
+later_batch &lt;- data.frame(
+  weeks_since = rpois(500, 3), boxes_ordered = rpois(500, 8) + 1,
+  spend_per_box = round(clip(rnorm(500, 12.5, 3.5), 6, 24), 1))
+later_batch$cancelled &lt;- rbinom(500, 1,
+  plogis(-2.55 + 1.15 * later_batch$weeks_since - 0.06 * later_batch$boxes_ordered
+         + 0.07 * later_batch$spend_per_box))
+
+round(c(launch = accuracy(launch_batch), later = accuracy(later_batch)), 2)
+#&gt; launch  later
+#&gt;   0.79   0.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same model, same code, fourteen points of accuracy gone. Nothing alerted, because from the code's point of view nothing happened. The only way to catch this is to watch for it on purpose. The rest of the lesson is how.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Train on the launch world","sub":"the model freezes the patterns it saw into fixed coefficients"},{"title":"Deploy and walk away","sub":"the coefficients never update on their own"},{"title":"The world shifts","sub":"a cheaper rival launches, prices fall, churn reasons change"},{"title":"The model is blind to it","sub":"it applies old rules to new inputs it was never trained on"},{"title":"Decisions quietly degrade","sub":"accuracy slips while nothing errors or crashes"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What actually got worse?</h2>
+
+<p>Dev's model scored 0.79 at launch and 0.65 three months later, with no code change in between. A teammate says "the model must have a bug that crept in." What is the accurate way to describe what happened?</p>
+<section class="exercise" data-exercise-id="Monitoring-and-Drift-step3" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model developed a bug: its accuracy dropped, so its code must have changed or corrupted</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The model is unchanged, but the world it scores has shifted away from the data it was trained on, so its frozen rules now fit worse</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The model overfit the training data, and overfitting always surfaces a few months after launch</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The model is a fixed snapshot; the incoming subscribers, their prices, and their reasons for leaving have moved. Same rules, new world, worse fit. That is drift.</div><div class="lesson-qfb lesson-qfb-no">Overfitting is a training-time problem you would have caught at launch on held-out data. Here the model was genuinely good at launch (0.79) and decayed later because the inputs changed, not because it memorized.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The direct signal</div>
+<h2>Watch performance, and know why it arrives late</h2>
+
+<p>The most honest way to know if a model still works is to check its answers against reality. As real outcomes arrive, whether each scored subscriber actually cancelled, you recompute the metric on that fresh batch and watch it over time. Here is that scoreboard for Dev's model, week by week, as the world drifts:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># As real outcomes arrive, re-score each new week's batch and track accuracy.
+simulate_week &lt;- function(seed, drift) {
+  set.seed(seed)
+  d &lt;- data.frame(
+    weeks_since = rpois(300, 3), boxes_ordered = rpois(300, 8) + 1,
+    spend_per_box = round(clip(rnorm(300, 15 - 2.5 * drift, 3.5), 6, 24), 1))
+  d$cancelled &lt;- rbinom(300, 1,
+    plogis((-3.5 + 0.95 * drift) + 1.15 * d$weeks_since - 0.06 * d$boxes_ordered
+           + (0.07 * drift) * d$spend_per_box))
+  d
+}
+# drift climbs from 0 (launch world) to 1 (fully shifted) across eight weeks
+weekly &lt;- data.frame(week = 1:8)
+weekly$accuracy &lt;- sapply(1:8, function(w) round(accuracy(simulate_week(100 + w, (w - 1) / 7)), 3))
+weekly
+#&gt;   week accuracy
+#&gt; 1    1    0.817
+#&gt; 2    2    0.783
+#&gt; 3    3    0.777
+#&gt; 4    4    0.753
+#&gt; 5    5    0.720
+#&gt; 6    6    0.737
+#&gt; 7    7    0.667
+#&gt; 8    8    0.573</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slide is unmistakable, and this is the ground truth: it measures the exact thing you care about, whether the predictions were right. But it has a catch that makes it insufficient on its own.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Performance monitoring needs labels, and labels are late. You only learn whether a subscriber "really cancelled" after they do, which can be weeks after the model scored them. So this week's accuracy cannot even be computed until this week's outcomes land. By the time the scoreboard turns red, the model has already been making bad calls for weeks. You need a warning that does not wait for the truth.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The early warning</div>
+<h2>Data drift: watch the inputs, not the late labels</h2>
+
+<p>Since the labels are late, watch the thing that arrives immediately: the inputs. Every subscriber the model scores today hands over their features right now, no waiting. <strong>Data drift</strong> is when the distribution of an input feature moves away from the distribution the model trained on. You can measure it the same day the traffic arrives, weeks before the true outcomes come back.</p>
+
+<p>Take the price feature. At launch, spend per box was centred around $15. After FreshBox forces discounts, this week's traffic centres lower. Drag the control below: the dashed outline is what the model trained on (the reference), the solid bars are live traffic. As the weeks pass, the live distribution pulls away, and a single number, the PSI, climbs until it trips an alert.</p>
+
+<p>The model has not been told anything is wrong, and no outcome label has arrived yet. But the inputs alone already show that today's subscribers do not look like the ones the model learned from. That is your early warning, bought weeks before performance monitoring could say a word.</p>
+<div class="lesson-widget" data-widget-type="drift-monitor" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting a number on it</div>
+<h2>PSI: one number for how far the inputs moved</h2>
+
+<p>"The distribution moved" is a picture; to alert on it automatically you need a number. The <strong>population stability index (PSI)</strong> compares two distributions of the same feature, the training reference and the live sample, bin by bin, and sums how different they are.</p>
+
+<p>Chop the feature's range into \(B\) bins (usually ten, cut at the reference deciles). For each bin \(i\), let \(e_i\) be the fraction of the <strong>reference</strong> (training) data that falls in it and \(o_i\) the fraction of the <strong>live</strong> data. PSI is:</p>
+
+<p>\[ \text{PSI} = \sum_{i=1}^{B} (o_i - e_i)\,\ln\!\left(\frac{o_i}{e_i}\right) \]</p>
+
+<p>Read it bin by bin: take how much the live share differs from the reference share, \((o_i - e_i)\), and weight it by the log ratio \(\ln(o_i / e_i)\) of the two shares. When the distributions match, every \(o_i = e_i\), each term is zero, and PSI is zero. The more the shares diverge, the larger PSI grows. The industry-standard reading:</p>
+
+<ul>
+
+<li>\(\text{PSI} < 0.1\): stable, the inputs still look like training.</li>
+
+<li>\(0.1 \le \text{PSI} < 0.2\): moderate drift, keep watching.</li>
+
+<li>\(\text{PSI} \ge 0.2\): significant drift, the live inputs no longer match training, act.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">If a bin is empty in one sample, its share is zero and \(\ln\) of zero blows up. In practice you floor each share at a tiny value (like \(10^{-4}\)) before taking the ratio. You will use exactly that guard in the code next.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Compute PSI yourself</h2>
+
+<p>Here is PSI in plain base R, no packages. Build the training reference and this week's live sample, bin both at the reference deciles, then sum the per-bin terms. One piece of the formula is blanked out: fill it so each bin's live share \(o_i\) is compared against its reference share \(e_i\).</p>
+<section class="exercise" data-exercise-id="Monitoring-and-Drift-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="pmax\(\s*expected"><textarea class="lesson-tryit-input" spellcheck="false"># PSI compares this week's live inputs to the training reference, bin by bin.
+set.seed(1)
+reference &lt;- rnorm(1500, 15, 3.5)   # spend-per-box the model trained on
+live      &lt;- rnorm(500, 12.5, 3.5)  # this week's live traffic: cheaper boxes
+
+# 10 bins cut at the reference deciles, open at the ends so live tails still land
+cuts &lt;- quantile(reference, probs = seq(0, 1, 0.1))
+cuts[1] &lt;- -Inf; cuts[length(cuts)] &lt;- Inf
+expected &lt;- as.numeric(table(cut(reference, cuts))) / length(reference)  # e_i
+observed &lt;- as.numeric(table(cut(live,      cuts))) / length(live)       # o_i
+
+# PSI = sum of (o - e) * log(o / e), each share floored so log never blows up
+psi &lt;- sum((observed - expected) * log(pmax(observed, 1e-4) / pmax(____, 1e-4)))
+round(psi, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: each bin divides the live share by the EXPECTED (reference) share, so PSI measures how far live has pulled from training. Here it lands at 0.473, well past the 0.2 alert line.</span><span class="lesson-tryit-fb lesson-tryit-no">The denominator is the reference share, expected. Fill the blank with expected so the ratio reads pmax(observed, 1e-4) / pmax(expected, 1e-4).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(1)
+reference &lt;- rnorm(1500, 15, 3.5)
+live      &lt;- rnorm(500, 12.5, 3.5)
+cuts &lt;- quantile(reference, probs = seq(0, 1, 0.1))
+cuts[1] &lt;- -Inf; cuts[length(cuts)] &lt;- Inf
+expected &lt;- as.numeric(table(cut(reference, cuts))) / length(reference)
+observed &lt;- as.numeric(table(cut(live,      cuts))) / length(live)
+psi &lt;- sum((observed - expected) * log(pmax(observed, 1e-4) / pmax(expected, 1e-4)))
+round(psi, 3)
+#&gt; [1] 0.473</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The subtler failure</div>
+<h2>Concept drift: when the inputs look fine but the rule changed</h2>
+
+<p>Data drift is not the only way a model goes wrong, and PSI will not catch the other way. <strong>Concept drift</strong> is when the relationship between the inputs and the outcome changes, even if the inputs themselves look exactly as before.</p>
+
+<p>Picture a different scenario at Dev's company. Suppose FreshBox does not change anyone's prices or ordering habits, so every input distribution stays put and every PSI stays green. But it changes <em>why</em> people leave: now a long-tenure, high-spend customer, exactly the kind the old model marked "safe", is the one most tempted to defect to the cheaper rival. The inputs are unchanged; the meaning of those inputs has flipped. In the language of probability, the input distribution \(P(x)\) is stable but the conditional \(P(\text{cancel} \mid x)\) has moved.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Data drift</th>
+<th>Concept drift</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What changes</td>
+<td>the input distribution \(P(x)\)</td>
+<td>the input-to-outcome rule \(P(y \mid x)\)</td>
+</tr>
+<tr>
+<td>Example</td>
+<td>prices fall, so spend-per-box shifts down</td>
+<td>loyal customers now leave, not stay</td>
+</tr>
+<tr>
+<td>Caught by</td>
+<td>input monitoring (PSI), no labels needed</td>
+<td>performance monitoring, needs labels</td>
+</tr>
+<tr>
+<td>Warning speed</td>
+<td>immediate</td>
+<td>delayed, waits for outcomes</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">This is why you monitor both. Input monitoring (PSI) is fast but blind to concept drift. Performance monitoring catches everything but arrives late. Together, the fast-but-partial signal and the complete-but-slow signal cover each other's gap.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Closing the loop</div>
+<h2>When to retrain</h2>
+
+<p>Monitoring is only useful if it drives an action, and the action is almost always the same: retrain the model on recent data so it relearns the world as it is now. The skill is deciding <em>when</em> to pull that trigger.</p>
+
+<p>Two triggering styles, often combined:</p>
+
+<ul>
+
+<li><strong>Triggered retraining:</strong> set thresholds on your monitors, PSI \(\ge 0.2\) on a key feature, or accuracy dropping past a set floor, and retrain automatically when one trips. It reacts exactly when something moves, but you must tune the thresholds so noise does not cry wolf.</li>
+
+<li><strong>Scheduled retraining:</strong> retrain on a fixed cadence (nightly, weekly, monthly) regardless of alerts, sized to how fast your world usually moves. Simple and predictable, but it can retrain needlessly when nothing changed, or too late when something changes fast.</li>
+
+</ul>
+
+<p>Whichever fires, one rule protects you: retrain on <strong>recent</strong> data, and only on labels you trust. Because labels are late, a batch of "recent" outcomes may still be incomplete, and retraining on half-finished or mislabelled data can bake in a worse model than the one you have. Validate the fresh labels first, retrain, then compare the new model against the live one before you promote it.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Monitor inputs and performance","sub":"track PSI on key features and accuracy as labels arrive"},{"title":"A threshold trips","sub":"PSI passes 0.2, or accuracy falls below its floor"},{"title":"Retrain on recent, trusted labels","sub":"relearn the current world; check the labels are complete first"},{"title":"Validate against the live model","sub":"promote the new model only if it genuinely beats the old one"},{"title":"Redeploy and keep watching","sub":"the loop never ends, because the world will move again"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the monitors</h2>
+
+<p>Six weeks after a fix, Dev checks the dashboards. Every input feature's PSI is low and green, spend, weeks-since, and boxes all look just like training. But weekly accuracy has fallen from 0.80 to 0.68. What is the most likely diagnosis, and the right response?</p>
+<section class="exercise" data-exercise-id="Monitoring-and-Drift-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing is wrong: since every PSI is green, the inputs match training, so the model is fine and the accuracy dip is just noise</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Data drift: the inputs must have shifted, and the PSI monitors are simply miscalibrated and missing it</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Concept drift: inputs are stable but the input-to-outcome rule has changed, which PSI cannot see; retrain on recent, trusted labels to relearn the new relationship</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Stable inputs plus falling accuracy means \(P(y \mid x)\) moved while \(P(x)\) held. Only performance monitoring caught it, and the fix is to retrain on fresh, validated labels so the model learns the current rule.</div><div class="lesson-qfb lesson-qfb-no">If PSI is genuinely low across features, the input distributions really are stable. Reaching for data drift here ignores what the monitors are telling you.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative, free places to take monitoring and drift further:</p>
+
+<ul>
+
+<li><a href="https://huyenchip.com/2022/02/07/data-distribution-shifts-and-monitoring.html">Huyen, "Data Distribution Shifts and Monitoring" (2022)</a> - the clearest practitioner map of covariate, label, and concept drift, and how to monitor each in production.</li>
+
+<li><a href="https://developers.google.com/machine-learning/guides/rules-of-ml">Google, "Rules of Machine Learning" (Zinkevich)</a> - Rule 8 on model freshness and the training-serving skew section are exactly the decay this lesson is about.</li>
+
+<li><a href="https://www.fiddler.ai/blog/measuring-data-drift-population-stability-index">Fiddler, "Measuring Data Drift with the Population Stability Index"</a> - the PSI formula, the 0.1 and 0.2 thresholds, and the empty-bin guard, in one place.</li>
+
+<li><a href="https://docs.evidentlyai.com/metrics/customize_data_drift">Evidently AI: data drift detection</a> - open-source docs for running drift checks (PSI and many alternatives) on your own tables.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You can now see the quiet failure coming. A trained model is a snapshot of a past world, and as that world moves its accuracy decays with no error to warn you. You watch for it two ways: performance monitoring, which recomputes the metric as real labels arrive (the ground truth, but late), and input monitoring, which compares live features against training with PSI (immediate, but blind to concept drift). Data drift moves the inputs; concept drift moves the rule connecting inputs to outcomes; you need both monitors to cover both. And when a threshold trips, you retrain on recent, trusted labels and promote the new model only if it truly beats the old one.</p>
+
+<p>Next, Lesson 6: <strong>An ML system design checklist.</strong> You have built, versioned, served, and now monitored a model. The final lesson steps back and turns the whole course into a checklist, the questions to answer before any model ships.</p>
+</section>
+
+{% endraw %}
