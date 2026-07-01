@@ -1,0 +1,392 @@
+---
+title: "Causal Inference Lesson 3: A/B Testing and Experiment Design"
+description: "Design an A/B test that earns a clean causal answer: randomize, state the hypotheses, understand power, and compute the sample size you actually need in R."
+keywords: "A/B testing, experiment design, randomized controlled experiment, statistical power, sample size, power.prop.test, significance level, type I error, type II error, peeking, minimum detectable effect, causal inference in R"
+mathjax: true
+webr: true
+curriculum_id: "6.10.3"
+post_type: "LESSON"
+course_id: "ds-causal"
+course_title: "Causal Inference in R"
+course_lesson: "3"
+course_total: "5"
+course_landing: "R-Causal-Inference-Course.html"
+course_next: "Reading-an-Experiment.html"
+course_prev: "Causal-Diagrams-with-DAGs.html"
+lesson_access: "free"
+catalog_blurb: "Design a fair online test and size it to detect a real effect."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 5</div>
+<h2>A/B Testing and Experiment Design</h2>
+
+<p>In Lesson 2 you learned to draw a causal diagram and adjust for confounders because you could not randomize. This lesson is about the happier case: when you <em>can</em> run the experiment. Randomizing is the single move that erases every backdoor at once, collapsing a tangled DAG back to the one clean arrow you care about.</p>
+
+<p>Riverside Books wants to add a "Readers also bought" panel to each book page, hoping it nudges more visitors to buy. Instead of guessing, they will run an A/B test: show the old page to a random half of visitors and the new panel to the other half, then compare buy rates. But a real experiment raises hard, practical questions. How large a difference counts as real, and not just a lucky week? How many visitors do we need before we can trust the answer? The picture below is the tool that settles the first question, and by the end you will size the experiment to earn a trustworthy one.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why randomly assigning visitors lets a plain comparison of two groups estimate a true causal effect</li>
+
+<li>State the hypotheses of an A/B test and read a p-value and significance level correctly, without the usual traps</li>
+
+<li>Define statistical power, and compute the sample size an experiment actually needs in R</li>
+
+<li>Spot the design mistakes (peeking, chasing many metrics, broken randomization) that quietly break a test</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you finished <a href="Correlation-Causation-and-Potential-Outcomes.html">Lesson 1</a> (randomization removes selection bias) and <a href="Causal-Diagrams-with-DAGs.html">Lesson 2</a> (backdoor paths), and you can run R and compute a proportion. Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":5,"start":2,"label":"observed z"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>An A/B test is just a randomized experiment</h2>
+
+<p>An <strong>A/B test</strong> is a randomized controlled experiment wearing a product hat. You take one change you are unsure about, split your users into two groups by chance, expose each group to one version, and compare an outcome. Group <strong>A</strong> is the <strong>control</strong>: Riverside's current book page. Group <strong>B</strong> is the <strong>treatment</strong>: the same page plus the "Readers also bought" panel. Everything else is held identical.</p>
+
+<p>The outcome Riverside will measure is the <strong>conversion rate</strong>: the fraction of visitors who buy at least one book. Write \(p_A\) for the true conversion rate a visitor would have under the old page and \(p_B\) for the rate under the new panel. The quantity the whole experiment exists to estimate is the <strong>lift</strong>,</p>
+
+<p>\[ \Delta = p_B - p_A, \]</p>
+
+<p>the extra share of visitors who buy <em>because of</em> the panel. We never see \(p_A\) or \(p_B\) directly; we estimate them from counts. If \(x_A\) of \(n_A\) control visitors buy, the observed rate is \(\hat p_A = x_A / n_A\), and likewise \(\hat p_B = x_B / n_B\) for the treatment. The hat means "estimated from the sample."</p>
+
+<p>Why go to the trouble of a coin flip? Because of exactly the lesson from before. If Riverside instead showed the panel to whoever happened to visit on Tuesdays, or to logged-in members only, the two groups would differ in ways beyond the panel, and the gap in buy rates would blend the panel's effect with those differences: selection bias, all over again. Randomizing severs the link between <em>which version you see</em> and <em>everything else about you</em>, so the two groups are comparable and the difference in their rates is the panel's doing. Here is the whole procedure.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Pick one metric and the effect worth it","sub":"the conversion rate, and the smallest lift that would change the decision"},{"title":"Size the experiment","sub":"compute how many visitors each group needs for enough power"},{"title":"Randomize each visitor","sub":"assign A (old page) or B (new panel) by a coin flip"},{"title":"Run to the planned size","sub":"collect the full sample before you judge the result"},{"title":"Test and decide","sub":"compare the two rates and ship only if the lift is real"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What makes it a fair test?</h2>
+
+<p>Riverside's engineer proposes three ways to judge the new panel. Only one of them is a valid A/B test. Which?</p>
+<section class="exercise" data-exercise-id="AB-Testing-and-Experiment-Design-step3" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Ship the panel to everyone, then compare this week's total sales with last week's</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Randomly assign each visitor to the old page or the new panel, then compare the two groups' buy rates</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Compare visitors who clicked the panel against visitors who did not</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A coin flip per visitor makes the two groups comparable in every other respect, so the difference in their conversion rates estimates the panel's causal effect and nothing else.</div><div class="lesson-qfb lesson-qfb-no">Clicking is a choice, not a coin flip. The visitors who click are the keener shoppers, who would buy more even without a panel, so this compares self-selected groups. It measures who-clicks, not what-the-panel-does.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The decision rule</div>
+<h2>The hypotheses, and your false-positive budget</h2>
+
+<p>Randomizing makes the comparison fair. But even a panel that does nothing will rarely produce two <em>exactly</em> equal buy rates, because each group is a random draw. So before trusting a gap, you ask: could a difference this big happen by luck alone, if the panel truly had no effect? That is a hypothesis test, and it has two named claims.</p>
+
+<ul>
+
+<li>The <strong>null hypothesis</strong> \(H_0: p_A = p_B\): the panel makes no difference, and any observed gap is chance.</li>
+
+<li>The <strong>alternative</strong> \(H_1: p_A \ne p_B\): the panel changes the buy rate, in some direction.</li>
+
+</ul>
+
+<p>You start out giving the null the benefit of the doubt, and you ask how surprising your data would be if it were true. The evidence is summarized by a <strong>test statistic</strong>. For two proportions it is the z-statistic,</p>
+
+<p>\[ z = \frac{\hat p_B - \hat p_A}{\sqrt{\hat p\,(1-\hat p)\left(\dfrac{1}{n_A} + \dfrac{1}{n_B}\right)}}, \qquad \hat p = \frac{x_A + x_B}{n_A + n_B}, \]</p>
+
+<p>where \(\hat p_A, \hat p_B\) are the two observed rates, \(n_A, n_B\) the two group sizes, and \(\hat p\) is the <strong>pooled rate</strong>: the buy rate you get by ignoring the split and lumping both groups together, which is your best guess of the common rate <em>if</em> \(H_0\) were true. The numerator is the gap you saw; the denominator is how much gap random noise alone would typically produce. So \(z\) is a signal-to-noise ratio: how many "noise units" your observed lift sits above zero.</p>
+
+<p>If \(H_0\) is true, \(z\) follows a standard normal distribution, the curve on the cover. The <strong>p-value</strong> is the tail area past your observed \(z\): the probability of a gap at least this extreme when the panel does nothing. Drag the marker in that widget and watch the shaded tail shrink as \(z\) moves out. Before you run anything, you fix a threshold called the <strong>significance level</strong> \(\alpha\), usually \(0.05\). You will "reject \(H_0\)" and call the result significant only when \(p < \alpha\).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">\(\alpha\) is a budget you set in advance, not a discovery. It is the share of experiments in which you will wrongly cry "effect!" when there is none. At \(\alpha = 0.05\), if the panel truly did nothing and you ran the test 100 times, about 5 of those runs would cross the line by pure chance. That is the price of admission for being able to detect real effects at all.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the p-value</h2>
+
+<p>Riverside runs the test and gets \(p = 0.03\). Three teammates each interpret it. Which statement is the correct reading of that p-value?</p>
+<section class="exercise" data-exercise-id="AB-Testing-and-Experiment-Design-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 3% chance the panel has no real effect</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The panel has a 97% chance of being effective</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">If the panel truly did nothing, a difference at least this large would arise about 3% of the time by chance</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A p-value is a statement about the data under the null: "how surprising is what I saw, in a world where the panel has no effect?" Small p means the data are hard to explain by luck alone.</div><div class="lesson-qfb lesson-qfb-no">Same trap from the other side. A p-value says nothing about the probability the effect is real; that would require prior beliefs and Bayes' rule, not the p-value alone.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The other way to be wrong</div>
+<h2>Power: the chance of catching a real effect</h2>
+
+<p>Rejecting a true null is one mistake, called a <strong>Type I error</strong>, and its rate is exactly the \(\alpha\) you chose. But there is a second, sneakier mistake: the panel really <em>does</em> help, yet your experiment fails to notice, so you keep the worse page. That is a <strong>Type II error</strong>, and its rate is written \(\beta\). The two errors live in a simple table.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Panel truly does nothing (H0 true)</th>
+<th>Panel truly helps (H1 true)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Test says "significant"</strong></td>
+<td>Type I error (rate \(\alpha\))</td>
+<td>Correct detection (rate \(1-\beta\))</td>
+</tr>
+<tr>
+<td><strong>Test says "not significant"</strong></td>
+<td>Correct (rate \(1-\alpha\))</td>
+<td>Type II error (rate \(\beta\))</td>
+</tr>
+</tbody>
+</table>
+
+<p>The top-right cell, correct detection, is the one you want to maximize. <strong>Statistical power</strong> is \(1 - \beta\): the probability that, <em>if</em> the panel truly lifts the rate by some amount, your test will detect it and report significance. A convention is to aim for power of at least \(0.80\), an 80% chance of catching a real effect.</p>
+
+<p>Power is not a fixed property of the test; it depends on four things pulling against each other: the size of the true effect (bigger lifts are easier to catch), the significance level \(\alpha\), the natural variability of the metric, and the sample size \(n\). Small \(n\) means low power, which means real effects slip through. Do not take that on faith, measure it. The code below simulates Riverside's experiment thousands of times, assuming the panel truly lifts conversion from 4% to 5%, and counts how often a test with only 2000 visitors per group actually notices.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Riverside's test: does a &quot;Readers also bought&quot; panel lift the buy rate?
+# Suppose the truth is a lift from 4% to 5%. How often would a small test catch it?
+set.seed(1)
+sim_power &lt;- function(n, pA, pB, reps = 1000, alpha = 0.05) {
+  hits &lt;- replicate(reps, {
+    a &lt;- rbinom(1, n, pA)                 # buyers among n control visitors
+    b &lt;- rbinom(1, n, pB)                 # buyers among n treatment visitors
+    prop.test(c(a, b), c(n, n))$p.value &lt; alpha
+  })
+  mean(hits)                              # fraction of experiments that detect the lift
+}
+sim_power(n = 2000, pA = 0.04, pB = 0.05)
+#&gt; [1] 0.321</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 2000 visitors per group, a real 1-point lift is caught only about <strong>32%</strong> of the time. Two out of three runs would call a genuinely better page "not significant" and throw it away. The experiment is <strong>underpowered</strong>, and no amount of careful analysis fixes too little data. The cure is to work out the right \(n\) before you start.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">This is why a non-significant result from a small test is not proof of "no effect." Failing to reject the null is not the same as accepting it: with low power, even a real lift routinely produces a large p-value. Absence of evidence is not evidence of absence.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The number that matters most</div>
+<h2>How many visitors do you actually need?</h2>
+
+<p>To size an experiment you first commit to the smallest lift worth detecting, the <strong>minimum detectable effect</strong> (MDE). Riverside decides that anything below a 1-point rise (from a 4% baseline to 5%) is too small to bother rolling out, so 1 point is the effect they want 80% power to catch. Now the four quantities are locked together: fix \(\alpha\), the power, and the MDE, and the required sample size \(n\) is determined. Approximately,</p>
+
+<p>\[ n \approx \frac{\left(z_{1-\alpha/2} + z_{1-\beta}\right)^2\,\big[p_A(1-p_A) + p_B(1-p_B)\big]}{(p_B - p_A)^2}, \]</p>
+
+<p>where \(z_{1-\alpha/2}\) is the cutoff leaving \(\alpha/2\) in each tail (1.96 at \(\alpha = 0.05\)) and \(z_{1-\beta}\) is the cutoff for the power you want (0.84 for 80%). You do not compute this by hand; R's <code>power.prop.test</code> solves for whichever quantity you leave out. Give it the two rates, the power, and \(\alpha\), and leave <code>n</code> blank.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># How many visitors PER GROUP to detect 0.04 -&gt; 0.05 with 80% power at alpha = 0.05?
+power.prop.test(p1 = 0.04, p2 = 0.05, power = 0.80, sig.level = 0.05)
+#&gt;
+#&gt;      Two-sample comparison of proportions power calculation
+#&gt;
+#&gt;               n = 6744.933
+#&gt;              p1 = 0.04
+#&gt;              p2 = 0.05
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.8
+#&gt;     alternative = two.sided
+#&gt;
+#&gt; NOTE: n is number in *each* group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So Riverside needs about <strong>6745 visitors per group</strong>, roughly 13,500 in total. Notice the denominator \((p_B - p_A)^2\): halving the lift you insist on catching roughly <em>quadruples</em> the sample you need. Smaller effects hide in the noise and take far more data to see.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The required n per group explodes as the lift we insist on detecting shrinks:
+mde &lt;- c(0.010, 0.007, 0.005)                          # absolute lift over the 4% baseline
+n_per_group &lt;- sapply(mde, function(d)
+  ceiling(power.prop.test(p1 = 0.04, p2 = 0.04 + d, power = 0.80, sig.level = 0.05)$n))
+data.frame(lift_pp = mde * 100, target = 0.04 + mde, n_per_group)
+#&gt;   lift_pp target n_per_group
+#&gt; 1     1.0  0.050        6745
+#&gt; 2     0.7  0.047       13329
+#&gt; 3     0.5  0.045       25551</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Size a more ambitious test</h2>
+
+<p>Riverside's data scientist argues that even a half-point lift, from 4% to <strong>4.5%</strong>, would be worth shipping. Size that experiment: keep 80% power and \(\alpha = 0.05\), and fill in the target rate <code>p2</code>. (The table above already hints at the answer.)</p>
+<section class="exercise" data-exercise-id="AB-Testing-and-Experiment-Design-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="0?\.045"><textarea class="lesson-tryit-input" spellcheck="false">power.prop.test(p1 = 0.04, p2 = ____, power = 0.80, sig.level = 0.05)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: detecting a 0.5-point lift needs about 25,551 visitors per group, nearly four times the 6745 for a 1-point lift. Halving the MDE roughly quadruples the sample, because n scales as one over the squared effect.</span><span class="lesson-tryit-fb lesson-tryit-no">Set the treatment rate to the 4.5% target: p2 = 0.045. That is the smallest lift the data scientist wants to be able to catch.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">power.prop.test(p1 = 0.04, p2 = 0.045, power = 0.80, sig.level = 0.05)
+#&gt;
+#&gt;      Two-sample comparison of proportions power calculation
+#&gt;
+#&gt;               n = 25550.85
+#&gt;              p1 = 0.04
+#&gt;              p2 = 0.045
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.8
+#&gt;     alternative = two.sided
+#&gt;
+#&gt; NOTE: n is number in *each* group</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Run the test and decide</h2>
+
+<p>Riverside picks the 1-point MDE, rounds up to a clean 6800 visitors per group, and runs the experiment to completion before looking. When the data are in, the test is a single line. We build the collected counts inline here (in reality they come from your logs); the panel truly helped a little, so the control converts near 4% and the treatment a touch higher.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The experiment ran to its planned size. Here is what came back.
+set.seed(42)
+n &lt;- 6800
+control   &lt;- rbinom(1, n, 0.04)          # buyers among 6800 control visitors
+treatment &lt;- rbinom(1, n, 0.052)         # the panel lifted the rate a bit
+c(control_buys = control, treat_buys = treatment)
+#&gt; control_buys   treat_buys
+#&gt;          260          368
+prop.test(c(control, treatment), c(n, n))
+#&gt;
+#&gt; 	2-sample test for equality of proportions with continuity correction
+#&gt;
+#&gt; data:  c(control, treatment) out of c(n, n)
+#&gt; X-squared = 19.113, df = 1, p-value = 1.232e-05
+#&gt; alternative hypothesis: two.sided
+#&gt; 95 percent confidence interval:
+#&gt;  -0.023078645 -0.008686061
+#&gt; sample estimates:
+#&gt;     prop 1     prop 2
+#&gt; 0.03823529 0.05411765</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The control converted at <strong>3.82%</strong> and the treatment at <strong>5.41%</strong>, and the p-value is about \(1.2 \times 10^{-5}\), far below 0.05. (<code>prop.test</code> reports <code>X-squared</code>, which for a two-group test is just the square of the z-statistic from earlier, \(19.113 \approx 4.37^2\), so it carries the same signal: a gap this far out in the tail.) Riverside rejects "the panel does nothing" and ships it. (The interval is on <code>prop 1</code> minus <code>prop 2</code>, control minus treatment, so it reads negative; the panel <em>raised</em> conversion by roughly 1.6 points, and the interval stays clear of zero.) Exactly how far to trust that interval, and how to report the effect size honestly, is the subject of Lesson 4.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The traps</div>
+<h2>How A/B tests quietly break</h2>
+
+<p>The sample-size math assumes you run the experiment as designed. Break the design and the guarantees evaporate, usually without any error message. Four traps account for most bad experiments.</p>
+
+<ul>
+
+<li><strong>Peeking (early stopping).</strong> Checking the result repeatedly and stopping the instant \(p < 0.05\) is the most common killer. Every look is a fresh roll of the dice; with enough looks, noise crosses the line eventually even when nothing is happening. The code below runs Riverside's test with a panel that does <em>nothing</em>, but peeks ten times and stops at the first "win."</li>
+
+</ul>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The panel truly does NOTHING (same rate in both). We peek 10 times and stop early.
+set.seed(7)
+peek_once &lt;- function() {
+  a_buys &lt;- b_buys &lt;- a_n &lt;- b_n &lt;- 0
+  for (look in 1:10) {                                 # ten interim checks
+    a_buys &lt;- a_buys + rbinom(1, 500, 0.04); a_n &lt;- a_n + 500
+    b_buys &lt;- b_buys + rbinom(1, 500, 0.04); b_n &lt;- b_n + 500
+    if (prop.test(c(a_buys, b_buys), c(a_n, b_n))$p.value &lt; 0.05) return(TRUE)
+  }
+  FALSE
+}
+mean(replicate(1000, peek_once()))                     # false-positive rate, should be 0.05
+#&gt; [1] 0.181</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The false-positive rate is <strong>18%</strong>, not the 5% you budgeted. Peeking more than tripled it. The fix: pick \(n\) in advance and test once, or use a method built for sequential looks.</p>
+
+<ul>
+
+<li><strong>Chasing many metrics.</strong> Test 20 metrics at \(\alpha = 0.05\) and, on average, one will look "significant" by chance even if the panel changed nothing. Pick one primary metric before you start; treat the rest as exploratory and correct for the number of comparisons.</li>
+
+<li><strong>Broken randomization (sample-ratio mismatch).</strong> If a coin flip should send 50% to each group but you see 52/48, a bug is leaking users non-randomly, and the groups are no longer comparable. Check the split before you trust the result.</li>
+
+<li><strong>Significance is not importance.</strong> With millions of visitors, a lift of 0.01 points can be highly significant and completely worthless. Always ask whether the effect is big enough to matter, not just whether \(p < 0.05\).</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The p-value's guarantee holds for one test, at a pre-planned sample size, on one metric. Peek, slice by many metrics, or stop when the number looks good, and you are no longer running the experiment you sized; you are fishing.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why peeking lies</h2>
+
+<p>An analyst watches the experiment dashboard every morning and stops the test the first day it shows \(p < 0.05\), declaring a win after four days. Why is that win untrustworthy?</p>
+<section class="exercise" data-exercise-id="AB-Testing-and-Experiment-Design-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Checking often gathers more data, which always makes the result more reliable</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Each peek is another chance for noise to cross \(p < 0.05\), so stopping at the first crossing pushes the false-positive rate far above \(\alpha\)</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Stopping early only makes the sample smaller, which biases the effect estimate downward</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The 5% guarantee is for a single test at a planned size. Ten peeks turned it into 18%. Decide the sample size up front and test once, or use a proper sequential method.</div><div class="lesson-qfb lesson-qfb-no">A smaller sample is a side effect, but it is not the core problem, and the bias from early stopping actually runs the other way (winners are overstated). The real damage is the inflated false-positive rate.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://experimentguide.com/">Kohavi, Tang and Xu, Trustworthy Online Controlled Experiments (book site)</a> - the definitive practitioner guide to A/B testing at scale, from the teams that ran millions of them.</li>
+
+<li><a href="https://www.exp-platform.com/Documents/2014%20experimentersRulesOfThumb.pdf">Kohavi et al. (2014), Seven Rules of Thumb for Web Site Experimenters (PDF)</a> - a short, concrete list of the pitfalls covered here, with real examples.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 13 (free PDF)</a> - hypothesis testing, p-values, power and multiple testing, worked gently.</li>
+
+<li><a href="https://www.evanmiller.org/how-not-to-run-an-ab-test.html">Evan Miller, How Not to Run an A/B Test</a> - the clearest short explanation of why peeking inflates false positives.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.prop.test.html">R documentation: power.prop.test (stats)</a> - the function you used to size the experiment.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You can now design an experiment that earns a clean causal answer. An A/B test is a randomized experiment on a product change: the coin flip makes the two groups comparable, so a plain difference in conversion rates estimates the panel's true effect. You state a null of "no difference," fix a false-positive budget \(\alpha\), and read the p-value as surprise under that null, never as the probability the effect is real. You balance \(\alpha\) against <strong>power</strong> (\(1 - \beta\)), the chance of catching a real effect, and you saw an underpowered test miss a genuine lift two times out of three. Then you sized Riverside's experiment properly with <code>power.prop.test</code>, ran it, and watched a 1-point lift come back overwhelmingly significant, while learning why peeking, many metrics, and broken randomization quietly wreck the guarantees.</p>
+
+<p>Next, Lesson 4: Reading an Experiment. A significant p-value tells you an effect is probably real, but not how big, how precise, or what it lets you claim. You will turn that result into an effect size and a confidence interval, and learn exactly what a number like "1.6 points, 95% CI" does and does not permit you to say.</p>
+</section>
+
+{% endraw %}
