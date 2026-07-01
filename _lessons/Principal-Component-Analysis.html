@@ -1,0 +1,268 @@
+---
+title: "Unsupervised Learning Lesson 1: PCA in R"
+description: "Learn PCA in R from scratch: what a principal component is, why you scale first, how to read variance explained and a scree plot, and how to read a biplot."
+keywords: "PCA in R, principal component analysis, prcomp, variance explained, scree plot, biplot, dimensionality reduction, unsupervised learning, standardize, loadings"
+mathjax: true
+webr: true
+curriculum_id: "6.9.1"
+post_type: "LESSON"
+course_id: "ds-unsupervised"
+course_title: "Unsupervised Learning in R"
+course_lesson: "1"
+course_total: "8"
+course_landing: "R-Unsupervised-Learning-Course.html"
+course_next: "Factor-Analysis.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Compress many correlated columns into a few directions that capture most variation."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 8</div>
+<h2>PCA in R</h2>
+
+<p>Welcome to the Unsupervised Learning track. Meet Rosa, a botanist. She has measured 150 iris flowers, and for each one she wrote down four numbers with a ruler: the length and width of a petal, and the length and width of a sepal (the small green leaf under the petal), all in centimetres. Four numbers per flower does not sound like much, until you try to eyeball all 150 flowers at once and see which ones resemble each other. Rosa wishes she could place every flower as a single dot on a flat map, where similar flowers sit close together and different ones sit far apart.</p>
+
+<p>Principal Component Analysis, or PCA, is exactly that machine. It takes many overlapping measurements and boils them down to a couple of new numbers you can actually plot and read. The panel below previews the map PCA builds for Rosa's flowers, and lets you build the real one in R.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say what a principal component is, in plain words</li>
+
+<li>Run PCA in R the right way (scaling first), with one function</li>
+
+<li>Read how much each component is worth, choose how many to keep, and read a biplot</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you know what a variable, a mean, and a scatter plot are. No linear algebra is assumed. Every term is defined as it appears. (The iris measurements are real: they were collected by the botanist Edgar Anderson in 1935.)</p>
+
+<p>Each dot stands for a flower and the three colours are the three iris species. Notice how the species fall into clean, separate clumps, even though the map keeps just two new numbers per flower instead of the original four. Press Run to build that same map from the real measurements. That compression is what PCA is for.</p>
+<div class="lesson-widget" data-widget-type="pca-projection" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Four rulers, one story</h2>
+
+<p>Here is the thing Rosa notices when she looks at her four columns: they overlap. A flower with a long petal almost always has a wide petal too. A flower with a long petal also tends to have a long sepal. The measurements are not four independent facts, they partly repeat each other. That repetition has a name: <strong>correlation</strong>, a number from -1 to +1 that says how tightly two columns move together (near +1 = rise together, near 0 = unrelated, near -1 = one rises as the other falls).</p>
+
+<p>The grid below is the correlation between every pair of Rosa's four measurements, computed from the real data.</p>
+
+<p>Petal length and petal width move together almost perfectly (r = 0.96). You can confirm every number yourself:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The real correlations among Rosa's four measurements
+round(cor(iris[, 1:4]), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">When columns are highly correlated, you do not really have four independent numbers, you have fewer. PCA's job is to find out how many numbers the data actually needs, and to build them.</div></div>
+<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["Sepal.L","Sepal.W","Petal.L","Petal.W"],"matrix":[[1,-0.12,0.87,0.82],[-0.12,1,-0.43,-0.37],[0.87,-0.43,1,0.96],[0.82,-0.37,0.96,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>What a principal component is</h2>
+
+<p>Picture Rosa's 150 flowers as a cloud of dots in space, one dot per flower. Because the measurements are correlated, that cloud is not a round ball, it is stretched, like a squashed rugby ball. PCA looks for the single direction along which the cloud stretches the most, and calls it the <strong>first principal component (PC1)</strong>. Then it looks for the best remaining direction at a right angle to PC1 and calls that <strong>PC2</strong>, and so on.</p>
+
+<p>Two facts make this useful:</p>
+
+<ul>
+
+<li>Each component is a <strong>weighted blend of all four original measurements</strong>, not one of them. PC1 might be "mostly petal size, a little sepal length", tuned to point along the biggest spread.</li>
+
+<li>The components are <strong>uncorrelated</strong> with each other by construction, so each one carries fresh information, no repetition.</li>
+
+</ul>
+
+<p>Because the cloud stretches most along the first couple of directions, PC1 and PC2 together capture most of what made the flowers different. Plot those two and you get Rosa's 2D map. Press Run in the panel to build these components on the real data.</p>
+
+<p>The panel above is a stylized picture of the idea. The exact percentages for Rosa's flowers will drop out when you run <code>summary()</code> in a couple of steps.</p>
+<div class="lesson-widget" data-widget-type="pca-projection" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What exactly is PC1?</h2>
+
+<p>Suppose Rosa's PC1 weights petal length and petal width heavily, sepal length a little, and sepal width barely at all. Which statement describes what PC1 actually is?</p>
+<section class="exercise" data-exercise-id="Principal-Component-Analysis-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is the single original measurement that matters most</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It is a new axis, a weighted blend of all four measurements, pointing along the data's biggest spread</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is the plain average of the four measurements</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. PC1 is a new direction built from all four columns, with the weights chosen so the flowers spread out along it as much as possible.</div><div class="lesson-qfb lesson-qfb-no">Not a plain average. The weights are chosen to maximize spread, they differ per column, and some can even be negative.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go one level deeper</div>
+<h2>The math, in one breath</h2>
+
+<p>You do not need linear algebra to use PCA, but the formula makes "weighted blend chosen to maximize spread" precise. Let \(X_1, X_2, X_3, X_4\) be the four measurements, each first standardized (we get to that next). The first principal component is a weighted sum of them:</p>
+
+<p>\[ Z_1 = \phi_{11}X_1 + \phi_{21}X_2 + \phi_{31}X_3 + \phi_{41}X_4 \]</p>
+
+<p>The weights \(\phi_{j1}\) are called <strong>loadings</strong>. To stop PCA from cheating by simply making the weights huge, they are held to unit length: \(\sum_{j} \phi_{j1}^2 = 1\). Among all weight sets of that length, PCA picks the one that makes the <strong>variance</strong> of \(Z_1\) (how spread out the flowers are along this axis) as large as possible. PC2 does the same, with the extra rule that it must be at right angles to PC1.</p>
+
+<p>Where do the weights come from? They are the <strong>eigenvectors of the correlation matrix</strong> (an eigenvector is just the special direction that matrix stretches without rotating). Each eigenvector comes with an <strong>eigenvalue</strong> \(\lambda_k\), and that eigenvalue equals the variance captured by component \(k\). So the fraction of the total spread a component explains is simply</p>
+
+<p>\[ \text{proportion explained}_k = \frac{\lambda_k}{\lambda_1 + \lambda_2 + \lambda_3 + \lambda_4} \]</p>
+
+<p>That single fraction is the number you will use to decide how many components are worth keeping. Here is the whole procedure end to end:</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Standardize","sub":"put every column on a mean-0, sd-1 scale"},{"title":"Correlation matrix","sub":"measure how the columns move together"},{"title":"Eigen-decompose","sub":"find the axes of most spread, ranked by variance"},{"title":"Project","sub":"rewrite each flower in the new component coordinates"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The one step people skip</div>
+<h2>Put every ruler on the same scale</h2>
+
+<p>PCA chases variance, and variance depends on units. If one column happens to be measured in big numbers, it will look "most spread out" for a silly reason and hijack PC1. Rosa's columns are all in centimetres, but they still vary by very different amounts, so the danger is real. Standardizing first (subtract each column's mean, divide by its standard deviation, so every column has mean 0 and spread 1) puts them on equal footing before PCA looks for the biggest spread.</p>
+
+<p>Watch what changes:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The four raw variances are far from equal
+sapply(iris[, 1:4], var)
+
+# Component spreads WITHOUT scaling: Petal.Length's large variance dominates
+prcomp(iris[, 1:4], scale. = FALSE)$sdev
+
+# Component spreads WITH scaling: every column gets a fair say
+prcomp(iris[, 1:4], scale. = TRUE)$sdev</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Scaling is the single most common PCA mistake. Unless every column is already in the same meaningful unit, set <code>scale. = TRUE</code>. When in doubt, scale.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Run PCA in R</h2>
+
+<p>The function is <code>prcomp()</code>. Give it the four numeric columns and tell it to scale. Fill in the blank so PCA standardizes the columns first, then run it.</p>
+<section class="exercise" data-exercise-id="Principal-Component-Analysis-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="scale\.\s*=\s*TRUE"><textarea class="lesson-tryit-input" spellcheck="false">pca &lt;- prcomp(iris[, 1:4], scale. = ____)
+summary(pca)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. prcomp standardizes each column, then finds the components. The summary prints how much variance each one explains.</span><span class="lesson-tryit-fb lesson-tryit-no">You want PCA to standardize first: set scale. = TRUE.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">pca &lt;- prcomp(iris[, 1:4], scale. = TRUE)
+summary(pca)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the output</div>
+<h2>How many components? Read the variance</h2>
+
+<p><code>summary(pca)</code> prints one number that matters most: the <strong>proportion of variance</strong> each component explains. For Rosa's flowers it comes out roughly PC1 = 73%, PC2 = 23%, PC3 = 4%, PC4 = 0.5%. So the first two components together hold about 96% of everything that made her flowers differ. A flat 2D map of PC1 versus PC2 throws away only about 4%.</p>
+
+<p>A <strong>scree plot</strong> shows those values as a curve and helps you spot the "elbow", the point after which extra components add almost nothing:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Proportion of variance per component (row 2), and the running total (row 3)
+summary(pca)$importance[, 1:4]
+
+# Scree plot: variance per component. Keep components before the elbow flattens.
+screeplot(pca, type = &quot;lines&quot;, main = &quot;Scree plot&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">There is no magic cutoff. Common rules of thumb: keep enough components to reach 80 to 90% cumulative variance, or stop at the elbow of the scree plot. For seeing structure in a picture, two components is the usual choice because you can plot it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading variance explained</h2>
+
+<p>For Rosa's flowers, PC1 explains 73% of the variance and PC2 explains 23%. She plots PC1 against PC2 to get a flat 2D map. How much of the original spread does that map preserve, and is it a good trade?</p>
+<section class="exercise" data-exercise-id="Principal-Component-Analysis-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">23%, only the second component counts on the vertical axis</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">96%, the two components together, so the 2D map keeps almost everything</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">50%, a 2D plot of four-dimensional data always keeps half</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right: 73% + 23% = 96%. Going from four numbers to two costs only about 4% of the spread, an excellent trade.</div><div class="lesson-qfb lesson-qfb-no">The fraction kept depends on the variances, not on the number of axes. Here it happens to be 96%.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The full picture</div>
+<h2>Reading a biplot</h2>
+
+<p>The 2D map tells you which flowers are alike. To also see WHY, add the loadings back onto the plot. That combined picture is a <strong>biplot</strong>: the dots are flowers (their scores, <code>pca$x</code>, the coordinates in the new component space) and the arrows are the original variables (their loadings, <code>pca$rotation</code>).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Loadings: how much each original variable weights into PC1 and PC2
+round(pca$rotation[, 1:2], 2)
+
+# Biplot: dots are flowers (scores), arrows are the variables (loadings)
+biplot(pca, scale = 0, cex = 0.6)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read a biplot like this: an arrow points in the direction where that variable increases, and a long arrow means the variable is strongly tied to the components on screen. Arrows that point the same way are correlated variables (petal length and petal width sit almost on top of each other here). Dots far out along an arrow's direction are flowers that score high on that variable, which is how you can tell one species has much larger petals than the others.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">PCA has limits, and they matter. It only finds <strong>straight-line</strong> directions of spread, so it can miss curved structure. It is <strong>scale-sensitive</strong>, so always standardize. Its components are <strong>blends</strong>, so they can be hard to name in plain language. And "explains the most variance" is not the same as "most useful for prediction", a low-variance component can still carry the signal you care about.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four trustworthy places to take PCA further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 12 (free PDF)</a> - the gentle, canonical explanation of principal components and biplots.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 14.5 (free PDF)</a> - PCA as the directions of maximum variance, with the full math.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prcomp.html">prcomp: the R function documentation</a> - every argument and every value the function you used returns.</li>
+
+<li><a href="https://doi.org/10.1098/rsta.2015.0202">Jolliffe and Cadima (2016), Principal component analysis: a review</a> - an authoritative modern overview of what PCA does well and where it fails.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now take a wide table of correlated numbers and compress it into a few readable directions. You saw why correlated columns waste space, what a principal component really is (a weighted blend chosen to maximize spread), why you scale first, how to run <code>prcomp()</code> and read variance explained with a scree plot, and how to read a biplot's dots and arrows.</p>
+
+<p>Next, Lesson 2: Factor Analysis. PCA asks "which directions capture the most spread?" Factor analysis asks a different question, "what hidden factors could have produced these measurements in the first place?" You will see how the two methods look similar, why they are not the same, and when to reach for each.</p>
+</section>
+
+{% endraw %}

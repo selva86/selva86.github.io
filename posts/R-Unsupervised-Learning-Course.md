@@ -29,7 +29,7 @@ Each lesson is a guided, interactive experience: you run live R in the browser, 
 
 Many columns, mostly telling the same story. Principal component analysis compresses correlated variables into a few directions that capture most of the variation. Learn what a principal component is, why you scale first, and how to read variance explained, a scree plot and a biplot.
 
-[Start Lesson 1: PCA in R](PCA-in-R.html)
+[Start Lesson 1: PCA in R](Principal-Component-Analysis.html)
 
 ### Lesson 2: Factor Analysis
 
@@ -86,4 +86,4 @@ You can run R and read its output, and you have worked with a data frame of nume
 - Visualize high-dimensional data with t-SNE and UMAP without misreading the map
 - Mine association rules and read support, confidence and lift correctly
 
-Ready? [Begin with Lesson 1](PCA-in-R.html).
+Ready? [Begin with Lesson 1](Principal-Component-Analysis.html).

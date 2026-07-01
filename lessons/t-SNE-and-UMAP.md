@@ -23,7 +23,7 @@ course_prev: "Cluster-Validation-and-Stability.html"
 
 Meet Maya, a data scientist at a music-streaming startup. She has 180 listeners, and for each one she has a row of 10 numbers: the share of their listening time that goes to each of 10 genres (pop, rock, jazz, and seven more). Maya suspects her listeners fall into a few natural "taste tribes", but she cannot see them. Ten numbers per person is far too many to eyeball, and a table of 180 rows tells her nothing at a glance. She wishes she could place every listener as a single dot on a flat map, where similar tastes sit close together and different ones sit far apart.
 
-In [Lesson 1](PCA-in-R.html) you built exactly that kind of map with PCA. The panel below is that map on the classic example from Lesson 1 (three species of iris flower): each dot is one flower, similar flowers sit close, and a four-measurement table collapses into a flat picture you can read.
+In [Lesson 1](Principal-Component-Analysis.html) you built exactly that kind of map with PCA. The panel below is that map on the classic example from Lesson 1 (three species of iris flower): each dot is one flower, similar flowers sit close, and a four-measurement table collapses into a flat picture you can read.
 
 ::widget pca-projection {}
 
@@ -37,7 +37,7 @@ By the end of this lesson you will be able to:
 - Say how UMAP differs from t-SNE, and when to reach for each
 - Read an embedding safely: know which parts of the picture are real and which are artifacts
 
-**Prerequisites:** you can run R and read its output, and you know what a variable, a distance, and a scatter plot are. No linear algebra or calculus is assumed; every symbol is defined as it appears. [Lesson 1 on PCA](PCA-in-R.html) is the direct starting point, and [Lesson 6 on validation](Cluster-Validation-and-Stability.html) helps but is not required.
+**Prerequisites:** you can run R and read its output, and you know what a variable, a distance, and a scatter plot are. No linear algebra or calculus is assumed; every symbol is defined as it appears. [Lesson 1 on PCA](Principal-Component-Analysis.html) is the direct starting point, and [Lesson 6 on validation](Cluster-Validation-and-Stability.html) helps but is not required.
 
 === step === concept
 ::eyebrow Where we start

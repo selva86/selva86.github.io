@@ -14,7 +14,7 @@ course_lesson: "2"
 course_total: "8"
 course_landing: "R-Unsupervised-Learning-Course.html"
 course_next: "k-Means-and-Choosing-k.html"
-course_prev: "PCA-in-R.html"
+course_prev: "Principal-Component-Analysis.html"
 ---
 
 === step === cover
@@ -35,7 +35,7 @@ By the end of this lesson you will be able to:
 - Read the factor model equation and define loading, communality, and uniqueness
 - Run factor analysis in R, read the loadings, and check how many factors you need
 
-**Prerequisites:** you have done [Lesson 1 on PCA](PCA-in-R.html) (correlation, variance explained, scaling) and can run R. No linear algebra assumed; every term is defined as it appears.
+**Prerequisites:** you have done [Lesson 1 on PCA](Principal-Component-Analysis.html) (correlation, variance explained, scaling) and can run R. No linear algebra assumed; every term is defined as it appears.
 
 === step === concept
 ::eyebrow The reframe
