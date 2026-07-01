@@ -1,0 +1,376 @@
+---
+title: "Interpretability Lesson 2: Permutation and Drop-Column Importance"
+description: "Permutation and drop-column importance in R: measure how much any model relies on each feature by shuffling or removing it, and where correlated features mislead."
+keywords: "permutation importance, drop-column importance, feature importance, model-agnostic importance, variable importance, random forest, interpretable machine learning, XAI, R"
+mathjax: true
+webr: true
+curriculum_id: "6.110.2"
+post_type: "LESSON"
+course_id: "ds-interpretability"
+course_title: "Model Interpretability in R"
+course_lesson: "2"
+course_total: "6"
+course_landing: "R-Interpretability-Course.html"
+course_next: "SHAP-Values.html"
+course_prev: "Global-vs-Local-Explanations.html"
+lesson_access: "free"
+catalog_blurb: "How to measure feature importance for any model, and where it misleads."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 6</div>
+<h2>Permutation and Drop-Column Importance</h2>
+
+<p>In Lesson 1 you read a global feature-importance ranking off a churn model, and you did it the easy way: the model was a logistic regression, so each feature had a coefficient, and the size of the coefficient told you how much the feature mattered.</p>
+
+<p>Then your team swapped in a <strong>random forest</strong>, because it predicts churn better. It has no coefficients. Hundreds of trees vote; there is no single number per feature to read. So the old recipe is dead, and yet the product lead still wants the same answer: <em>which features drive this model?</em></p>
+
+<p>This lesson answers that for <strong>any</strong> model, even a black box, with two model-agnostic methods, and then shows the honest ways they can quietly mislead you.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Compute <strong>permutation importance</strong> in R: shuffle one feature and measure how far accuracy falls</li>
+
+<li>Compute <strong>drop-column importance</strong> in R: retrain without a feature and measure the same fall, and say when each method is worth its cost</li>
+
+<li>Spot the trap that fools both: why a genuinely important feature can look worthless when a correlated twin is present</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit and use a model in R such as a <a href="Random-Forest-Course.html">random forest</a>, you know what a train/test split and accuracy are, and you have done <a href="Global-vs-Local-Explanations.html">Lesson 1: Global vs Local Explanations</a>.</p>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"tenure","value":0.087},{"label":"monthly charge","value":0.033},{"label":"support calls","value":0.02},{"label":"contract","value":0.007},{"label":"add-ons","value":0.002},{"label":"senior","value":0.0}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>A model with no coefficients</h2>
+
+<p>Here is the same churn data from Lesson 1, but this time we fit a <strong>random forest</strong> instead of a logistic regression. Each row is a customer; <code>churned</code> is "yes" if they left. Build it and fit once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+set.seed(42)
+n &lt;- 500
+churn &lt;- data.frame(
+  tenure        = round(runif(n, 0, 60)),       # months as a customer
+  monthly       = round(runif(n, 20, 120), 1),  # monthly charge (dollars)
+  support_calls = rpois(n, 1.5),                # support calls last quarter
+  contract      = rbinom(n, 1, 0.5),            # 1 = on a 1-year contract
+  addons        = rbinom(n, 1, 0.4),            # has paid add-ons
+  senior        = rbinom(n, 1, 0.16)            # senior-citizen flag
+)
+# who leaves depends mostly on short tenure, high charges, and support calls
+lp &lt;- -1.0 - 0.06 * churn$tenure + 0.02 * churn$monthly +
+       0.35 * churn$support_calls - 0.5 * churn$contract
+churn$churned &lt;- factor(ifelse(rbinom(n, 1, plogis(lp)) == 1, &quot;yes&quot;, &quot;no&quot;))
+
+set.seed(1)
+i &lt;- sample(nrow(churn), 350)
+train &lt;- churn[i, ]                              # fit the model here
+test  &lt;- churn[-i, ]                             # judge it here
+
+rf &lt;- randomForest(churned ~ ., data = train, ntree = 120)
+base_acc &lt;- mean(predict(rf, test) == test$churned)   # accuracy on unseen customers
+round(base_acc, 3)
+#&gt; [1] 0.789</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The forest predicts the held-out customers correctly about 79% of the time. Good enough. But <code>coef(rf)</code> does not exist, and there is no \(\beta_j\) to scale. To rank features for a model like this, we cannot look <strong>inside</strong> it. We have to poke it from the <strong>outside</strong> and watch how it reacts. That is what "model-agnostic" means: a method that only needs to feed the model inputs and read its outputs, so it works on a forest, a neural net, or anything else.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first method</div>
+<h2>Permutation importance: shuffle one column</h2>
+
+<p>Here is a simple, powerful idea. If a feature really matters to the model, then destroying the information in that column should hurt the model. If the feature is useless, destroying it should change nothing.</p>
+
+<p>How do you destroy the information in one column without changing anything else? You <strong>shuffle</strong> it. Take the <code>tenure</code> column and randomly reassign its values across customers, so Ravi (3 months) now carries someone else's tenure and someone else carries his. Every other column stays exactly as it was, so the only thing you have broken is the link between <code>tenure</code> and who actually churned.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>customer</th>
+<th>tenure (real)</th>
+<th>tenure (shuffled)</th>
+<th>monthly</th>
+<th>churned</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ravi</td>
+<td>3</td>
+<td>30</td>
+<td>105</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Meera</td>
+<td>48</td>
+<td>12</td>
+<td>60</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Sara</td>
+<td>30</td>
+<td>55</td>
+<td>40</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Tom</td>
+<td>12</td>
+<td>3</td>
+<td>88</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Uma</td>
+<td>55</td>
+<td>48</td>
+<td>35</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+
+<p>Now score the model on this scrambled data and see how much accuracy it lost. That loss <strong>is</strong> the permutation importance of <code>tenure</code>. Writing \(\hat{f}\) for the fitted model, \(s(\hat{f}, X, y)\) for its accuracy on features \(X\) and true labels \(y\), and \(X^{\pi(j)}\) for the same data with column \(j\) randomly permuted,</p>
+
+<p>\[ \text{PI}_j = s(\hat{f}, X, y) - s(\hat{f}, X^{\pi(j)}, y). \]</p>
+
+<p>In words: original accuracy minus accuracy-after-shuffling-feature-\(j\). A big drop means the model leaned hard on that feature; a drop near zero means it barely used it.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Read the ranking</div>
+<h2>One shuffle per feature, ranked</h2>
+
+<p>Now do that for every feature: shuffle it, score, record the drop, put the original column back, move to the next. The forest is never refit, we only scramble-and-score, which is what makes permutation importance cheap.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># copy-on-modify: shuffling `data` inside the function never touches the real test set
+perm_importance &lt;- function(model, data, feat) {
+  data[[feat]] &lt;- sample(data[[feat]])            # break this feature's link to churn
+  base_acc - mean(predict(model, data) == data$churned)
+}
+
+set.seed(1)
+features &lt;- setdiff(names(test), &quot;churned&quot;)        # the six predictors, not the label
+imp &lt;- sapply(features, function(f) perm_importance(rf, test, f))
+round(sort(imp, decreasing = TRUE), 3)
+#&gt;        tenure       monthly support_calls      contract        addons        senior
+#&gt;         0.087         0.033         0.020         0.007         0.002        -0.003</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read top to bottom: shuffling <strong>tenure</strong> costs the model about 9 points of accuracy, <strong>monthly charge</strong> a few, <strong>support calls</strong> a little, and the rest essentially nothing. <code>senior</code> even comes out slightly negative, which just means shuffling it happened to help by luck; treat that as "zero, the model does not use it." Here is the ranking as a chart.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Two habits keep this honest. <strong>Score on the test set</strong>, not the training set: on training data a model can memorize, and shuffling then punishes memorized noise as if it were signal. And because the shuffle is random, <strong>repeat it a few times and average</strong>, so a single lucky shuffle does not decide a feature's rank. Your exact numbers will wobble run to run; the ordering is what is stable.</div></div>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"tenure","value":0.087},{"label":"monthly charge","value":0.033},{"label":"support calls","value":0.02},{"label":"contract","value":0.007},{"label":"add-ons","value":0.002},{"label":"senior","value":0.0}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does a zero mean?</h2>
+
+<p>You add a column <code>income</code> to the data, refit, and its permutation importance comes out at essentially <strong>0</strong>: shuffling it does not change accuracy. A teammate concludes <em>income has no real effect on who churns.</em> Is that a safe conclusion?</p>
+<section class="exercise" data-exercise-id="Permutation-and-Drop-Column-Importance-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes: zero permutation importance means the feature is irrelevant to churn</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: it only shows this model does not rely on income; income could still matter, the model just is not using it</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, because you have to shuffle every column at once, not one at a time</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Permutation importance is a fact about the model in front of you, not about the world. A zero says "the model ignores this column", which is not the same as "this feature is useless."</div><div class="lesson-qfb lesson-qfb-no">Shuffling one column at a time is correct: that is precisely what isolates a single feature. The mistake is reading "the model does not use it" as "reality does not need it."</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Measure it yourself</h2>
+
+<p>Compute the permutation importance of <code>monthly</code> by hand. We have shuffled the <code>monthly</code> column for you; fill in the importance, which is the baseline accuracy minus the model's accuracy on the shuffled data.</p>
+<section class="exercise" data-exercise-id="Permutation-and-Drop-Column-Importance-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="base_acc\s*-\s*mean\(\s*predict\(\s*rf\s*,\s*shuffled"><textarea class="lesson-tryit-input" spellcheck="false">shuffled &lt;- transform(test, monthly = sample(monthly))   # monthly scrambled, all else intact
+perm_monthly &lt;- ____                                     # the fall in accuracy when monthly is shuffled
+round(perm_monthly, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: base_acc minus the shuffled-data accuracy is exactly how far the model falls when monthly loses its signal, which is monthly's permutation importance.</span><span class="lesson-tryit-fb lesson-tryit-no">Importance is the DROP: base_acc - mean(predict(rf, shuffled) == test$churned).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">shuffled &lt;- transform(test, monthly = sample(monthly))
+perm_monthly &lt;- base_acc - mean(predict(rf, shuffled) == test$churned)
+round(perm_monthly, 3)
+#&gt; [1] 0.033</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second method</div>
+<h2>Drop-column importance: retrain without it</h2>
+
+<p>Permutation asks "what if this feature turned to noise?" Drop-column asks the blunter question: <em>what if this feature had never existed?</em> You delete the column entirely, <strong>retrain</strong> the model on what remains, and measure how much worse it does. <code>select(-tenure)</code> is the deletion; watch the column go.</p>
+
+<p>Formally, with \(\hat{f}_{\text{full}}\) the model trained on all features and \(\hat{f}_{-j}\) the model retrained on every feature except \(j\),</p>
+
+<p>\[ \text{DC}_j = s(\hat{f}_{\text{full}}) - s(\hat{f}_{-j}), \]</p>
+
+<p>the drop in accuracy from doing without feature \(j\) altogether. In R, refit once per feature and compare:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+drop_imp &lt;- function(feat) {
+  keep &lt;- setdiff(names(train), feat)                   # every column except `feat`
+  m &lt;- randomForest(churned ~ ., data = train[, keep], ntree = 120)
+  base_acc - mean(predict(m, test) == test$churned)     # how much worse without it
+}
+sapply(c(&quot;tenure&quot;, &quot;monthly&quot;, &quot;contract&quot;), drop_imp)
+#&gt;   tenure  monthly contract
+#&gt;    0.060    0.027    0.007</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The story matches permutation: losing <code>tenure</code> hurts most, <code>contract</code> barely registers. Drop-column is the more direct answer, but notice the cost. Permutation shuffled-and-scored on <strong>one</strong> already-trained model. Drop-column trains a <strong>brand-new</strong> model for <strong>every</strong> feature.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Permutation</th>
+<th>Drop-column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Question</td>
+<td>What if this feature became noise?</td>
+<td>What if this feature never existed?</td>
+</tr>
+<tr>
+<td>Cost</td>
+<td>One fit, then cheap re-scoring per feature</td>
+<td>One full retrain <strong>per feature</strong></td>
+</tr>
+<tr>
+<td>Best when</td>
+<td>The model is expensive to train, or you have many features</td>
+<td>You have few features and can afford the refits</td>
+</tr>
+</tbody>
+</table>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"df %>% select(-tenure)","caption":"Drop-column starts by removing the whole feature, then refits the model on the columns that are left.","before":{"cols":["customer","tenure","monthly","churned"],"rows":[["Ravi",3,105,"yes"],["Meera",48,60,"yes"],["Sara",30,40,"no"],["Tom",12,88,"no"],["Uma",55,35,"no"]]},"after":{"cols":["customer","monthly","churned"],"rows":[["Ravi",105,"yes"],["Meera",60,"yes"],["Sara",40,"no"],["Tom",88,"no"],["Uma",35,"no"]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which one can you afford?</h2>
+
+<p>Your model takes an hour to train and has 200 features. Permutation and drop-column agree on the top few features, but you can only run one on the full set. Which is the practical choice, and why?</p>
+<section class="exercise" data-exercise-id="Permutation-and-Drop-Column-Importance-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Drop-column, because retraining is the only trustworthy way to measure importance</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Permutation, because it reuses the single trained model and only reshuffles-and-scores, so it costs one fit plus cheap re-scoring</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither, they cost the same, so pick whichever you like</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Permutation never retrains: you pay for one fit, then each feature is just a shuffle and a scoring pass. That is why it scales to a slow model with hundreds of features, where drop-column would take days.</div><div class="lesson-qfb lesson-qfb-no">They do not cost the same. Permutation reuses the fitted model; drop-column refits once per feature. At 200 features and an hour per fit, that difference is the whole decision.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where both mislead</div>
+<h2>The correlated-feature trap</h2>
+
+<p>Now the honesty. Both methods share a blind spot, and it is the one that turns a careful analyst into a confidently wrong one. Suppose your data has a second column, <code>tenure_copy</code>, that is almost identical to <code>tenure</code>, say a billing-system field that tracks nearly the same thing. Watch what happens to tenure's importance.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+set.seed(7)
+train$tenure_copy &lt;- train$tenure + round(rnorm(nrow(train), 0, 2))   # a near-duplicate
+test$tenure_copy  &lt;- test$tenure  + round(rnorm(nrow(test),  0, 2))
+
+rf2   &lt;- randomForest(churned ~ ., data = train, ntree = 120)
+base2 &lt;- mean(predict(rf2, test) == test$churned)
+
+set.seed(3)
+c(tenure      = base2 - mean(predict(rf2, transform(test, tenure      = sample(tenure)))      == test$churned),
+  tenure_copy = base2 - mean(predict(rf2, transform(test, tenure_copy = sample(tenure_copy))) == test$churned))
+#&gt;      tenure tenure_copy
+#&gt;       0.033       0.027</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Tenure alone scored <strong>0.087</strong>, the clear number-one feature. Add a near-twin and each of them scores only about <strong>0.03</strong>. Nothing about churn changed; we just gave the model a spare copy. When you shuffle <code>tenure</code>, the forest quietly leans on <code>tenure_copy</code> instead and barely loses accuracy, so tenure looks unimportant. Shuffle <code>tenure_copy</code> and it leans back on <code>tenure</code>. The credit for one strong signal got <strong>split</strong> between two columns, and drop-column has the same disease: delete either twin and the other stands in.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Correlated features share credit, so a genuinely important feature can be masked into looking unimportant. Low permutation or drop-column importance therefore does <strong>not</strong> mean "safe to remove", it might mean "a correlated twin is covering for it." Before trusting a low score, check whether the feature is highly correlated with another.</div></div>
+
+<p>To read these importances honestly: score on held-out data, average over several shuffles, remember the number is the model's reliance and not the truth, and watch out for correlated features splitting the credit.</p>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"monthly charge","value":0.033},{"label":"tenure","value":0.033},{"label":"tenure_copy","value":0.027},{"label":"support calls","value":0.02},{"label":"contract","value":0.007},{"label":"add-ons","value":0.002}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Two low bars</h2>
+
+<p>After adding <code>tenure_copy</code>, both <code>tenure</code> and <code>tenure_copy</code> show low importance, where tenure alone was the top feature. A teammate says: <em>two low-importance features, so we can safely drop both to simplify the model.</em> What actually happens if you do?</p>
+<section class="exercise" data-exercise-id="Permutation-and-Drop-Column-Importance-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">He is right: two features that both score low can both be removed with no harm</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Accuracy drops, because their importance was split between them: either could cover for the other, but removing BOTH removes the shared signal</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing changes, because a duplicate column carries no real information</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Individually each twin looks droppable because its partner masks the loss. Remove both and there is nothing left to cover the gap, so the model loses the single strongest predictor it had.</div><div class="lesson-qfb lesson-qfb-no">The duplicate is nearly a copy of a top feature, so it carries almost all of tenure's signal. That is the whole point: the shared signal is real, it is just double-counted across two columns.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://christophm.github.io/interpretable-ml-book/feature-importance.html">Molnar, Interpretable Machine Learning: Permutation Feature Importance</a> - the standard, careful explanation, including the correlated-feature and train-vs-test caveats you met here.</li>
+
+<li><a href="https://doi.org/10.1023/A:1010933404324">Breiman (2001), Random Forests, Machine Learning 45(1)</a> - the paper that introduced permutation importance as a way to rank features in a forest.</li>
+
+<li><a href="https://doi.org/10.1186/1471-2105-9-307">Strobl et al. (2008), Conditional variable importance for random forests, BMC Bioinformatics</a> - why correlated predictors distort importance, and a conditional method that addresses it.</li>
+
+<li><a href="https://koalaverse.github.io/vip/articles/vip.html">vip: Variable Importance Plots (R package)</a> - a ready-made R tool for permutation and other model-agnostic importance, once you want it off by hand.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now measure global importance for <strong>any</strong> model, not just a linear one. <strong>Permutation importance</strong> shuffles a feature and reads the accuracy drop, cheaply, on one fitted model. <strong>Drop-column importance</strong> retrains without the feature for a more direct but pricier answer. And you know the honest limits: the number is the model's reliance rather than ground truth, it should be scored on held-out data and averaged over shuffles, and correlated features can split the credit so that low importance never automatically means safe-to-drop.</p>
+
+<p>Next, Lesson 3: <strong>SHAP values.</strong> Global rankings tell you what the model uses overall; SHAP goes back to the local question from Lesson 1 and splits a single prediction into per-feature contributions that sum <strong>exactly</strong> to it, with correlated features handled far more gracefully than a raw shuffle.</p>
+</section>
+
+{% endraw %}
