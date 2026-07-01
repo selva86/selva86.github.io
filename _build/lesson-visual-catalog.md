@@ -114,6 +114,16 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `causal-dag` | confounder / collider / mediator toggle -> what to control for | §10 causal diagrams (DAGs) |
 | `fairness-metrics` | fairness-definition toggle -> per-group selection / TPR / FPR bars + the gap | §11 fairness basics |
 | `drift-monitor` | weeks-since-launch slider -> live histogram drifts; PSI climbs to an alert | §12 monitoring and drift |
+| `robust-weights` | OLS/Huber/Tukey toggle -> the outlier's weight drops and the line snaps back to the honest slope | §13 robust regression I/II |
+| `quantile-lines` | 10th/median/90th percentile lines fan apart on heteroskedastic data | §13 quantile regression; §21 distributional/quantile uncertainty |
+| `coef-path` | lasso/ridge toggle + lambda slider -> coefficients shrink; lasso hits exactly 0 (selection) | §13 regularized regression I/II |
+| `spline-smoother` | smoothness slider -> stiff line to good fit to overfit wiggle vs the true curve | §13 GAMs I/II |
+| `count-dist` | Poisson/NB/zero-inflated toggle -> the fitted line matches the excess-zero bar and long tail | §13 count, overdispersion, zero-inflated/hurdle |
+| `glm-family-shapes` | Gamma/Beta/Tweedie toggle -> the density shape each family implies (positive-skewed, [0,1], spike-at-0) | §13 Gamma/Tweedie/beta regression |
+| `ordinal-cumlogit` | predictor slider -> stacked category bands shift low->high (proportional odds) | §13 ordinal/multinomial regression |
+| `shrinkage-pool` | pooling slider -> small noisy groups shrink toward the grand mean | §13 mixed/multilevel models; §16 hierarchical models, partial pooling |
+| `kernel-svm` | linear/poly/RBF toggle -> boundary bends to wrap the inner class; support vectors circled | §14 SVM + the kernel trick |
+| `bayes-update` | prior mean/confidence + data sliders -> prior x likelihood -> posterior; tightens with n | §16 the Bayesian update, conjugacy, choosing priors |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 

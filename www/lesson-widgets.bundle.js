@@ -317,6 +317,103 @@
 })();
 
 ;
+/* bayes-update.js */
+/* bayes-update.js - the heart of Bayesian inference on one screen. A prior belief
+ * (normal) times the evidence from data (the likelihood) gives the posterior. Drag the
+ * prior's mean and confidence and the amount of data; watch the posterior sit between
+ * belief and evidence, and tighten as data grows. Emits runnable base-R that does the
+ * exact conjugate normal-normal update the picture shows.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var st = { pm: 0, ps: 1.0, dm: 3, n: 10 };   // prior mean/sd, data mean, n (data sd fixed = 2)
+    var DSD = 2;
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="bu-plot"></div>' +
+      row('prior mean', 'pm', -4, 6, 0.5, st.pm) +
+      row('prior confidence', 'ps', 0.4, 3, 0.1, st.ps, true) +
+      row('data average', 'dm', -4, 6, 0.5, st.dm) +
+      row('data points n', 'n', 1, 200, 1, st.n) +
+      '<div class="bu-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'The conjugate normal-normal update in base R' });
+
+    var plot = el.querySelector('.bu-plot'), read = el.querySelector('.bu-read');
+    function row(lab, key, lo, hi, step, val, inv) {
+      return '<label style="display:block;font:600 12px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 1px">' + lab +
+        ' <b class="bu-v-' + key + '" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="bu-s" data-k="' + key + '"' + (inv ? ' data-inv="1"' : '') + ' type="range" min="' + lo + '" max="' + hi + '" step="' + step + '" value="' + val + '" style="width:100%;accent-color:' + P.acc + '"></label>';
+    }
+    function dnorm(x, m, s) { return Math.exp(-(x - m) * (x - m) / (2 * s * s)) / (s * Math.sqrt(2 * Math.PI)); }
+
+    function draw() {
+      // conjugate normal update: prior N(pm, ps^2), data mean dm with n obs of sd DSD
+      var priorVar = st.ps * st.ps, dataVar = DSD * DSD / st.n;
+      var postVar = 1 / (1 / priorVar + 1 / dataVar);
+      var postM = postVar * (st.pm / priorVar + st.dm / dataVar);
+      var postS = Math.sqrt(postVar), likS = Math.sqrt(dataVar);
+      var W = 440, H = 190, m = { l: 8, r: 8, t: 10, b: 22 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+      var lo = Math.min(st.pm, st.dm, postM) - 4, hi = Math.max(st.pm, st.dm, postM) + 4;
+      var peak = Math.max(dnorm(st.pm, st.pm, st.ps), dnorm(st.dm, st.dm, likS), dnorm(postM, postM, postS));
+      function sx(x) { return m.l + (x - lo) / (hi - lo) * iw; }
+      function sy(y) { return m.t + ih - y / (peak * 1.08) * ih; }
+      function curve(mn, sd, col, fill) {
+        var pts = ''; for (var i = 0; i <= 80; i++) { var x = lo + (hi - lo) * i / 80; pts += sx(x).toFixed(1) + ',' + sy(dnorm(x, mn, sd)).toFixed(1) + ' '; }
+        var area = fill ? '<polygon points="' + sx(lo).toFixed(1) + ',' + sy(0) + ' ' + pts + sx(hi).toFixed(1) + ',' + sy(0) + '" fill="' + col + '" opacity="0.10"/>' : '';
+        return area + '<polyline points="' + pts + '" fill="none" stroke="' + col + '" stroke-width="' + (fill ? 2.6 : 2) + '"/>';
+      }
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="prior, likelihood and posterior">';
+      svg += '<line x1="' + m.l + '" y1="' + sy(0) + '" x2="' + (m.l + iw) + '" y2="' + sy(0) + '" stroke="' + P.line + '"/>';
+      svg += curve(st.pm, st.ps, P.mut, false);           // prior
+      svg += curve(st.dm, likS, P.c1, false);              // likelihood (data)
+      svg += curve(postM, postS, P.acc, true);             // posterior
+      // legend
+      var lg = [['prior', P.mut], ['likelihood (data)', P.c1], ['posterior', P.acc]];
+      lg.forEach(function (o, i) { svg += '<line x1="' + (m.l + 6 + i * 132) + '" y1="14" x2="' + (m.l + 24 + i * 132) + '" y2="14" stroke="' + o[1] + '" stroke-width="3"/><text x="' + (m.l + 28 + i * 132) + '" y="17.5" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.body + '">' + o[0] + '</text>'; });
+      svg += '</svg>';
+      plot.innerHTML = svg;
+      var pull = ((postM - st.pm) / (st.dm - st.pm || 1) * 100);
+      read.innerHTML = '<b style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '">posterior &mu; ' + postM.toFixed(2) + ', sd ' + postS.toFixed(2) + '</b>. ' +
+        'The posterior sits <b>' + (isFinite(pull) ? Math.max(0, Math.min(100, Math.round(pull))) : 0) + '%</b> of the way from your prior toward the data. ' +
+        (st.n >= 60 ? 'With this much data, the evidence dominates and the prior barely matters.' : st.n <= 3 ? 'With so little data, your prior still carries real weight.' : 'Prior and data each pull their share; add data and the posterior tightens toward the evidence.');
+      el.querySelector('.bu-v-pm').textContent = st.pm.toFixed(1);
+      el.querySelector('.bu-v-ps').textContent = st.ps.toFixed(1);
+      el.querySelector('.bu-v-dm').textContent = st.dm.toFixed(1);
+      el.querySelector('.bu-v-n').textContent = st.n;
+    }
+    Array.prototype.forEach.call(el.querySelectorAll('.bu-s'), function (s) {
+      s.addEventListener('input', function () { st[s.getAttribute('data-k')] = +s.value; draw(); });
+    });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Conjugate normal-normal update: prior belief x data evidence -> posterior.',
+      'prior_mean <- 0;  prior_sd <- 1      # what you believed before',
+      'data_mean  <- 3;  data_sd  <- 2;  n <- 10   # what the data say',
+      '',
+      'prior_var <- prior_sd^2',
+      'data_var  <- data_sd^2 / n            # the mean of n points is this precise',
+      'post_var  <- 1 / (1/prior_var + 1/data_var)',
+      'post_mean <- post_var * (prior_mean/prior_var + data_mean/data_var)',
+      'c(post_mean = round(post_mean, 3), post_sd = round(sqrt(post_var), 3))',
+      '# posterior mean is a precision-weighted blend of prior and data;',
+      '# more data (raise n) shrinks data_var, so the posterior follows the data.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('bayes-update', mount);
+})();
+
+;
 /* bias-variance-target.js */
 /* bias-variance-target.js - the dartboard view of bias and variance.
  * Shots at a bullseye. Bias offsets the cluster's CENTER from the target;
@@ -847,6 +944,94 @@
 })();
 
 ;
+/* coef-path.js */
+/* coef-path.js - watch regularization work. Six coefficients start at their least-squares
+ * values on the left (weak penalty) and get squeezed toward zero as the penalty lambda
+ * grows to the right. Lasso snaps coefficients to exactly zero one by one (selection);
+ * ridge shrinks them smoothly but never to zero. Drag lambda to read how many features
+ * survive. Emits runnable R that fits the same path with glmnet.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var NAMES = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6'];
+  var FULL = [2.4, -1.8, 1.1, 0.6, -0.35, 0.15];   // OLS coefficients (x1 strongest ... x6 noise)
+  var STEPS = 40;
+  // build the two paths across a log-lambda grid (col j = coef trajectory)
+  function paths(mode) {
+    var out = [];
+    for (var s = 0; s < STEPS; s++) {
+      var t = s / (STEPS - 1);                       // 0 (lambda small) -> 1 (lambda large)
+      var row = FULL.map(function (b, j) {
+        if (mode === 'ridge') return b / (1 + 9 * t * t);                       // smooth shrink, never 0
+        var thr = t * 2.6;                                                       // soft-threshold amount
+        var v = Math.sign(b) * Math.max(0, Math.abs(b) - thr * (1 - j * 0.06));  // weaker coefs die first
+        return v;
+      });
+      out.push(row);
+    }
+    return out;
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mode = 'lasso', li = 14;
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cp-seg" style="margin-bottom:12px">' + u.seg([{ v: 'lasso', label: 'Lasso (L1)' }, { v: 'ridge', label: 'Ridge (L2)' }], 'lasso') + '</div>' +
+      '<div class="cp-plot"></div>' +
+      '<label style="display:block;font:600 12px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 2px">penalty &lambda; <b class="cp-lam" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="cp-s" type="range" min="0" max="' + (STEPS - 1) + '" step="1" value="14" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div class="cp-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:8px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'The lasso path with glmnet' });
+
+    var plot = el.querySelector('.cp-plot'), read = el.querySelector('.cp-read'), slider = el.querySelector('.cp-s'), lamEl = el.querySelector('.cp-lam');
+    var W = 440, H = 220, m = { l: 40, r: 54, t: 12, b: 28 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var yb = 2.8;
+    function sx(s) { return m.l + s / (STEPS - 1) * iw; }
+    function sy(v) { return m.t + ih / 2 - v / yb * (ih / 2); }
+    function draw() {
+      var P2 = paths(mode), pal = [P.c0, P.acc, P.c1, '#7a5ea3', '#2f8f86', P.faint];
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="regularization path">';
+      svg += '<line x1="' + m.l + '" y1="' + sy(0) + '" x2="' + (m.l + iw) + '" y2="' + sy(0) + '" stroke="' + P.line + '"/>';
+      NAMES.forEach(function (nm, j) {
+        var pts = ''; for (var s = 0; s < STEPS; s++) pts += sx(s).toFixed(1) + ',' + sy(P2[s][j]).toFixed(1) + ' ';
+        svg += '<polyline points="' + pts + '" fill="none" stroke="' + pal[j] + '" stroke-width="2.2"/>';
+        svg += '<text x="' + (m.l + iw + 5) + '" y="' + (sy(P2[STEPS - 1][j]) + 3).toFixed(1) + '" font-family="IBM Plex Mono,monospace" font-size="10" fill="' + pal[j] + '">' + nm + '</text>';
+      });
+      svg += '<line x1="' + sx(li) + '" y1="' + m.t + '" x2="' + sx(li) + '" y2="' + (m.t + ih) + '" stroke="' + P.ink + '" stroke-width="1.5" stroke-dasharray="4 3"/>';
+      svg += '<text x="' + m.l + '" y="' + (H - 6) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">weak penalty</text><text x="' + (m.l + iw) + '" y="' + (H - 6) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">strong penalty</text>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      var alive = P2[li].filter(function (v) { return Math.abs(v) > 0.01; }).length;
+      lamEl.textContent = (li / (STEPS - 1)).toFixed(2);
+      read.innerHTML = mode === 'lasso'
+        ? '<b style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '">' + alive + ' of 6 features survive.</b> Lasso drives weak coefficients to <b>exactly zero</b>, so raising &lambda; performs feature selection: the noise features (x5, x6) die first.'
+        : '<b style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '">all 6 shrink, none vanish.</b> Ridge pulls every coefficient smoothly toward zero but never exactly to it, so it stabilizes rather than selects.';
+    }
+    u.wireSeg(el.querySelector('.cp-seg'), function (v) { mode = v; draw(); });
+    slider.addEventListener('input', function () { li = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# The lasso path: coefficients shrink and drop to zero as the penalty grows.',
+      'library(glmnet)',
+      'set.seed(1); n <- 200',
+      'X <- matrix(rnorm(n * 6), n, 6)',
+      'y <- 2.4*X[,1] - 1.8*X[,2] + 1.1*X[,3] + rnorm(n)   # x4-x6 are noise',
+      '',
+      'fit <- glmnet(X, y, alpha = 1)          # alpha = 1 is lasso; alpha = 0 is ridge',
+      'coef(fit, s = 0.30)                      # at this lambda, weak features are exactly 0',
+      'colSums(coef(fit) != 0)                  # non-zero count shrinks as lambda rises'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('coef-path', mount);
+})();
+
+;
 /* control-flow.js */
 /* control-flow.js - foundations: watch a for-loop with an if/else execute one
  * iteration at a time. Step through it; see the counter, which branch the
@@ -945,6 +1130,79 @@
     el.innerHTML = '<div style="font-family:IBM Plex Sans,system-ui,sans-serif">' + h + '</div>';
   }
   if (window.LessonWidgets) window.LessonWidgets.register('correlation-heatmap', mount);
+})();
+
+;
+/* count-dist.js */
+/* count-dist.js - why a plain Poisson often fails on real counts. Real count data (support
+ * tickets, insurance claims, doctor visits) usually has more variance than a Poisson allows
+ * (overdispersion) and a pile-up of extra zeros. The bars are the observed counts; the line
+ * is the model's fitted shape. Toggle Poisson -> Negative Binomial -> Zero-Inflated and
+ * watch the line finally match the tall zero bar and the long tail. Emits runnable R that
+ * compares the observed zeros to what a Poisson predicts.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // observed counts 0..9 (excess zeros + long tail; not a clean Poisson)
+  var OBS = [0.34, 0.16, 0.15, 0.12, 0.09, 0.06, 0.035, 0.02, 0.01, 0.005];
+  var LAM = 2.3;   // mean-ish
+  function pois(k) { var e = Math.exp(-LAM), p = e; for (var i = 1; i <= k; i++) p *= LAM / i; return p; }
+  function nb(k) { var r = 2.0, pr = r / (r + LAM), c = 1; for (var i = 0; i < k; i++) c *= (r + i) / (i + 1); return c * Math.pow(pr, r) * Math.pow(1 - pr, k); }
+  function zip(k) { var pi = 0.22, base = pois(k); return k === 0 ? pi + (1 - pi) * base : (1 - pi) * base; }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var model = 'pois';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cd-seg" style="margin-bottom:12px">' + u.seg([{ v: 'pois', label: 'Poisson' }, { v: 'nb', label: 'Neg. Binomial' }, { v: 'zip', label: 'Zero-Inflated' }], 'pois') + '</div>' +
+      '<div class="cd-plot"></div>' +
+      '<div class="cd-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Observed zeros vs what a Poisson predicts (base R)' });
+
+    var plot = el.querySelector('.cd-plot'), read = el.querySelector('.cd-read');
+    var W = 440, H = 220, m = { l: 36, r: 12, t: 12, b: 28 }, iw = W - m.l - m.r, ih = H - m.t - m.b, mx = 0.4;
+    var bw = iw / OBS.length;
+    function sy(p) { return m.t + ih - p / mx * ih; }
+    function draw() {
+      var fn = model === 'pois' ? pois : model === 'nb' ? nb : zip;
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="count distribution fit">';
+      svg += '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/>';
+      OBS.forEach(function (o, k) { var x = m.l + bw * k + 3, h = o / mx * ih; svg += '<rect x="' + x.toFixed(1) + '" y="' + sy(o).toFixed(1) + '" width="' + (bw - 6).toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="' + P.line + '"/>'; svg += '<text x="' + (x + (bw - 6) / 2).toFixed(1) + '" y="' + (m.t + ih + 14) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + k + '</text>'; });
+      var pts = ''; for (var k = 0; k < OBS.length; k++) pts += (m.l + bw * k + bw / 2).toFixed(1) + ',' + sy(fn(k)).toFixed(1) + ' ';
+      svg += '<polyline points="' + pts + '" fill="none" stroke="' + P.acc + '" stroke-width="2.6"/>';
+      for (var k2 = 0; k2 < OBS.length; k2++) svg += '<circle cx="' + (m.l + bw * k2 + bw / 2).toFixed(1) + '" cy="' + sy(fn(k2)).toFixed(1) + '" r="3" fill="' + P.acc + '"/>';
+      svg += '<text x="' + (m.l + iw) + '" y="' + (H - 4) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">bars = observed, line = model</text>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      var gapZero = (OBS[0] - fn(0)).toFixed(2);
+      read.innerHTML = model === 'pois'
+        ? '<b style="color:' + P.bad + '">Poisson misses on both ends.</b> It underpredicts the zero bar by <b>' + gapZero + '</b> and cannot match the long tail, because Poisson forces variance = mean. Real counts are usually more spread out.'
+        : model === 'nb'
+          ? '<b style="color:' + P.acc + '">Negative binomial</b> adds a dispersion parameter, so variance can exceed the mean. The tail now fits, but a genuine excess of zeros can still be under-modeled.'
+          : '<b style="color:' + P.acc + '">Zero-inflated</b> mixes a "structural zero" process with the counts, so the tall zero bar and the tail both fit: the right choice when many zeros come from "never at risk" cases.';
+    }
+    u.wireSeg(el.querySelector('.cd-seg'), function (v) { model = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Does a Poisson fit? Compare the zeros it predicts to the zeros you actually see.',
+      'set.seed(1); n <- 800',
+      '# a process with extra zeros: 25% structural zeros, rest ~ Poisson(2.3)',
+      'lambda <- 2.3',
+      'y <- ifelse(runif(n) < 0.25, 0, rpois(n, lambda))',
+      '',
+      'obs_zeros  <- mean(y == 0)',
+      'pois_zeros <- dpois(0, mean(y))        # zeros a fitted Poisson expects',
+      'c(observed = round(obs_zeros, 3), poisson_expects = round(pois_zeros, 3))',
+      '# far more observed zeros than Poisson allows -> reach for NB or a zero-inflated model.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('count-dist', mount);
 })();
 
 ;
@@ -1886,6 +2144,88 @@
 })();
 
 ;
+/* glm-family-shapes.js */
+/* glm-family-shapes.js - the outcome's shape tells you which GLM family to use. A normal
+ * model assumes a symmetric bell on the whole line, but real targets are often bounded or
+ * skewed: money spent is positive and right-skewed (Gamma), a proportion lives in [0,1]
+ * (Beta), and insurance loss is a spike at zero plus a positive tail (Tweedie). Toggle the
+ * family to see the density it implies and the kind of outcome it fits. Emits runnable
+ * base-R that draws each density so you can see why the family matches the data.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var FAM = {
+    gamma: { lo: 0, hi: 8, dens: function (x) { var k = 2.2, th = 1.1; return x <= 0 ? 0 : Math.pow(x, k - 1) * Math.exp(-x / th) / (Math.pow(th, k) * gammaf(k)); }, say: '<b>Gamma</b> fits a strictly positive, right-skewed outcome: spend, claim size, time-to-complete. Mean and variance rise together, and it never predicts a negative value.', use: 'spend, claim amount, duration' },
+    beta: { lo: 0, hi: 1, dens: function (x) { var a = 2.5, b = 4; return (x <= 0 || x >= 1) ? 0 : Math.pow(x, a - 1) * Math.pow(1 - x, b - 1) / betaf(a, b); }, say: '<b>Beta</b> fits a proportion or rate bounded in [0, 1]: conversion rate, share of budget, defect fraction. A normal model would happily predict impossible values below 0 or above 1.', use: 'proportion, rate, fraction' },
+    tweedie: { lo: 0, hi: 8, dens: null, say: '<b>Tweedie</b> fits a spike of exact zeros plus a positive continuous tail: total insurance loss (most customers claim nothing; some claim a lot). No zero-free family (Gamma) can place mass exactly at 0.', use: 'insurance loss, total sales with many zeros' }
+  };
+  function gammaf(z) { var g = 7, c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7]; if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gammaf(1 - z)); z -= 1; var x = c[0]; for (var i = 1; i < g + 2; i++) x += c[i] / (z + i); var t = z + g + 0.5; return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x; }
+  function betaf(a, b) { return gammaf(a) * gammaf(b) / gammaf(a + b); }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var fam = 'gamma';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="gf-seg" style="margin-bottom:12px">' + u.seg([{ v: 'gamma', label: 'Gamma' }, { v: 'beta', label: 'Beta' }, { v: 'tweedie', label: 'Tweedie' }], 'gamma') + '</div>' +
+      '<div class="gf-plot"></div>' +
+      '<div class="gf-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'The density shapes in base R' });
+
+    var plot = el.querySelector('.gf-plot'), read = el.querySelector('.gf-read');
+    var W = 440, H = 210, m = { l: 30, r: 12, t: 12, b: 26 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+    function draw() {
+      var f = FAM[fam], svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GLM family density">';
+      svg += '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/><line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/>';
+      function sx(x) { return m.l + (x - f.lo) / (f.hi - f.lo) * iw; }
+      if (fam === 'tweedie') {
+        // spike at 0 + gamma-ish tail
+        var pk = 0; var tw = function (x) { return x <= 0 ? 0 : 0.9 * Math.pow(x, 1.2) * Math.exp(-x / 1.0); };
+        for (var xi = 0; xi <= f.hi; xi += 0.05) pk = Math.max(pk, tw(xi));
+        var syT = function (v) { return m.t + ih - v / (pk * 1.15) * ih; };
+        svg += '<line x1="' + sx(0) + '" y1="' + syT(pk * 1.05) + '" x2="' + sx(0) + '" y2="' + (m.t + ih) + '" stroke="' + P.acc + '" stroke-width="5"/>';
+        svg += '<text x="' + (sx(0) + 5) + '" y="' + (syT(pk * 1.05) + 4) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.acc + '">P(loss = 0)</text>';
+        var tp = ''; for (var x2 = 0.05; x2 <= f.hi; x2 += 0.05) tp += sx(x2).toFixed(1) + ',' + syT(tw(x2)).toFixed(1) + ' ';
+        svg += '<polyline points="' + tp + '" fill="none" stroke="' + P.acc + '" stroke-width="2.6"/>';
+      } else {
+        var peak = 0; for (var s = f.lo; s <= f.hi; s += (f.hi - f.lo) / 200) peak = Math.max(peak, f.dens(s));
+        var sy = function (v) { return m.t + ih - v / (peak * 1.12) * ih; };
+        var pts = '', area = sx(f.lo).toFixed(1) + ',' + sy(0) + ' ';
+        for (var i = 0; i <= 200; i++) { var x = f.lo + (f.hi - f.lo) * i / 200; var yy = sy(f.dens(x)); pts += sx(x).toFixed(1) + ',' + yy.toFixed(1) + ' '; area += sx(x).toFixed(1) + ',' + yy.toFixed(1) + ' '; }
+        area += sx(f.hi).toFixed(1) + ',' + sy(0);
+        svg += '<polygon points="' + area + '" fill="' + P.acc + '" opacity="0.10"/><polyline points="' + pts + '" fill="none" stroke="' + P.acc + '" stroke-width="2.6"/>';
+      }
+      [f.lo, (f.lo + f.hi) / 2, f.hi].forEach(function (t) { svg += '<text x="' + sx(t) + '" y="' + (m.t + ih + 14) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + t + '</text>'; });
+      svg += '<text x="' + (m.l + iw / 2) + '" y="' + (H - 3) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">outcome value (' + f.use + ')</text>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      read.innerHTML = f.say;
+    }
+    u.wireSeg(el.querySelector('.gf-seg'), function (v) { fam = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# The outcome\'s support and skew pick the family. See the shapes:',
+      'x_pos <- seq(0.01, 8, 0.02)',
+      'x_prp <- seq(0.001, 0.999, 0.002)',
+      '',
+      'gamma_d <- dgamma(x_pos, shape = 2.2, scale = 1.1)   # positive, right-skewed',
+      'beta_d  <- dbeta(x_prp, 2.5, 4)                       # bounded in [0, 1]',
+      'c(gamma_support = "x > 0, skewed  -> spend, claims",',
+      '  beta_support  = "0 < x < 1     -> proportions",',
+      '  tweedie       = "mass at 0 + positive tail -> insurance loss")',
+      'c(gamma_peak_at = round(x_pos[which.max(gamma_d)], 2),',
+      '  beta_peak_at  = round(x_prp[which.max(beta_d)], 2))'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('glm-family-shapes', mount);
+})();
+
+;
 /* gmm-clusters.js */
 /* gmm-clusters.js - soft clustering. Unlike k-means (every point fully in one cluster), a
  * Gaussian mixture gives each point a PROBABILITY of belonging to each component. Toggle
@@ -2338,6 +2678,88 @@
     el.innerHTML = ''; el.appendChild(wrap);
   }
   if (window.LessonWidgets) window.LessonWidgets.register('join-diagram', mount);
+})();
+
+;
+/* kernel-svm.js */
+/* kernel-svm.js - the kernel trick, made visible. Two classes that no straight line can
+ * separate. A linear SVM tries anyway and fails; switch to a polynomial or RBF kernel and
+ * the boundary bends into a closed curve that wraps one class perfectly. The support
+ * vectors (circled) are the only points that shape it. Emits runnable R fitting e1071::svm
+ * with each kernel and reporting the training error.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // inner class (circle) vs outer ring: linearly inseparable on purpose
+  var PTS = (function () {
+    var a = [], s = 11; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }
+    for (var i = 0; i < 26; i++) { var ang = r() * 6.283, rad = r() * 1.1; a.push({ x: rad * Math.cos(ang), y: rad * Math.sin(ang), c: 1 }); }   // inner
+    for (var j = 0; j < 34; j++) { var a2 = r() * 6.283, rr = 2.1 + r() * 1.0; a.push({ x: rr * Math.cos(a2), y: rr * Math.sin(a2), c: 0 }); }   // ring
+    return a;
+  })();
+
+  // decision score per kernel (illustrative, matched to the geometry above)
+  function score(kernel, x, y) {
+    var rad2 = x * x + y * y;
+    if (kernel === 'linear') return 0.9 * x + 0.4 * y + 0.15;          // a line: cannot separate the ring
+    if (kernel === 'poly') return 3.2 - rad2;                          // quadratic: a circle
+    return 1.6 * Math.exp(-rad2 / 1.4) - 0.5;                          // RBF: a smooth bump around the inner class
+  }
+  function isSV(kernel, p) { return Math.abs(score(kernel, p.x, p.y)) < (kernel === 'linear' ? 0.8 : 0.9); }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var kernel = 'linear';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ks-seg" style="margin-bottom:12px">' + u.seg([{ v: 'linear', label: 'Linear' }, { v: 'poly', label: 'Polynomial' }, { v: 'rbf', label: 'RBF' }], 'linear') + '</div>' +
+      '<div class="ks-plot"></div>' +
+      '<div class="ks-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Three kernels with e1071::svm(), and their training error' });
+
+    var plot = el.querySelector('.ks-plot'), read = el.querySelector('.ks-read');
+    var W = 300, H = 300, R = [-3.4, 3.4];
+    function px(x) { return (x - R[0]) / (R[1] - R[0]) * W; }
+    function py(y) { return H - (y - R[0]) / (R[1] - R[0]) * H; }
+    function draw() {
+      // shade the decision region on a grid
+      var cells = '', step = 12;
+      for (var gx = 0; gx < W; gx += step) for (var gy = 0; gy < H; gy += step) {
+        var wx = R[0] + (gx + step / 2) / W * (R[1] - R[0]), wy = R[0] + (H - gy - step / 2) / H * (R[1] - R[0]);
+        var s = score(kernel, wx, wy);
+        cells += '<rect x="' + gx + '" y="' + gy + '" width="' + step + '" height="' + step + '" fill="' + (s > 0 ? P.c0 : P.acc) + '" opacity="' + (Math.min(0.22, 0.05 + Math.abs(s) * 0.06)).toFixed(3) + '"/>';
+      }
+      var err = 0, dots = '';
+      PTS.forEach(function (p) { var pred = score(kernel, p.x, p.y) > 0 ? 1 : 0; if (pred !== p.c) err++; var sv = isSV(kernel, p);
+        dots += '<circle cx="' + px(p.x).toFixed(1) + '" cy="' + py(p.y).toFixed(1) + '" r="' + (sv ? 6.5 : 4.5) + '" fill="' + (p.c ? P.c0 : P.acc) + '"' + (sv ? ' stroke="' + P.ink + '" stroke-width="1.6"' : '') + '/>'; });
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SVM decision region">' + cells + dots + '</svg>';
+      read.innerHTML = kernel === 'linear'
+        ? '<b style="font-family:IBM Plex Mono,monospace;color:' + P.bad + '">Linear kernel: ' + err + ' of ' + PTS.length + ' misclassified.</b> No straight boundary can wrap the inner class, so a linear SVM is stuck.'
+        : '<b style="font-family:IBM Plex Mono,monospace;color:' + P.acc + '">' + (kernel === 'poly' ? 'Polynomial' : 'RBF') + ' kernel: ' + err + ' misclassified.</b> The kernel trick lifts the points into a higher space where a flat boundary exists; back in 2-D it appears as a curve. The circled points are the <b>support vectors</b> that define it.';
+    }
+    u.wireSeg(el.querySelector('.ks-seg'), function (v) { kernel = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Two classes no straight line can split: an inner blob inside a ring.',
+      'library(e1071)',
+      'set.seed(11)',
+      'ang <- runif(60, 0, 2*pi)',
+      'rad <- c(runif(26, 0, 1.1), 2.1 + runif(34, 0, 1))    # inner vs ring',
+      'd <- data.frame(x = rad*cos(ang), y = rad*sin(ang),',
+      '                cls = factor(c(rep(1,26), rep(0,34))))',
+      '',
+      'err <- function(k) mean(predict(svm(cls ~ x + y, d, kernel = k)) != d$cls)',
+      'c(linear = err("linear"), polynomial = err("polynomial"), radial = err("radial"))',
+      '# linear can never separate the ring; radial (RBF) drives training error to ~0.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('kernel-svm', mount);
 })();
 
 ;
@@ -3098,6 +3520,89 @@
 })();
 
 ;
+/* ordinal-cumlogit.js */
+/* ordinal-cumlogit.js - modeling an ordered outcome without pretending it is a number.
+ * Satisfaction is low < medium < high: the order matters, but the gaps are not real
+ * distances, so plain regression is wrong. A proportional-odds model gives each response a
+ * probability that shifts smoothly as a predictor rises. Slide the predictor and watch the
+ * stacked bands move mass from "low" up to "high". Emits runnable R fitting MASS::polr.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var CATS = ['low', 'medium', 'high'];
+  var COL = [P.c1, P.faint, P.acc];
+  var BETA = 1.1, CUT = [-1.2, 1.0];   // proportional-odds: shared slope, two cutpoints
+  function invlogit(z) { return 1 / (1 + Math.exp(-z)); }
+  function probs(x) {
+    var eta = BETA * x;
+    var c1 = invlogit(CUT[0] - eta), c2 = invlogit(CUT[1] - eta);   // cumulative P(<=k)
+    return [c1, c2 - c1, 1 - c2];
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var xv = 0;
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="oc-plot"></div>' +
+      '<label style="display:block;font:600 12px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:12px 0 2px">predictor (e.g. price cut, service quality) <b class="oc-v" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="oc-s" type="range" min="-3" max="3" step="0.1" value="0" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div class="oc-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'A proportional-odds model with MASS::polr()' });
+
+    var plot = el.querySelector('.oc-plot'), read = el.querySelector('.oc-read'), slider = el.querySelector('.oc-s'), vEl = el.querySelector('.oc-v');
+    var W = 440, H = 210, m = { l: 40, r: 90, t: 12, b: 26 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+    function draw() {
+      // stacked bands across the predictor range + a marker at xv
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ordinal category probabilities">';
+      var N = 60, sx = function (i) { return m.l + i / N * iw; };
+      // build cumulative band polygons
+      var lowerY = []; for (var i = 0; i <= N; i++) lowerY.push(m.t + ih);
+      for (var c = 0; c < 3; c++) {
+        var top = [], bot = [];
+        for (var j = 0; j <= N; j++) { var x = -3 + 6 * j / N, pr = probs(x); var cum = 0; for (var cc = 0; cc <= c; cc++) cum += pr[cc]; var y = m.t + ih - cum * ih; top.push(sx(j) + ',' + y.toFixed(1)); }
+        for (var k = N; k >= 0; k--) bot.push(sx(k) + ',' + lowerY[k].toFixed(1));
+        svg += '<polygon points="' + top.join(' ') + ' ' + bot.join(' ') + '" fill="' + COL[c] + '" opacity="0.8"/>';
+        for (var jj = 0; jj <= N; jj++) { var x2 = -3 + 6 * jj / N, pr2 = probs(x2), cum2 = 0; for (var c2 = 0; c2 <= c; c2++) cum2 += pr2[c2]; lowerY[jj] = m.t + ih - cum2 * ih; }
+      }
+      // marker
+      var mi = (xv + 3) / 6 * N; svg += '<line x1="' + sx(mi).toFixed(1) + '" y1="' + m.t + '" x2="' + sx(mi).toFixed(1) + '" y2="' + (m.t + ih) + '" stroke="' + P.ink + '" stroke-width="1.5"/>';
+      // legend
+      CATS.forEach(function (nm, i) { svg += '<rect x="' + (m.l + iw + 14) + '" y="' + (m.t + 6 + i * 20) + '" width="12" height="12" rx="2" fill="' + COL[i] + '"/><text x="' + (m.l + iw + 30) + '" y="' + (m.t + 16 + i * 20) + '" font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.body + '">' + nm + '</text>'; });
+      svg += '<text x="' + (m.l + iw / 2) + '" y="' + (H - 3) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">predictor value</text>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      var pr = probs(xv);
+      vEl.textContent = xv.toFixed(1);
+      read.innerHTML = 'At this predictor value: P(low) <b>' + (pr[0] * 100).toFixed(0) + '%</b>, P(medium) <b>' + (pr[1] * 100).toFixed(0) + '%</b>, P(high) <b style="color:' + P.acc + '">' + (pr[2] * 100).toFixed(0) + '%</b>. ' +
+        'As the predictor rises, probability flows steadily from "low" up to "high". The <b>proportional-odds</b> assumption is that one slope drives every cutpoint, so the bands shift together and never cross.';
+    }
+    slider.addEventListener('input', function () { xv = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# An ordered outcome (low < medium < high) modeled with proportional odds.',
+      'library(MASS)',
+      'set.seed(1); n <- 600',
+      'x <- rnorm(n)',
+      'eta <- 1.1 * x',
+      'p_le1 <- plogis(-1.2 - eta); p_le2 <- plogis(1.0 - eta)   # cumulative probs',
+      'u <- runif(n)',
+      'y <- factor(ifelse(u < p_le1, "low", ifelse(u < p_le2, "medium", "high")),',
+      '            levels = c("low","medium","high"), ordered = TRUE)',
+      '',
+      'm <- polr(y ~ x, Hess = TRUE)',
+      'coef(m)          # one slope; positive x shifts mass toward "high"'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('ordinal-cumlogit', mount);
+})();
+
+;
 /* pca-projection.js */
 /* pca-projection.js - PCA in two dimensions. Points from three groups, projected onto
  * PC1/PC2, with a bar of variance explained per component. A toggle rotates between the
@@ -3269,6 +3774,79 @@
     el.innerHTML = '<div class="lw-diagram">' + svg + '</div>';
   }
   if (window.LessonWidgets) window.LessonWidgets.register('process-flow', mount);
+})();
+
+;
+/* quantile-lines.js */
+/* quantile-lines.js - one regression line is not enough when the spread changes. Income
+ * fans out with experience: juniors cluster tight, seniors range from modest to huge.
+ * OLS draws a single line through the middle and hides that. Quantile regression draws a
+ * line for the 10th, 50th and 90th percentile; because they fan apart, you can read the
+ * whole conditional distribution, not just its mean. Toggle a quantile to highlight it.
+ * Emits runnable base-R that fits a quantile line by minimizing the pinball (check) loss.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // heteroskedastic fan: y spread grows with x
+  var D = (function () {
+    var a = [], s = 5; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff - 0.5; }
+    for (var i = 0; i < 90; i++) { var x = 1 + (i / 89) * 18; a.push({ x: x, y: 20 + 2.2 * x + r() * (6 + 2.4 * x) }); }
+    return a;
+  })();
+  // fanned quantile lines (intercept, slope) matched to the generator
+  var Q = { '0.1': [16, 1.0], '0.5': [20, 2.2], '0.9': [24, 3.4] };
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var tau = '0.5';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ql-seg" style="margin-bottom:12px">' + u.seg([{ v: '0.1', label: '10th %ile' }, { v: '0.5', label: 'median' }, { v: '0.9', label: '90th %ile' }], '0.5') + '</div>' +
+      '<div class="ql-plot"></div>' +
+      '<div class="ql-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'A quantile line by minimizing the pinball loss (base R)' });
+
+    var plot = el.querySelector('.ql-plot'), read = el.querySelector('.ql-read');
+    var W = 440, H = 250, m = { l: 42, r: 12, t: 12, b: 30 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var xe = [0, 20], ye = [0, 120];
+    function sx(x) { return m.l + (x - xe[0]) / (xe[1] - xe[0]) * iw; }
+    function sy(y) { return m.t + ih - (y - ye[0]) / (ye[1] - ye[0]) * ih; }
+    function draw() {
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="quantile regression">';
+      svg += '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/><line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/>';
+      D.forEach(function (d) { svg += '<circle cx="' + sx(d.x).toFixed(1) + '" cy="' + sy(d.y).toFixed(1) + '" r="3" fill="' + P.c0 + '" opacity="0.4"/>'; });
+      ['0.1', '0.5', '0.9'].forEach(function (q) { var b = Q[q], on = q === tau, col = on ? P.acc : P.faint;
+        svg += '<line x1="' + sx(xe[0]) + '" y1="' + sy(b[0] + b[1] * xe[0]) + '" x2="' + sx(xe[1]) + '" y2="' + sy(b[0] + b[1] * xe[1]) + '" stroke="' + col + '" stroke-width="' + (on ? 3 : 1.8) + '"/>';
+        svg += '<text x="' + (sx(xe[1]) - 3) + '" y="' + (sy(b[0] + b[1] * xe[1]) - 4).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="10" fill="' + col + '">&tau;=' + q + '</text>'; });
+      svg += '<text x="' + (m.l + iw / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">years of experience</text>';
+      svg += '<text transform="translate(12,' + (m.t + ih / 2) + ') rotate(-90)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">income</text>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      var b = Q[tau];
+      read.innerHTML = tau === '0.5'
+        ? 'The <b>median</b> line (slope ' + b[1].toFixed(1) + ') is close to what OLS would give. But it is only the middle of the story.'
+        : '<b style="color:' + P.acc + '">The &tau;=' + tau + ' line has slope ' + b[1].toFixed(1) + '.</b> The 90th-percentile line rises far steeper than the 10th: each extra year of experience buys the top earners much more than the bottom. The lines <b>fan apart</b> because the spread grows with x, which a single OLS line can never show.';
+    }
+    u.wireSeg(el.querySelector('.ql-seg'), function (v) { tau = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Quantile regression fits a line to a percentile by minimizing the pinball loss.',
+      'set.seed(5); n <- 300',
+      'x <- runif(n, 1, 19)',
+      'y <- 20 + 2.2 * x + rnorm(n) * (6 + 2.4 * x)   # spread grows with x (heteroskedastic)',
+      '',
+      'pinball <- function(b, tau) { r <- y - (b[1] + b[2]*x); sum(r * (tau - (r < 0))) }',
+      'fit_q  <- function(tau) optim(c(20, 2), pinball, tau = tau)$par',
+      'rbind(q10 = fit_q(0.1), median = fit_q(0.5), q90 = fit_q(0.9))',
+      '# the slope rises across quantiles: the top earners gain more per year than the bottom.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('quantile-lines', mount);
 })();
 
 ;
@@ -3569,6 +4147,97 @@
 })();
 
 ;
+/* robust-weights.js */
+/* robust-weights.js - one outlier, three fits. OLS chases every point and lets a single
+ * bad row tilt the whole line; robust M-estimators (Huber, Tukey) notice the point does
+ * not fit and quietly turn its weight down. Toggle the method and watch the line snap
+ * back to the honest trend while the outlier fades to its down-weighted size. Emits
+ * runnable R comparing lm() with MASS::rlm().
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // 14 honest points on y = 2 + 1.4x, plus one high-leverage outlier
+  var D = (function () {
+    var a = [], s = 3; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff - 0.5; }
+    for (var i = 0; i < 14; i++) { var x = 1 + i * 0.55; a.push({ x: x, y: 2 + 1.4 * x + r() * 1.3 }); }
+    a.push({ x: 7.2, y: 2.0 });   // the outlier: should be ~12, sits at 2
+    return a;
+  })();
+
+  function fit(method) {
+    // IRLS. method: ols | huber | tukey. Returns {b0,b1,w:[]}
+    var w = D.map(function () { return 1; }), b0 = 0, b1 = 0, it, k;
+    for (it = 0; it < (method === 'ols' ? 1 : 12); it++) {
+      var sw = 0, swx = 0, swy = 0, swxx = 0, swxy = 0;
+      D.forEach(function (d, i) { var wi = w[i]; sw += wi; swx += wi * d.x; swy += wi * d.y; swxx += wi * d.x * d.x; swxy += wi * d.x * d.y; });
+      var den = sw * swxx - swx * swx; b1 = (sw * swxy - swx * swy) / den; b0 = (swy - b1 * swx) / sw;
+      var res = D.map(function (d) { return d.y - (b0 + b1 * d.x); });
+      var mad = res.map(Math.abs).sort(function (a, b) { return a - b; })[Math.floor(res.length / 2)] * 1.4826 || 1;
+      if (method === 'ols') break;
+      k = method === 'huber' ? 1.345 : 4.685;
+      w = res.map(function (rr) { var u2 = rr / (mad * k); return method === 'huber' ? Math.min(1, 1 / Math.abs(u2 || 1e-9)) : (Math.abs(u2) < 1 ? (1 - u2 * u2) * (1 - u2 * u2) : 0); });
+    }
+    return { b0: b0, b1: b1, w: w };
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var method = 'ols';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="rw-seg" style="margin-bottom:12px">' + u.seg([{ v: 'ols', label: 'OLS' }, { v: 'huber', label: 'Huber' }, { v: 'tukey', label: 'Tukey' }], 'ols') + '</div>' +
+      '<div class="rw-plot"></div>' +
+      '<div class="rw-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'OLS vs a robust fit with MASS::rlm()' });
+
+    var plot = el.querySelector('.rw-plot'), read = el.querySelector('.rw-read');
+    var xs = D.map(function (d) { return d.x; }), ys = D.map(function (d) { return d.y; });
+    var xe = [Math.min.apply(null, xs) - 0.5, Math.max.apply(null, xs) + 0.5], ye = [0, Math.max.apply(null, ys) + 1];
+    var W = 440, H = 250, m = { l: 40, r: 12, t: 12, b: 30 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+    function sx(x) { return m.l + (x - xe[0]) / (xe[1] - xe[0]) * iw; }
+    function sy(y) { return m.t + ih - (y - ye[0]) / (ye[1] - ye[0]) * ih; }
+    function draw() {
+      var f = fit(method), fo = fit('ols');
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="robust regression">';
+      svg += '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/><line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/>';
+      // faint OLS reference line when a robust method is active
+      if (method !== 'ols') svg += '<line x1="' + sx(xe[0]) + '" y1="' + sy(fo.b0 + fo.b1 * xe[0]) + '" x2="' + sx(xe[1]) + '" y2="' + sy(fo.b0 + fo.b1 * xe[1]) + '" stroke="' + P.faint + '" stroke-width="1.5" stroke-dasharray="4 3"/>';
+      // the active fit line
+      svg += '<line x1="' + sx(xe[0]) + '" y1="' + sy(f.b0 + f.b1 * xe[0]) + '" x2="' + sx(xe[1]) + '" y2="' + sy(f.b0 + f.b1 * xe[1]) + '" stroke="' + P.acc + '" stroke-width="2.6"/>';
+      // points sized by weight (down-weighted = small + faded)
+      D.forEach(function (d, i) { var wt = method === 'ols' ? 1 : f.w[i]; var out = d.x > 6.9 && d.y < 4; svg += '<circle cx="' + sx(d.x).toFixed(1) + '" cy="' + sy(d.y).toFixed(1) + '" r="' + (3 + wt * 3).toFixed(1) + '" fill="' + (out ? P.bad : P.c0) + '" opacity="' + (0.35 + wt * 0.55).toFixed(2) + '"/>'; });
+      svg += '</svg>';
+      plot.innerHTML = svg;
+      var slope = f.b1.toFixed(2), olsSlope = fo.b1.toFixed(2), trueSlope = '1.40';
+      read.innerHTML = method === 'ols'
+        ? '<b style="font-family:IBM Plex Mono,monospace;color:' + P.bad + '">OLS slope ' + slope + '</b>. One outlier (red) drags the least-squares line well below the true trend (' + trueSlope + '): every point, however wrong, gets full weight.'
+        : '<b style="font-family:IBM Plex Mono,monospace;color:' + P.acc + '">' + (method === 'huber' ? 'Huber' : 'Tukey') + ' slope ' + slope + '</b> vs OLS ' + olsSlope + ' (dashed). The estimator gives the outlier a weight of <b>' + f.w[D.length - 1].toFixed(2) + '</b>, so the line snaps back to the honest slope near ' + trueSlope + '. ' + (method === 'tukey' ? 'Tukey redescends to weight 0: gross outliers are rejected outright.' : 'Huber caps a big residual\'s pull without discarding it.');
+    }
+    u.wireSeg(el.querySelector('.rw-seg'), function (v) { method = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# One outlier is enough to tilt an OLS line. Robust regression down-weights it.',
+      'library(MASS)',
+      'set.seed(3)',
+      'x <- seq(1, 8, length.out = 14)',
+      'y <- 2 + 1.4 * x + rnorm(14, 0, 0.6)',
+      'x <- c(x, 7.2); y <- c(y, 2.0)          # add one bad point (should be ~12, is 2)',
+      '',
+      'coef(lm(y ~ x))["x"]                     # OLS: slope dragged well below 1.4',
+      'coef(rlm(y ~ x, psi = psi.bisquare))["x"] # Tukey bisquare: back near the true 1.4',
+      '# rlm iteratively reweights: the outlier gets a near-zero weight and loses its pull.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('robust-weights', mount);
+})();
+
+;
 /* roc-curve.js */
 /* roc-curve.js - threshold, confusion matrix and ROC, linked.
  * Two score clouds (actual positives skew high, negatives skew low) overlap.
@@ -3816,6 +4485,176 @@
   }
 
   window.LessonWidgets.register('shap-bars', mount);
+})();
+
+;
+/* shrinkage-pool.js */
+/* shrinkage-pool.js - partial pooling, the idea at the heart of mixed models. Eight
+ * clinics each measure a handful of patients; their raw averages scatter wildly because
+ * small samples are noisy. Slide the pooling dial from "no pooling" (trust each clinic
+ * alone) to "complete pooling" (one global number for all) and watch partial pooling in
+ * between pull the shakiest, smallest clinics hardest toward the grand mean. Emits
+ * runnable R fitting the same shrinkage with lme4::lmer.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // 8 groups: true effect ~ around the grand mean; small n = noisy raw mean
+  var GRAND = 50;
+  var G = [
+    { id: 'A', n: 3, raw: 61 }, { id: 'B', n: 25, raw: 53 }, { id: 'C', n: 4, raw: 39 },
+    { id: 'D', n: 40, raw: 51 }, { id: 'E', n: 2, raw: 66 }, { id: 'F', n: 30, raw: 48 },
+    { id: 'G', n: 5, raw: 42 }, { id: 'H', n: 12, raw: 55 }
+  ];
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var lam = 0.5;   // 0 = no pooling, 1 = complete pooling
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="sp-plot"></div>' +
+      '<label style="display:block;font:600 12px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:12px 0 2px">pooling <b class="sp-v" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="sp-s" type="range" min="0" max="1" step="0.05" value="0.5" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div style="display:flex;justify-content:space-between;font:10px IBM Plex Sans,sans-serif;color:' + P.mut + '"><span>no pooling (each clinic alone)</span><span>complete pooling (one number)</span></div>' +
+      '<div class="sp-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Partial pooling with lme4::lmer()' });
+
+    var plot = el.querySelector('.sp-plot'), read = el.querySelector('.sp-read'), slider = el.querySelector('.sp-s'), vEl = el.querySelector('.sp-v');
+    var W = 440, H = 180, m = { l: 26, r: 26, t: 22, b: 24 }, iw = W - m.l - m.r;
+    var lo = 34, hi = 70;
+    function sx(v) { return m.l + (v - lo) / (hi - lo) * iw; }
+    // shrinkage weight: bigger n shrinks less; lam scales overall pull
+    function est(g) { var w = lam * (1 - g.n / (g.n + 8)); return g.raw + (GRAND - g.raw) * (lam >= 1 ? 1 : Math.min(1, w * 2)); }
+    function draw() {
+      var y0 = m.t + 20;
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="shrinkage toward the grand mean">';
+      svg += '<line x1="' + m.l + '" y1="' + (y0 + 60) + '" x2="' + (m.l + iw) + '" y2="' + (y0 + 60) + '" stroke="' + P.line + '"/>';
+      [40, 50, 60].forEach(function (t) { svg += '<text x="' + sx(t) + '" y="' + (y0 + 74) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + t + '</text>'; });
+      // grand mean line
+      svg += '<line x1="' + sx(GRAND) + '" y1="' + (y0 - 14) + '" x2="' + sx(GRAND) + '" y2="' + (y0 + 60) + '" stroke="' + P.ink + '" stroke-width="1.5" stroke-dasharray="4 3"/><text x="' + sx(GRAND) + '" y="' + (y0 - 18) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.ink + '">grand mean</text>';
+      // each clinic: raw (faint) -> shrunk (solid), arrow, size by n
+      G.forEach(function (g) {
+        var e = est(g), r = 3 + Math.min(7, Math.sqrt(g.n));
+        svg += '<circle cx="' + sx(g.raw).toFixed(1) + '" cy="' + (y0 + 30) + '" r="3" fill="' + P.faint + '"/>';
+        svg += '<line x1="' + sx(g.raw).toFixed(1) + '" y1="' + (y0 + 30) + '" x2="' + sx(e).toFixed(1) + '" y2="' + (y0 + 30) + '" stroke="' + P.line + '"/>';
+        svg += '<circle cx="' + sx(e).toFixed(1) + '" cy="' + (y0 + 30) + '" r="' + r.toFixed(1) + '" fill="' + P.acc + '" opacity="0.85"/>';
+      });
+      svg += '<text x="' + m.l + '" y="' + (y0 + 30 - 40) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">faint = raw mean; green = pooled estimate (size = sample size)</text>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      vEl.textContent = lam.toFixed(2);
+      var smallPull = Math.abs(est(G[4]) - G[4].raw).toFixed(1), bigPull = Math.abs(est(G[3]) - G[3].raw).toFixed(1);
+      read.innerHTML = lam < 0.05
+        ? '<b>No pooling:</b> every clinic is trusted on its own, so tiny clinics (n=2, n=3) swing far from the grand mean on almost no evidence.'
+        : lam > 0.95
+          ? '<b>Complete pooling:</b> all clinics collapse to the single grand mean, throwing away every real between-clinic difference.'
+          : '<b style="color:' + P.acc + '">Partial pooling.</b> Clinic E (n=2) is pulled <b>' + smallPull + '</b> toward the mean while clinic D (n=40) barely moves (<b>' + bigPull + '</b>): small, noisy groups borrow strength from the whole, exactly what a random-effects model does automatically.';
+    }
+    slider.addEventListener('input', function () { lam = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Partial pooling: a mixed model shrinks noisy small-group means toward the average.',
+      'library(lme4)',
+      'set.seed(1)',
+      'clinic <- factor(rep(LETTERS[1:8], times = c(3,25,4,40,2,30,5,12)))',
+      'y <- rnorm(length(clinic), 50 + rep(c(8,3,-9,1,12,-2,-6,5),',
+      '                                    times = c(3,25,4,40,2,30,5,12)), 6)',
+      '',
+      'raw    <- tapply(y, clinic, mean)                 # noisy raw means',
+      'pooled <- coef(lmer(y ~ 1 + (1 | clinic)))$clinic[,1]   # shrunk estimates',
+      'round(rbind(raw, pooled), 1)                      # small groups move most'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('shrinkage-pool', mount);
+})();
+
+;
+/* spline-smoother.js */
+/* spline-smoother.js - a GAM lets the data choose the curve, but you set how wiggly it may
+ * get. A straight line underfits a bending relationship; a too-flexible smooth chases every
+ * noisy point and overfits. Slide the smoothness dial and watch the fit go from stiff line,
+ * to the honest underlying curve, to a wild overfit. Emits runnable R fitting the same
+ * smooth with mgcv::gam at a chosen basis size.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // true curve: a sine-ish bend + noise
+  var D = (function () {
+    var a = [], s = 8; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff - 0.5; }
+    for (var i = 0; i < 60; i++) { var x = i / 59 * 10; a.push({ x: x, y: Math.sin(x * 0.9) * 3 + 0.15 * x + r() * 1.5 }); }
+    return a;
+  })();
+  function truth(x) { return Math.sin(x * 0.9) * 3 + 0.15 * x; }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var k = 6;   // effective wiggliness (2 = line ... 30 = overfit)
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ss-plot"></div>' +
+      '<label style="display:block;font:600 12px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:12px 0 2px">smoothness (basis size k) <b class="ss-v" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="ss-s" type="range" min="2" max="30" step="1" value="6" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div style="display:flex;justify-content:space-between;font:10px IBM Plex Sans,sans-serif;color:' + P.mut + '"><span>stiff (underfit)</span><span>flexible (overfit)</span></div>' +
+      '<div class="ss-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'A penalized smooth with mgcv::gam()' });
+
+    var plot = el.querySelector('.ss-plot'), read = el.querySelector('.ss-read'), slider = el.querySelector('.ss-s'), vEl = el.querySelector('.ss-v');
+    var W = 440, H = 250, m = { l: 34, r: 12, t: 12, b: 28 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var xe = [0, 10], ye = [-5, 6];
+    function sx(x) { return m.l + (x - xe[0]) / (xe[1] - xe[0]) * iw; }
+    function sy(y) { return m.t + ih - (y - ye[0]) / (ye[1] - ye[0]) * ih; }
+    // fit a local-regression-ish smoother; bandwidth from k (small k = wide = stiff)
+    function smooth(x) {
+      var bw = 6 / (k - 1);   // k=2 -> wide (line-like); k=30 -> narrow (wiggly)
+      var sw = 0, swy = 0, swx = 0, swxx = 0, swxy = 0;
+      D.forEach(function (d) { var w = Math.exp(-((d.x - x) * (d.x - x)) / (2 * bw * bw)); sw += w; swy += w * d.y; swx += w * d.x; swxx += w * d.x * d.x; swxy += w * d.x * d.y; });
+      var den = sw * swxx - swx * swx; var b1 = den === 0 ? 0 : (sw * swxy - swx * swy) / den, b0 = (swy - b1 * swx) / sw;
+      return b0 + b1 * x;
+    }
+    function draw() {
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="spline smoother">';
+      svg += '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/><line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '"/>';
+      D.forEach(function (d) { svg += '<circle cx="' + sx(d.x).toFixed(1) + '" cy="' + sy(d.y).toFixed(1) + '" r="3" fill="' + P.c0 + '" opacity="0.45"/>'; });
+      // true curve (dashed grey)
+      var tp = ''; for (var i = 0; i <= 100; i++) { var x = i / 100 * 10; tp += sx(x).toFixed(1) + ',' + sy(truth(x)).toFixed(1) + ' '; }
+      svg += '<polyline points="' + tp + '" fill="none" stroke="' + P.faint + '" stroke-width="1.5" stroke-dasharray="4 3"/>';
+      // fitted smooth
+      var fp = ''; for (var j = 0; j <= 120; j++) { var xx = j / 120 * 10; fp += sx(xx).toFixed(1) + ',' + sy(smooth(xx)).toFixed(1) + ' '; }
+      svg += '<polyline points="' + fp + '" fill="none" stroke="' + P.acc + '" stroke-width="2.6"/>';
+      svg += '<text x="' + (m.l + 6) + '" y="' + (m.t + 12) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.faint + '">dashed = true curve</text>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      vEl.textContent = k;
+      read.innerHTML = k <= 3
+        ? '<b style="color:' + P.bad + '">Underfit.</b> With so few basis functions the smooth is nearly a straight line and misses the real bends: high bias.'
+        : k >= 20
+          ? '<b style="color:' + P.bad + '">Overfit.</b> The smooth is now flexible enough to chase individual noisy points, wiggling far from the true curve: high variance.'
+          : '<b style="color:' + P.acc + '">Good fit.</b> The smooth tracks the true curve (dashed) without chasing noise. A GAM adds a penalty so it lands here on its own; you set k as the upper limit on wiggliness.';
+    }
+    slider.addEventListener('input', function () { k = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# A GAM fits a smooth curve; the penalty picks the right wiggliness automatically.',
+      'library(mgcv)',
+      'set.seed(8); n <- 200',
+      'x <- runif(n, 0, 10)',
+      'y <- sin(x * 0.9) * 3 + 0.15 * x + rnorm(n, 0, 1.2)',
+      '',
+      'g <- gam(y ~ s(x, k = 20))            # k caps flexibility; the penalty does the rest',
+      'summary(g)$s.table                     # edf = effective degrees of freedom actually used',
+      '# edf near 1 means a line; a larger edf means real curvature. The penalty avoids overfit.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('spline-smoother', mount);
 })();
 
 ;
