@@ -1,0 +1,266 @@
+---
+title: "Unsupervised Learning Lesson 3: k-Means and Choosing k"
+description: "Learn k-means clustering in R from scratch: what it minimises, Lloyd's algorithm step by step, scaling and nstart, and choosing k with the elbow and silhouette."
+keywords: "k-means in R, kmeans, clustering, Lloyd's algorithm, within-cluster sum of squares, elbow method, silhouette, choosing k, unsupervised learning, standardize"
+mathjax: true
+webr: true
+curriculum_id: "6.9.3"
+post_type: "LESSON"
+course_id: "ds-unsupervised"
+course_title: "Unsupervised Learning in R"
+course_lesson: "3"
+course_total: "8"
+course_landing: "R-Unsupervised-Learning-Course.html"
+course_next: "Hierarchical-and-Density-Clustering.html"
+course_prev: "Factor-Analysis.html"
+lesson_access: "free"
+catalog_blurb: "How k-means groups similar rows, and how to choose the number of groups."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 8</div>
+<h2>k-Means and Choosing k</h2>
+
+<p>Lessons 1 and 2 worked on the columns: PCA and factor analysis both took the measured variables and boiled them down. This lesson turns the table on its side and works on the rows, the individual people.</p>
+
+<p>Meet Maria. She runs a small neighbourhood coffee shop, and over the last few months she has quietly logged two numbers for each of her 90 regular customers: how many times they visit per month, and how much they spend on an average visit. She suspects her regulars are not all alike, that a handful of loyal devotees behave nothing like the once-in-a-while crowd, and she wants to build loyalty tiers around those groups. But nobody labelled her customers for her. She does not know how many tiers there are, or who belongs in each.</p>
+
+<p>k-means is the machine that finds those groups from the two numbers alone. Choosing k is how she decides how many tiers to make. The panel below runs k-means on a small demo cloud so you can watch it work; Maria's data behaves exactly the same way.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say what clustering is and what k-means is trying to make tight</li>
+
+<li>Follow Lloyd's algorithm, the two-move loop k-means runs, and grow the clusters yourself in R</li>
+
+<li>Choose k with the elbow and the silhouette, and know when there is no honest answer</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you have done <a href="PCA-in-R.html">Lesson 1 on PCA</a> and <a href="Factor-Analysis.html">Lesson 2 on factor analysis</a> (scaling a variable, reading a scatter plot). No new maths is assumed; every symbol is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="kmeans-cluster" data-widget-config='{"k":3}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The goal</div>
+<h2>What makes a grouping tight</h2>
+
+<p>Clustering means sorting rows into groups so that members of a group resemble each other and differ from the other groups. It is unsupervised: unlike churn or a test score, nobody hands you the right answer, so the data itself has to reveal the groups.</p>
+
+<p>To make "resemble" precise, k-means measures the straight-line distance between two customers. For customers \(x_i\) and \(x_j\) described by features \(f\) (here visits and spend), the Euclidean distance is</p>
+
+<p>\[ d(x_i, x_j) = \sqrt{\sum_f (x_{if} - x_{jf})^2} \]</p>
+
+<p>which is just the length of the line between their two dots on Maria's scatter plot. Each group is summarised by its centroid \(\mu_c\), the average customer of that group: \(\mu_c = \frac{1}{|C_c|}\sum_{i \in C_c} x_i\), where \(|C_c|\) is how many customers are in group \(c\).</p>
+
+<p>Now the whole objective in one line. A grouping is good when every customer sits close to their own group's centroid. k-means scores that with the within-cluster sum of squares (WCSS): add up the squared distance from every point to its centroid, across all \(k\) groups.</p>
+
+<p>\[ W = \sum_{c=1}^{k} \sum_{i \in C_c} \lVert x_i - \mu_c \rVert^2 \]</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">k-means has exactly one goal: choose the k centroids, and the assignment of points to them, that make W (the total within-cluster spread) as small as possible. Tight groups mean a small W.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<div class="lesson-step-eyebrow">The algorithm</div>
+<h2>Lloyd's algorithm, one move at a time</h2>
+
+<p>Finding the split that truly minimises W is hard: there are astronomically many ways to divide 90 customers into 3 groups. So k-means uses a beautifully simple loop, called Lloyd's algorithm, that improves W a little at a time. Drop k centroids anywhere to start, then repeat two moves:</p>
+
+<ol>
+
+<li><strong>Assign:</strong> attach every point to its nearest centroid. That carves the space into k groups.</li>
+
+<li><strong>Update:</strong> move each centroid to the mean of the points now assigned to it.</li>
+
+</ol>
+
+<p>Press <strong>step</strong> below to alternate the two moves and watch the within-SS number fall. After a few rounds the centroids stop moving: no point wants to switch groups, so assigning and updating change nothing. That settled state is the answer.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Each round can only lower W or leave it unchanged, so the loop always stops. But it stops at a local optimum, the best grouping near wherever the centroids happened to start, which is not always the best grouping overall. Start them badly and you can settle on a poor split. The fix is to run the whole thing several times from different random starts and keep the lowest-W result. In R that is the <code>nstart</code> argument, and you should always set it.</div></div>
+<div class="lesson-widget" data-widget-type="kmeans-cluster" data-widget-config='{"k":3}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why scale first?</h2>
+
+<p>Maria's visits run from about 1 to 24, while spend runs from about $3 to $10. Before clustering, the standard advice is to standardise both columns to a common scale. Why does that matter for k-means?</p>
+<section class="exercise" data-exercise-id="k-Means-and-Choosing-k-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It makes the algorithm converge in fewer iterations</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because distance adds up each feature's difference, the feature with the larger numeric range would dominate, so k-means would cluster almost entirely on that one feature</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Scaling guarantees the three clusters come out the same size</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Euclidean distance squares the raw differences, so a feature measured in bigger units swamps the others. Standardising gives visits and spend an equal say.</div><div class="lesson-qfb lesson-qfb-no">Nothing forces equal-size clusters, and scaling does not either. It only makes the features comparable so no single one dominates the distance.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Cluster Maria's customers in R</h2>
+
+<p>Each lesson runs in its own fresh R session, so we build Maria's data right here. We secretly stack three groups, then drop the labels, exactly the situation Maria is in: she sees only the two numbers, and k-means has to rediscover the groups.</p>
+<section class="exercise" data-exercise-id="k-Means-and-Choosing-k-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="scale\s*\(\s*cafe"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(42)
+# visits = coffees per month; spend = average dollars per visit
+make_group &lt;- function(n, v, s) data.frame(
+  visits = round(pmax(rnorm(n, v, 1.6), 1), 1),
+  spend  = round(pmax(rnorm(n, s, 0.5), 1), 2)
+)
+cafe &lt;- rbind(make_group(30,  4, 4.2),    # occasional
+              make_group(30, 13, 5.0),    # regulars
+              make_group(30, 20, 8.8))    # devotees
+cafe &lt;- cafe[sample(nrow(cafe)), ]        # shuffle so row order hides the groups
+rownames(cafe) &lt;- NULL
+nrow(cafe)
+#&gt; [1] 90</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: scale(cafe) standardises both columns so visits and spend get an equal say in the distance.</span><span class="lesson-tryit-fb lesson-tryit-no">Wrap the data in scale(): kmeans(scale(cafe), centers = 3, nstart = 25).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(1)
+km &lt;- kmeans(scale(cafe), centers = 3, nstart = 25)
+km$size
+#&gt; [1] 30 30 30
+
+# describe each tier back in real units (dollars and visits):
+aggregate(cafe, by = list(tier = km$cluster), FUN = mean)
+#&gt;   tier visits spend
+#&gt; 1    1   20.0  8.79
+#&gt; 2    2    4.0  4.19
+#&gt; 3    3   13.0  5.01</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The catch</div>
+<h2>You have to tell it k</h2>
+
+<p>Notice what you just did: you told k-means <code>centers = 3</code>. It never chose the number of tiers, you did. So the real question of this lesson is, how do you pick k when you do not already know it?</p>
+
+<p>The tempting idea, "just try every k and keep the one with the smallest W", does not work, and it is worth seeing why. Add more centroids and every point can only get closer to its nearest one, so W falls at every step. Push it to the extreme: give each of the 90 customers their own centroid (\(k = 90\)) and W drops all the way to zero, a perfect score for a completely useless grouping.</p>
+
+<p>\[ W(k{=}1) \; > \; W(k{=}2) \; > \; \dots \; > \; W(k{=}n) = 0 \]</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Within-cluster spread always shrinks as k grows, so you can never pick k by minimising W. You have to look at HOW it shrinks, and that is the idea behind the elbow.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">Choosing k, part 1</div>
+<h2>The elbow</h2>
+
+<p>Plot W against k and you get a curve that drops steeply at first, then flattens. The steep part is real structure: going from 1 group to 2 to 3 genuinely separates customers who belong apart. Once you pass the true number of groups, extra centroids only carve up already-tight groups, so the curve bends and crawls. That bend, the "elbow", is a good estimate of k.</p>
+
+<p>Drag the k marker below along the curve. For data with three real groups the elbow sits at k=3: a sharp drop up to 3, a gentle slide after. Then switch to the silhouette view to preview the next idea.</p>
+
+<p>The elbow is a judgement call, not a formula: sometimes the bend is obvious, sometimes it is soft. That is exactly why it helps to have a second, more quantitative opinion.</p>
+<div class="lesson-widget" data-widget-type="cluster-validate" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing k, part 2</div>
+<h2>The silhouette: a score for separation</h2>
+
+<p>The silhouette turns "are these clusters well separated?" into a number you can compare across values of k. For one customer \(i\), let \(a(i)\) be their average distance to the other members of their own cluster (how snug the fit is), and \(b(i)\) their average distance to the members of the nearest OTHER cluster (how far the next-best group is). The silhouette width is</p>
+
+<p>\[ s(i) = \frac{b(i) - a(i)}{\max\big(a(i),\, b(i)\big)} \]</p>
+
+<p>It runs from \(-1\) to \(1\): near \(1\) means the point sits deep inside its own cluster and far from any other (a clean fit); near \(0\) means it lies on the border between two clusters; negative means it is probably in the wrong cluster. Average \(s(i)\) over everyone and you get one score for the whole clustering. To choose k, compute that average at several k and take the peak.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(cluster)                 # ships with R; provides silhouette()
+x &lt;- scale(cafe)                 # the same standardised data k-means saw
+set.seed(1)
+avg_sil &lt;- sapply(2:6, function(k) {
+  cl &lt;- kmeans(x, centers = k, nstart = 25)$cluster
+  mean(silhouette(cl, dist(x))[, &quot;sil_width&quot;])
+})
+names(avg_sil) &lt;- 2:6
+round(avg_sil, 2)
+#&gt;    2    3    4    5    6
+#&gt; 0.58 0.74 0.61 0.53 0.48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The average silhouette is highest at k=3, agreeing with the elbow. When the elbow and the silhouette point at the same k, you can trust it. When they disagree, treat k as genuinely uncertain and let what the tiers will be used for break the tie.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When the elbow refuses to bend</h2>
+
+<p>You try the same recipe on a different dataset. The W-versus-k curve slides down smoothly with no clear bend, and the average silhouette never climbs above about 0.2 for any k. What is the most honest reading?</p>
+<section class="exercise" data-exercise-id="k-Means-and-Choosing-k-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Keep increasing k until W finally drops to zero</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The data has no strong cluster structure; k-means will still return k groups, but they are not genuinely separated</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The code is broken; a correct elbow is always sharp</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A smooth curve plus low silhouettes is the signature of data with no natural groups. k-means always returns SOMETHING, so it is on you to notice when that something is not real.</div><div class="lesson-qfb lesson-qfb-no">Real elbows are often soft or absent. A missing bend is information about the data, not a bug.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>Where k-means shines, and where it breaks</h2>
+
+<p>k-means is fast, simple, and scales to large data, which is why it is the first clustering tool most people reach for. But it makes strong assumptions, and knowing them is what keeps you from trusting a bad answer.</p>
+
+<p><strong>Works well when</strong></p>
+
+<ul>
+
+<li>The groups are roughly round, similar in size, and similar in spread</li>
+
+<li>The features are scaled so distance is fair</li>
+
+<li>You have a defensible k from the elbow and the silhouette</li>
+
+</ul>
+
+<p><strong>Breaks down when</strong></p>
+
+<ul>
+
+<li>The true clusters are elongated, nested, or crescent-shaped: k-means only cuts space into straight-edged, roughly spherical cells, so it splits those shapes wrongly</li>
+
+<li>Clusters have very different sizes or densities</li>
+
+<li>There are strong outliers: because centroids are means, a few extreme points drag them off target</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Two of those failures are exactly what Lesson 4 fixes. Hierarchical clustering builds a whole tree of nested groups instead of committing to one k, and DBSCAN finds clusters by density, so it can trace crescents and rings that k-means never could.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four solid places to take k-means further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, chapter 12 (free PDF)</a> - k-means and clustering explained gently, with the algorithm in full.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, section 14.3 (free PDF)</a> - cluster analysis and k-means as within-cluster variance minimisation, with the maths.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kmeans.html">kmeans {stats}: the R function you used</a> - every argument, including nstart and the algorithm variants.</li>
+
+<li><a href="https://doi.org/10.1016/0377-0427(87">Rousseeuw (1987), Silhouettes, J. Computational and Applied Mathematics</a>90125-7) - the original paper that introduced the silhouette score.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You can now group unlabelled data from scratch. You saw what k-means minimises (the within-cluster spread W), ran Lloyd's two-move loop until it settled, and clustered Maria's 90 customers into three honest loyalty tiers, remembering to scale first and to use several random starts. Then you chose k the right way, reading the elbow and the silhouette together instead of chasing the smallest W, and you know the shapes that fool k-means.</p>
+
+<p>Next, Lesson 4: Hierarchical and Density Clustering. When you do not want to fix k in advance, or your groups are shaped like crescents and rings, you need clustering that does not assume round blobs. You will build a dendrogram that shows every possible number of clusters at once, and meet DBSCAN, which finds groups by density.</p>
+</section>
+
+{% endraw %}

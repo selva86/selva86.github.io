@@ -1,0 +1,391 @@
+---
+title: "Interpretability Lesson 3: SHAP Values"
+description: "SHAP values in R: split one model prediction into per-feature contributions that sum exactly to it, computed from game theory, plus where SHAP misleads."
+keywords: "SHAP values, Shapley values, additive feature attribution, local explanation, model interpretability, explainable AI, XAI, game theory, kernelshap, R"
+mathjax: true
+webr: true
+curriculum_id: "6.110.3"
+post_type: "LESSON"
+course_id: "ds-interpretability"
+course_title: "Model Interpretability in R"
+course_lesson: "3"
+course_total: "6"
+course_landing: "R-Interpretability-Course.html"
+course_next: "Partial-Dependence-ICE-and-ALE.html"
+course_prev: "Permutation-and-Drop-Column-Importance.html"
+lesson_access: "free"
+catalog_blurb: "Split one prediction into fair per-feature contributions that sum to it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 6</div>
+<h2>SHAP Values</h2>
+
+<p>In Lesson 2 you ranked features for a black-box model by shuffling them. That answered the product lead's <strong>global</strong> question: <em>which features drive this model overall?</em> It said nothing about one customer.</p>
+
+<p>Back in Lesson 1 the retention rep had a <strong>local</strong> question: <em>why was Ravi flagged at 0.87?</em> We answered it with a waterfall, a baseline plus one push per feature, but we never said where those pushes come from, or why they are the <em>fair</em> pushes to show. This lesson fixes that. <strong>SHAP</strong> is a principled recipe, borrowed from game theory, for splitting a single prediction into per-feature contributions that add up to it exactly, and it works on any model.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Explain SHAP as a <strong>fair split</strong> of one prediction into per-feature contributions that sum exactly to it</li>
+
+<li>Derive a <strong>Shapley value</strong> as a feature's average marginal contribution over every join order, and compute one in R</li>
+
+<li>Read a SHAP <strong>waterfall</strong>, and turn many local explanations into a global importance</li>
+
+<li>Name SHAP's honest limits: its cost, correlated features, and why it explains the model, not the world</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you have done <a href="Global-vs-Local-Explanations.html">Lesson 1: Global vs Local Explanations</a> and <a href="Permutation-and-Drop-Column-Importance.html">Lesson 2: Permutation and Drop-Column Importance</a>, you can fit and use a model in R such as a <a href="Random-Forest-Course.html">random forest</a>, and you know what a feature, a prediction, and a baseline are.</p>
+<div class="lesson-widget" data-widget-type="shap-bars" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>One prediction, a payout to divide</h2>
+
+<p>Our churn model scores <strong>Ravi</strong> at a <strong>0.87</strong> risk of leaving. The <em>average</em> customer scores about <strong>0.30</strong>. That average is the <strong>baseline</strong>: the model's best guess before it looks at anything specific about Ravi. So something about Ravi pushed his score <strong>0.57 above the baseline</strong>, and a local explanation has to say which features did the pushing, and by how much.</p>
+
+<p>Write \(\hat{f}(x)\) for the model's prediction on one customer \(x\), \(\phi_0\) for the baseline (the average prediction), and \(\phi_j\) for the contribution of feature \(j\) to this prediction. A complete local explanation splits the prediction like this:</p>
+
+<p>\[ \hat{f}(x) = \phi_0 + \sum_{j=1}^{p} \phi_j, \]</p>
+
+<p>where \(p\) is the number of features. In words: baseline plus every feature's push equals the prediction, with nothing left over. That "adds up exactly" property has a name, <strong>efficiency</strong> (or local accuracy), and it is the whole reason a waterfall is an <em>explanation</em> rather than a loose ranking. The gap it must divide up here is \(0.87 - 0.30 = 0.57\).</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Strictly, the pushes add up on the model's raw <strong>score</strong> (log-odds) scale, which is linear, not on the squashed 0-to-1 probability scale. We keep the probability numbers for the story, but do the exact arithmetic on the score in a moment.</div></div>
+
+<p>The open question is the hard part: <em>how do we set each \(\phi_j\) fairly?</em> Especially when features interact or overlap, as the correlated twins in Lesson 2 did.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fairness idea</div>
+<h2>A fair share is an average over orders</h2>
+
+<p>Forget models for one paragraph. <strong>Ann, Ben, and Cara</strong> ship a feature together and earn a <strong>$60</strong> team bonus. How much did each person add? The honest answer is not "split it three ways by default", it is "credit each person for what they actually contributed." The catch: a person's contribution depends on <strong>who was already working</strong> when they joined. If Ben joins a project Ann has already scoped, he adds less than if he had started from a blank page.</p>
+
+<p>So we look at every order the team could have formed in, and average each person's <strong>marginal contribution</strong>: the extra value they add at the moment they join. Suppose any one person alone ships a small version worth $10, any pair ships $40, and all three ship $60. Here is Ann's marginal value across all six join orders:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Join order</th>
+<th>Ann joins</th>
+<th>Ann's marginal value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ann, Ben, Cara</td>
+<td>first (blank page)</td>
+<td>$10</td>
+</tr>
+<tr>
+<td>Ann, Cara, Ben</td>
+<td>first (blank page)</td>
+<td>$10</td>
+</tr>
+<tr>
+<td>Ben, Ann, Cara</td>
+<td>after Ben</td>
+<td>$30</td>
+</tr>
+<tr>
+<td>Cara, Ann, Ben</td>
+<td>after Cara</td>
+<td>$30</td>
+</tr>
+<tr>
+<td>Ben, Cara, Ann</td>
+<td>last</td>
+<td>$20</td>
+</tr>
+<tr>
+<td>Cara, Ben, Ann</td>
+<td>last</td>
+<td>$20</td>
+</tr>
+</tbody>
+</table>
+
+<p>Ann's fair share is the average, \((10 + 10 + 30 + 30 + 20 + 20)/6 = \$20\). By symmetry Ben and Cara also get $20, and the three shares sum to the full <strong>$60</strong>. That is a <strong>Shapley value</strong>, from Lloyd Shapley's 1953 work on cooperative games, and it is the only way to divide the payout that satisfies a handful of fairness rules at once.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">SHAP treats one prediction as exactly this game. The <strong>players</strong> are the features. The <strong>payout</strong> is the prediction minus the baseline (Ravi's $0.57$). Each feature's SHAP value \(\phi_j\) is its fair share of that payout: its average marginal contribution over every order the features could be added in. The shares summing to the payout is the efficiency property from the previous step.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The formula</div>
+<h2>The Shapley value, written down</h2>
+
+<p>Now the same idea in symbols, defining every one. Let \(N = \{1, 2, \dots, p\}\) be the set of all \(p\) features. A <strong>coalition</strong> \(S\) is any subset of features that has already "joined." Write \(v(S)\) for the <strong>value</strong> of a coalition: the model's prediction when only the features in \(S\) take this customer's values and every other feature is held at its average. So \(v(\varnothing) = \phi_0\) (no features known, the baseline) and \(v(N) = \hat{f}(x)\) (all features known, the full prediction).</p>
+
+<p>The <strong>marginal contribution</strong> of feature \(j\) to a coalition \(S\) that does not contain it is \(v(S \cup \{j\}) - v(S)\): how much the prediction moves when \(j\) walks into the room. The Shapley value averages that over every coalition, weighted by how many join orders produce it:</p>
+
+<p>\[ \phi_j = \sum_{S \subseteq N \setminus \{j\}} \frac{|S|!\,\big(p - |S| - 1\big)!}{p!}\,\Big(v(S \cup \{j\}) - v(S)\Big), \]</p>
+
+<p>where \(|S|\) is the number of features in \(S\), and the fraction is the share of the \(p!\) possible orderings in which exactly the features of \(S\) come before \(j\). The weights across all coalitions add to 1, so \(\phi_j\) is a genuine weighted average of marginal contributions.</p>
+
+<p>This one definition is forced by four properties you actually want, and no other split has all four:</p>
+
+<ul>
+
+<li><strong>Efficiency:</strong> the contributions plus the baseline sum to the prediction (a complete explanation).</li>
+
+<li><strong>Symmetry:</strong> two features that change every prediction identically get equal credit.</li>
+
+<li><strong>Dummy:</strong> a feature that never changes the output gets exactly 0.</li>
+
+<li><strong>Additivity:</strong> SHAP values of a model made of two parts are the sum of the parts' SHAP values.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Compute SHAP for Ravi, two ways that agree</h2>
+
+<p>Let us make this concrete and exact. Here is a small, transparent churn model whose coefficients we can read off directly, so we can check SHAP by hand. It outputs a risk <strong>score</strong> (higher means more likely to leave); running the score through <code>plogis()</code> turns it into a probability. Build it and read off Ravi's numbers (run this once).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">b0 &lt;- -1.00                                                   # intercept
+b  &lt;- c(tenure = -0.06, monthly = 0.02, support_calls = 0.35) # one slope per feature
+predict_score &lt;- function(x) b0 + sum(b * x)                  # the model's score for a customer x
+
+avg  &lt;- c(tenure = 30, monthly = 70,  support_calls = 1.5)    # the average customer
+ravi &lt;- c(tenure = 3,  monthly = 105, support_calls = 4)      # the customer we explain
+
+baseline   &lt;- predict_score(avg)      # score of the average customer = the baseline
+prediction &lt;- predict_score(ravi)     # Ravi's score
+round(c(baseline = baseline, prediction = prediction, gap = prediction - baseline), 3)
+#&gt;   baseline prediction        gap
+#&gt;     -0.875      2.320      3.195
+round(c(avg_prob = plogis(baseline), ravi_prob = plogis(prediction)), 2)
+#&gt;  avg_prob ravi_prob
+#&gt;      0.29      0.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The baseline score is \(-0.875\) (about a 0.29 probability) and Ravi sits at \(2.32\) (about 0.91). The <strong>gap</strong> of \(3.195\) on the score scale is the payout SHAP must divide among the three features.</p>
+
+<p>For a linear model the Shapley value has an exact closed form: each feature's contribution is its slope times how far this customer sits from the average, \(\phi_j = \beta_j\,(x_j - \bar{x}_j)\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">phi &lt;- b * (ravi - avg)               # SHAP contributions, linear closed form
+round(phi, 3)
+#&gt;        tenure       monthly support_calls
+#&gt;         1.620         0.700         0.875
+c(sum_contrib = sum(phi), gap = prediction - baseline)
+#&gt;  sum_contrib          gap
+#&gt;        3.195        3.195
+all.equal(sum(phi), prediction - baseline)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three contributions sum to exactly the gap: <strong>efficiency</strong>, holding. Tenure does most of the pushing (Ravi is far below the average tenure), and every push is positive, which is why nothing pulls his score back down.</p>
+
+<p>Now prove those closed-form numbers really are the game-theoretic Shapley values by computing the definition directly: average each feature's marginal contribution over every coalition.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">feats &lt;- names(b)                     # the three players
+p &lt;- length(feats)
+
+# value of a coalition S: prediction when features in S take Ravi's values, the rest sit at avg
+v &lt;- function(S) {
+  x &lt;- avg
+  x[S] &lt;- ravi[S]
+  predict_score(x)
+}
+
+# every subset of a set of names, including the empty coalition
+subsets_of &lt;- function(items) {
+  out &lt;- list(character(0))
+  for (k in seq_along(items)) out &lt;- c(out, combn(items, k, simplify = FALSE))
+  out
+}
+
+# Shapley value of feature j: weighted average marginal contribution over all coalitions
+shapley &lt;- function(j) {
+  rest  &lt;- setdiff(feats, j)
+  total &lt;- 0
+  for (S in subsets_of(rest)) {
+    w &lt;- factorial(length(S)) * factorial(p - length(S) - 1) / factorial(p)
+    total &lt;- total + w * (v(c(S, j)) - v(S))
+  }
+  total
+}
+
+shap &lt;- sapply(feats, shapley)
+round(shap, 3)
+#&gt;        tenure       monthly support_calls
+#&gt;         1.620         0.700         0.875
+all.equal(shap, phi)                  # the enumeration matches the closed form
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical. The slow, honest, average-over-every-order definition gives the same answer as the one-line shortcut. That shortcut only exists because this model is purely additive: here a feature's marginal contribution is the same no matter who joined first, so the averaging is trivial. On a model with <strong>interactions</strong> the orders genuinely disagree, and averaging over them is where SHAP earns its keep.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does "sums to the prediction" buy you?</h2>
+
+<p>Ravi's three SHAP contributions on the score scale are \(1.62\), \(0.70\), and \(0.875\), and they add up to his gap of \(3.195\). A teammate says: <em>nice, but that adding-up is just a coincidence of this tidy example, real SHAP values will not sum to the prediction.</em> Is that right?</p>
+<section class="exercise" data-exercise-id="SHAP-Values-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Right: the sum only lands on the prediction for simple linear models; for a forest the contributions overshoot or undershoot</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Wrong: summing to the prediction (efficiency) is guaranteed by the Shapley definition, for any model, not just linear ones</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Wrong, but only because we set the baseline to the average; with a different baseline they would not sum</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Efficiency is one of the four defining properties, so it holds for a forest, a neural net, anything. What changes with a complex model is the COST of computing the contributions, never whether they add up.</div><div class="lesson-qfb lesson-qfb-no">The baseline is DEFINED as the average prediction so that efficiency holds; that is not a loophole. With that standard baseline, the contributions sum to the prediction for every model.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">Reading one</div>
+<h2>A SHAP explanation is a waterfall</h2>
+
+<p>The standard way to show a local SHAP explanation is a <strong>waterfall</strong>: start at the baseline, add each feature's signed contribution (blue pushes the score up, amber pulls it down), and land exactly on this customer's prediction. Below is a SHAP waterfall for a different flagged customer, one with a few more features than Ravi's three, plus the exact R that computes the contributions for a linear model beside it. Press Run to watch the pieces add up.</p>
+
+<p>Read it left to right as a story about one prediction: a blue tenure bar and a blue monthly-spend bar push the score up, an amber support-calls bar pulls it back down, a couple of smaller bars nudge it, and the stack lands exactly on this customer's prediction. The direction is per customer, not fixed per feature: support calls point down for this customer even though they pushed Ravi's score up. A SHAP contribution is signed row by row, so the same feature can lift one person's score and lower another's. That is a local explanation you could read out loud to justify a single decision, which is exactly what the retention rep needed for Ravi.</p>
+<div class="lesson-widget" data-widget-type="shap-bars" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Rebuild the prediction from the pieces</h2>
+
+<p>Efficiency says the baseline plus every SHAP contribution must reconstruct the prediction exactly. You already have <code>baseline</code> and the contribution vector <code>shap</code> from the code above. Put them together to recover Ravi's score, then check it.</p>
+<section class="exercise" data-exercise-id="SHAP-Values-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="baseline\s*\+\s*sum\(\s*shap\s*\)|sum\(\s*shap\s*\)\s*\+\s*baseline"><textarea class="lesson-tryit-input" spellcheck="false">reconstructed &lt;- ____                 # the baseline plus every SHAP contribution
+round(reconstructed, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is efficiency in one line: baseline + sum(shap) = -0.875 + 3.195 = 2.32, exactly Ravi's score. The pieces rebuild the whole.</span><span class="lesson-tryit-fb lesson-tryit-no">Add the baseline to the total of the contributions: baseline + sum(shap).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">reconstructed &lt;- baseline + sum(shap) # -0.875 + 3.195
+round(reconstructed, 3)
+#&gt; [1] 2.32</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where it shines, and where it does not</div>
+<h2>Correlated features, cost, and causation</h2>
+
+<p>Remember the correlated-feature trap from Lesson 2: add a near-duplicate <code>tenure_copy</code> and permutation importance made <strong>both</strong> twins look worthless, because either could cover for the other during a shuffle. SHAP behaves more gracefully here. Because it averages over coalitions, it <strong>splits</strong> the shared credit between the twins rather than zeroing them out, and, by efficiency, the two half-shares still sum into the total correctly.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Permutation (Lesson 2)</th>
+<th>SHAP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Two near-duplicate features</td>
+<td>each looks near-zero (either covers the other)</td>
+<td>credit split between them, roughly half each</td>
+</tr>
+<tr>
+<td>Do the parts add up?</td>
+<td>no global guarantee</td>
+<td>yes, contributions + baseline = prediction</td>
+</tr>
+<tr>
+<td>Reading a single row</td>
+<td>not designed for it</td>
+<td>its native job (the waterfall)</td>
+</tr>
+</tbody>
+</table>
+
+<p>But be honest about three real limits:</p>
+
+<ul>
+
+<li><strong>Cost.</strong> Exact SHAP averages over all \(2^p\) coalitions, which explodes past a handful of features. In practice you never enumerate by hand: <strong>KernelSHAP</strong> approximates it for any model by sampling coalitions, and <strong>TreeSHAP</strong> computes it exactly and fast for tree ensembles.</li>
+
+<li><strong>It explains the model, not the world.</strong> A large SHAP value means a feature moved <em>this model's output</em> for <em>this row</em>. It is not a causal effect, and it inherits every bias the model learned.</li>
+
+<li><strong>Interactions hide inside additive bars.</strong> SHAP hands each feature one number. When two features only matter together, that single bar can misrepresent the joint story, which is what partial dependence and ICE (the next lesson) are for.</li>
+
+</ul>
+
+<p>In real R you reach for a package rather than the hand-rolled loop above. This block is for your local R session (it uses libraries that do not run in the browser):</p>
+
+<pre><code class="language-r"># Model-agnostic SHAP for a real fitted model (run this in your local R):
+library(randomForest); library(kernelshap); library(shapviz)
+
+rf &lt;- randomForest(churned ~ ., data = train)              # any fitted model
+s  &lt;- kernelshap(rf, X = test[, predictors], bg_X = train[, predictors])
+sv &lt;- shapviz(s)
+sv_waterfall(sv, row_id = 1)   # explain ONE prediction (the waterfall)
+sv_importance(sv)              # mean(|SHAP|) over rows = a SHAP-based global importance</code></pre>
+
+<p>That last line closes the loop with Lessons 1 and 2: average the absolute SHAP value of a feature across many rows and you get a <strong>global</strong> importance built from honest local pieces, one that respects correlated features instead of being fooled by them.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>SHAP is not a lever</h2>
+
+<p>Ravi's SHAP explanation shows <code>monthly</code> charge with a large positive contribution. A manager concludes: <em>so if we cut Ravi's monthly charge, his churn risk will drop by that amount.</em> What is the right response?</p>
+<section class="exercise" data-exercise-id="SHAP-Values-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">He is right: a positive SHAP contribution is exactly how much lowering that feature would lower the risk</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">He is right only if monthly charge is the most important feature globally</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">He is wrong: SHAP explains why the MODEL scored this row as it did, which is not the causal effect of changing the charge</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. SHAP is a faithful account of the model's arithmetic on Ravi's row, not a controlled experiment. To claim "cutting the charge cuts churn" you need causal evidence (Lesson on experiments), not an attribution.</div><div class="lesson-qfb lesson-qfb-no">Global rank is irrelevant to the point. Even the top feature's SHAP value is an attribution of the current prediction, not the causal effect of changing that feature.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://arxiv.org/abs/1705.07874">Lundberg and Lee (2017), A Unified Approach to Interpreting Model Predictions</a> - the SHAP paper: it showed the common additive explainers are all approximating one thing, the Shapley value.</li>
+
+<li><a href="https://christophm.github.io/interpretable-ml-book/shap.html">Molnar, Interpretable Machine Learning: SHAP chapter (free online)</a> - the clearest free walkthrough of the game-theory framing and the plots.</li>
+
+<li><a href="https://arxiv.org/abs/1905.04610">Lundberg et al. (2020), From local explanations to global understanding with explainable AI for trees</a> - TreeSHAP: exact, fast SHAP for tree ensembles, and building global insight from local values.</li>
+
+<li><a href="https://modeloriented.github.io/kernelshap/">kernelshap + shapviz (R packages)</a> - compute model-agnostic SHAP and draw the waterfall and importance plots in R, no hand-enumerated coalitions.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You can now explain one prediction the principled way. <strong>SHAP</strong> treats a prediction as a payout, \(\hat{f}(x) - \phi_0\), and splits it among the features by their average marginal contribution over every join order, a <strong>Shapley value</strong>. The split satisfies efficiency, so the contributions and the baseline always rebuild the prediction exactly, on any model. You computed one two ways that agreed, read it as a waterfall, and saw the honest limits: the \(2^p\) cost handled by KernelSHAP and TreeSHAP, credit split fairly across correlated features, and the standing rule that SHAP explains the model, not the world.</p>
+
+<p>Next, Lesson 4: <strong>Partial Dependence, ICE, and ALE.</strong> SHAP gives one number per feature per row. The next tools ask a different question, the <em>shape</em> of a feature's effect: as one feature sweeps from low to high, how does the prediction move, on average and row by row?</p>
+</section>
+
+{% endraw %}

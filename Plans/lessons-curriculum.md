@@ -18,6 +18,115 @@ Format per course:
 ## llm-agents  (track: scientist; curriculum_id 6.6.1; landing LLM-Agents-Course.html; access: free)
 1. LLM-Agents-in-R - ONE complex lesson on what an LLM agent is, from scratch, grounded in R (ellmer). Arc within the lesson: (a) plain LLM vs an agent that can act; (b) tools - giving the model functions to call; (c) the ReAct loop: Thought -> Action -> Observation, repeating until it can Answer (the signature interactive, stepped through a worked trace); (d) when to stop + guard rails (max steps, validation); (e) building one in R with ellmer (register a tool, run the loop); (f) failure modes (hallucinated tool calls, loops, prompt injection) and how to defend. widgets: agent-loop (signature: step the ReAct trace), process-flow (the build recipe). Outcome: the learner can trace an agent's reasoning loop and wire tools + guard rails responsibly. Never name the in-browser R runtime; say "interactive R".
 
+# Data Scientist track - sections 1-5 (roadmap track `ds`, the "core" tier; ~1 lesson per curriculum item)
+
+> Granularity: near 1:1 with the roadmap curriculum (owner). Thin items merged where noted. Section 4 reuses the existing `random-forest` course (it already teaches trees + bagging), so section 3's "Decision trees" item cross-links there rather than duplicating. Access `free` to match the roadmap (DS core 1-12 marked free); confirm before publish.
+>
+> **NEW widgets to build first (the quality lever - do NOT fake):** `bias-variance` (slide model complexity, watch train vs test error U-curve), `data-split` (a row strip split train/val/test + a leakage demo), `residual-plot` (residuals-vs-fitted + Q-Q + leverage), `gradient-boosting` (add trees, watch residuals shrink), `learning-curve` (train/validation error vs rounds, early-stop marker), `cv-folds` (the k-fold resampling strip), `roc-curve` (threshold slider -> ROC/PR + confusion matrix), `naive-bayes` (optional; else reuse decision-region). Reused: decision-region, tree-diagram, gini-split, bootstrap-sample, forest-averaging, decorrelation, oob-tuner, importance-bars, chart-plotter, correlation-heatmap, null-distribution, process-flow, styled-table.
+
+## ds-ml-workflow  (track: scientist; curriculum_id 6.10; landing R-ML-Workflow-Course.html; access: free)  [roadmap §1]
+1. Framing-a-Problem-as-ML - CRISP-DM end to end: turn a business question into a supervised task (define the target, the unit of analysis, the features available at prediction time), and pick a metric that matches the decision. widgets: process-flow
+2. The-Bias-Variance-Tradeoff - underfit vs overfit as bias vs variance, the U-shaped test-error curve, model complexity, and why more flexible is not always better. widgets: NEW:bias-variance, decision-region
+3. Train-Validation-Test-and-Data-Leakage - the three-way split and why; the cardinal sin of leakage (fitting on test, target leakage, temporal leakage) and how to evaluate honestly. widgets: NEW:data-split, process-flow
+4. Your-First-End-to-End-Model-in-R - one dataset start to finish: split, fit, predict, evaluate, and make it reproducible with a seed + script (folds in "reproducibility from day one"). widgets: process-flow, chart-plotter
+
+## ds-regression  (track: scientist; curriculum_id 6.20; landing R-Regression-Modeling-Course.html; access: free)  [roadmap §2]
+1. OLS-Regression-from-Scratch - the line that minimizes squared error, the normal equations, fitting lm() in R, reading coefficients and R-squared. widgets: chart-plotter
+2. Regression-Assumptions-and-Residuals - the four assumptions (linearity, independence, constant variance, normality) and reading residual plots to check them. widgets: NEW:residual-plot, chart-plotter
+3. Influence-and-Leverage - high-leverage points vs influential observations, Cook's distance, and what one row can do to a fit. widgets: NEW:residual-plot, chart-plotter
+4. Multicollinearity-in-Regression - correlated predictors, unstable coefficients, the VIF, and how to detect and fix it. widgets: correlation-heatmap, chart-plotter
+5. Heteroskedasticity-and-Autocorrelation - non-constant variance and correlated errors, how to spot them, and robust / corrected standard errors. widgets: NEW:residual-plot, chart-plotter
+6. Inference-and-Prediction-in-Regression - confidence vs prediction intervals, tests on coefficients, and explaining vs predicting. widgets: chart-plotter, null-distribution
+7. Logistic-Regression-Done-Properly - modeling a probability, the logit link, odds ratios, fitting glm(), reading the model. widgets: chart-plotter, decision-region
+8. GLMs-Beyond-Logistic - the GLM family (Poisson counts, Gamma, etc.), link functions, and matching the model to the response. widgets: process-flow, chart-plotter
+
+## ds-classification  (track: scientist; curriculum_id 6.30; landing R-Classification-Course.html; access: free)  [roadmap §3]
+1. kNN-and-the-Curse-of-Dimensionality - classify by nearest neighbors, choosing k, the distance metric, and why high dimensions break distance. widgets: decision-region
+2. Naive-Bayes-for-Tabular-and-Text - Bayes' rule for classification, the naive independence assumption, and why it works well anyway. widgets: NEW:naive-bayes, chart-plotter
+3. Discriminant-Analysis-LDA-and-QDA - linear vs quadratic discriminant analysis, the Gaussian assumption, and the boundary each draws. widgets: decision-region
+4. Decision-Trees-for-Classification - a single tree as a standalone classifier: recursive splits, impurity (Gini/entropy), growing and pruning with rpart, reading the tree, and why one tree overfits - the bridge to the ensembles in §4. widgets: tree-diagram, gini-split, decision-region
+5. Decision-Boundaries-and-Model-Geometry - what a classifier's boundary looks like (linear vs nonlinear), generative vs discriminative, and how the boundary reflects the model. widgets: decision-region
+6. Reading-a-Classifier - the confusion matrix, accuracy/precision/recall/F1, ROC and PR curves, and why accuracy alone misleads. widgets: NEW:roc-curve
+   (Decision trees appear in BOTH §3 here as a standalone classifier AND §4 as the base learner for ensembles - the existing `random-forest` course teaches trees-as-ensemble-base. Both framings are intended; not a duplicate.)
+
+## ds-boosting  (track: scientist; curriculum_id 6.40; landing R-Gradient-Boosting-Course.html; access: free)  [roadmap §4: the interactive lessons in this section = the EXISTING `random-forest` course (decision trees from scratch + bagging + random forests + OOB tuning, 3 lessons, already live) PLUS this `ds-boosting` course below]
+1. Gradient-Boosting-from-Scratch - boosting as sequential error-correction: fit to residuals, the learning rate, and how it differs from bagging. widgets: NEW:gradient-boosting
+2. LightGBM-and-CatBoost-in-R - the modern fast boosters, histogram splits, native categorical handling, when to pick which. widgets: process-flow, importance-bars
+3. The-Hyperparameters-That-Matter - the few knobs that actually move boosting (trees, learning rate, depth, regularization) and how they interact. widgets: NEW:learning-curve
+4. Early-Stopping-and-Learning-Curves - reading train/validation curves, stopping before overfit, the rounds-vs-error picture. widgets: NEW:learning-curve
+5. Monotonic-Constraints-for-Business-Rules - forcing a feature's effect one way, why a business needs it, and the accuracy-for-trust trade. widgets: chart-plotter
+6. Quantile-Regression-Forests-and-Prediction-Intervals - predict a range not a point, quantile loss, and intervals from trees. widgets: chart-plotter
+
+## ds-tidymodels  (track: scientist; curriculum_id 6.50; landing R-tidymodels-Course.html; access: free)  [roadmap §5]
+1. Preprocess-with-recipes - the recipe as a reusable, leak-free preprocessing pipeline (scaling, dummies, imputation) that learns on train and applies to test. widgets: process-flow
+2. Define-Models-with-parsnip - one interface to many engines, switching engines without rewriting, bonsai for boosting. widgets: process-flow
+3. Bundle-Steps-with-workflows - tie a recipe + model into one object you fit and predict as a unit. widgets: process-flow
+4. Resample-with-rsample - cross-validation and the bootstrap for honest estimates, folds, and why resampling beats one split. widgets: NEW:cv-folds
+5. Measure-with-yardstick - choosing and computing metrics, metric sets, and reading them across resamples. widgets: NEW:roc-curve, chart-plotter
+6. Tune-with-the-tune-package - tune hyperparameters over a grid with resampling, pick the best, finalize the workflow. widgets: NEW:learning-curve, process-flow
+7. Compare-Many-Models-with-workflowsets - fit and compare a set of model+recipe combinations to pick a winner. widgets: chart-plotter, styled-table
+
+## ds-feature-engineering  (track: scientist; curriculum_id 6.60; landing R-Feature-Engineering-Course.html; access: free)  [roadmap §6]
+1. Encoding-Categorical-Variables - one-hot / dummy, ordinal, and high-cardinality handling; when each is right and what each costs a model. widgets: table-transform
+2. Target-Encoding-Without-Leakage - impact / target encoding done out-of-fold so the encoding never sees the rows it scores; the leak it prevents. widgets: data-split, table-transform
+3. Scaling-and-Transformations - center / scale, log, Box-Cox and Yeo-Johnson, and which models care about scale and which do not. widgets: NEW:transform-shaper, table-transform
+4. Interaction-and-Spline-Features - products, polynomials and splines that let a linear model bend without overfitting. widgets: chart-plotter, ols-fit
+5. Features-from-Dates-Text-and-Geo - pulling signal out of timestamps, strings and coordinates into model-ready columns. widgets: table-transform
+6. Imputing-Missing-Values-in-Features - mean / median / kNN / model-based imputation done inside the pipeline so it stays leak-free. widgets: table-transform, data-split
+7. Feature-Selection-and-Spotting-Leakage - filter, wrapper and embedded selection, plus how to catch target leakage before it flatters your score. widgets: importance-bars, data-split
+
+## ds-evaluation-tuning  (track: scientist; curriculum_id 6.70; landing R-Model-Evaluation-Course.html; access: free)  [roadmap §7]
+1. Cross-Validation-Strategies - k-fold, repeated and LOOCV, and the bias-variance of the estimate itself. widgets: cv-folds
+2. Grouped-Blocked-and-Time-Aware-CV - leakage-safe resampling when rows are grouped or ordered in time. widgets: cv-folds, data-split
+3. Nested-Cross-Validation - tune on the inside, evaluate on the outside, so the reported score is not optimistic. widgets: cv-folds
+4. Hyperparameter-Tuning-Strategies - grid, random and Bayesian search, and how to spend the search budget well. widgets: NEW:tuning-search, learning-curve
+5. Scoring-Rules-and-Regression-Metrics - proper scoring rules, log-loss, RMSE / MAE / MAPE and what each one rewards. widgets: chart-plotter, roc-curve
+6. Comparing-Models-Statistically - resampled differences with uncertainty, not single-split luck. widgets: null-distribution
+7. From-Metrics-to-Money - turning a metric gain into the business decision it should drive. widgets: roc-curve, process-flow
+
+## ds-imbalanced-classification  (track: scientist; curriculum_id 6.80; landing R-Imbalanced-Classification-Course.html; access: free)  [roadmap §8]
+1. Beyond-Binary-Multiclass-Classification - one-vs-rest and one-vs-one, and how the metrics change with more than two classes. widgets: roc-curve, decision-region
+2. Class-Imbalance-and-Resampling - under / oversampling and SMOTE with themis, applied without leaking into evaluation. widgets: NEW:imbalance-resample, decision-region
+3. Thresholds-Under-Asymmetric-Costs - moving the cutoff when a false negative costs far more than a false positive. widgets: logistic-curve, roc-curve
+4. ROC-PR-Lift-and-Gains-Curves - the curve family, and why precision-recall beats ROC on rare positives. widgets: roc-curve
+5. Calibrating-Predicted-Probabilities - reliability diagrams and Platt / isotonic calibration so a 0.7 means 0.7. widgets: NEW:calibration-curve
+6. Why-AUC-Is-Not-Enough - what a single AUC number hides about a model. widgets: roc-curve, NEW:calibration-curve
+
+## ds-unsupervised  (track: scientist; curriculum_id 6.90; landing R-Unsupervised-Learning-Course.html; access: free)  [roadmap §9]
+1. PCA-in-R - principal components, variance explained, and reading a biplot. widgets: NEW:pca-projection
+2. Factor-Analysis - latent factors behind observed variables, and how it differs from PCA. widgets: NEW:pca-projection, importance-bars
+3. k-Means-and-Choosing-k - Lloyd's algorithm step by step, and the elbow / silhouette for picking k. widgets: NEW:kmeans-cluster, NEW:cluster-validate
+4. Hierarchical-and-Density-Clustering - hclust dendrograms and DBSCAN for shapes k-means cannot find. widgets: NEW:dendrogram, tree-diagram
+5. Gaussian-Mixture-Models - soft, probabilistic clusters with mclust. widgets: NEW:gmm-clusters
+6. Cluster-Validation-and-Stability - silhouette, the gap statistic, and asking whether the clusters are even real. widgets: NEW:cluster-validate, chart-plotter
+7. t-SNE-and-UMAP - nonlinear embeddings for seeing structure, and the traps in reading them. widgets: NEW:pca-projection
+8. Association-Rules-and-Market-Basket - support, confidence and lift with arules. widgets: NEW:assoc-rules, table-transform
+
+## ds-causal  (track: scientist; curriculum_id 6.100; landing R-Causal-Inference-Course.html; access: free)  [roadmap §10]
+1. Correlation-Causation-and-Potential-Outcomes - the counterfactual frame and why a correlation is never enough. widgets: null-distribution, process-flow
+2. Causal-Diagrams-with-DAGs - drawing your assumptions, then reading confounders and colliders off the graph. widgets: NEW:causal-dag, process-flow
+3. AB-Testing-and-Experiment-Design - randomization, power and the sample size you actually need. widgets: null-distribution, data-split
+4. Reading-an-Experiment - effect sizes, intervals, and what a result does and does not let you claim. widgets: null-distribution
+5. When-You-Cannot-Randomize - matching and difference-in-differences, and the assumptions they ask you to buy. widgets: process-flow, ols-fit
+
+## ds-interpretability  (track: scientist; curriculum_id 6.110; landing R-Interpretability-Course.html; access: free)  [roadmap §11]
+1. Global-vs-Local-Explanations - what the model learned overall versus why it made this one prediction. widgets: importance-bars
+2. Permutation-and-Drop-Column-Importance - model-agnostic importance done honestly, and how it can mislead. widgets: importance-bars
+3. SHAP-Values - additive, per-feature contributions that sum exactly to the prediction. widgets: NEW:shap-bars
+4. Partial-Dependence-ICE-and-ALE - the shape of a feature's effect, averaged and per-row. widgets: NEW:pdp-curve
+5. Fairness-Basics - group metrics, the impossibility results, and what you can actually do about them. widgets: NEW:fairness-metrics, styled-table
+6. Model-Cards-and-Documenting-a-Model - writing down intended use, training data and known limits. widgets: doc-structure
+
+## ds-production  (track: scientist; curriculum_id 6.120; landing R-ML-Production-Course.html; access: free)  [roadmap §12]
+1. Reproducible-Pipelines-with-targets - a dependency graph that only reruns the steps that changed. widgets: process-flow
+2. Versioning-Models-with-vetiver-and-pins - register, version and retrieve a model the way you do code. widgets: process-flow
+3. Serving-a-Model-with-plumber - wrap a fitted model in a small REST API. widgets: process-flow
+4. Batch-vs-Real-Time-Inference - matching the serving pattern to the decision being made. widgets: process-flow
+5. Monitoring-and-Drift - watching inputs and performance after launch, and knowing when to retrain. widgets: NEW:drift-monitor, learning-curve
+6. An-ML-System-Design-Checklist - the questions to answer before a model ships. widgets: doc-structure, process-flow
+
+NEW widgets for sections 6-12 (built before the batch; runnable interactive-R required like every widget): **calibration-curve**, **pca-projection**, **kmeans-cluster**, **shap-bars**, **pdp-curve**. Everything else reuses the existing library.
+
 ---
 
 # Data Analyst track (level 2, all free)

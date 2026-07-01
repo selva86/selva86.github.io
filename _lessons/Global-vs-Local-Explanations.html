@@ -1,0 +1,326 @@
+---
+title: "Interpretability Lesson 1: Global vs Local Explanations"
+description: "Global versus local explanations in R: read a global feature-importance ranking, break one prediction into per-feature contributions, and know which one you need."
+keywords: "global vs local explanations, model interpretability, feature importance, local explanation, explainable AI, XAI, interpretable machine learning, SHAP, R"
+mathjax: true
+webr: true
+curriculum_id: "6.110.1"
+post_type: "LESSON"
+course_id: "ds-interpretability"
+course_title: "Model Interpretability in R"
+course_lesson: "1"
+course_total: "6"
+course_landing: "R-Interpretability-Course.html"
+course_next: "Permutation-and-Drop-Column-Importance.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "What a model learned overall versus why it made one prediction."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 6</div>
+<h2>Global vs Local Explanations</h2>
+
+<p>Your team trained a model that predicts which customers will cancel their subscription, and it does well on the test set. This morning it flags <strong>Ravi</strong>, a three-month-old account, with a churn risk of <strong>0.87</strong>. Two colleagues walk over with two very different questions.</p>
+
+<p>The retention rep asks: <em>why Ravi?</em> She has to call him today and needs a reason. The product lead asks: <em>what makes customers churn in general?</em> He wants to fix the product, not one account.</p>
+
+<p>Those are not the same question, and they need two different kinds of explanation. This lesson is about telling them apart.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Tell a <strong>global</strong> explanation (what the model learned overall) from a <strong>local</strong> one (why it made a single prediction)</li>
+
+<li>Read a global <strong>feature-importance</strong> ranking, and a local <strong>per-feature contribution</strong> breakdown, in R</li>
+
+<li>See why a feature that dominates the model overall can be irrelevant to one prediction, and pick the right explanation for the question you are answering</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit and use a predictive model in R, such as a <a href="Logistic-Regression-Done-Properly.html">logistic regression</a> or a <a href="Random-Forest-Course.html">random forest</a>, and you know what a feature and a prediction are.</p>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"tenure","value":0.99},{"label":"monthly charge","value":0.48},{"label":"support calls","value":0.35},{"label":"senior","value":0.18},{"label":"add-ons","value":0.02},{"label":"contract","value":0.02}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The core idea</div>
+<h2>Two questions about one model</h2>
+
+<p>The retention rep and the product lead are both asking the model to explain itself, but they point at different things.</p>
+
+<p>The product lead wants a <strong>global</strong> explanation: a statement about the whole model, averaged over every customer. <em>In general, tenure matters more than anything else.</em> The rep wants a <strong>local</strong> explanation: a statement about one row, one prediction. <em>Ravi was flagged because his tenure is tiny and his bill is high.</em></p>
+
+<p>Keep those two straight and the rest of interpretability falls into place. Here is the whole distinction on one card.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Global explanation</th>
+<th>Local explanation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Answers</td>
+<td>What did the model learn overall?</td>
+<td>Why did it make THIS prediction?</td>
+</tr>
+<tr>
+<td>Scope</td>
+<td>The whole model, across all customers</td>
+<td>One customer, one prediction</td>
+</tr>
+<tr>
+<td>Example</td>
+<td>Tenure drives churn more than any other feature</td>
+<td>Ravi was flagged for short tenure and a high bill</td>
+</tr>
+<tr>
+<td>Who needs it</td>
+<td>Product lead, auditor, regulator</td>
+<td>The customer, the rep on the case, you debugging</td>
+</tr>
+<tr>
+<td>Typical tool</td>
+<td>Feature importance (a ranking)</td>
+<td>Per-feature contributions (a waterfall)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Same model, two lenses. The rest of the lesson builds one of each in R, then shows why you cannot swap one for the other.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The model, in R</div>
+<h2>Meet the model</h2>
+
+<p>Before we can explain a model, we need one to explain. Here is a small, self-contained churn dataset and a logistic-regression model fit on it. Each row is a customer; <code>churned</code> is 1 if they left. Run it once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 500
+churn &lt;- data.frame(
+  tenure        = round(runif(n, 0, 60)),       # months as a customer
+  monthly       = round(runif(n, 20, 120), 1),  # monthly charge (dollars)
+  support_calls = rpois(n, 1.5),                # support calls last quarter
+  contract      = rbinom(n, 1, 0.5),            # 1 = on a 1-year contract
+  addons        = rbinom(n, 1, 0.4),            # has paid add-ons
+  senior        = rbinom(n, 1, 0.16)            # senior-citizen flag
+)
+# whether each customer left depends mostly on short tenure, high charges, and support calls
+lp &lt;- -1.0 - 0.06 * churn$tenure + 0.02 * churn$monthly +
+       0.35 * churn$support_calls - 0.5 * churn$contract
+churn$churned &lt;- rbinom(n, 1, plogis(lp))       # 1 = the customer left
+
+fit &lt;- glm(churned ~ ., data = churn, family = binomial)   # a churn model
+
+# Ravi: only 3 months in, on a pricey month-to-month plan, calling support a lot.
+ravi &lt;- data.frame(tenure = 3, monthly = 105, support_calls = 4,
+                   contract = 0, addons = 0, senior = 0)
+round(as.numeric(predict(fit, ravi, type = &quot;response&quot;)), 2)
+#&gt; [1] 0.87</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model gives Ravi a <strong>0.87</strong> chance of churning, well above a typical customer. That single number is the prediction. Everything that follows is about explaining it, in two different ways.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first lens</div>
+<h2>The global explanation: what did it learn?</h2>
+
+<p>A <strong>global</strong> explanation summarizes the whole model in one picture: which features move its predictions the most, across all 500 customers? That is exactly what <strong>feature importance</strong> measures.</p>
+
+<p>For a linear model like this one, a natural importance for feature \(j\) is the size of its standardized effect,</p>
+
+<p>\[ I_j = |\beta_j|\,\sigma_j, \]</p>
+
+<p>where \(\beta_j\) is the model's coefficient on feature \(j\) and \(\sigma_j\) is that feature's standard deviation (how much it varies across customers). Multiplying by \(\sigma_j\) puts every feature on the same footing, so a coefficient measured in dollars and a coefficient on a 0/1 flag become comparable. A bigger \(I_j\) means the feature swings the model's score more.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Global importance: each coefficient, scaled by how much its feature varies.
+imp &lt;- abs(coef(fit)[-1]) * sapply(churn[, 1:6], sd)
+round(sort(imp, decreasing = TRUE), 2)
+#&gt;        tenure       monthly support_calls        senior        addons      contract
+#&gt;          0.99          0.48          0.35          0.18          0.02          0.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read top to bottom: <strong>tenure</strong> dominates, then <strong>monthly charge</strong>, then <strong>support calls</strong>; the rest barely move the model. Here is that ranking as a chart.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Importance tells you <em>how much</em> a feature matters, not <em>which way</em>. This ranking does not say whether more tenure raises or lowers churn, and it says nothing about any single customer. It is a fact about the model's average behavior, not about Ravi.</div></div>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"tenure","value":0.99},{"label":"monthly charge","value":0.48},{"label":"support calls","value":0.35},{"label":"senior","value":0.18},{"label":"add-ons","value":0.02},{"label":"contract","value":0.02}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does global importance tell you?</h2>
+
+<p>Your model ranks <strong>tenure</strong> as its most important feature by far. A teammate concludes: <em>so for every customer the model flags, short tenure is the main reason.</em> Is that a safe conclusion from the global ranking alone?</p>
+<section class="exercise" data-exercise-id="Global-vs-Local-Explanations-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes: the most important feature is the main reason behind every prediction</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: importance is an overall average, it does not tell you why any single customer was flagged</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, because the ranking also needs the direction, positive or negative, of each feature</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A global ranking describes the model's average behavior. Why one specific customer was flagged is a LOCAL question, and the answer can put a different feature on top.</div><div class="lesson-qfb lesson-qfb-no">True that importance omits direction, but that is not the flaw here. Even WITH directions, a global average still cannot give the reason behind one specific prediction.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<div class="lesson-step-eyebrow">The second lens</div>
+<h2>The local explanation: why THIS prediction?</h2>
+
+<p>Now the rep's question. A <strong>local</strong> explanation takes ONE prediction and splits it into a baseline plus one push per feature, so the pushes add up to exactly that prediction:</p>
+
+<p>\[ \hat{y}(x) = \phi_0 + \sum_{j} \phi_j, \]</p>
+
+<p>where \(\hat{y}(x)\) is the model's score for this one customer \(x\), \(\phi_0\) is the <strong>baseline</strong> (the average prediction, what the model would say knowing nothing about this customer), and \(\phi_j\) is the <strong>contribution</strong> of feature \(j\) to this prediction: positive if it pushed the score up, negative if it pushed it down. For a linear model each contribution has an exact form,</p>
+
+<p>\[ \phi_j = \beta_j\,(x_j - \bar{x}_j), \]</p>
+
+<p>the coefficient times how far this customer's feature sits from the average \(\bar{x}_j\). A customer who is average on a feature gets no push from it; a customer far from average gets a big one.</p>
+
+<p>Read as a waterfall, that is a local explanation: start at the baseline and add each push until you land on this customer's prediction. Run the code beside it to watch the contributions add up exactly.</p>
+
+<p>The waterfall above breaks down one flagged customer. Ravi's looks the same in shape: his very short tenure and high monthly charge push his score far above the baseline, and nothing pulls it back, which is how he reaches <strong>0.87</strong>. One principled way to compute these contributions for <em>any</em> model, called <strong>SHAP</strong>, is the subject of Lesson 3; here the point is simply what a local explanation <em>is</em>.</p>
+<div class="lesson-widget" data-widget-type="shap-bars" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Make the pushes add up</h2>
+
+<p>A local explanation has to reconstruct the prediction exactly: the baseline plus every push. Here is one flagged customer as a baseline and five contributions. Add them up to get the model's predicted risk, then check it.</p>
+<section class="exercise" data-exercise-id="Global-vs-Local-Explanations-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="baseline\s*\+\s*sum\(\s*contrib\s*\)|sum\(\s*contrib\s*\)\s*\+\s*baseline"><textarea class="lesson-tryit-input" spellcheck="false">baseline &lt;- 0.30                        # the average customer's predicted risk
+contrib  &lt;- c(tenure = 0.22, monthly = 0.14, support_calls = -0.18,
+              contract = -0.07, addons = 0.09)   # this customer's per-feature pushes
+prediction &lt;- ____                      # the baseline plus every push
+prediction</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly: baseline + sum(contrib) = 0.30 + 0.20 = 0.50. The pushes rebuild the prediction, and that add-up-to-the-prediction property is what makes it an explanation.</span><span class="lesson-tryit-fb lesson-tryit-no">Add the baseline to the total of the pushes: baseline + sum(contrib).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">baseline &lt;- 0.30
+contrib  &lt;- c(tenure = 0.22, monthly = 0.14, support_calls = -0.18,
+              contract = -0.07, addons = 0.09)
+prediction &lt;- baseline + sum(contrib)   # 0.30 + 0.20 = 0.50
+prediction</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>Global importance is not a local reason</h2>
+
+<p>Here is the mistake that turns a good analyst into a wrong one: reading the global ranking as the reason behind an individual prediction. They come apart all the time.</p>
+
+<p>Take two flagged customers. <strong>Ravi</strong> has been a customer for 3 months, well below the average tenure, so tenure pushes his score up hard. <strong>Meera</strong> has been a customer for four years, right around the average, so tenure barely moves her score at all, even though tenure is the model's number-one feature globally. Meera was flagged because she suddenly called support seven times.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>Global rank</th>
+<th>Ravi's push</th>
+<th>Meera's push</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tenure</td>
+<td>#1 (biggest overall)</td>
+<td>large up (only 3 months)</td>
+<td>about 0 (average tenure)</td>
+</tr>
+<tr>
+<td>monthly charge</td>
+<td>#2</td>
+<td>up (pricey plan)</td>
+<td>small</td>
+</tr>
+<tr>
+<td>support calls</td>
+<td>#3</td>
+<td>up (calls often)</td>
+<td>large up (7 calls)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A feature at the top of the global ranking can contribute almost nothing to a particular prediction, and a mid-ranked feature can be the whole story for another. Global importance describes the model's habits; a local explanation describes one decision. Never quote the global ranking as the reason a specific customer was flagged.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reason about one prediction</h2>
+
+<p>Tenure is your churn model's most important feature globally. The model flags <strong>Meera</strong>, a four-year customer whose tenure is completely average. Her manager says: <em>tenure is the top feature, so tenure must be why she was flagged.</em> What is the right response?</p>
+<section class="exercise" data-exercise-id="Global-vs-Local-Explanations-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">He is right: the globally most important feature always drives each prediction</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">He is right only if Meera's tenure is above average</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">He is wrong: for an average-tenure customer tenure contributes little, so her flag comes from whatever pushed HER score up, read from a local explanation</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Global rank and local contribution are different things. Meera is average on tenure, so it barely moves her score; only a local explanation of her row reveals the real reason, here a spike in support calls.</div><div class="lesson-qfb lesson-qfb-no">Direction aside, a globally important feature contributes little to a prediction when the customer is AVERAGE on it, which Meera is. Her tenure push is near zero.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing</div>
+<h2>Which explanation do you need?</h2>
+
+<p>Neither lens is better; they answer to different people and different decisions. Match the explanation to the question.</p>
+
+<ul>
+
+<li><strong>Reach for a global explanation</strong> when the audience cares about the model as a whole: a product lead deciding what to fix, an auditor or regulator checking the model relies on sensible features, a data scientist choosing which inputs to monitor for drift. Global answers <em>is this model behaving reasonably, and on what?</em></li>
+
+<li><strong>Reach for a local explanation</strong> when a single decision has to be justified or acted on: telling a customer why they were denied (an adverse-action notice often legally has to be local), a rep deciding what to do for Ravi today, or you debugging one surprising prediction. Local answers <em>why this one, and what would change it?</em></li>
+
+</ul>
+
+<p>Often you want both: a global explanation to trust the model before you deploy it, and a local explanation every time it makes a call someone has to stand behind.</p>
+
+<p>The next lessons deepen each lens. Lesson 2 makes global importance work for <em>any</em> model, not just linear ones, by permuting features. Lesson 3 computes the local contributions you saw here with SHAP. Later lessons turn the same tools on fairness and on documenting a model.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://christophm.github.io/interpretable-ml-book/">Molnar, Interpretable Machine Learning (free online book)</a> - the standard free reference; its whole structure is organized around global versus local methods.</li>
+
+<li><a href="https://arxiv.org/abs/1602.04938">"Why Should I Trust You?", Ribeiro, Singh and Guestrin (2016), the LIME paper</a> - the work that popularized local, model-agnostic explanations of single predictions.</li>
+
+<li><a href="https://arxiv.org/abs/1705.07874">A Unified Approach to Interpreting Model Predictions, Lundberg and Lee (2017), the SHAP paper</a> - local contributions that sum exactly to the prediction, the method behind the waterfall here and Lesson 3.</li>
+
+<li><a href="https://ema.drwhy.ai/">Biecek and Burzykowski, Explanatory Model Analysis (free online book)</a> - a hands-on R walkthrough of both global and local explainers with the DALEX package.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now tell the two questions apart. A <strong>global</strong> explanation, like a feature-importance ranking, describes what the model learned across all data. A <strong>local</strong> explanation, like a per-feature contribution breakdown, describes why it made one prediction. They are computed differently, they answer to different people, and, as Meera showed, the global ranking is not a valid reason for an individual decision.</p>
+
+<p>Next, Lesson 2: <strong>Permutation and Drop-Column Importance.</strong> Importance from coefficients only works for simple models. You will measure global importance for <em>any</em> model, including black boxes, by shuffling one feature at a time and watching accuracy fall, and you will see the ways that honest-looking method can quietly mislead you.</p>
+</section>
+
+{% endraw %}

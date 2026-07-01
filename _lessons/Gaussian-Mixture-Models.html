@@ -1,0 +1,325 @@
+---
+title: "Unsupervised Learning Lesson 5: Gaussian Mixture Models"
+description: "Learn Gaussian mixture models in R from scratch: soft responsibilities, the mixture density, the EM algorithm coded by hand, and fitting with mclust and BIC."
+keywords: "gaussian mixture model in R, GMM, mclust, soft clustering, responsibilities, EM algorithm, expectation maximization, BIC, model based clustering, unsupervised learning"
+mathjax: true
+webr: true
+curriculum_id: "6.9.5"
+post_type: "LESSON"
+course_id: "ds-unsupervised"
+course_title: "Unsupervised Learning in R"
+course_lesson: "5"
+course_total: "8"
+course_landing: "R-Unsupervised-Learning-Course.html"
+course_next: "Cluster-Validation-and-Stability.html"
+course_prev: "Hierarchical-and-Density-Clustering.html"
+lesson_access: "free"
+catalog_blurb: "Cluster with probabilities so a point on the border can belong to two groups."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 8</div>
+<h2>Gaussian Mixture Models</h2>
+
+<p>In Lesson 4, hierarchical clustering and DBSCAN gave Maria clean neighbourhoods on her coffee-shop map. But every method so far, k-means included, has handed back a <strong>hard</strong> answer: each customer belongs to exactly one group, full stop.</p>
+
+<p>Meet Dan. He comes into Maria's shop about <strong>17 times a month</strong>, right in the gap between her regulars (who average around 13 visits) and her devotees (around 20). k-means had to shove Dan fully into one tier, even though he honestly sits on the fence. A Gaussian mixture refuses to pretend. It can say Dan is, say, <strong>60% regular and 40% devotee</strong>, and that fraction is a real, computed probability, not a hand-wave.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Read a soft assignment: what it means to say a customer is 60% one group and 40% another</li>
+
+<li>Write down the model behind it (data as a weighted sum of bell curves) and compute a membership probability yourself in R</li>
+
+<li>Run the EM algorithm that fits a mixture, know why it never gets worse but can get stuck, and fit one for real with <code>mclust</code></li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you have done <a href="k-Means-and-Choosing-k.html">Lesson 3 on k-means</a> (clustering, distance, scaling, and why you run several random starts) and <a href="Hierarchical-and-Density-Clustering.html">Lesson 4 on hierarchical and density clustering</a>. A bell curve just means the normal distribution; every other symbol is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="gmm-clusters" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>Hard labels throw away what you know</h2>
+
+<p>Toggle the panel above between <strong>hard</strong> and <strong>soft</strong>. In hard mode every dot is painted fully blue or fully gold, exactly what k-means does: each point is assigned to its single nearest group. In soft mode the dots in the overlap turn an in-between colour, because the model reports a <em>probability</em> of belonging to each group instead of forcing a choice.</p>
+
+<p>That probability has a name. For each customer and each group, the model gives a <strong>responsibility</strong>: a number between 0 and 1 saying how much that group "owns" the customer, with the responsibilities across all groups adding up to 1. A responsibility of 0.95 means "almost certainly this tier"; 0.55 versus 0.45 means "leaning one way, but genuinely close."</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Hard clustering answers "which group?" Soft clustering answers "with what probability?" The hard label is just the soft answer with the doubt thrown away, the group with the largest responsibility. Keeping the doubt is the whole point of a mixture model.</div></div>
+
+<p>In fact, hard assignment is a mixture model with the confidence deleted: k-means is what you get if you force every responsibility to be exactly 0 or 1. So a Gaussian mixture is not a rival to k-means so much as the honest, probabilistic version of the same idea.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does 0.5 / 0.5 mean?</h2>
+
+<p>The model reports that one customer has responsibility <strong>0.5 for "regular"</strong> and <strong>0.5 for "devotee"</strong>. What is it telling you?</p>
+<section class="exercise" data-exercise-id="Gaussian-Mixture-Models-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">That the customer's visit count sits exactly halfway between the two tiers' average visits</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That the model is genuinely undecided: this customer is equally consistent with both tiers</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">That something is wrong, because a responsibility has to be 0 or 1</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Equal responsibilities mean the two bells explain this customer equally well, so the model reports honest uncertainty instead of a forced label.</div><div class="lesson-qfb lesson-qfb-no">That is hard assignment (k-means). A mixture's responsibilities are real numbers between 0 and 1 on purpose; 0.5 / 0.5 is a perfectly valid, informative answer.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The model</div>
+<h2>Where the probabilities come from</h2>
+
+<p>The soft colours are not decoration; they fall out of a specific model of how the data was made. A <strong>Gaussian mixture</strong> assumes each customer was produced in two steps: first nature picks a tier at random, then it draws that customer's visit count from a bell curve belonging to that tier. Maria never sees the first step; she only sees the final visit counts, all mixed together.</p>
+
+<p>Two pieces describe one bell. The <strong>normal (Gaussian) density</strong> for a single feature \(x\) is</p>
+
+<p>\[ \mathcal{N}(x \mid \mu, \sigma^2) = \frac{1}{\sqrt{2\pi\sigma^2}}\, \exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right) \]</p>
+
+<p>where \(\mu\) (mu) is the centre of the bell and \(\sigma^2\) (sigma squared) is its variance, how wide it spreads. Now stack \(K\) of these bells, one per tier, and give tier \(k\) a <strong>mixing weight</strong> \(\pi_k\) (pi-k), the fraction of customers that belong to it. The whole population's density is their weighted sum:</p>
+
+<p>\[ p(x) = \sum_{k=1}^{K} \pi_k\, \mathcal{N}(x \mid \mu_k, \Sigma_k), \qquad \sum_{k=1}^{K}\pi_k = 1 \]</p>
+
+<p>Here \(\Sigma_k\) (Sigma) is the general, multi-feature version of the variance, the <strong>covariance matrix</strong>; with a single feature like visits it is just \(\sigma_k^2\). With two features (say visits and spend) \(\Sigma_k\) also sets the <em>shape</em> of each group: a mixture can draw stretched, tilted <strong>ellipses</strong>, which is exactly why it fits Maria's tiers better than k-means, whose round cells cannot lean or elongate. The dashed ovals in the panel earlier are those ellipses.</p>
+
+<p>Let us build Maria's data and see the two bells hiding inside it. Each lesson runs in its own fresh R session, so we make the visit counts right here; this page shares one session top to bottom, so run this once and later steps reuse it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+regulars &lt;- rnorm(70, mean = 13, sd = 2.4)   # ~70 regulars, about 13 visits a month
+devotees &lt;- rnorm(30, mean = 20, sd = 2.0)   # ~30 devotees, about 20 visits a month
+visits   &lt;- round(pmin(pmax(c(regulars, devotees), 1), 31))  # Maria sees only this, unlabelled
+length(visits)
+#&gt; [1] 100
+range(visits)
+#&gt; [1]  6 23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If we <em>knew</em> the two tiers, the mixture density is just their weighted sum. Plot the visit counts and lay the two bells (and their sum) on top:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(visits, breaks = 18, freq = FALSE, col = &quot;grey90&quot;, border = &quot;white&quot;,
+     main = &quot;Maria's monthly visits, and the two bells hiding inside&quot;,
+     xlab = &quot;visits per month&quot;)
+grid &lt;- seq(1, 31, length.out = 300)
+lines(grid, 0.7 * dnorm(grid, 13, 2.4), col = &quot;#2980b9&quot;, lwd = 2)   # the regular bell (weight 0.7)
+lines(grid, 0.3 * dnorm(grid, 20, 2.0), col = &quot;#c0392b&quot;, lwd = 2)   # the devotee bell (weight 0.3)
+lines(grid, 0.7 * dnorm(grid, 13, 2.4) + 0.3 * dnorm(grid, 20, 2.0),
+      col = &quot;black&quot;, lwd = 2, lty = 2)                              # their sum: the mixture</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The single lumpy histogram is really two overlapping bells added together. The job of a mixture model is to recover those bells, their centres, spreads and weights, from the visit counts alone, without ever being told who is a regular and who is a devotee.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute Dan's responsibility</h2>
+
+<p>Given the two bells, working out a customer's responsibility is just Bayes' rule. For customer \(x_i\) and tier \(k\), the responsibility is that tier's weighted height at \(x_i\), divided by the total across all tiers:</p>
+
+<p>\[ \gamma_{ik} = \frac{\pi_k\, \mathcal{N}(x_i \mid \mu_k, \sigma_k^2)}{\sum_{j=1}^{K} \pi_j\, \mathcal{N}(x_i \mid \mu_j, \sigma_j^2)} \]</p>
+
+<p>where \(\gamma_{ik}\) (gamma) is the responsibility of tier \(k\) for customer \(i\). In R, <code>dnorm(x, mu, sg)</code> gives the bell height \(\mathcal{N}\). Multiply by the weight, then divide by the total so the two shares add to 1. Fill in the blank with what turns the two weighted heights into shares. (We call the weights <code>pri</code> in code because <code>pi</code> is already a built-in number in R.)</p>
+<section class="exercise" data-exercise-id="Gaussian-Mixture-Models-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="sum\s*\(\s*w\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">mu  &lt;- c(13, 20)      # the two bell centres: regulars, devotees
+sg  &lt;- c(2.4, 2.0)    # their spreads (standard deviations)
+pri &lt;- c(0.7, 0.3)    # the mixing weights: 70% regulars, 30% devotees
+x   &lt;- 17             # Dan comes in 17 times a month
+w   &lt;- pri * dnorm(x, mu, sg)   # each bell's weighted height at Dan's visits
+resp &lt;- w / ____                # turn the two heights into shares that add to 1
+round(resp, 3)                  # P(regular | 17), P(devotee | 17)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: dividing by sum(w) normalises the two weighted heights into responsibilities that add to 1. Dan comes out about 0.60 regular, 0.40 devotee.</span><span class="lesson-tryit-fb lesson-tryit-no">Divide by the total of the two weighted heights so the shares sum to 1: resp <- w / sum(w).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">mu  &lt;- c(13, 20); sg &lt;- c(2.4, 2.0); pri &lt;- c(0.7, 0.3)
+x   &lt;- 17
+w   &lt;- pri * dnorm(x, mu, sg)
+resp &lt;- w / sum(w)
+round(resp, 3)
+#&gt; [1] 0.599 0.401</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The algorithm</div>
+<h2>EM: guess, blame, re-fit, repeat</h2>
+
+<p>There is a chicken-and-egg problem. To compute responsibilities you need the bells (their \(\mu\), \(\sigma\), \(\pi\)), but to fit the bells you need to know which customers belong to each, which is what the responsibilities tell you. <strong>EM</strong> (Expectation-Maximisation) breaks the loop by guessing, then improving, in two alternating moves:</p>
+
+<ol>
+
+<li><strong>E-step:</strong> with the current bells, compute every customer's responsibility (the formula you just used).</li>
+
+<li><strong>M-step:</strong> with those responsibilities, re-fit each bell as a <strong>responsibility-weighted average</strong> of the data. A customer who is 60% regular counts as 0.6 of a regular when computing the regular bell:</li>
+
+</ol>
+
+<p>\[ \pi_k = \frac{1}{n}\sum_{i=1}^{n}\gamma_{ik}, \qquad \mu_k = \frac{\sum_i \gamma_{ik}\,x_i}{\sum_i \gamma_{ik}}, \qquad \sigma_k^2 = \frac{\sum_i \gamma_{ik}\,(x_i-\mu_k)^2}{\sum_i \gamma_{ik}} \]</p>
+
+<p>where \(n\) is the number of customers. Repeat E then M, and the bells slide into place. Here is the whole thing by hand on Maria's visits, starting from a deliberately bad guess so you can watch it recover:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+mu &lt;- c(10, 22); sg &lt;- c(3, 3); pri &lt;- c(0.5, 0.5)   # a deliberately rough starting guess
+loglik &lt;- numeric(0)
+for (it in 1:40) {
+  # E-step: how much does each bell own each customer?
+  d1 &lt;- pri[1] * dnorm(visits, mu[1], sg[1])
+  d2 &lt;- pri[2] * dnorm(visits, mu[2], sg[2])
+  r1 &lt;- d1 / (d1 + d2); r2 &lt;- 1 - r1
+  # M-step: re-fit each bell as a responsibility-weighted average
+  pri &lt;- c(mean(r1), mean(r2))
+  mu  &lt;- c(sum(r1 * visits) / sum(r1), sum(r2 * visits) / sum(r2))
+  sg  &lt;- c(sqrt(sum(r1 * (visits - mu[1])^2) / sum(r1)),
+           sqrt(sum(r2 * (visits - mu[2])^2) / sum(r2)))
+  loglik[it] &lt;- sum(log(d1 + d2))     # total log-likelihood: how well the bells fit the data
+}
+round(loglik[c(1, 3, 5, 10, 40)], 1)  # watch it climb, then flatten
+#&gt; [1] -327.2 -277.7 -277.5 -277.0 -275.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <strong>log-likelihood</strong>, \(\ell = \sum_i \log \sum_k \pi_k \mathcal{N}(x_i \mid \mu_k, \sigma_k^2)\), scores how well the current bells explain the data. Read the numbers: a big jump on the first pass, then smaller and smaller gains as the fit settles. Now see what EM recovered from unlabelled visits alone:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data.frame(tier   = c(&quot;regular&quot;, &quot;devotee&quot;),
+           weight = round(pri, 2),
+           mean_visits = round(mu, 1),
+           sd     = round(sg, 1))
+#&gt;      tier weight mean_visits  sd
+#&gt; 1 regular    0.8        13.9 3.1
+#&gt; 2 devotee    0.2        20.7 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two tiers, one centred near 14 visits and one near 21, pulled out of a single lumpy histogram with no labels. That is the payoff.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Each EM pass can only raise the log-likelihood or leave it flat, so the loop always converges, exactly like k-means always settled in Lesson 3. But it converges to a <strong>local</strong> optimum, the best fit near wherever you started. A bad start lands on a worse fit. The cure is the same as k-means <code>nstart</code>: run EM from several random starts and keep the one with the highest log-likelihood.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Two runs, two answers</h2>
+
+<p>You run your hand-coded EM twice, from two different random starting guesses, and get two different sets of bells with slightly different final log-likelihoods. What is happening?</p>
+<section class="exercise" data-exercise-id="Gaussian-Mixture-Models-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">One of the runs has a bug: EM is deterministic, so the same data must give the same fit</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">EM climbs to whichever local optimum is nearest its start, so different starts can settle on different fits; keep the one with the higher log-likelihood</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The data must have changed between the two runs</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The log-likelihood surface has more than one peak; EM finds the nearest, not the tallest. Running several starts and keeping the best is how you guard against a poor one.</div><div class="lesson-qfb lesson-qfb-no">The data is identical; the only thing that differed was the starting guess. Same data, different start, different local optimum.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">In practice</div>
+<h2>You would use mclust</h2>
+
+<p>Coding EM by hand is the best way to understand it, but in real work you reach for the <strong>mclust</strong> package. It runs EM for you, and it solves the two questions we have been ducking: how many components \(K\), and what covariance shape each should have. It fits many candidate models and scores each with the <strong>BIC</strong> (Bayesian Information Criterion), a number that rewards fit but penalises extra parameters, then keeps the best. So mclust chooses the number of tiers <em>and</em> the ellipse shape automatically, instead of you guessing <code>centers = 3</code> the way k-means made you.</p>
+
+<pre><code class="language-r">library(mclust)
+# Mclust tries G = 1..9 components and every covariance shape, and keeps the best by BIC.
+m &lt;- Mclust(visits)
+summary(m)          # the chosen number of components G, the model, and the log-likelihood
+m$G                 # how many tiers BIC settled on
+head(round(m$z, 2)) # m$z holds the soft responsibilities, one row per customer</code></pre>
+
+<p>On Maria's two-tier visits, BIC typically lands on two components, matching what your hand-coded EM found, and <code>m$z</code> gives you Dan's 60/40 style split for every customer at once. (mclust is not preinstalled in this in-browser R, so run that block in your own R session.) A quiet bonus: mclust also guards against the singular-fit problem in the next step, so you rarely hit it in practice.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When is soft worth it?</h2>
+
+<p>A colleague clusters Maria's customers two ways: k-means with <code>centers = 2</code>, and a two-component Gaussian mixture. Both split the customers into much the same two tiers, but the mixture <em>also</em> reports each customer's probability of belonging to each tier. When is that extra soft output most useful?</p>
+<section class="exercise" data-exercise-id="Gaussian-Mixture-Models-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">When Maria wants to treat confident and borderline customers differently, for example emailing a "become a devotee" offer only to the fence-sitters who are, say, 40 to 60% devotee</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Never: the hard k-means labels already contain strictly more information than the soft ones</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Only when the two tiers do not overlap at all</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The responsibilities let her target the ambiguous middle that a hard label hides. That is precisely the information k-means throws away.</div><div class="lesson-qfb lesson-qfb-no">Backwards. If the tiers do not overlap, every responsibility is near 0 or 1 and soft adds little. The soft output earns its keep exactly when the groups <em>do</em> overlap and some customers sit on the border.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>Where mixtures break</h2>
+
+<p>A Gaussian mixture is powerful because it commits to a specific model, and that same commitment is where it can go wrong. Know these before you trust a fit:</p>
+
+<ul>
+
+<li><strong>It assumes the groups are roughly Gaussian.</strong> If a true cluster is a crescent or a ring (the shapes DBSCAN handled in Lesson 4), forcing bells onto it gives a confident but wrong answer. A mixture models blobs, not arbitrary shapes.</li>
+
+<li><strong>Components can collapse (a singularity).</strong> If one bell shrinks onto a single point its variance heads toward zero and the likelihood blows up to infinity, a useless "perfect" fit. mclust guards against this with a small regularisation; a hand-rolled EM needs a floor on the variance.</li>
+
+<li><strong>It only finds a local optimum</strong>, so a poor start gives a poor fit. Run several starts and keep the best, as above.</li>
+
+<li><strong>You still have to choose the number of components.</strong> BIC gives a principled answer, but it is a guide, not gospel; sanity-check that the components mean something to Maria, not just to the score.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The through-line of this unit: k-means draws round, hard groups; hierarchical clustering and DBSCAN handle odd shapes; a Gaussian mixture keeps the groups probabilistic and can tilt them into ellipses. No method is best everywhere, so the skill is matching the tool to the shape and the question.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five solid places to take Gaussian mixtures further:</p>
+
+<ul>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, sections 6.8 and 8.5 (free PDF)</a> - mixture models and the EM algorithm, with the full derivation.</li>
+
+<li><a href="https://cs229.stanford.edu/main_notes.pdf">Stanford CS229 lecture notes (free PDF)</a> - the mixtures-of-Gaussians and EM sections build the exact algorithm you coded, step by step.</li>
+
+<li><a href="https://journal.r-project.org/archive/2016/RJ-2016-021/index.html">Scrucca, Fop, Murphy and Raftery (2016): mclust 5 (The R Journal)</a> - the package you would use, and how BIC picks the number of components and the covariance shape.</li>
+
+<li><a href="https://cran.r-project.org/package=mclust">mclust on CRAN</a> - documentation and vignette for <code>Mclust</code>, <code>mclustBIC</code>, and reading the responsibilities in <code>m$z</code>.</li>
+
+<li><a href="https://scikit-learn.org/stable/modules/mixture.html">scikit-learn: Gaussian mixture models</a> - a clear, well-illustrated tour of the same ideas (the concepts transfer directly to R).</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You can now cluster with probabilities instead of hard labels. You saw that a responsibility is a real membership probability, wrote down the mixture model (a weighted sum of Gaussian bells set by their weights \(\pi_k\), centres \(\mu_k\) and covariances \(\Sigma_k\)), and computed Dan's 60/40 split by hand with Bayes' rule. Then you ran EM's two-move loop, watched the log-likelihood climb and flatten as it recovered Maria's tiers from unlabelled visits, learned why it converges but only to a local optimum, and met <code>mclust</code> with BIC as the tool that picks the number of components and the shape for you.</p>
+
+<p>Next, Lesson 6: Cluster Validation and Stability. Every method in this unit will happily hand you clusters, even from data that has none. So the last question is the sharpest: are the clusters you found actually real? You will use the silhouette, the gap statistic, and stability checks to tell genuine structure from a pattern the algorithm merely invented.</p>
+</section>
+
+{% endraw %}

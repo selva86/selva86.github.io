@@ -1,0 +1,340 @@
+---
+title: "Model Evaluation Lesson 6: Comparing Models Statistically"
+description: "Two models, one test split, one metric gap: real or luck? Compare models the honest way, with resampled paired differences and a significance test in R."
+keywords: "compare models, model comparison, paired t-test, cross-validation, resampling, statistical significance, p-value, RMSE, tidymodels, R"
+mathjax: true
+webr: true
+curriculum_id: "6.70.6"
+post_type: "LESSON"
+course_id: "ds-evaluation-tuning"
+course_title: "Model Evaluation and Tuning in R"
+course_lesson: "6"
+course_total: "7"
+course_landing: "R-Model-Evaluation-Course.html"
+course_next: "From-Metrics-to-Money.html"
+course_prev: "Scoring-Rules-and-Regression-Metrics.html"
+lesson_access: "free"
+catalog_blurb: "How to tell a real model improvement from the luck of one split."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 7</div>
+<h2>Comparing Models Statistically</h2>
+
+<p>You have a fair yardstick now. In Lesson 5 you learned to score a forecast with a metric that matches the decision. So you train two models to forecast Priya's daily cake sales, you measure them, and one comes out ahead. Ship it, right?</p>
+
+<p>Not yet. That single number came from one test split, one particular draw of which rows you happened to hold out. Change the draw and the winner can change. This lesson teaches you to separate a real difference between two models from the ordinary luck of the split, so that when you say "Model B is better" you can mean it.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Explain why a single test-split gap is partly luck, not a verdict</li>
+
+<li>Turn cross-validation into paired per-fold differences for two models</li>
+
+<li>Test whether the average difference is real, and read the p-value honestly</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and index a data frame, you know RMSE from <a href="Scoring-Rules-and-Regression-Metrics.html">Lesson 5</a>, and what a cross-validation fold is from <a href="Cross-Validation-Strategies.html">Lesson 1</a>.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>One test split is just one draw</h2>
+
+<p>Back at Priya's bakery. She wants to automate her daily sales forecast, and she is choosing between two models. <strong>Model A</strong> predicts the day's cake sales from the temperature alone. <strong>Model B</strong> adds two columns Priya knows matter: whether it is a weekend, and whether a promotion is running. Both are honest models; the only question is which one to deploy.</p>
+
+<p>Each lesson runs in a fresh R session, so let us build four months of bakery days right here, then measure both models the usual way: train on most of the days, test on a held-out slice, and compare their RMSE (the average size of a forecast miss, from Lesson 5).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 96
+bakery &lt;- data.frame(
+  temperature = round(runif(n, 5, 30), 1),   # daily high, in Celsius
+  weekend     = rbinom(n, 1, 2/7),            # 1 on a weekend day
+  promo       = rbinom(n, 1, 0.25),           # 1 if a promotion ran
+  humidity    = round(runif(n, 40, 90))       # unrelated to sales (used later)
+)
+bakery$sales &lt;- round(pmax(
+  40 + 1.8 * bakery$temperature + 24 * bakery$weekend + 17 * bakery$promo +
+    rnorm(n, 0, 18), 0))                       # sales = temp + weekend + promo + noise
+
+rmse &lt;- function(actual, pred) sqrt(mean((actual - pred)^2))
+
+# score both models on ONE random train/test split
+split_gap &lt;- function(seed) {
+  set.seed(seed)
+  test &lt;- sample(n, 24)                         # hold out 24 days as the test set
+  tr &lt;- bakery[-test, ]; te &lt;- bakery[test, ]
+  a &lt;- rmse(te$sales, predict(lm(sales ~ temperature, data = tr), te))
+  b &lt;- rmse(te$sales, predict(lm(sales ~ temperature + weekend + promo, data = tr), te))
+  round(c(rmse_A = a, rmse_B = b, gap = a - b), 2)
+}
+split_gap(4)   # one particular split
+#&gt; rmse_A rmse_B    gap
+#&gt;  19.90  16.06   3.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On that split Model B wins by 3.84 cakes of RMSE. Convincing. But "that split" was one arbitrary choice of which 24 days to hold out. Watch what happens when we hold out a different 24 days:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">split_gap(3)   # a different split, same two models, same data
+#&gt; rmse_A rmse_B    gap
+#&gt;  19.40  19.28   0.12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same two models, same 96 days, and now the gap has collapsed to 0.12, essentially a tie. Nothing changed except which rows landed in the test set. The 3.84 was never a fixed property of the models; a large chunk of it was luck. From one split you genuinely cannot tell whether B's true edge is worth deploying or close to nothing.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What should Priya conclude?</h2>
+
+<p>Priya ran the comparison once and saw Model B beat Model A by 3.84 cakes of RMSE. Her colleague reran it on a different random split and B won by only 0.12. Same models, same data. What is the right conclusion?</p>
+<section class="exercise" data-exercise-id="Comparing-Models-Statistically-step3" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Model B is better by 3.84 cakes; that is the number to report</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The single-split gap is partly luck; she cannot trust either number until she resamples</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The two runs disagree, so the models must be broken</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The gap swings with which rows land in the test set. To separate B's real edge from the luck of the draw, she needs many splits, not one.</div><div class="lesson-qfb lesson-qfb-no">Nothing is broken. Honest models still score differently on different test sets, because a small test set is itself a noisy sample. That variation is the thing we are about to measure, not a bug.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Resample, and pair the scores</h2>
+
+<p>If one split is one noisy draw, the cure is to take many draws and stop leaning on any single one. That is exactly what <strong>k-fold cross-validation</strong> does: divide the 96 days into k equal folds, and let each fold take a turn as the test set while the other folds train the model. With k = 10 you get ten honest test scores per model instead of one.</p>
+
+<p>Here is the move that makes the comparison sharp. Score <strong>both</strong> models on the <strong>same</strong> ten folds. Because fold 3 (say) is the same held-out days for Model A and Model B, whatever made fold 3 unusually hard or easy hits both models equally. Subtract their scores on that fold and the shared difficulty cancels, leaving only what you care about: how much better B did than A there. That per-fold gap is the <strong>paired difference</strong>:</p>
+
+<p>\[ d_i = \mathrm{RMSE}_A^{(i)} - \mathrm{RMSE}_B^{(i)} \]</p>
+
+<p>where \(i\) runs over the ten folds, \(\mathrm{RMSE}_A^{(i)}\) is Model A's error on fold \(i\), and a <strong>positive</strong> \(d_i\) means Model B did better on that fold. Let us compute all ten.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+k &lt;- 10
+fold &lt;- sample(rep(1:k, length.out = n))   # give each day a fold label from 1 to 10
+
+rmse_A &lt;- rmse_B &lt;- numeric(k)
+for (f in 1:k) {
+  tr &lt;- bakery[fold != f, ]                 # train on the other 9 folds
+  te &lt;- bakery[fold == f, ]                 # test on this fold
+  rmse_A[f] &lt;- rmse(te$sales, predict(lm(sales ~ temperature, data = tr), te))
+  rmse_B[f] &lt;- rmse(te$sales, predict(lm(sales ~ temperature + weekend + promo, data = tr), te))
+}
+d &lt;- rmse_A - rmse_B                         # the ten paired differences
+round(d, 2)
+#&gt;  [1] -0.57  6.53  7.23  3.56 -1.79 -1.06  1.46  6.23  4.95  3.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten numbers, one per fold. Seven are positive (Model B won that fold) and three are negative (Model A actually won). This is the honest picture that a single split hid from us.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">See the spread</div>
+<h2>The ten differences</h2>
+
+<p>Here are those ten paired differences as bars: each bar is one fold, and its height is how much better Model B did than Model A on that fold. Bars above zero are folds B won; the three dipping below zero are folds where the simpler Model A came out ahead.</p>
+
+<p>Look at the shape of it. The bars lean positive on average, but they scatter, and a few flip sign. So the real question sharpens: is that average lean, sitting around three cakes, far enough above zero to be a genuine edge? Or could a pile of scattered differences like this bounce that high by pure chance even if the two models were truly equal? That is a question about signal versus noise, and it has a precise answer.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":-0.57},{"x":2,"y":6.53},{"x":3,"y":7.23},{"x":4,"y":3.56},{"x":5,"y":-1.79},{"x":6,"y":-1.06},{"x":7,"y":1.46},{"x":8,"y":6.23},{"x":9,"y":4.95},{"x":10,"y":3.91}],"geoms":["bar"],"x":"fold","y":"diff"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Signal vs noise</div>
+<h2>Signal divided by noise</h2>
+
+<p>The <strong>signal</strong> is how big the average edge is: the mean of the ten differences. The <strong>noise</strong> is how much those differences wobble from fold to fold: their standard deviation. A difference is convincing when the signal is large compared to the noise, so we take their ratio.</p>
+
+<p>First, the raw numbers:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(d)   # the signal: B's average edge, in cakes of RMSE
+#&gt; [1] 3.043979
+sd(d)     # the noise: how much that edge swings across folds
+#&gt; [1] 3.336279</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An average edge of about 3 cakes, but the fold-to-fold swing is just as large, so we cannot eyeball a verdict. The right yardstick for the noise is not the raw spread but the <strong>standard error</strong> of the mean: how much the <em>average</em> of ten differences would itself wobble if we redrew the folds. It shrinks the spread by the square root of the number of folds:</p>
+
+<p>\[ \mathrm{SE} = \frac{s_d}{\sqrt{k}}, \qquad t = \frac{\bar{d}}{\mathrm{SE}} = \frac{\bar{d}}{s_d / \sqrt{k}} \]</p>
+
+<p>Here \(\bar{d}\) is the mean of the differences (the signal), \(s_d\) is their standard deviation (the noise), \(k = 10\) is the number of folds, and \(t\) is the signal measured in units of its own standard error. R computes all of it, including a 95% confidence interval for the true mean difference, in one call:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t.test(d)
+#&gt;
+#&gt;  One Sample t-test
+#&gt;
+#&gt; data:  d
+#&gt; t = 2.8852, df = 9, p-value = 0.01802
+#&gt; alternative hypothesis: true mean is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  0.6573484 5.4306088
+#&gt; sample estimates:
+#&gt; mean of x
+#&gt;  3.043979</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A \(t\) of 2.89: B's average edge is nearly three standard errors above zero. The 95% confidence interval, roughly 0.7 to 5.4 cakes, stays entirely on the positive side and never touches zero. Both are saying the same thing. Now for the number everyone asks for: the p-value.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">The verdict</div>
+<h2>Is it luck? Read the tail</h2>
+
+<p>The p-value answers one precise question: <strong>if the two models were truly equal</strong> (their average difference is really zero, an assumption we call the null hypothesis \(H_0\)), how often would pure fold-to-fold luck alone hand you a \(t\) as far from zero as the one you got? The curve below is the sampling distribution of \(t\) under that "the models are equal" assumption: differences pile up near zero, and rare large values sit out in the thin tails. The shaded area past your statistic is the p-value. Drag the marker out toward 2.9, where our test landed, and watch that tail area shrink toward nothing.</p>
+
+<p>Our \(t\) of 2.89 sits far out in that tail. The curve drawn here is the idealized (normal) reference; with only ten folds the exact reference is a slightly wider t-distribution with 9 degrees of freedom (one fewer than the ten folds), so the true tail is a touch larger than the picture suggests. The paired test pins it at <strong>p = 0.018</strong>: if the models were really equal, a gap this consistent would arise by luck under 2% of the time. That is below the usual 0.05 line, so we reject "the models are equal" and conclude Model B's edge is real. Priya can deploy it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">One honest caveat. This p-value assumes the ten differences are independent draws, but cross-validation folds share training data (fold 1 and fold 2 are trained on almost the same days), so the differences are gently correlated. That makes the naive p-value a little optimistic, too quick to call a difference real. For a decision that matters, repeat the whole k-fold split several times and use a correlation-corrected test (the Nadeau and Bengio correction, built into tidymodels). The logic is identical; only the width of the tail changes.</div></div>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"start":2,"label":"standardized difference t"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Build the statistic yourself</h2>
+
+<p>The whole test is one ratio: the signal (the mean difference) divided by its standard error. And the standard error is the fold-to-fold spread shrunk by the square root of <strong>how many folds you averaged</strong>, not how many rows you have. You have ten differences in <code>d</code>. Fill in the blank so the standard error uses the number of folds, then check that the ratio reproduces the t of 2.89.</p>
+<section class="exercise" data-exercise-id="Comparing-Models-Statistically-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="sqrt\(\s*(?:length\(d\)|10|k)"><textarea class="lesson-tryit-input" spellcheck="false">se &lt;- sd(d) / sqrt(____)   # shrink the spread by the number of differences
+t_stat &lt;- mean(d) / se
+round(t_stat, 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the t-statistic, 2.89: the exact value t.test(d) reported. Signal over standard error, nothing more.</span><span class="lesson-tryit-fb lesson-tryit-no">The standard error divides the spread by the square root of the number of folds you averaged: length(d), which is 10 (not n, the number of rows).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">se &lt;- sd(d) / sqrt(length(d))   # ten differences, so divide by sqrt(10)
+t_stat &lt;- mean(d) / se
+round(t_stat, 2)
+#&gt; [1] 2.89</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The other verdict</div>
+<h2>When the honest answer is "no difference"</h2>
+
+<p>A significance test has two possible endings, and the second is just as useful as the first. Suppose Priya wonders whether adding <strong>humidity</strong> to Model B would help. Call that richer model <strong>Model C</strong>. Humidity, in our data, has nothing to do with sales, so this is the acid test: what does the comparison say when there is genuinely nothing to find?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse_C &lt;- numeric(k)
+for (f in 1:k) {
+  tr &lt;- bakery[fold != f, ]; te &lt;- bakery[fold == f, ]
+  rmse_C[f] &lt;- rmse(te$sales,
+    predict(lm(sales ~ temperature + weekend + promo + humidity, data = tr), te))
+}
+d_BC &lt;- rmse_B - rmse_C     # does adding humidity improve Model B?
+t.test(d_BC)
+#&gt;
+#&gt;  One Sample t-test
+#&gt;
+#&gt; data:  d_BC
+#&gt; t = 0.63087, df = 9, p-value = 0.5438
+#&gt; alternative hypothesis: true mean is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -0.1459259  0.2587942
+#&gt; sample estimates:
+#&gt;  mean of x
+#&gt; 0.05643415</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The differences barely stray from zero, and a p-value of 0.54 is nowhere near 0.05. But read that result carefully. It does <strong>not</strong> prove humidity has zero effect; it says we <strong>could not distinguish</strong> its effect from luck with this data. Absence of evidence is not evidence of absence. The practical move, though, is clear: when you cannot tell two models apart, keep the <strong>simpler</strong> one. Model C buys you a fatter model and no measurable gain, so Priya sticks with Model B.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading a non-significant result</h2>
+
+<p>Comparing Model B against Model C (B plus humidity) gave a mean difference of about 0.06 cakes and a p-value of 0.54. Which reading is correct?</p>
+<section class="exercise" data-exercise-id="Comparing-Models-Statistically-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Humidity makes the model measurably worse, so it should be banned</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The test proves humidity has exactly zero effect on sales</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">There is no detectable difference, so prefer the simpler Model B</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. You could not distinguish the two, so the extra feature earns nothing you can measure. When a test comes back non-significant, the tie-breaker is simplicity: keep the leaner model.</div><div class="lesson-qfb lesson-qfb-no">A high p-value never proves the null. It means this data could not tell humidity's effect apart from chance. With far more days, a real but tiny effect might yet surface.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 5: Resampling Methods (free PDF)</a> - cross-validation and the bootstrap, the resampling foundation this test is built on.</li>
+
+<li><a href="https://doi.org/10.1162/089976698300017197">Dietterich (1998), Approximate Statistical Tests for Comparing Supervised Classification Learning Algorithms, Neural Computation</a> - the classic study of what goes wrong when you test model differences, and why naive tests mislead.</li>
+
+<li><a href="https://doi.org/10.1023/A:1024068626366">Nadeau & Bengio (2003), Inference for the Generalization Error, Machine Learning</a> - the corrected resampled t-test that fixes the correlated-folds problem flagged in this lesson.</li>
+
+<li><a href="https://tidyposterior.tidymodels.org/">tidyposterior: compare models with resampling (tidymodels)</a> - the R package that runs these comparisons, including correlation-corrected and Bayesian versions.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 6 complete</h2>
+
+<p>You can now compare two models and mean it. A single test split is one lucky draw; resampling turns it into ten paired differences that cancel the shared difficulty of each fold. The signal (their average) divided by the noise (their standard error) is a t-statistic, and its p-value tells you how easily pure luck could fake a gap that big. You watched a real edge survive the test (p = 0.018, deploy Model B) and a fake one fail it (p = 0.54, keep it simple), and you know the one caveat: overlapping folds make the naive p-value a touch optimistic.</p>
+
+<p>Next, Lesson 7: From Metrics to Money. A statistically real improvement is still just a number on a metric. You will turn that verified gain into the business decision it should drive, and see when a "significant" difference is too small to be worth acting on.</p>
+</section>
+
+{% endraw %}

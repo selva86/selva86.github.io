@@ -268,17 +268,19 @@
           grand+=cnt;
           return;
         }
-        var html='';
+        var html='',cnt=0;
         bySec[n].forEach(function(c){
           (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
-            if(l.built===false)return;
+            if(l.built===false)return; cnt++;
             html+='<a class="ilsn" href="/'+l.slug+'.html"><span class="ila">&#9654;</span><span class="ilt">'+esc(l.title)+'</span><span class="ilg">Interactive</span></a>';
           });
         });
         if(!html)return;
         var box=document.createElement('div'); box.className='ilsns';
         box.innerHTML='<div class="ilsns-h">Interactive lessons</div>'+html;
-        if(lsns)lsns.insertBefore(box,lsns.firstChild); else det.appendChild(box);
+        // a section with interactive lessons (DS sections 1-5) shows ONLY them - drop the duplicate flat concept list
+        if(lsns){lsns.innerHTML='';lsns.appendChild(box);}else det.appendChild(box);
+        var cb=det.querySelector('.cnt'); if(cb)cb.textContent=String(cnt);
       });
       // align the hero "lessons" count with the interactive-lesson rows now shown
       if((role==='analyst'||role==='foundations')&&grand){var rm=document.getElementById('roleMeta');

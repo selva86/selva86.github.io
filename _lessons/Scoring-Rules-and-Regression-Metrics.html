@@ -1,0 +1,364 @@
+---
+title: "Model Evaluation Lesson 5: Scoring Rules and Regression Metrics"
+description: "RMSE, MAE and MAPE reward different behaviour, and only a proper scoring rule like log-loss rewards honest probabilities. Learn to pick the score that matches your decision, in R."
+keywords: "regression metrics, RMSE, MAE, MAPE, proper scoring rule, log-loss, Brier score, model evaluation, forecast accuracy, R"
+mathjax: true
+webr: true
+curriculum_id: "6.70.5"
+post_type: "LESSON"
+course_id: "ds-evaluation-tuning"
+course_title: "Model Evaluation and Tuning in R"
+course_lesson: "5"
+course_total: "7"
+course_landing: "R-Model-Evaluation-Course.html"
+course_next: "Comparing-Models-Statistically.html"
+course_prev: "Hyperparameter-Tuning-Strategies.html"
+lesson_access: "free"
+catalog_blurb: "How to pick the error score that matches the decision you care about."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 7</div>
+<h2>Scoring Rules and Regression Metrics</h2>
+
+<p>In Lesson 4 you hunted for the hyperparameters with the lowest RMSE. You never stopped to ask the more basic question: is RMSE even the right thing to be minimising? It turns out that "how wrong was the model" has many answers, and they can flatly disagree about which model is best.</p>
+
+<p>Here is the week you will judge. A neighborhood bakery sold a different number of cakes each day, and two of its forecasters, steady Priya and bold Sam, each tried to predict that number the night before. Whose forecast was better? You cannot answer until you decide what "better" means.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Compute MAE, RMSE and MAPE, and say exactly what behaviour each one rewards</li>
+
+<li>See why two honest metrics can crown two different models, and pick the right one from the decision</li>
+
+<li>Score a probability forecast, and know why only a <em>proper</em> scoring rule rewards telling the truth</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and work with vectors, and from <a href="Hyperparameter-Tuning-Strategies.html">Lesson 4</a> you know we were tuning to the lowest RMSE.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":50},{"x":2,"y":60},{"x":3,"y":55},{"x":4,"y":70},{"x":5,"y":65},{"x":6,"y":90},{"x":7,"y":120}],"geoms":["line","point","bar"],"x":"day","y":"sales"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>A metric squeezes a week of misses into one number</h2>
+
+<p>Start with a single day. On Monday the bakery sold 50 cakes; the bold forecaster, Sam, had predicted 47. The gap between them is the <strong>residual</strong>, the miss for that one prediction:</p>
+
+<p>\[ e_i = y_i - \hat{y}_i \]</p>
+
+<p>Here \(y_i\) is the actual value on day \(i\) (50 cakes), \(\hat{y}_i\) (read "y-hat") is the prediction (47), so the residual is \(e_i = 3\). A positive residual means the model under-predicted; a negative one means it over-predicted. A model does not make one prediction, though; it makes a whole column of them. A <strong>metric</strong> is simply a rule for boiling that whole column of residuals down to a single number you can compare.</p>
+
+<p>Let us build the week and both forecasters right here. Each lesson runs in a fresh R session, so we create everything inline (run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One week at Priya's bakery: cakes actually sold (Mon to Sun),
+# and two forecasters who guessed that number the night before.
+day    &lt;- c(&quot;Mon&quot;, &quot;Tue&quot;, &quot;Wed&quot;, &quot;Thu&quot;, &quot;Fri&quot;, &quot;Sat&quot;, &quot;Sun&quot;)
+actual &lt;- c(50, 60, 55, 70, 65, 90, 120)   # cakes actually sold
+priya  &lt;- c(60, 50, 65, 60, 75, 80, 110)   # the STEADY forecaster: a bit off every day
+sam    &lt;- c(47, 63, 52, 73, 62, 87, 80)    # the BOLD forecaster: nails most days, misses Sunday badly
+data.frame(day, actual, priya, sam)
+#&gt;   day actual priya sam
+#&gt; 1 Mon     50    60  47
+#&gt; 2 Tue     60    50  63
+#&gt; 3 Wed     55    65  52
+#&gt; 4 Thu     70    60  73
+#&gt; 5 Fri     65    75  62
+#&gt; 6 Sat     90    80  87
+#&gt; 7 Sun    120   110  80</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most natural metric is the <strong>mean absolute error (MAE)</strong>: take the size of each miss (ignore whether it was over or under), and average them.</p>
+
+<p>\[ \mathrm{MAE} = \frac{1}{n}\sum_{i=1}^{n} \lvert\, y_i - \hat{y}_i \,\rvert \]</p>
+
+<p>\(n\) is the number of predictions (7 days), and the vertical bars mean absolute value, so a miss of \(-10\) and a miss of \(+10\) both count as 10. MAE answers a plain-English question: "on a typical day, how many cakes was the forecast off by?"</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># residual for each day, then MAE = the average miss size
+actual - sam
+#&gt; [1]   3  -3   3  -3   3   3  40
+mae &lt;- function(pred) mean(abs(actual - pred))
+round(c(priya = mae(priya), sam = mae(sam)), 2)
+#&gt; priya   sam
+#&gt; 10.00  8.29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that off: Priya is off by 10 cakes on an average day, Sam by only 8.29. Look at Sam's residuals, though. Six near-perfect days, and then Sunday: predicted 80, sold 120, a <strong>40-cake</strong> miss that MAE quietly folds into the average as just "40 ones." Hold onto that Sunday. The next metric will not be so forgiving.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The twist</div>
+<h2>RMSE squares the misses, and the winner flips</h2>
+
+<p>MAE treats every cake of error the same: being off by 40 once is exactly as bad as being off by 10 four times. But for the bakery those are not the same at all. A 40-cake shortfall on a busy Sunday means a queue of customers turned away, while being a little off every day is a shrug. When big misses hurt more than small ones, you want a metric that says so.</p>
+
+<p>The <strong>root mean squared error (RMSE)</strong> does exactly that. Square each residual first (so a big miss counts for much more than a small one), average the squares, then take the square root to get back to cakes:</p>
+
+<p>\[ \mathrm{RMSE} = \sqrt{\frac{1}{n}\sum_{i=1}^{n}\bigl(y_i - \hat{y}_i\bigr)^2} \]</p>
+
+<p>Squaring is the whole trick. A miss of 40 contributes \(40^2 = 1600\) to the sum, while a miss of 10 contributes only 100. One catastrophic day can dominate the entire score.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># RMSE: square the misses (big ones count more), average, then square-root back to cakes
+rmse &lt;- function(pred) sqrt(mean((actual - pred)^2))
+round(c(priya = rmse(priya), sam = rmse(sam)), 2)
+#&gt; priya   sam
+#&gt; 10.00 15.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now look at what just happened. By <strong>MAE</strong>, Sam won: 8.29 against Priya's 10. By <strong>RMSE</strong>, Priya wins: 10.00 against Sam's 15.37. The exact same two forecasters, the exact same week, and the two metrics name opposite winners. Nothing is wrong with either number. They simply reward different things: MAE rewards being close on average, RMSE rewards never being <em>badly</em> wrong. Sam's Sunday, squared, is what sinks him.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">RMSE is always at least as large as MAE, and the gap between them grows with the spread of your errors. A big RMSE-minus-MAE gap is a warning light: your model is making a few large misses hiding behind many small ones.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which metric should the boss optimise?</h2>
+
+<p>The bakery bakes fresh each morning and cannot restock. A large <strong>under</strong>-forecast on a busy day means turning away paying customers, an expensive mistake; being a few cakes off on a quiet day barely matters. The bakery's owner wants the forecaster that avoids the costly disasters. Which metric should the owner optimise, and which forecaster does it pick?</p>
+<section class="exercise" data-exercise-id="Scoring-Rules-and-Regression-Metrics-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">RMSE, and it picks Priya (10.00) over Sam (15.37): squaring makes the rare 40-cake miss dominate, which is exactly the disaster the boss is trying to avoid</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">MAE, and it picks Sam: 8.29 is lower than 10, so Sam is simply the better forecaster</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It makes no difference: both metrics rank the two forecasters the same way</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. When one big miss is what actually costs the business, you want the metric that punishes it hardest. RMSE squares the errors so Sam's Sunday blowup outweighs his six near-perfect days, and it crowns steady Priya.</div><div class="lesson-qfb lesson-qfb-no">They rank them in <em>opposite</em> order here (MAE prefers Sam, RMSE prefers Priya). That disagreement is the entire point: the metric you choose decides who wins.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">A different question</div>
+<h2>MAPE: error as a percentage, and where it bites back</h2>
+
+<p>MAE and RMSE are both in cakes. That is fine for one bakery, but suppose head office wants to compare the cake forecast against the coffee forecast, where the daily numbers are in the thousands. A miss of 10 is huge for cakes and a rounding error for coffee. To compare across different scales you need error expressed as a <strong>percentage</strong> of what actually happened. That is the <strong>mean absolute percentage error (MAPE)</strong>:</p>
+
+<p>\[ \mathrm{MAPE} = \frac{100\%}{n}\sum_{i=1}^{n} \left\lvert \frac{y_i - \hat{y}_i}{y_i} \right\rvert \]</p>
+
+<p>Each miss is divided by that day's actual sales \(y_i\), so a 10-cake miss on a 50-cake day (20%) counts as worse than a 10-cake miss on a 120-cake day (8%).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># MAPE: express each miss as a % of that day's actual, then average
+mape &lt;- function(pred) mean(abs(actual - pred) / actual) * 100
+round(c(priya = mape(priya), sam = mape(sam)), 2)
+#&gt; priya   sam
+#&gt; 14.85  8.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>MAPE is scale-free and easy to explain to a non-technical boss ("we are about 15% off"), which is why it is popular in forecasting. But it has two sharp edges you must respect.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">MAPE divides by the actual value, so a single day with zero (or near-zero) sales makes it explode to infinity. It is also <strong>asymmetric</strong>: an over-forecast can be penalised without limit, while an under-forecast maxes out at 100%, so MAPE quietly favours models that predict low. Never use it when actuals can be zero.</div></div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The trap in one line: a day with 0 sales makes the percentage undefined
+abs(0 - 8) / 0 * 100   # actual = 0, predicted 8
+#&gt; [1] Inf</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">From a number to a chance</div>
+<h2>Scoring a probability: Brier, then log-loss</h2>
+
+<p>So far the bakery predicted a <em>number</em>. But many models predict a <em>probability</em>. Suppose instead of "how many cakes" the question is "will we sell out of croissants today?" The forecaster now reports a probability \(p\) between 0 and 1, and reality answers with a plain yes or no, which we write as \(y = 1\) (sold out) or \(y = 0\) (did not). How do you score a probability against a yes/no outcome?</p>
+
+<p>The gentle first answer reuses the squared-error idea you already have. The <strong>Brier score</strong> is just the mean squared error, but the "prediction" is the probability and the "actual" is 0 or 1:</p>
+
+<p>\[ \mathrm{Brier} = \frac{1}{n}\sum_{i=1}^{n}\bigl(p_i - y_i\bigr)^2 \]</p>
+
+<p>If you say 0.9 and it sells out (\(y=1\)), your squared miss is \((0.9-1)^2 = 0.01\), tiny. Say 0.9 and it does <em>not</em> sell out (\(y=0\)) and you eat \((0.9-0)^2 = 0.81\). Let us score our two forecasters again, now on a week of sell-out outcomes.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The bakery now forecasts P(sell out of croissants). soldout = what actually happened.
+soldout &lt;- c(1, 0, 0, 1, 0, 1, 1)                       # 1 = sold out, 0 = did not
+p_priya &lt;- c(0.70, 0.40, 0.30, 0.80, 0.35, 0.75, 0.90)  # honest, hedged probabilities
+p_sam   &lt;- c(0.99, 0.02, 0.02, 0.98, 0.02, 0.98, 0.02)  # bold, near-certain every day
+
+brier &lt;- function(p) mean((p - soldout)^2)              # squared error, applied to probabilities
+round(c(priya = brier(p_priya), sam = brier(p_sam)), 4)
+#&gt;  priya    sam
+#&gt; 0.0821 0.1375</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Squared error already punishes Sam's overconfidence, but the metric built <em>for</em> probabilities punishes it far harder. <strong>Log-loss</strong> (also called cross-entropy) scores each day by the negative logarithm of the probability you assigned to the outcome that actually happened:</p>
+
+<p>\[ \mathrm{LogLoss} = -\frac{1}{n}\sum_{i=1}^{n}\Bigl[\, y_i \ln p_i + (1 - y_i)\ln(1 - p_i) \,\Bigr] \]</p>
+
+<p>Only one of the two terms is ever active per day: on a sell-out day (\(y=1\)) the penalty is \(-\ln p_i\); on a quiet day (\(y=0\)) it is \(-\ln(1 - p_i)\). Either way, the closer the probability you gave the true outcome is to zero, the more brutal the penalty. The curve below is that penalty: read the horizontal axis as "the probability you assigned to what actually happened." Near 1 the penalty is almost nothing; as it falls toward 0 the penalty rockets toward infinity.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Log-loss: the -log penalty for the probability you gave the true outcome
+logloss &lt;- function(p) -mean(soldout * log(p) + (1 - soldout) * log(1 - p))
+round(c(priya = logloss(p_priya), sam = logloss(p_sam)), 4)
+#&gt;  priya    sam
+#&gt; 0.3244 0.5747</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Priya wins again, but look <em>where</em> Sam's loss comes from. Six days he was almost perfect. Then Sunday: he reported 0.02 (near-certain it would not sell out) and it sold out. That single confident-wrong day costs him:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">-log(0.02)   # Sam's Sunday penalty, almost his entire log-loss
+#&gt; [1] 3.912023</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That one number, 3.91, is nearly all of Sam's total. Confident and wrong is the single most expensive thing a probability forecaster can be.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0.05,"y":3},{"x":0.1,"y":2.3},{"x":0.2,"y":1.61},{"x":0.3,"y":1.2},{"x":0.4,"y":0.92},{"x":0.5,"y":0.69},{"x":0.6,"y":0.51},{"x":0.7,"y":0.36},{"x":0.8,"y":0.22},{"x":0.9,"y":0.11},{"x":0.99,"y":0.01}],"geoms":["line","point"],"x":"p","y":"penalty"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Can Sam game the score by sounding decisive?</h2>
+
+<p>On a typical day Sam is genuinely about 60% sure it will sell out. He thinks reporting <strong>0.99</strong> instead of 0.60 will make him look sharper. Over many such days, what does inflating his confidence do to his log-loss?</p>
+<section class="exercise" data-exercise-id="Scoring-Rules-and-Regression-Metrics-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It hurts him on average: the days it does not sell out now cost about \(-\ln(0.01)\) each, a penalty so large it outweighs the small gain on the days it does. Reporting his true 0.60 scores better</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It helps him: a more confident probability always lowers log-loss</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It changes nothing, because log-loss only looks at whether the event happened</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Because the penalty for a confident miss explodes, the <em>average</em> penalty is lowest when he reports what he actually believes. Log-loss cannot be gamed by sounding more certain than you are.</div><div class="lesson-qfb lesson-qfb-no">Log-loss reads the exact probability you reported, not just the yes/no outcome. Moving from 0.60 to 0.99 changes the penalty on every single day. That sensitivity to the number itself is the whole point of the next step.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The deep idea</div>
+<h2>What makes a scoring rule "proper"</h2>
+
+<p>That quiz was not a trick of these particular numbers. It is a mathematical property with a name. A <strong>scoring rule</strong> takes your reported probability \(p\) and the outcome \(y\) and returns a penalty. The rule is <strong>proper</strong> if your <em>expected</em> penalty is smallest exactly when you report your true believed probability, and <strong>strictly proper</strong> if that honest report is the <em>only</em> best one. In plain terms: a proper rule cannot be gamed. Your best move is always to tell the truth about your uncertainty.</p>
+
+<p>Log-loss is strictly proper, and here is why. Suppose your honest belief is that the event happens with probability \(q\). If you report some \(p\) instead, your expected log-loss (\(\mathbb{E}\) means the average penalty over the two outcomes, weighting a sell-out by \(q\) and a no-sell-out by \(1-q\)) is</p>
+
+<p>\[ \mathbb{E}[\mathrm{LogLoss}] = -\bigl[\, q \ln p + (1 - q)\ln(1 - p) \,\bigr] \]</p>
+
+<p>Minimise that over \(p\) (set the derivative to zero) and the answer is \(p = q\): the penalty bottoms out precisely when your report equals your true belief. Brier is strictly proper too, by the same kind of argument. That is what earns them the name.</p>
+
+<p>Now contrast two familiar numbers that are <strong>not</strong> proper scoring rules:</p>
+
+<ul>
+
+<li><strong>Accuracy</strong> (did the most-likely class match?) ignores your probability entirely. You can improve it by rounding every forecast to a flat 0 or 1, throwing away all the honest hedging that a proper rule rewards.</li>
+
+<li><strong>AUC</strong> grades only the <em>ranking</em> of your scores, not their values. You met the ROC curve when judging classifiers; drag its threshold below to recall how it sweeps every cutoff.</li>
+
+</ul>
+
+<p>The AUC summarises that whole curve in one number, but it sees only the <em>order</em> of your probabilities. Shrink every score toward 0.5 while keeping their order, and the ROC curve and its AUC do not move a millimetre, even though your probabilities are now badly wrong. AUC is a fine ranking metric, but it is blind to whether a 0.7 really means 70%. Only a proper score, log-loss or Brier, checks that.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">There is no universally best metric, only the one that matches your decision. Reach for RMSE when a few big misses are what hurt, MAE when every cake counts the same, MAPE to compare across scales (never with zeros), and a proper score like log-loss or Brier whenever you will act on the probability itself and need it to be honest.</div></div>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Complete the log-loss</h2>
+
+<p>Log-loss has two terms because the outcome can go two ways. The first term, <code>soldout * log(p_priya)</code>, penalises the days it <em>did</em> sell out. The second term has to penalise the days it did <strong>not</strong> sell out, using the probability of <em>not</em> selling out, which is <code>1 - p</code>. Fill in the blank so the second term is complete, then check it.</p>
+<section class="exercise" data-exercise-id="Scoring-Rules-and-Regression-Metrics-step9" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="1\s*-\s*p_priya"><textarea class="lesson-tryit-input" spellcheck="false">ll &lt;- -mean(soldout * log(p_priya) + (1 - soldout) * log(____))
+round(ll, 4)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: log(1 - p_priya) scores the days it did not sell out, using the probability Priya gave to 'no sell-out'. The two terms together are Priya's log-loss, 0.3244.</span><span class="lesson-tryit-fb lesson-tryit-no">On a no-sell-out day the outcome's probability is 1 minus the sell-out probability: fill in 1 - p_priya.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">ll &lt;- -mean(soldout * log(p_priya) + (1 - soldout) * log(1 - p_priya))
+round(ll, 4)
+#&gt; [1] 0.3244</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1198/016214506000001437">Gneiting & Raftery (2007), Strictly Proper Scoring Rules, Prediction, and Estimation, JASA</a> - the definitive treatment of proper scoring rules, including log-loss and the Brier score.</li>
+
+<li><a href="https://doi.org/10.1016/j.ijforecast.2006.03.001">Hyndman & Koehler (2006), Another look at measures of forecast accuracy, Int. J. Forecasting</a> - why RMSE, MAE and MAPE differ, and the traps in percentage errors.</li>
+
+<li><a href="https://otexts.com/fpp3/accuracy.html">Forecasting: Principles and Practice, ch. 5.8: Evaluating point forecast accuracy (free)</a> - Hyndman and Athanasopoulos on choosing an accuracy measure, with worked R.</li>
+
+<li><a href="https://yardstick.tidymodels.org/">yardstick: regression and probability metrics (tidymodels)</a> - the reference for computing <code>rmse()</code>, <code>mae()</code>, <code>mape()</code>, <code>brier_class()</code> and <code>mn_log_loss()</code> in R.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You stopped minimising a metric blindly. You can compute MAE, RMSE and MAPE and say what each rewards; you saw two honest metrics crown opposite winners and learned to choose by the decision, not by habit; and you can score a probability forecast with Brier and log-loss, knowing that only a <em>proper</em> scoring rule rewards honest uncertainty while accuracy and AUC do not.</p>
+
+<p>Next, Lesson 6: Comparing Models Statistically. You now have a fair yardstick, but a single week, or a single test split, is still just one draw. You will learn to tell a real metric difference between two models from the ordinary luck of the split, so you can say which model is better and mean it.</p>
+</section>
+
+{% endraw %}

@@ -1,0 +1,348 @@
+---
+title: "Model Evaluation Lesson 4: Hyperparameter Tuning Strategies"
+description: "Hyperparameter tuning in R: why grid search wastes your budget, how random and Bayesian search find good settings faster, and how to spend a search budget well."
+keywords: "hyperparameter tuning, grid search, random search, Bayesian optimization, model tuning, cross-validation, random forest, mtry, tune, R"
+mathjax: true
+webr: true
+curriculum_id: "6.70.4"
+post_type: "LESSON"
+course_id: "ds-evaluation-tuning"
+course_title: "Model Evaluation and Tuning in R"
+course_lesson: "4"
+course_total: "7"
+course_landing: "R-Model-Evaluation-Course.html"
+course_next: "Scoring-Rules-and-Regression-Metrics.html"
+course_prev: "Nested-Cross-Validation.html"
+lesson_access: "free"
+catalog_blurb: "How to find good model settings without wasting your search budget."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 7</div>
+<h2>Hyperparameter Tuning Strategies</h2>
+
+<p>In Lesson 3 you quietly ran a search: eight polynomial degrees, scored one by one, keep the best. That is a <em>grid search</em>, the simplest tuning strategy there is. It works fine for one knob and eight settings. But the bakery has grown. You now predict daily cake sales from six signals, not one, and you have switched to a random forest with two knobs worth turning. Trying every combination is no longer cheap, and soon it is impossible. This lesson is about searching <em>well</em>: how to find good settings without burning your whole compute budget on bad ones.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Tell a hyperparameter (a knob you set before training) from a parameter (a number the model learns)</li>
+
+<li>Explain why, for the same number of tries, random search beats a grid, and when Bayesian search beats both</li>
+
+<li>Set up a search in R and spend a limited tuning budget where it actually pays off</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 3 (k-fold cross-validation, and that "tuning" means trying several settings and keeping the best). You can fit a model and call <code>predict()</code>.</p>
+<div class="lesson-widget" data-widget-type="tuning-search" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Two kinds of numbers</div>
+<h2>Parameters the model learns, hyperparameters you choose</h2>
+
+<p>Picture baking a cake. You set the oven <strong>dial</strong> to 180 degrees and a timer to 40 minutes: those are choices you make <em>before</em> anything bakes. What comes out, how risen, how browned, how moist, is decided <em>during</em> baking by the batter reacting to that heat. You do not set the browning directly; you set the dial, and the browning follows.</p>
+
+<p>A model works the same way, and the two words for it matter for the rest of this lesson:</p>
+
+<ul>
+
+<li>A <strong>parameter</strong> is a number the model <em>learns from the data</em> while it trains. You never set these by hand. In a random forest they are the actual split questions inside every tree ("is temperature above 24?"), chosen automatically to fit the bakery's history.</li>
+
+<li>A <strong>hyperparameter</strong> is a number <em>you</em> set <em>before</em> training, that shapes <em>how</em> the model learns. It is the oven dial. The model cannot learn it from the data, because it governs the learning itself.</li>
+
+</ul>
+
+<p>Let us build the bakery's data and meet its hyperparameters. Each lesson runs in a fresh R session, so we create everything inline (run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 300 days of the bakery: daily cake sales vs six signals (simulated so we control the truth).
+set.seed(1)
+n &lt;- 300
+bakery &lt;- data.frame(
+  temp    = round(runif(n, 5, 35), 1),   # the day's high, degrees C
+  weekend = rbinom(n, 1, 2/7),           # 1 if Saturday or Sunday
+  promo   = rbinom(n, 1, 0.30),          # 1 if a promotion ran that day
+  holiday = rbinom(n, 1, 0.08),          # 1 if a public holiday
+  rain_mm = round(rexp(n, 1/4), 1),      # rainfall, mm
+  passers = round(runif(n, 50, 400))     # foot-traffic index outside the shop
+)
+bakery$sales &lt;- with(bakery,
+  40 + 6*temp - 0.15*temp^2 + 25*weekend + 35*promo + 60*holiday -
+  1.3*rain_mm + 0.04*passers + rnorm(n, 0, 12))    # a curve + effects + noise (sd 12 cakes)
+dim(bakery)
+#&gt; [1] 300   7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now fit one random forest. Two of its arguments are hyperparameters, and we simply <em>choose</em> them:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+set.seed(7)
+rf &lt;- randomForest(sales ~ ., data = bakery,
+                   mtry = 6,        # HYPERPARAMETER: features each split may consider
+                   nodesize = 5,    # HYPERPARAMETER: smallest allowed leaf (controls depth)
+                   ntree = 150)
+round(sqrt(tail(rf$mse, 1)), 2)     # out-of-bag RMSE, the typical miss in cakes
+#&gt; [1] 15.78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We let every split look at all six signals (<code>mtry = 6</code>) and used a modest leaf size (<code>nodesize = 5</code>), a perfectly reasonable first guess. It lands <strong>15.78 cakes off</strong>, on average. Is that the best these two knobs can do? We have no idea, and the only way to find out is to search. Note what we did and did <em>not</em> set: the split questions inside the 150 trees, the parameters, were learned for us; choosing the two hyperparameters well is the whole game of tuning.</p>
+
+<p>Think of the two knobs as two axes. Every setting is a point on the floor; the height above each point is that setting's cross-validated error. That landscape is the <strong>search space</strong>, and formally we want its lowest point:</p>
+
+<p>\[ \lambda^{*} = \arg\min_{\lambda \,\in\, \Lambda}\ \mathrm{CV}(\lambda) \]</p>
+
+<p>Here \(\lambda\) (lambda) is one <em>combination</em> of hyperparameters (for example, <code>mtry = 4, nodesize = 10</code>), \(\Lambda\) is the whole set of combinations you would consider, \(\mathrm{CV}(\lambda)\) is that combination's cross-validated error (the honest score from Lessons 1 to 3), and \(\lambda^{<em>}\) is the winner. The catch is that every time you evaluate \(\mathrm{CV}(\lambda)\) you must train and score a whole model, which costs time. So you get a <strong>budget</strong> \(B\): a fixed number of settings you can afford to try. Tuning strategy is simply </em>how you spend \(B\)*.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Parameters are learned; hyperparameters are chosen. Tuning is the search for the best choice, and because each try costs a full model fit, the real question is never "which setting is best?" but "how do I find a great setting within a limited number of tries?"</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which is the hyperparameter?</h2>
+
+<p>You train the random forest above. Which of these is a <strong>hyperparameter</strong>, the kind of number you set before training rather than one the model learns?</p>
+<section class="exercise" data-exercise-id="Hyperparameter-Tuning-Strategies-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The specific question at the top of tree 12 ("is temperature above 24.3?")</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>mtry</code>, the number of features each split is allowed to consider</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The predicted sales for a sunny Saturday</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>mtry</code> is set before training and shapes <em>how</em> the trees learn; the model cannot discover it from the data. That makes it a hyperparameter, one of the knobs you tune.</div><div class="lesson-qfb lesson-qfb-no">That is an <em>output</em> the trained model produces, not a setting you choose. Predictions come from the learned parameters.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The obvious strategy</div>
+<h2>Grid search: try every combination</h2>
+
+<p>The most natural way to spend your budget is a <strong>grid search</strong>: list a few values for each knob, then try every combination. It is exactly what you did in Lesson 3, just with more than one knob now. Let us score each combination with the forest's free out-of-bag (OOB) error from Lesson 3, so the search runs fast right here. (You could just as well use k-fold CV; the <em>strategy</em> is the same whatever the scorer.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score any (mtry, nodesize) combination by the forest's out-of-bag RMSE.
+oob_rmse &lt;- function(mtry, nodesize, ntree = 150) {
+  set.seed(7)                                # same seed for every combo = a fair, paired comparison
+  rf &lt;- randomForest(sales ~ ., data = bakery,
+                     mtry = mtry, nodesize = nodesize, ntree = ntree)
+  sqrt(tail(rf$mse, 1))                       # out-of-bag RMSE
+}
+
+grid &lt;- expand.grid(mtry = c(2, 4, 6), nodesize = c(3, 10, 25))   # 3 x 3 = 9 combinations
+grid$rmse &lt;- round(mapply(oob_rmse, grid$mtry, grid$nodesize), 2)
+grid[order(grid$rmse), ]                      # best (lowest RMSE) first
+#&gt;   mtry nodesize  rmse
+#&gt; 2    4        3 15.43
+#&gt; 5    4       10 15.43
+#&gt; 1    2        3 15.52
+#&gt; 8    4       25 15.64
+#&gt; 6    6       10 15.79
+#&gt; 4    2       10 15.89
+#&gt; 9    6       25 15.95
+#&gt; 7    2       25 16.13
+#&gt; 3    6        3 16.17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nine fits, and the best combination sits on top: <code>mtry = 4</code> at <strong>15.43 cakes</strong>, already a clear step down from our 15.78 first guess. (Two combinations tie at 15.43; a coarse grid often cannot separate near-neighbours.) Simple, thorough, and easy to explain, which is why grid search is everywhere. But it hides a budget problem that grows fast:</p>
+
+<ul>
+
+<li>With <code>d</code> knobs and <code>v</code> values each, the grid has \(v^{d}\) points. Three knobs at five values each is already 125 fits; add a fourth and it is 625. This is the <strong>curse of dimensionality</strong>: cost explodes as you add knobs.</li>
+
+<li>Flip it around: a budget of \(B\) grid points spread over \(d\) knobs tries only \(B^{1/d}\) <em>distinct values per knob</em>. A 25-point grid over 2 knobs tries just 5 values of each. Every one of those 5 is spent on <em>both</em> knobs equally, even if one knob barely changes the score.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A grid spends your budget as if every knob mattered the same amount. In real models a few knobs move the score a lot and the rest hardly matter, so a grid pours most of its tries into settings that were never going to help.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">See it</div>
+<h2>The same budget, spent two ways</h2>
+
+<p>Here is that budget problem made visible. The shaded square is the search space: darker means lower validation error, so the sweet spot is the dark patch. Both searches get the <strong>same number of tries</strong>. Toggle between them.</p>
+
+<p>Grid search lays its tries on a rigid lattice, so it only ever samples a handful of distinct values along each axis. Random search scatters its tries, so each one lands on a <em>fresh random</em> value of <em>every</em> knob. When one knob matters far more than the other, random search almost always finds a better spot, because it explored the important axis more finely for the exact same cost.</p>
+
+<p>This is the classic result of Bergstra and Bengio (2012): for the same budget, random search usually beats grid search, and the gap widens the more knobs you have.</p>
+<div class="lesson-widget" data-widget-type="tuning-search" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Do it in R</div>
+<h2>Random search: same budget, better coverage</h2>
+
+<p>Random search could not be simpler: instead of a lattice, draw each try at random from the ranges you care about. We keep the same budget of nine fits so the comparison is fair.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same 9-fit budget as the grid, but every draw is a fresh value on BOTH axes.
+set.seed(1)
+rand &lt;- data.frame(mtry     = sample(1:6,  9, replace = TRUE),
+                   nodesize = sample(2:30, 9, replace = TRUE))
+rand$rmse &lt;- round(mapply(oob_rmse, rand$mtry, rand$nodesize), 2)
+rand[order(rand$rmse), ]
+#&gt;   mtry nodesize  rmse
+#&gt; 9    3        8 15.40
+#&gt; 5    5       11 15.50
+#&gt; 7    6       15 15.63
+#&gt; 2    4        2 15.70
+#&gt; 6    3       23 15.87
+#&gt; 8    2       11 15.89
+#&gt; 4    2       22 16.28
+#&gt; 3    1       22 19.37
+#&gt; 1    1       20 19.72</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same nine-fit budget as the grid, but every draw is an independent random value on both axes, so these nine fits spanned a far wider range of <code>nodesize</code> (2 to 23) than the grid's three fixed values, and they found <code>mtry = 3, nodesize = 8</code> at <strong>15.40 cakes</strong>, a hair better than the grid's best for the same cost. Notice the honest cost of randomness too: two unlucky draws landed on <code>mtry = 1</code> (about 19 to 20 cakes, starved trees). Random search does waste the occasional try on a bad region, yet it still edged out the grid here. How many random tries do you actually need? There is a clean answer. If the best settings are the top \(q\) fraction of a knob's range, then a single random draw misses that zone with probability \(1-q\), and \(B\) independent draws all miss it with probability \((1-q)^{B}\). To hit the zone with confidence at least \(1-\delta\):</p>
+
+<p>\[ 1-(1-q)^{B} \ \ge\ 1-\delta \qquad\Longrightarrow\qquad B \ \ge\ \frac{\log \delta}{\log(1-q)} \]</p>
+
+<p>Read \(q\) as "how good is good enough" (the top slice you would be happy to land in) and \(\delta\) as "how much bad luck you will tolerate." To land in the best 5% of a knob's range with 95% confidence, that is \(B \ge \log(0.05)/\log(0.95) \approx 59\) draws, and, remarkably, that number does not depend on how many knobs you have. Sixty-ish random tries buys you a near-best value of <em>every</em> knob at once.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why does random win?</h2>
+
+<p>You are tuning a model with <strong>three</strong> hyperparameters, but only <strong>one</strong> of them really affects the score. You can afford 64 evaluations. A grid uses a 4 x 4 x 4 lattice; random search draws 64 random points. Which explores the important knob better, and why?</p>
+<section class="exercise" data-exercise-id="Hyperparameter-Tuning-Strategies-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The grid, because it covers the space evenly and leaves no gaps</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">They are equivalent: 64 tries is 64 tries either way</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Random search, because its 64 points use 64 distinct values of the important knob, while the grid uses only 4</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The 4 x 4 x 4 grid tries just four distinct values of each knob, so only four of its tries explore the one knob that matters. Random search gives that knob 64 different values for the same budget.</div><div class="lesson-qfb lesson-qfb-no">The count is the same but the <em>coverage per knob</em> is not. That is the whole point of the difference.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Search smarter</div>
+<h2>Bayesian search: learn from your tries</h2>
+
+<p>Grid and random search share one weakness: they are <strong>blind</strong>. Every try is chosen in advance, so the search never learns from what it has already seen. If ten tries all showed that low <code>nodesize</code> is better, a random search will still happily waste its eleventh try on a huge <code>nodesize</code>.</p>
+
+<p><strong>Bayesian optimization</strong> (also called sequential model-based search) fixes that. After a handful of tries, it fits a cheap stand-in model, a <em>surrogate</em>, that predicts the validation error across the whole space <em>and</em> how unsure it is at each point. It then picks the next real evaluation where the surrogate looks most promising, balancing two urges: <strong>exploit</strong> (probe where predicted error is low) and <strong>explore</strong> (probe where it is unsure, in case a better region is hiding). Each new result sharpens the surrogate, so every try is smarter than the last.</p>
+
+<p>In practice you do not build this by hand. The tidymodels <code>tune</code> package runs the whole loop for you (run this one in a full R install):</p>
+
+<pre><code class="language-r">library(tidymodels)
+spec &lt;- rand_forest(mtry = tune(), min_n = tune()) |&gt;       # mark the two knobs to tune
+  set_engine(&quot;randomForest&quot;) |&gt; set_mode(&quot;regression&quot;)
+
+set.seed(1)
+bo &lt;- tune_bayes(
+  spec, sales ~ .,
+  resamples = vfold_cv(bakery, v = 5),                      # score each try with 5-fold CV
+  initial   = 5,                                            # 5 random warm-up tries
+  iter      = 20                                            # then 20 model-guided tries
+)
+select_best(bo, metric = &quot;rmse&quot;)                            # the best combination found</code></pre>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Bayesian search shines when each evaluation is <strong>expensive</strong>: a slow model, big data, or costly cross-validation. It reaches a good spot in far fewer tries than random search. When a fit is cheap and fast, plain random search is simpler and often just as good. Do not reach for the heavy machinery you do not need.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Warm up","sub":"evaluate a few random settings to get started"},{"title":"Fit a surrogate","sub":"a cheap model predicts CV error everywhere, with an uncertainty band"},{"title":"Pick the next point","sub":"where error looks low OR the surrogate is unsure: exploit vs explore"},{"title":"Evaluate for real","sub":"run CV there and add the true result"},{"title":"Repeat","sub":"the surrogate sharpens; each try beats a blind guess"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Spend it well</div>
+<h2>Don't grid what a curve already tells you</h2>
+
+<p>A budget is only as good as how you spend it. Two habits separate a wasteful search from a sharp one.</p>
+
+<ol>
+
+<li><strong>Tune the knobs that matter, on the right scale.</strong> A few hyperparameters move the score a lot; most barely register. Spend your budget on the influential ones. And search learning-rate-like knobs on a <strong>log scale</strong> (<code>0.001, 0.01, 0.1</code>), not a linear one, because their effect is multiplicative, not additive.</li>
+
+<li><strong>Do not grid-search something you can read off a curve.</strong> The number of trees in a forest, or boosting rounds in a booster, is the classic example. You never need a grid for it. Train once while watching the error round by round: it falls, then flattens (forest) or turns back up (boosting). Read the best number straight off that <strong>learning curve</strong>.</li>
+
+</ol>
+
+<p>That second habit has a name: <strong>early stopping</strong>. Drag the marker below to choose where to stop. Too early leaves signal on the table; too late overfits; the sweet spot is the lowest point on the validation curve, and you found it with a <em>single</em> training run instead of a whole grid.</p>
+
+<p>Early stopping tunes an entire axis, the number of rounds, for the price of one fit. That is the mindset for the whole budget: never spend a search where a single, well-read training run will do.</p>
+<div class="lesson-widget" data-widget-type="learning-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Set up a random search on a budget</h2>
+
+<p>You can afford <strong>20 model fits</strong>. The smart move, as you have seen, is to spend them on random search, not a 20-point grid: 20 random draws give each knob 20 distinct values, while a grid would give only a handful. Fill in the blank so <code>nodesize</code> gets 20 independent random draws from 2 to 40 (matching the 20 draws for <code>mtry</code>).</p>
+<section class="exercise" data-exercise-id="Hyperparameter-Tuning-Strategies-step10" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="sample\s*\(\s*2:40\s*,\s*20"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(2)
+search &lt;- data.frame(
+  mtry     = sample(1:6, 20, replace = TRUE),   # 20 random values of mtry
+  nodesize = ____                               # 20 random leaf sizes, from 2 to 40
+)
+head(search)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: sample(2:40, 20, replace = TRUE) draws 20 independent leaf sizes, so every one of your 20 fits explores a new value of BOTH knobs. Score each row with oob_rmse and keep the lowest, exactly as the grid block did.</span><span class="lesson-tryit-fb lesson-tryit-no">You need 20 random draws from the range 2 to 40, one per fit: sample(2:40, 20, replace = TRUE).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(2)
+search &lt;- data.frame(
+  mtry     = sample(1:6, 20, replace = TRUE),
+  nodesize = sample(2:40, 20, replace = TRUE)   # 20 independent draws, one per fit
+)
+head(search)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.jmlr.org/papers/v13/bergstra12a.html">Bergstra & Bengio (2012), Random Search for Hyper-Parameter Optimization, JMLR 13</a> - the paper that showed random search beats grid search for the same budget, with the coverage argument you saw here.</li>
+
+<li><a href="https://arxiv.org/abs/1206.2944">Snoek, Larochelle & Adams (2012), Practical Bayesian Optimization of Machine Learning Algorithms, NeurIPS</a> - the standard reference for the surrogate-and-acquisition loop behind Bayesian search.</li>
+
+<li><a href="https://www.jmlr.org/papers/v20/18-444.html">Probst, Boulesteix & Bischl (2019), Tunability: Importance of Hyperparameters of Machine Learning Algorithms, JMLR 20</a> - measures which hyperparameters actually matter, the evidence behind "tune the few that count."</li>
+
+<li><a href="https://tune.tidymodels.org/">tidymodels: the tune package</a> - grid, random and Bayesian search in production R, including <code>tune_grid()</code> and <code>tune_bayes()</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You can now search for hyperparameters without wasting your budget. Parameters are learned by the model; hyperparameters are the knobs you set, and tuning is the search for the best knobs within a fixed number of tries. A grid tries every combination but pours budget into knobs that do not matter; random search gives every try a fresh value of every knob, so it wins for the same cost; Bayesian search learns from past tries and pays off when each evaluation is expensive. And the sharpest habit of all is to never search for what a single learning curve already tells you.</p>
+
+<p>Next, Lesson 5: Scoring Rules and Regression Metrics. You have been minimising RMSE without asking whether RMSE is even the right target. You will meet proper scoring rules, log-loss, and the difference between RMSE, MAE and MAPE, and learn to pick the score your search should actually be chasing.</p>
+</section>
+
+{% endraw %}

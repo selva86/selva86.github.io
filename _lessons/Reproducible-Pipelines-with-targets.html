@@ -1,0 +1,359 @@
+---
+title: "Machine Learning in Production Lesson 1: Reproducible pipelines with targets"
+description: "Build your analysis as a dependency graph with the targets package, so rerunning it recomputes only the steps that changed and results always match your code."
+keywords: "targets R package, reproducible pipelines in R, tar_make, dependency graph, reproducible analysis, tar_target, skip unchanged steps, data pipeline in R, targets vs source script"
+webr: true
+curriculum_id: "6.120.1"
+post_type: "LESSON"
+course_id: "ds-production"
+course_title: "Machine Learning in Production"
+course_lesson: "1"
+course_total: "6"
+course_landing: "R-ML-Production-Course.html"
+course_next: "Versioning-Models-with-vetiver-and-pins.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Rerun only the steps that changed, so results always match your code."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 6</div>
+<h2>Reproducible pipelines with targets</h2>
+
+<p>You can build a model. Now you have to ship it, and keep it trustworthy. Meet Dev, a data scientist at a meal-kit company. He has one script, <code>analysis.R</code>, that predicts which customers will cancel: it reads the raw orders, aggregates them into per-customer numbers, fits a model, and writes a summary table. Start to finish it takes about 40 minutes, because fitting the model is slow.</p>
+
+<p>This afternoon Dev changed the summary table six times, each time to round a number differently. Six times he waited 40 minutes. This lesson is about the tool that ends that: <strong>targets</strong>, which reruns only the steps that actually changed.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why one long analysis script is slow to iterate on and lets your results quietly drift out of sync with your code</li>
+
+<li>Describe a targets pipeline as steps wired into a dependency graph, where each step is the output of a function</li>
+
+<li>Predict exactly which steps rerun after a change, so a one-character edit costs seconds instead of 40 minutes</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can <a href="Your-First-End-to-End-Model-in-R.html">fit a model end to end</a>, you can <a href="Writing-Functions-in-R.html">write a function</a>, and it helps to have met <a href="Reproducibility-with-renv-and-git.html">reproducibility with renv and git</a>. The four boxes below are Dev's whole analysis.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Read orders","sub":"load the raw orders file"},{"title":"Build features","sub":"aggregate orders into per-customer numbers"},{"title":"Fit model","sub":"train the cancellation model (the slow step)"},{"title":"Write summary","sub":"the table Dev keeps tweaking"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>One script reruns everything</h2>
+
+<p>Dev's analysis lives in a single file. To run it, he calls <code>source(&quot;analysis.R&quot;)</code>, and it executes top to bottom:</p>
+
+<pre><code class="language-r"># analysis.R - the whole analysis in one file
+library(readr); library(dplyr)
+
+orders   &lt;- read_csv(&quot;orders.csv&quot;)   # 12,000 raw order rows
+features &lt;- get_features(orders)     # aggregate to 800 customers
+model    &lt;- fit_model(features)      # trains the model ... ~38 minutes
+summary  &lt;- summarize_model(model)   # the little table at the end
+write_csv(summary, &quot;summary.csv&quot;)</code></pre>
+
+<p>The trouble is that <code>source()</code> is all-or-nothing. Change the last line, the one that rounds a number in the summary, and R still reruns the 38-minute model fit above it, because it has no idea the model did not change. Every tiny edit costs the full 40 minutes.</p>
+
+<p>So Dev does what everyone does under time pressure: he comments out the slow line and reuses the <code>model</code> object still sitting in his workspace from the last run. It is faster, but now something dangerous has happened. The <code>summary.csv</code> he ships was built from an <em>old</em> model, while the code on disk describes a <em>new</em> one. The results and the code have silently drifted apart, and nobody can tell.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">This is the real cost of the one-big-script habit. Not just slow reruns, but the temptation to skip steps by hand, which lets the output you deliver stop matching the code that supposedly produced it. Reproducibility quietly dies here.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first move</div>
+<h2>Break the analysis into steps</h2>
+
+<p>targets asks you to do one thing first: write each step of the analysis as its own small function, so each step has a clear input and a clear output. Nothing exotic, just ordinary R functions.</p>
+
+<p>First the raw data. Each lesson runs in a fresh R session, so we build a small stand-in for Dev's <code>orders.csv</code> right here. These 200 rows are one per customer: how many boxes they ordered, their total spend, weeks since their last order, and whether they cancelled.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+set.seed(1)
+n &lt;- 200
+orders &lt;- data.frame(
+  customer_id   = 1:n,
+  boxes_ordered = rpois(n, 8) + 1,
+  total_spend   = round(runif(n, 40, 900), 2),
+  weeks_since   = rpois(n, 3)
+)
+p &lt;- plogis(-1.4 + 0.18 * orders$weeks_since - 0.06 * orders$boxes_ordered)
+orders$cancelled &lt;- rbinom(n, 1, p)
+head(orders, 3)
+#&gt;   customer_id boxes_ordered total_spend weeks_since cancelled
+#&gt; 1           1             7      270.06           4         1
+#&gt; 2           2             8      228.03           1         1
+#&gt; 3           3             9      484.45           6         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now each step of the analysis becomes a function, one per box from the cover. One honest simplification: because our stand-in already has one row per customer, <code>get_features</code> here just derives a new column (spend per box) rather than doing Dev's full order-to-customer roll-up. The pipeline's shape is identical either way, and that shape is the whole point:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">get_features &lt;- function(orders) {
+  orders |&gt;
+    mutate(spend_per_box = round(total_spend / boxes_ordered, 1))
+}
+fit_model &lt;- function(features) {
+  glm(cancelled ~ boxes_ordered + weeks_since + spend_per_box,
+      data = features, family = binomial)
+}
+summarize_model &lt;- function(model) {
+  co &lt;- coef(model)
+  data.frame(term = names(co), estimate = round(unname(co), 3))
+}
+
+# Run them in order: orders -&gt; features -&gt; model -&gt; summary
+features &lt;- get_features(orders)
+model    &lt;- fit_model(features)
+summarize_model(model)
+#&gt;            term estimate
+#&gt; 1   (Intercept)   -1.132
+#&gt; 2 boxes_ordered   -0.062
+#&gt; 3   weeks_since    0.146
+#&gt; 4 spend_per_box   -0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Notice the shape: <code>get_features</code> needs <code>orders</code>, <code>fit_model</code> needs <code>features</code>, <code>summarize_model</code> needs <code>model</code>. Each step consumes the output of the step before it. That chain of "needs" is the thing targets is about to exploit.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">The structure</div>
+<h2>A pipeline is a dependency graph</h2>
+
+<p>Write down that chain of "needs" and you get a <strong>dependency graph</strong>: a picture of which step depends on which. Dev's analysis is a simple chain. <code>features</code> depends on <code>orders</code>; <code>model</code> depends on <code>features</code>; <code>summary</code> depends on <code>model</code>.</p>
+
+<p>The word to hold onto is <strong>downstream</strong>. A step is downstream of another if it depends on it, directly or through a chain. <code>model</code> is downstream of <code>orders</code> (through <code>features</code>); <code>summary</code> is downstream of everything. Upstream is the reverse: <code>orders</code> is upstream of all three.</p>
+
+<p>Why does this matter? Because the graph tells targets exactly what a change can and cannot affect. If you edit a step, the only results that can possibly change are that step and the ones <strong>downstream</strong> of it. Everything upstream is provably safe to reuse. That single fact is the whole trick, and the next step makes it concrete.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"orders","sub":"the raw data; depends on nothing"},{"title":"features","sub":"depends on orders"},{"title":"model","sub":"depends on features"},{"title":"summary","sub":"depends on model"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What is downstream of features?</h2>
+
+<p>Look at the graph: <code>orders -&gt; features -&gt; model -&gt; summary</code>. You edit the <code>features</code> step. Which results might now be wrong and therefore need rebuilding?</p>
+<section class="exercise" data-exercise-id="Reproducible-Pipelines-with-targets-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Only <code>features</code> itself; the others used their own code so they are fine</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>features</code>, <code>model</code>, and <code>summary</code>, everything from features onward</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">All four, including <code>orders</code></span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>model</code> and <code>summary</code> are downstream of <code>features</code>, so a change there can ripple through both. <code>orders</code> is upstream, so it is untouched.</div><div class="lesson-qfb lesson-qfb-no"><code>orders</code> is upstream of <code>features</code>; nothing you do to a later step can change the raw data that fed it. Only the changed step and its downstream rebuild.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The one rule</div>
+<h2>Rerun only what changed</h2>
+
+<p>Here is how targets decides what to skip. For every step it stores a <strong>recipe</strong>: the step's code plus the inputs it depends on. Before running a step, it compares the current recipe to the stored one. If they are identical, the result cannot have changed, so it reuses the saved result and moves on. If the recipe differs, it rebuilds that step, and because the rebuilt output is a new input, every step downstream rebuilds too.</p>
+
+<p>That is the entire idea, and it fits in about ten lines you can run. Here is a toy version of it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># For each step, remember the recipe it last ran (its code + its inputs).
+cache &lt;- list()
+
+run_step &lt;- function(name, recipe, compute) {
+  if (!is.null(cache[[name]]) &amp;&amp; identical(cache[[name]]$recipe, recipe)) {
+    cat(name, &quot;-&gt; up to date, skipped\n&quot;)
+    return(invisible(cache[[name]]$value))
+  }
+  cat(name, &quot;-&gt; changed, rebuilding\n&quot;)
+  cache[[name]] &lt;&lt;- list(recipe = recipe, value = compute())
+  invisible(cache[[name]]$value)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the three steps. Each step's recipe is its code plus the <em>value</em> of the step it depends on, so a rebuilt upstream automatically changes a downstream recipe:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">build_all &lt;- function(orders_version, summary_code) {
+  feat &lt;- run_step(&quot;features&quot;,
+                   list(code = &quot;get_features&quot;, input = orders_version),
+                   function() paste(&quot;features of&quot;, orders_version))
+  mod  &lt;- run_step(&quot;model&quot;,
+                   list(code = &quot;fit_model&quot;, input = feat),
+                   function() paste(&quot;model on&quot;, feat))
+  run_step(&quot;summary&quot;,
+           list(code = summary_code, input = mod),
+           function() paste(summary_code, &quot;-&gt;&quot;, mod))
+}
+
+build_all(orders_version = &quot;v1&quot;, summary_code = &quot;round 2dp&quot;)   # first run: nothing cached
+#&gt; features -&gt; changed, rebuilding
+#&gt; model -&gt; changed, rebuilding
+#&gt; summary -&gt; changed, rebuilding
+
+build_all(orders_version = &quot;v1&quot;, summary_code = &quot;round 2dp&quot;)   # run again, nothing changed
+#&gt; features -&gt; up to date, skipped
+#&gt; model -&gt; up to date, skipped
+#&gt; summary -&gt; up to date, skipped</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the two cases that matter. Edit only the summary, and only the summary rebuilds. Change the raw data, and the change cascades through everything downstream:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">build_all(orders_version = &quot;v1&quot;, summary_code = &quot;round 1dp&quot;)   # edited only the summary code
+#&gt; features -&gt; up to date, skipped
+#&gt; model -&gt; up to date, skipped
+#&gt; summary -&gt; changed, rebuilding
+
+build_all(orders_version = &quot;v2&quot;, summary_code = &quot;round 1dp&quot;)   # the raw data changed
+#&gt; features -&gt; changed, rebuilding
+#&gt; model -&gt; changed, rebuilding
+#&gt; summary -&gt; changed, rebuilding</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">targets does exactly this, with a real content hash instead of our toy strings, so it notices any change to a step's code or its inputs. Skip when the recipe matches; rebuild the changed step and everything downstream. That is the difference between a 40-minute rerun and a half-second one.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Wire a step to its input</h2>
+
+<p>A downstream step is defined by what it consumes. You have <code>get_features()</code>, <code>fit_model()</code> and <code>summarize_model()</code> loaded from earlier, plus the <code>features</code> object you built. The model step should be fed the features. Fill in the blank so the model trains on the right input.</p>
+<section class="exercise" data-exercise-id="Reproducible-Pipelines-with-targets-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="features"><textarea class="lesson-tryit-input" spellcheck="false"># The model step consumes the OUTPUT of the step before it.
+model2 &lt;- fit_model(____)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. The model step takes the features as its input, which is precisely the dependency targets records: model depends on features.</span><span class="lesson-tryit-fb lesson-tryit-no">The step before the model produced the features object. Feed that in: fit_model(features).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">model2 &lt;- fit_model(features)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Writing it down</div>
+<h2>Put the pipeline in _targets.R</h2>
+
+<p>You express all of this in one special file named <code>_targets.R</code>. It loads your functions and returns a list of <strong>targets</strong>: one <code>tar_target(name, recipe)</code> per step. The recipe just calls your function, and it declares a dependency simply by naming another target inside it, exactly the <code>fit_model(features)</code> wiring you just wrote.</p>
+
+<pre><code class="language-r"># _targets.R  - the pipeline definition
+library(targets)
+tar_source()   # loads get_features(), fit_model(), summarize_model() from the R/ folder
+
+list(
+  tar_target(orders_file, &quot;orders.csv&quot;, format = &quot;file&quot;),  # track the raw file itself
+  tar_target(orders,   read_csv(orders_file)),
+  tar_target(features, get_features(orders)),
+  tar_target(model,    fit_model(features)),               # the slow step
+  tar_target(summary,  summarize_model(model))
+)</code></pre>
+
+<p>Then you drive the pipeline with three commands from the R console:</p>
+
+<pre><code class="language-r">tar_make()          # build every target that is out of date, skip the rest
+tar_visnetwork()    # see the dependency graph, colored by what is up to date
+tar_read(summary)   # pull any target's result back into R to inspect it</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>format = &quot;file&quot;</code> is the piece that watches your <em>data</em>. It tells targets to hash <code>orders.csv</code> itself, so if the raw file changes, everything downstream rebuilds; if it does not, nothing does. targets tracks the dependencies you declare (target-to-target links and files); it does not pin package versions or capture your operating system. That layer is renv and, for full isolation, a container.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Change one thing, rebuild one thing</h2>
+
+<p>Now replay Dev's afternoon with the pipeline in place. He edits <code>summarize_model()</code> to round to one decimal and runs <code>tar_make()</code> again. targets checks each target's recipe against what it stored last time. Only the summary's recipe changed, so only the summary rebuilds. The 38-minute model is untouched.</p>
+
+<p>The console log makes the skipping visible. The exact wording and symbols vary by targets version, but it reads roughly like this:</p>
+
+<pre><code class="language-r">tar_make()
+#&gt; skip orders_file
+#&gt; skip orders
+#&gt; skip features
+#&gt; skip model
+#&gt; run  summary
+#&gt; completed summary [0.5 seconds]</code></pre>
+
+<p>Six edits to the summary now cost about three seconds total instead of four hours. And the stale-object temptation is gone: because targets always reuses the <em>correct</em> cached result and rebuilds anything genuinely out of date, the output you ship is guaranteed to match the current code. Fast and trustworthy, at the same time.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"orders","sub":"raw file unchanged; skipped"},{"title":"features","sub":"code and input unchanged; skipped"},{"title":"model","sub":"the 38-minute step, unchanged; skipped"},{"title":"summary","sub":"you edited it; rebuilt in seconds"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What actually reruns?</h2>
+
+<p>Dev's pipeline is built and up to date. He edits only <code>summarize_model()</code> to change the rounding, saves, and runs <code>tar_make()</code>. The model fit takes 38 minutes. What happens?</p>
+<section class="exercise" data-exercise-id="Reproducible-Pipelines-with-targets-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Only the <code>summary</code> target rebuilds, in seconds; <code>orders</code>, <code>features</code> and <code>model</code> are up to date and skipped</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The whole pipeline reruns, including the 38-minute model, because the file changed</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing reruns, because the model and features are already cached</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Only the summary's recipe changed, and nothing is downstream of it, so targets rebuilds just that one step and reuses the rest.</div><div class="lesson-qfb lesson-qfb-no">The summary's code <em>did</em> change, so its recipe no longer matches; targets must rebuild that target. It skips only the ones whose recipes are unchanged.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://books.ropensci.org/targets/">The {targets} R package user manual</a> - the canonical, book-length guide to pipelines, dependencies and caching.</li>
+
+<li><a href="https://books.ropensci.org/targets/walkthrough.html">A walkthrough to get started</a> - build your first working pipeline from an empty folder, step by step.</li>
+
+<li><a href="https://docs.ropensci.org/targets/reference/tar_make.html">tar_make() reference</a> - the exact behavior of the command that builds only out-of-date targets.</li>
+
+<li><a href="https://doi.org/10.21105/joss.02959">Landau (2021), The targets R package, JOSS</a> - the short peer-reviewed paper describing the design.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You turned a fragile 40-minute script into a pipeline that reruns only what changed. The moves: write each step as a function, let their inputs and outputs form a dependency graph, and let targets skip any step whose recipe (code plus inputs) is unchanged while rebuilding the changed step and everything downstream. The result is an analysis that is both fast to iterate on and guaranteed to stay in sync with its code.</p>
+
+<p>Next, Lesson 2: <strong>Versioning models with vetiver and pins.</strong> Your pipeline produces a trained model; now you will register, version and retrieve that model the same disciplined way you version code, so you always know exactly which model is in production.</p>
+</section>
+
+{% endraw %}

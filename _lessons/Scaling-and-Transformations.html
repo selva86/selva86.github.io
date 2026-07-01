@@ -1,0 +1,382 @@
+---
+title: "Feature Engineering Lesson 3: Scaling and Transformations"
+description: "Center and scale features, tame skew with log and Box-Cox, learn which models need it, and keep every transform leak-free by fitting it on the training data only."
+keywords: "feature scaling, standardization, z-score, normalization, log transform, Box-Cox, Yeo-Johnson, skewness, data leakage, feature engineering, R"
+mathjax: true
+webr: true
+curriculum_id: "6.60.3"
+post_type: "LESSON"
+course_id: "ds-feature-engineering"
+course_title: "Feature Engineering in R"
+course_lesson: "3"
+course_total: "7"
+course_landing: "R-Feature-Engineering-Course.html"
+course_next: "Interaction-and-Spline-Features.html"
+course_prev: "Target-Encoding-Without-Leakage.html"
+lesson_access: "free"
+catalog_blurb: "Why some models care about feature scale and shape, and how to fix it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 7</div>
+<h2>Scaling and Transformations</h2>
+
+<p>In Lesson 2 you turned a messy category into one trustworthy number with out-of-fold target encoding. Maya, our real-estate data scientist, now has clean columns. But her numeric features still carry two hidden problems that can quietly wreck a model, and they have nothing to do with the values being wrong.</p>
+
+<p>Her homes are measured in <code>sqft</code> (hundreds to thousands), <code>beds</code> (1 to 5), and <code>lot_size</code> (a few thousand square feet, with a long tail of giant lots). Two features, two different traps: one feature is simply <em>bigger</em> than the others, and one feature is <em>lopsided</em>. This lesson fixes both, and keeps the fix leak-free, the same discipline you learned last time.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Explain why features on different scales let big-unit features hijack distance-based models, and standardize them with the z-score</li>
+
+<li>Decide which models need scaling (and which, like trees, do not care at all)</li>
+
+<li>Reshape a skewed feature with log, Box-Cox, or Yeo-Johnson, fitting every transform on the training data alone</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you know what a training set, a test set, and <a href="Train-Validation-Test-and-Data-Leakage.html">data leakage</a> are (from <a href="Target-Encoding-Without-Leakage.html">Lesson 2</a>).</p>
+<div class="lesson-widget" data-widget-type="transform-shaper" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first problem</div>
+<h2>Why scale matters: big features drown out the rest</h2>
+
+<p>Maya wants to find homes <em>similar</em> to a given one, the engine behind nearest-neighbor models, recommendations, and clustering. "Similar" almost always means <em>close in distance</em>. The standard measure is Euclidean distance: for two homes, square the gap in each feature, add the gaps up, take the square root.</p>
+
+<p>Here is the trap. <code>sqft</code> differs between homes by hundreds or thousands; <code>beds</code> differs by 1 or 2; <code>age</code> by a handful of years. Square those gaps and <code>sqft</code> contributes a number in the millions while <code>beds</code> contributes single digits. The distance becomes, in effect, <em>the sqft gap and nothing else</em>. The other features are in the formula, but they cannot be heard.</p>
+
+<p>Let us measure the damage on Maya's full data. Each lesson runs in a fresh R session, so we build her homes inline (run this once). Then we ask: out of the total squared distance from one home to all the others, what share does each feature contribute?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 600
+homes &lt;- data.frame(
+  sqft     = round(runif(n, 800, 3000)),        # hundreds to thousands
+  beds     = sample(1:5, n, replace = TRUE),    # 1 to 5
+  baths    = sample(1:4, n, replace = TRUE),    # 1 to 4
+  age      = round(runif(n, 0, 80)),            # years
+  lot_size = 600 + round(rexp(n, rate = 1/5000))# right-skewed: many small lots, a few huge ones
+)
+homes$price &lt;- with(homes, 60 + 0.12 * sqft + 18 * beds - 0.6 * age + rnorm(n, 0, 30))
+feat &lt;- c(&quot;sqft&quot;, &quot;beds&quot;, &quot;baths&quot;, &quot;age&quot;)
+
+q     &lt;- homes[1, feat]                                    # one reference home
+share &lt;- sapply(feat, function(f) sum((homes[[f]] - q[[f]])^2))
+round(share / sum(share) * 100, 1)                         # each feature's % of total squared distance
+#&gt;  sqft  beds baths   age
+#&gt;  99.8   0.0   0.0   0.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One feature owns 99.8% of the distance. <code>beds</code> and <code>baths</code>, which a buyer cares about enormously, are statistically invisible. The model is not wrong, it is just listening to the loudest feature.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"df %>% mutate(dist = sqrt((sqft-1500)^2 + (beds-3)^2 + (age-20)^2))","caption":"Euclidean distance from home A, on raw features. It is almost entirely the sqft gap: home C sits about 1300 away only because its sqft differs, while beds and age barely move the number.","before":{"cols":["home","sqft","beds","age"],"rows":[["A",1500,3,20],["B",1520,5,65],["C",2800,3,18],["D",980,2,22]]},"after":{"cols":["home","sqft","beds","age","dist"],"rows":[["A",1500,3,20,0],["B",1520,5,65,49],["C",2800,3,18,1300],["D",980,2,22,520]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Standardization: put every feature on one scale</h2>
+
+<p>The cure is to express every feature in the <em>same units</em>. The most common choice is <strong>standardization</strong> (the z-score): for each value, subtract the feature's mean, then divide by its standard deviation. The result says "how many standard deviations above or below average this value sits."</p>
+
+<p>Write it precisely. For a feature with values \(x\), let \(\mu\) be its mean (the average) and \(\sigma\) its standard deviation (the typical spread around the mean). The standardized value is</p>
+
+<p>\[ z \;=\; \frac{x - \mu}{\sigma}. \]</p>
+
+<p>Subtracting \(\mu\) <strong>centers</strong> the feature so its new mean is 0; dividing by \(\sigma\) <strong>scales</strong> it so its new standard deviation is 1. Every feature, whatever its original units, now lives on the same ruler, roughly from \(-3\) to \(3\). A close cousin is <strong>min-max normalization</strong>, which squeezes a feature into the range \([0, 1]\):</p>
+
+<p>\[ x' \;=\; \frac{x - \min(x)}{\max(x) - \min(x)}. \]</p>
+
+<p>Use the z-score by default (it tolerates outliers better and suits most models); reach for min-max when a method needs bounded inputs, such as image pixels or some neural nets.</p>
+
+<p>Now standardize Maya's four features and recompute each one's share of the distance:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">homes_z &lt;- as.data.frame(scale(homes[feat]))   # scale() centers and scales every column
+round(colMeans(homes_z), 6)                     # every feature now has mean 0
+#&gt;  sqft  beds baths   age
+#&gt;     0     0     0     0
+round(apply(homes_z, 2, sd), 6)                 # ... and standard deviation 1
+#&gt;  sqft  beds baths   age
+#&gt;     1     1     1     1
+
+qz      &lt;- homes_z[1, ]
+share_z &lt;- sapply(feat, function(f) sum((homes_z[[f]] - qz[[f]])^2))
+round(share_z / sum(share_z) * 100, 1)          # shares are comparable now, no single winner
+#&gt;  sqft  beds baths   age
+#&gt;  19.7  18.9  34.4  27.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>From 99.8% owned by one feature down to a 19 to 34% spread. No column dominates any more, and every feature finally gets a vote.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"df %>% mutate(sqft_z = (sqft-mean(sqft))/sd(sqft), age_z = (age-mean(age))/sd(age))","caption":"Standardizing replaces a value with how many standard deviations it sits from its column mean. The new sqft_z and age_z columns share one scale, so neither feature can dominate a distance.","before":{"cols":["home","sqft","beds","age"],"rows":[["A",1500,3,20],["B",1520,5,65],["C",2800,3,18],["D",980,2,22]]},"after":{"cols":["home","sqft","beds","age","sqft_z","age_z"],"rows":[["A",1500,3,20,-0.26,-0.5],["B",1520,5,65,-0.23,1.5],["C",2800,3,18,1.42,-0.59],["D",980,2,22,-0.93,-0.41]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does standardizing do to a feature?</h2>
+
+<p>You take Maya's <code>age</code> column (mean about 40 years, standard deviation about 23 years) and standardize it with the z-score. What are the mean and standard deviation of the new, standardized column?</p>
+<section class="exercise" data-exercise-id="Scaling-and-Transformations-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Mean about 40, standard deviation about 23, the values barely change</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Mean 0 and standard deviation 1</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Minimum 0 and maximum 1</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Subtracting the mean forces the new mean to 0; dividing by the standard deviation forces the new standard deviation to 1. That is the whole point of the z-score.</div><div class="lesson-qfb lesson-qfb-no">That is min-max normalization, a different transform. The z-score fixes the mean and standard deviation, not the minimum and maximum (a standardized value can be negative or above 1).</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know when it matters</div>
+<h2>Which models care about scale, and which do not</h2>
+
+<p>Scaling is not a ritual you perform on every dataset. Whether it matters depends entirely on <em>how the model uses the numbers</em>. There is a clean rule: if a model compares features by distance, by gradient steps, by a size penalty, or by variance, it needs them on one scale. If a model only asks "is this value above or below a threshold," it does not care at all.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model family</th>
+<th>Example methods</th>
+<th>Needs scaling?</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Distance-based</td>
+<td>kNN, SVM, k-means</td>
+<td>Yes</td>
+<td>distance is dominated by the largest-unit feature</td>
+</tr>
+<tr>
+<td>Gradient descent</td>
+<td>neural nets, SGD-fit regression</td>
+<td>Yes</td>
+<td>uneven scales stretch the loss surface and slow learning</td>
+</tr>
+<tr>
+<td>Penalized</td>
+<td>ridge, lasso, elastic net</td>
+<td>Yes</td>
+<td>the penalty shrinks big-unit coefficients unfairly</td>
+</tr>
+<tr>
+<td>Variance-based</td>
+<td>PCA, factor analysis</td>
+<td>Yes</td>
+<td>the first component chases the highest-variance feature</td>
+</tr>
+<tr>
+<td>Tree-based</td>
+<td>decision tree, random forest, boosting</td>
+<td>No</td>
+<td>a split depends on order, not magnitude</td>
+</tr>
+</tbody>
+</table>
+
+<p>Why are trees immune? A tree splits at a threshold like <code>sqft &gt; 1500</code>. Standardizing turns that into <code>sqft_z &gt; -0.63</code>, the <em>exact same split</em>: the same homes land on each side, because center-and-scale never changes the order of the values. Let us prove a tree does not move when we rescale a feature:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rpart)
+homes_s &lt;- homes
+homes_s$sqft &lt;- as.numeric(scale(homes_s$sqft))   # standardize one predictor
+
+raw_tree    &lt;- rpart(price ~ sqft + beds + age, data = homes)
+scaled_tree &lt;- rpart(price ~ sqft + beds + age, data = homes_s)
+
+mean(predict(raw_tree, homes) == predict(scaled_tree, homes_s))   # identical predictions?
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every prediction is identical. For a random forest or gradient boosting, scaling is wasted effort. For kNN it is the difference between a working model and a broken one.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Distance or similarity","sub":"kNN, SVM, k-means: scale every feature first"},{"title":"Gradient descent","sub":"neural nets, penalized regression: scale for fair, stable steps"},{"title":"Variance directions","sub":"PCA, clustering: scale or the big-unit feature wins"},{"title":"Tree-based","sub":"trees, random forests, boosting: scale-free, you can skip it"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Maya switches models</h2>
+
+<p>Maya has been using k-nearest-neighbors, where she carefully standardized every feature. She now swaps in a random forest on the very same data. What should she do about the scaling?</p>
+<section class="exercise" data-exercise-id="Scaling-and-Transformations-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Scale even more aggressively, because forests have many trees and the effect compounds</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Keep scaling, since every model benefits from features on a common scale</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">She can drop the scaling entirely, since a random forest is scale-invariant</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A forest is built from trees, and a tree split depends only on whether a value is above or below a threshold, never on the magnitude. Standardizing changes nothing it does.</div><div class="lesson-qfb lesson-qfb-no">A common belief, but not true. Distance, gradient, penalty, and variance based models benefit; tree-based models are indifferent because splits depend only on the order of values.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second problem</div>
+<h2>Skew is a different problem, and standardizing will not fix it</h2>
+
+<p>Scaling moves a feature and shrinks it, but it never changes its <em>shape</em>. Look at Maya's <code>lot_size</code>: most homes sit on modest lots, but a few estates have enormous ones. That is a <strong>right-skewed</strong> distribution, a long tail stretching to the right. Standardizing a skewed feature gives you a skewed feature with mean 0: the lopsidedness is untouched, and those few giant lots still sit many standard deviations out, dragging the mean and distorting any linear model or distance.</p>
+
+<p>The fix is a <strong>transformation</strong> that compresses the long tail: pull the big values in, stretch the small ones apart. The everyday workhorse is the natural logarithm, which turns multiplicative spread into additive spread. We measure lopsidedness with <strong>skewness</strong>, where 0 means symmetric, positive means a right tail. For values \(x_1,\dots,x_n\) with mean \(\bar{x}\) and standard deviation \(\sigma\),</p>
+
+<p>\[ g \;=\; \frac{1}{n}\sum_{i=1}^{n}\left(\frac{x_i - \bar{x}}{\sigma}\right)^{3}. \]</p>
+
+<p>Drag the toggle below from <strong>raw</strong> to <strong>log</strong> to <strong>Box-Cox</strong> and watch the histogram pull toward symmetry while the skew number falls toward 0.</p>
+
+<p>Two transforms generalize the log. <strong>Box-Cox</strong> lets the data choose the best power \(\lambda\) (lambda) instead of always using a log:</p>
+
+<p>\[ x^{(\lambda)} \;=\; \begin{cases} \dfrac{x^{\lambda} - 1}{\lambda}, & \lambda \neq 0,\\[1.2ex] \log x, & \lambda = 0,\end{cases} \]</p>
+
+<p>so \(\lambda = 1\) is essentially no change, \(\lambda = 0\) is the log, \(\lambda = 0.5\) is a square root, and the procedure searches for the \(\lambda\) that makes the feature most symmetric. Box-Cox has one catch: it requires strictly positive values. <strong>Yeo-Johnson</strong> is a close relative that handles zeros and negatives too, so it is the safer default when a feature can be 0 or below.</p>
+
+<p>Watch the log tame Maya's skewed <code>lot_size</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">skewness &lt;- function(v) mean(((v - mean(v)) / sd(v))^3)   # &gt;0 means a right tail
+round(c(raw  = skewness(homes$lot_size),
+        log  = skewness(log(homes$lot_size)),
+        sqrt = skewness(sqrt(homes$lot_size))), 2)
+#&gt;   raw   log  sqrt
+#&gt;  1.73 -0.14  0.72</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw lot sizes are strongly right-skewed (about 1.73); a single log nearly erases it (about -0.14, essentially symmetric), while the gentler square root only halves it. One caution: a log needs strictly positive values (here every lot is at least 600), and it changes how you read the feature, you are now modeling <em>log square feet</em>, not square feet.</p>
+<div class="lesson-widget" data-widget-type="transform-shaper" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The discipline from Lesson 2, again</div>
+<h2>Keep every transform leak-free</h2>
+
+<p>A scaler and a transform both <em>learn</em> something from the data: standardizing learns a mean and a standard deviation, Box-Cox learns a \(\lambda\), min-max learns a minimum and maximum. Here is the rule that carries straight over from out-of-fold encoding: <strong>those numbers must be learned from the training data only.</strong> If you standardize using the mean and standard deviation of the whole dataset, the test rows have helped set their own scale, and that is <a href="Train-Validation-Test-and-Data-Leakage.html">data leakage</a>, the same sin in a new disguise.</p>
+
+<p>Do it by hand once so the mechanics are concrete: standardize the test homes using the <em>training</em> mean and standard deviation, never their own.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+idx   &lt;- sample(nrow(homes), round(0.7 * nrow(homes)))
+train &lt;- homes[idx, ]
+test  &lt;- homes[-idx, ]
+
+mu  &lt;- colMeans(train[feat])          # learned on TRAIN only
+sdv &lt;- apply(train[feat], 2, sd)      # learned on TRAIN only
+
+test_z &lt;- scale(test[feat], center = mu, scale = sdv)   # TRAIN numbers applied to test
+round(colMeans(test_z), 3)            # not exactly 0, which is correct: test was not centered on itself
+#&gt;   sqft   beds  baths    age
+#&gt;  0.043  0.072 -0.028 -0.139</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test means land <em>near</em> 0 but not <em>on</em> it. That tiny offset is the proof you did it right, the test set never got to peek at itself.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">In a real project you do not hand-roll this. A tidymodels recipe learns every scaler and transform on the training data and applies them to new data for you, in the right order, with no leak. Run this one locally:</div></div>
+
+<pre><code class="language-r">library(recipes)
+
+rec &lt;- recipe(price ~ sqft + lot_size + beds, data = train) %&gt;%
+  step_normalize(sqft, beds) %&gt;%   # center + scale, learned on TRAIN
+  step_BoxCox(lot_size)            # data-chosen power, learned on TRAIN
+
+prepped    &lt;- prep(rec, training = train)      # learns the mean, sd, and lambda on TRAIN only
+train_done &lt;- bake(prepped, new_data = train)
+test_done  &lt;- bake(prepped, new_data = test)   # test transformed with the TRAIN parameters, no leak</code></pre>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split first","sub":"hold out the test rows before you fit anything"},{"title":"Fit on train","sub":"learn the mean, sd, and lambda from the training rows only"},{"title":"Apply to test","sub":"transform the test rows with those frozen training numbers"},{"title":"Never refit on test","sub":"a test set that centers to exactly 0 is the tell of a leak"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Standardize the test set without leaking</h2>
+
+<p>Below, the training mean and standard deviation of <code>lot_size</code> are already computed as <code>mu</code> and <code>sdv</code>. Fill in the two blanks so each test home is standardized with the <strong>training</strong> numbers, not its own. (Remember the z-score: subtract the mean, divide by the standard deviation.)</p>
+<section class="exercise" data-exercise-id="Scaling-and-Transformations-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mu\s*\)\s*/\s*sdv"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(1)
+idx   &lt;- sample(nrow(homes), round(0.7 * nrow(homes)))
+train &lt;- homes[idx, ]
+test  &lt;- homes[-idx, ]
+mu    &lt;- mean(train$lot_size)   # training mean
+sdv   &lt;- sd(train$lot_size)     # training standard deviation
+
+test$lot_z &lt;- (test$lot_size - ____) / ____   # use the TRAINING numbers
+round(head(test$lot_z), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Leak-free: every test home is standardized with the training mean and sd, so the test set never influenced its own scale.</span><span class="lesson-tryit-fb lesson-tryit-no">Center with the training mean and divide by the training sd: (test$lot_size - mu) / sdv. Using the test set's own mean or sd would let it peek at itself.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(1)
+idx   &lt;- sample(nrow(homes), round(0.7 * nrow(homes)))
+train &lt;- homes[idx, ]
+test  &lt;- homes[-idx, ]
+mu    &lt;- mean(train$lot_size)
+sdv   &lt;- sd(train$lot_size)
+
+test$lot_z &lt;- (test$lot_size - mu) / sdv
+round(head(test$lot_z), 2)
+#&gt; [1]  0.27 -0.58 -0.88 -0.48 -0.69  1.15</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1111/j.2517-6161.1964.tb00553.x">Box and Cox (1964), An Analysis of Transformations, JRSS-B 26(2)</a> - the original paper that introduced the power transform you used here.</li>
+
+<li><a href="https://doi.org/10.1093/biomet/87.4.954">Yeo and Johnson (2000), A New Family of Power Transformations, Biometrika 87(4)</a> - the extension that handles zero and negative values.</li>
+
+<li><a href="https://bookdown.org/max/FES/">Kuhn and Johnson, Feature Engineering and Selection (free online)</a> - the chapters on centering, scaling, and transforming numeric predictors, with the leakage discipline.</li>
+
+<li><a href="https://recipes.tidymodels.org/reference/index.html">tidymodels recipes reference</a> - step_normalize, step_BoxCox, and step_YeoJohnson, done leak-free inside a pipeline.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You can now spot the two numeric-feature traps and fix both: standardize features so no big-unit column hijacks a distance, recognize which models need it (distance, gradient, penalty, and variance based) and which shrug it off (trees), reshape a skewed feature with log, Box-Cox, or Yeo-Johnson, and fit every scaler and transform on the training data alone so nothing leaks.</p>
+
+<p>Next, Lesson 4: Interaction and Spline Features. You will go the other way, deliberately <em>adding</em> engineered columns, products and curves, that let a simple linear model bend to a non-linear world without overfitting.</p>
+</section>
+
+{% endraw %}

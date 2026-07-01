@@ -1,0 +1,394 @@
+---
+title: "Unsupervised Learning Lesson 8: Association Rules and Market Basket"
+description: "Learn association rules and market basket analysis in R: what support, confidence and lift measure, why confidence alone misleads, and mining rules with arules."
+keywords: "association rules in R, market basket analysis, support confidence lift, arules, apriori, itemset, lift, unsupervised learning, data mining, R"
+mathjax: true
+webr: true
+curriculum_id: "6.9.8"
+post_type: "LESSON"
+course_id: "ds-unsupervised"
+course_title: "Unsupervised Learning in R"
+course_lesson: "8"
+course_total: "8"
+course_landing: "R-Unsupervised-Learning-Course.html"
+course_next: ""
+course_prev: "Cluster-Validation-and-Stability.html"
+lesson_access: "free"
+catalog_blurb: "Find which products genuinely sell together, and tell real patterns from coincidence."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 8 of 8</div>
+<h2>Association Rules and Market Basket</h2>
+
+<p>Meet Priya. She runs a small corner grocery, and at the end of each day she has a stack of till receipts. Every receipt is one shopper's basket: a list of what that one person bought. Priya has a hunch that <strong>bread and butter</strong> keep turning up on the same receipt, and she is tempted to move them onto the same shelf. But she pauses. Bread is on almost every receipt anyway. Maybe bread and butter just look connected because <em>bread</em> is popular, not because the two go together. How can she tell a real buy-this-with-that pattern from a coincidence?</p>
+
+<p>That question, asked over a pile of baskets, is <strong>market basket analysis</strong>, and the tool below is where this lesson lands. Pick a rule like "if bread, then butter" and read its three numbers. By the end you will know exactly what each one means and which one settles Priya's question.</p>
+
+<p>In <a href="t-SNE-and-UMAP.html">Lesson 7</a> you drew a 2-D map to see which data points group together. Here we drop geometry entirely and ask a different unsupervised question: not "which points cluster?" but <strong>"which items get bought together?"</strong> No target variable, no labels, just baskets and the patterns hiding in them.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Read a set of baskets as <strong>transactions</strong> and name the parts of a rule \(X \Rightarrow Y\)</li>
+
+<li>Compute <strong>support</strong>, <strong>confidence</strong>, and <strong>lift</strong> by hand, and say what each measures</li>
+
+<li>Explain why confidence alone misleads, and how lift settles Priya's bread-and-butter question</li>
+
+<li>Mine and rank rules at scale with the <code>arules</code> package, and read them honestly</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its printed output, and you know what a proportion is ("4 of 10" is 0.4). No earlier lesson in this course is required; this is a fresh question. The <a href="R-Unsupervised-Learning-Course.html">course landing</a> lists the rest.</p>
+<div class="lesson-widget" data-widget-type="assoc-rules" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The data</div>
+<h2>The receipts: transactions and itemsets</h2>
+
+<p>Here is Priya's day: ten receipts. Each row is one shopper's basket.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Receipt</th>
+<th>Items</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>bread, butter, milk</td>
+</tr>
+<tr>
+<td>2</td>
+<td>bread, butter</td>
+</tr>
+<tr>
+<td>3</td>
+<td>bread, milk</td>
+</tr>
+<tr>
+<td>4</td>
+<td>beer, chips</td>
+</tr>
+<tr>
+<td>5</td>
+<td>bread, butter, jam</td>
+</tr>
+<tr>
+<td>6</td>
+<td>beer, chips, salsa</td>
+</tr>
+<tr>
+<td>7</td>
+<td>bread, butter</td>
+</tr>
+<tr>
+<td>8</td>
+<td>milk, cereal</td>
+</tr>
+<tr>
+<td>9</td>
+<td>beer, chips</td>
+</tr>
+<tr>
+<td>10</td>
+<td>bread, jam</td>
+</tr>
+</tbody>
+</table>
+
+<p>Three words name what we are looking at. A <strong>transaction</strong> is one basket (one receipt). An <strong>item</strong> is one thing on it (bread, milk). An <strong>itemset</strong> is any group of items, like {bread, butter}. And an <strong>association rule</strong> is written \(X \Rightarrow Y\), read "shoppers who buy the items in \(X\) also buy the items in \(Y\)." The left side \(X\) is the <strong>antecedent</strong> ("if"), the right side \(Y\) is the <strong>consequent</strong> ("then"). "If bread, then butter" is the rule \(\{\text{bread}\} \Rightarrow \{\text{butter}\}\).</p>
+
+<p>Since this page runs in its own fresh R session, let us type Priya's receipts in as a list, one basket per entry, and count how often each item shows up.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Priya's 10 till receipts. Each is one shopper's basket. Built inline, because
+# this page starts with an empty R session.
+baskets &lt;- list(
+  c(&quot;bread&quot;, &quot;butter&quot;, &quot;milk&quot;), c(&quot;bread&quot;, &quot;butter&quot;),        c(&quot;bread&quot;, &quot;milk&quot;),
+  c(&quot;beer&quot;, &quot;chips&quot;),           c(&quot;bread&quot;, &quot;butter&quot;, &quot;jam&quot;), c(&quot;beer&quot;, &quot;chips&quot;, &quot;salsa&quot;),
+  c(&quot;bread&quot;, &quot;butter&quot;),         c(&quot;milk&quot;, &quot;cereal&quot;),         c(&quot;beer&quot;, &quot;chips&quot;),
+  c(&quot;bread&quot;, &quot;jam&quot;)
+)
+n &lt;- length(baskets)                     # number of receipts (transactions)
+items &lt;- sort(unique(unlist(baskets)))   # every distinct item that appears
+items
+#&gt; [1] &quot;beer&quot;   &quot;bread&quot;  &quot;butter&quot; &quot;cereal&quot; &quot;chips&quot;  &quot;jam&quot;    &quot;milk&quot;   &quot;salsa&quot;
+
+# How many of the 10 receipts contain each item?
+has &lt;- function(item) sapply(baskets, function(b) item %in% b)
+sapply(items, function(it) sum(has(it)))
+#&gt;   beer  bread butter cereal  chips    jam   milk  salsa
+#&gt;      3      6      4      1      3      2      3      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bread leads at 6 receipts out of 10. Hold on to that number: it is the reason Priya's hunch needs a second look.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first number</div>
+<h2>Support: how often does it happen?</h2>
+
+<p>The plainest question about any itemset is <em>how often does it show up?</em> That is its <strong>support</strong>.</p>
+
+<p>Let \(N\) be the number of receipts (here \(N = 10\)) and let \(X\) be an itemset. The support of \(X\) is the fraction of receipts that contain every item in \(X\):</p>
+
+<p>\[ \mathrm{support}(X) = \frac{\text{number of receipts containing all of } X}{N} \]</p>
+
+<p>So support is just a frequency between 0 and 1. The support of {bread} is how common bread is; the support of {bread, butter} is how often that <em>pair</em> rides together. Below, <code>support()</code> builds each item's frequency, and the "Show what changed" panel turns those counts into support by dividing by 10.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># support(X) = share of the 10 receipts that contain EVERY item in X
+support &lt;- function(itemset) mean(sapply(baskets, function(b) all(itemset %in% b)))
+
+support(&quot;bread&quot;)                 # bread is on 6 of 10 receipts
+#&gt; [1] 0.6
+support(c(&quot;bread&quot;, &quot;butter&quot;))    # 4 of 10 receipts have BOTH
+#&gt; [1] 0.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bread alone has support 0.6, and {bread, butter} together has support 0.4. Support is the raw popularity of a combination. It says nothing yet about <em>direction</em>, whether buying one pulls the other along. That is the next number's job.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"df %>% mutate(support = count / 10)","caption":"support is each item count divided by the 10 receipts.","before":{"cols":["item","count"],"rows":[["beer",3],["bread",6],["butter",4],["cereal",1],["chips",3],["jam",2],["milk",3],["salsa",1]]},"after":{"cols":["item","count","support"],"rows":[["beer",3,0.3],["bread",6,0.6],["butter",4,0.4],["cereal",1,0.1],["chips",3,0.3],["jam",2,0.2],["milk",3,0.3],["salsa",1,0.1]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second number</div>
+<h2>Confidence: given X, how often Y?</h2>
+
+<p>Support treats \(X\) and \(Y\) symmetrically. But Priya's question has a direction: <em>given</em> that someone bought bread, how often do they also grab butter? That conditional is <strong>confidence</strong>.</p>
+
+<p>For a rule \(X \Rightarrow Y\), confidence is the support of the two together divided by the support of \(X\) alone:</p>
+
+<p>\[ \mathrm{confidence}(X \Rightarrow Y) = \frac{\mathrm{support}(X \cup Y)}{\mathrm{support}(X)} = P(Y \mid X) \]</p>
+
+<p>Here \(X \cup Y\) means "a receipt that holds all of \(X\) and all of \(Y\)," and the whole thing reads as \(P(Y \mid X)\), "the probability of \(Y\) given \(X\)." In words: of all the receipts with \(X\) on them, what share also have \(Y\)?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># confidence(X =&gt; Y) = support(X and Y) / support(X), the share of X-buyers who take Y
+confidence &lt;- function(x, y) support(c(x, y)) / support(x)
+
+confidence(&quot;bread&quot;, &quot;butter&quot;)    # of the 6 bread receipts, how many also have butter?
+#&gt; [1] 0.6666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two-thirds of bread-buyers also take butter. That sounds like a strong rule, and Priya is ready to rearrange her shelves. But a single number is about to trick her.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Support or confidence?</h2>
+
+<p>Of Priya's 10 receipts, <strong>6</strong> contain bread and <strong>4</strong> contain both bread and butter. For the rule "bread \(\Rightarrow\) butter", what are its support and its confidence?</p>
+<section class="exercise" data-exercise-id="Association-Rules-and-Market-Basket-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Support is 0.4 and confidence is about 0.67</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Support is about 0.67 and confidence is 0.4</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Both are 0.4, since the same 4 receipts drive each one</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Support is the share of ALL receipts with both items (4 of 10 = 0.4). Confidence conditions on bread-buyers only (4 of the 6 bread receipts = 0.67).</div><div class="lesson-qfb lesson-qfb-no">Same 4 receipts, but different denominators: support divides by all 10, confidence divides by the 6 that have bread, giving 4/6 = 0.67.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The number that decides</div>
+<h2>Lift: is it more than chance?</h2>
+
+<p>Here is the trap. Confidence of "bread \(\Rightarrow\) butter" is 67%. But butter-buyers are not the only reason that number is high; bread being on 6 of 10 receipts inflates <em>every</em> rule that ends in a common item. To judge a rule fairly we must compare its confidence against the item's baseline popularity. That comparison is <strong>lift</strong>.</p>
+
+<p>\[ \mathrm{lift}(X \Rightarrow Y) = \frac{\mathrm{confidence}(X \Rightarrow Y)}{\mathrm{support}(Y)} = \frac{P(Y \mid X)}{P(Y)} \]</p>
+
+<p>The denominator \(\mathrm{support}(Y)\) is how often \(Y\) is bought by <em>anyone</em>, the chance rate. So lift asks: do \(X\)-buyers take \(Y\) more often than shoppers in general? Read it as a multiplier. <strong>Lift \(> 1\)</strong>: they go together more than chance (a real association). <strong>Lift \(= 1\)</strong>: independent, \(X\) tells you nothing about \(Y\). <strong>Lift \(< 1\)</strong>: they repel, buying \(X\) makes \(Y\) <em>less</em> likely.</p>
+
+<p>Now watch lift do what confidence cannot. Below are two rules with <strong>identical</strong> confidence:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># lift(X =&gt; Y) = confidence(X =&gt; Y) / support(Y): how many times more than chance
+lift &lt;- function(x, y) confidence(x, y) / support(y)
+
+# Same confidence for both rules...
+c(bread_then_butter = confidence(&quot;bread&quot;, &quot;butter&quot;),
+  milk_then_bread   = confidence(&quot;milk&quot;,  &quot;bread&quot;))
+#&gt; bread_then_butter   milk_then_bread
+#&gt;         0.6666667         0.6666667
+
+# ...but very different lift
+c(bread_then_butter = lift(&quot;bread&quot;, &quot;butter&quot;),
+  milk_then_bread   = lift(&quot;milk&quot;,  &quot;bread&quot;))
+#&gt; bread_then_butter   milk_then_bread
+#&gt;          1.666667          1.111111</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Both rules have 67% confidence, yet bread \(\Rightarrow\) butter has lift <strong>1.67</strong> while milk \(\Rightarrow\) bread has lift <strong>1.11</strong>. The difference is entirely the consequent's popularity: milk-buyers reach for bread mostly because bread is already on 60% of receipts, so the rule barely beats chance. Bread-buyers reach for butter far more than the average shopper does. Lift, not confidence, tells the real pattern from the popularity mirage, and it settles Priya's question: bread and butter genuinely belong together.</div></div>
+
+<p>Try the widget again with this in mind: pick "bread → milk" (lift near 1) versus "beer → chips" (lift well above 1) and watch the lift bar, not the confidence bar, do the deciding.</p>
+<div class="lesson-widget" data-widget-type="assoc-rules" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute a lift yourself</h2>
+
+<p>Priya's most eye-catching pair is beer and chips: every beer receipt also has chips. Compute the lift of the rule "beer \(\Rightarrow\) chips". Remember the formula: lift is the rule's confidence divided by the support of the <strong>consequent</strong> (the item after the arrow). Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Association-Rules-and-Market-Basket-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="support\([^)]*chips"><textarea class="lesson-tryit-input" spellcheck="false"># lift = confidence(X =&gt; Y) divided by the support of Y (the consequent)
+lift_beer_chips &lt;- confidence(&quot;beer&quot;, &quot;chips&quot;) / support(____)
+lift_beer_chips</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. beer => chips has confidence 1.0 (every beer receipt also holds chips) and lift 3.33, the strongest rule in Priya's data.</span><span class="lesson-tryit-fb lesson-tryit-no">Lift divides confidence by the support of the CONSEQUENT, the item after the arrow. Here that is chips, so the denominator is the support of chips.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">lift_beer_chips &lt;- confidence(&quot;beer&quot;, &quot;chips&quot;) / support(&quot;chips&quot;)
+lift_beer_chips
+#&gt; [1] 3.333333</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">At scale</div>
+<h2>Finding rules with arules</h2>
+
+<p>Priya has 8 items and could eyeball every pair. A real retailer has tens of thousands, and the number of possible itemsets grows like \(2^k\) for \(k\) items, far too many to check one by one. The classic fix is the <strong>Apriori principle</strong>: if an itemset is rare, every larger set that contains it is at least as rare, so once {beer} falls below the minimum support you can skip <em>every</em> rule built on beer. That single pruning rule is what makes mining millions of baskets feasible, and it is the engine inside R's <code>arules</code> package.</p>
+
+<p>The workflow is always the same four moves.</p>
+
+<p>In R that is a few lines. The numbers it prints are exactly the support, confidence, and lift you just computed by hand, now found automatically.</p>
+
+<pre><code class="language-r"># The production tool. Run this in your own R session: the interactive R on this
+# page does not ship the compiled arules core, but everything above already showed
+# you what each number means.
+library(arules)
+
+# 1. turn the receipts into a transactions object
+baskets &lt;- list(
+  c(&quot;bread&quot;, &quot;butter&quot;, &quot;milk&quot;), c(&quot;bread&quot;, &quot;butter&quot;), c(&quot;bread&quot;, &quot;milk&quot;),
+  c(&quot;beer&quot;, &quot;chips&quot;), c(&quot;bread&quot;, &quot;butter&quot;, &quot;jam&quot;), c(&quot;beer&quot;, &quot;chips&quot;, &quot;salsa&quot;),
+  c(&quot;bread&quot;, &quot;butter&quot;), c(&quot;milk&quot;, &quot;cereal&quot;), c(&quot;beer&quot;, &quot;chips&quot;), c(&quot;bread&quot;, &quot;jam&quot;)
+)
+tx &lt;- as(baskets, &quot;transactions&quot;)
+
+# 2. mine every rule that clears a minimum support and confidence (Apriori)
+rules &lt;- apriori(tx, parameter = list(supp = 0.2, conf = 0.5, minlen = 2))
+
+# 3. rank by lift and read the strongest rules
+inspect(sort(rules, by = &quot;lift&quot;))
+#&gt;     lhs           rhs        support confidence lift
+#&gt; [1] {beer}     =&gt; {chips}       0.3       1.00 3.33
+#&gt; [2] {chips}    =&gt; {beer}        0.3       1.00 3.33
+#&gt; [3] {butter}   =&gt; {bread}       0.4       1.00 1.67
+#&gt; [4] {jam}      =&gt; {bread}       0.2       1.00 1.67
+#&gt; [5] {bread}    =&gt; {butter}      0.4       0.67 1.67
+#&gt; [6] {milk}     =&gt; {bread}       0.2       0.67 1.11</code></pre>
+
+<p>The <code>supp = 0.2</code> and <code>conf = 0.5</code> are Priya's thresholds: a rule must appear on at least 2 receipts and hold at least half the time, or it is dropped before lift is even considered. That minimum support is not a formality, as the next step shows.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"List the baskets","sub":"one row per shopping trip, held as a transactions object"},{"title":"Mine frequent rules","sub":"apriori keeps only rules above a minimum support and confidence"},{"title":"Rank by lift","sub":"sort so the strongest above-chance rules rise to the top"},{"title":"Act on the winners","sub":"shelve, bundle or recommend the items that truly go together"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which rule should Priya act on?</h2>
+
+<p>Priya finds two well-supported rules. Rule A, "milk \(\Rightarrow\) bread", has 67% confidence and lift <strong>1.11</strong>. Rule B, "bread \(\Rightarrow\) butter", has 67% confidence and lift <strong>1.67</strong>. Which should she build a shelf change around, and why?</p>
+<section class="exercise" data-exercise-id="Association-Rules-and-Market-Basket-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Rule A, because milk is a staple, so a milk-buyer heading for bread is a dependable pattern</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Rule B, because its lift of 1.67 shows butter is bought far more by bread-buyers than by shoppers in general, while Rule A's lift of 1.11 is barely above chance</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Either one, since identical confidence means identical strength</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Equal confidence, but lift separates them: 1.67 is a genuine above-chance pull, 1.11 is almost entirely bread being common.</div><div class="lesson-qfb lesson-qfb-no">Confidence alone is what fools you here. Same 67%, but lift tells them apart: 1.67 (real) versus 1.11 (mostly because bread is popular).</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Read them honestly</div>
+<h2>Where these numbers mislead</h2>
+
+<p>Lift is powerful, but three cautions keep it from steering you wrong. First, a lift below 1 is real information: it means the two items <em>avoid</em> each other. Second, a spectacular lift on almost no receipts is a fluke, not a pattern, which is why a minimum support comes first. Watch both:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># lift = 1 is independent; lift &lt; 1 means the items AVOID each other
+lift(&quot;milk&quot;, &quot;beer&quot;)     # milk and beer never share a receipt here
+#&gt; [1] 0
+
+# beer =&gt; salsa has the SAME lift as beer =&gt; chips (3.33)...
+lift(&quot;beer&quot;, &quot;salsa&quot;)
+#&gt; [1] 3.333333
+support(c(&quot;beer&quot;, &quot;salsa&quot;))   # ...but it rests on a single receipt out of 10
+#&gt; [1] 0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Beer \(\Rightarrow\) salsa looks as strong as beer \(\Rightarrow\) chips on lift alone (both 3.33), but it appears on exactly one receipt. Support 0.1 means one lucky basket could have produced it; support 0.3 for beer and chips means a repeated habit. Always read support and lift <em>together</em>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A rule is co-occurrence, not causation. "bread \(\Rightarrow\) butter" does not mean bread <em>makes</em> people buy butter; both are likely driven by a shared reason (someone making sandwiches). Association rules tell you what to shelve together or recommend, not what causes what. Proving that one purchase <em>causes</em> another needs a controlled experiment, a different toolkit entirely.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1145/170035.170072">Agrawal, Imielinski and Swami (1993), Mining Association Rules Between Sets of Items, ACM SIGMOD</a> - the paper that introduced support and confidence for market baskets.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v014.i15">Hahsler, Grun and Hornik (2005), arules: Mining Association Rules, Journal of Statistical Software</a> - the R package you used here, and the Apriori and Eclat algorithms it wraps.</li>
+
+<li><a href="https://cran.r-project.org/package=arules">The arules package on CRAN</a> - install it and read the vignette to run everything above at real scale.</li>
+
+<li><a href="https://www-users.cse.umn.edu/~kumar001/dmbook/index.php">Tan, Steinbach and Kumar, Introduction to Data Mining (free Association Analysis chapter)</a> - the full theory: itemsets, the Apriori principle, and interest measures beyond lift.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 8 complete</h2>
+
+<p>You can now turn a pile of baskets into rules and read them without being fooled. Support tells you how often a combination appears; confidence tells you how often \(Y\) follows \(X\); and lift, the number that decides, tells you whether that following beats plain chance. You saw why two rules with the same 67% confidence can be worlds apart, mined and ranked rules with <code>arules</code>, and learned to hold support and lift together so a one-basket fluke never masquerades as a pattern.</p>
+
+<p>That was the final lesson of <strong>Unsupervised Learning in R</strong>. Across the course you learned to compress variables with PCA, find groups with k-means and hierarchical clustering, model soft clusters with mixtures, judge whether clusters are real, map high-dimensional data with t-SNE, and now surface the patterns hiding in transaction data. Head back to the <a href="R-Unsupervised-Learning-Course.html">course landing</a> to review any lesson or claim your certificate.</p>
+</section>
+
+{% endraw %}

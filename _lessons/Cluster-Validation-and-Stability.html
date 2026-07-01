@@ -1,0 +1,352 @@
+---
+title: "Unsupervised Learning Lesson 6: Cluster Validation and Stability"
+description: "Validate clustering in R from scratch: read a silhouette, use the gap statistic to test whether clusters exist at all, and check stability with the bootstrap."
+keywords: "cluster validation in R, silhouette, gap statistic, clusGap, cluster stability, bootstrap clustering, choosing k, internal validation, unsupervised learning, clusterboot"
+mathjax: true
+webr: true
+curriculum_id: "6.9.6"
+post_type: "LESSON"
+course_id: "ds-unsupervised"
+course_title: "Unsupervised Learning in R"
+course_lesson: "6"
+course_total: "8"
+course_landing: "R-Unsupervised-Learning-Course.html"
+course_next: "t-SNE-and-UMAP.html"
+course_prev: "Gaussian-Mixture-Models.html"
+lesson_access: "free"
+catalog_blurb: "How to tell whether the clusters you found are real, not just noise."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 8</div>
+<h2>Cluster Validation and Stability</h2>
+
+<p>Back in Lesson 3, k-means sorted Maria's 90 coffee-shop regulars into three neat loyalty tiers: the occasional crowd, the regulars, and the devotees. Lessons 4 and 5 gave her other ways to draw the same map. Every one of them handed back tidy groups.</p>
+
+<p>Here is the uncomfortable question none of those methods can answer for her: <strong>are the three tiers real?</strong> k-means will just as happily carve three tiers out of pure random noise. It never tells you whether it found structure or invented it. This lesson is the reality check, the set of tools that tell genuine groups from a pattern the algorithm merely painted on.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a clustering algorithm always returns groups, even when there are none, so a clustering must be validated rather than trusted</li>
+
+<li>Read a silhouette as a validation score, and use the gap statistic to test whether clusters exist at all, k=1 included</li>
+
+<li>Check whether your clusters are stable by resampling the data and measuring how often the same groups come back</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you have done <a href="k-Means-and-Choosing-k.html">Lesson 3 on k-means</a> (clustering, distance, scaling, the within-cluster spread W, the elbow, and the silhouette). <a href="Gaussian-Mixture-Models.html">Lesson 5 on Gaussian mixtures</a> helps but is not required. Every symbol is re-defined as it appears.</p>
+
+<p>The scatter below is what we are putting on trial: Maria's customers, coloured by the tier k-means gave them.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":3,"y":4.0,"fill":"occasional"},{"x":5,"y":4.4,"fill":"occasional"},{"x":4,"y":3.9,"fill":"occasional"},{"x":6,"y":4.3,"fill":"occasional"},{"x":12,"y":5.1,"fill":"regular"},{"x":14,"y":4.8,"fill":"regular"},{"x":13,"y":5.3,"fill":"regular"},{"x":11,"y":4.9,"fill":"regular"},{"x":19,"y":8.6,"fill":"devotee"},{"x":21,"y":9.0,"fill":"devotee"},{"x":20,"y":8.9,"fill":"devotee"},{"x":22,"y":8.7,"fill":"devotee"}],"geoms":["point"],"x":"visits","y":"spend"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Clustering always gives an answer</h2>
+
+<p>Ask k-means for three groups and it will find three groups. That is the trap: it is a machine that partitions, and a partition exists for any data you feed it, structured or not. To feel how empty that guarantee is, let us cluster data we KNOW has no groups, 90 points scattered completely at random inside a square.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+noise &lt;- matrix(runif(180), ncol = 2)     # 90 points, thrown down at random - NO real groups
+table(kmeans(noise, centers = 3, nstart = 10)$cluster)
+#&gt; 
+#&gt;  1  2  3
+#&gt; 29 31 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three tidy groups, all a similar size. If you coloured them on a scatter they would look like three tiers, exactly like Maria's picture on the previous step. But we built this data ourselves: there is nothing there. The tiers are an artefact of asking for three.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A clustering algorithm cannot tell you whether its groups are real. It optimises a number (for k-means, the within-cluster spread W), and it will optimise that number on noise just as eagerly as on genuine structure. Validation is a separate job, and it is yours.</div></div>
+
+<p>So we need outside evidence. The rest of this lesson builds three independent checks: <strong>the silhouette</strong> (are the groups well separated?), <strong>the gap statistic</strong> (is there any grouping at all?), and <strong>stability</strong> (do the groups survive a reshuffle?). We run all three on Maria's tiers and see whether they hold up.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 1</div>
+<h2>The silhouette: how well does each point fit?</h2>
+
+<p>You met the silhouette in Lesson 3 as a way to pick k. It is also the most direct internal check on a finished clustering, because it scores every single point on how well it sits in its assigned group.</p>
+
+<p>For one customer \(i\), let \(a(i)\) be their average distance to the other members of their OWN cluster (how snug the fit is), and \(b(i)\) their average distance to the members of the nearest OTHER cluster (how far the next-best group is). The silhouette width is</p>
+
+<p>\[ s(i) = \frac{b(i) - a(i)}{\max\big(a(i),\, b(i)\big)} \]</p>
+
+<p>It runs from \(-1\) to \(1\): near \(1\) the point sits deep inside its own group and far from any other (a clean fit); near \(0\) it straddles the border between two groups; <strong>negative</strong> means it is on average closer to a neighbouring group than to its own, a sign it may be in the wrong cluster. Two numbers turn this into a verdict: the <strong>overall average</strong> width (one score for the whole clustering) and the <strong>per-cluster average</strong> width (which reveals a single weak group that a good overall score would hide). As a rough guide (Kaufman and Rousseeuw), an overall width above 0.7 is strong, 0.5 to 0.7 is reasonable, and below 0.25 means no real structure.</p>
+
+<p>First rebuild Maria's data, since each lesson runs in a fresh R session, then score the k-means clustering.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+make_group &lt;- function(n, v, s) data.frame(
+  visits = round(pmax(rnorm(n, v, 1.6), 1), 1),   # coffees per month
+  spend  = round(pmax(rnorm(n, s, 0.5), 1), 2)    # average dollars per visit
+)
+cafe &lt;- rbind(make_group(30,  4, 4.2),    # occasional
+              make_group(30, 13, 5.0),    # regulars
+              make_group(30, 20, 8.8))    # devotees
+cafe &lt;- cafe[sample(nrow(cafe)), ]        # shuffle so row order hides the groups
+rownames(cafe) &lt;- NULL
+x  &lt;- scale(cafe)                         # standardise: visits and spend get an equal say
+km &lt;- kmeans(x, centers = 3, nstart = 25)
+km$size
+#&gt; [1] 30 30 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(cluster)                          # ships with R; provides silhouette()
+sil &lt;- silhouette(km$cluster, dist(x))
+round(mean(sil[, &quot;sil_width&quot;]), 2)        # overall average silhouette width
+#&gt; [1] 0.74
+round(summary(sil)$clus.avg.widths, 2)    # average width within each tier
+#&gt;    1    2    3
+#&gt; 0.67 0.81 0.73
+mean(sil[, &quot;sil_width&quot;] &lt; 0)              # share of customers who fit better elsewhere
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An overall width around 0.74 is a strong, well-separated clustering (comfortably past the 0.7 mark), and no customer has a negative width, so nobody is obviously misfiled. Notice the per-tier line, though: one tier (0.67) is a little less tight than the other two (0.81 and 0.73). That is the silhouette earning its keep, pointing straight at the group whose separation is weakest.</p>
+
+<p>The interactive below lets you feel the silhouette across values of k. Switch to the <strong>silhouette</strong> view and drag the k marker: it peaks at the k with the cleanest separation, and slumps when you ask for too many or too few groups.</p>
+<div class="lesson-widget" data-widget-type="cluster-validate" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the two numbers</h2>
+
+<p>You cluster a new dataset and get an <strong>overall</strong> average silhouette width of 0.62, which looks healthy. But the <strong>per-cluster</strong> widths are 0.81, 0.79, and 0.06. What is the most useful reading?</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The clustering is uniformly good; 0.62 is above the 0.5 "reasonable" line, so all three groups are well separated</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Two groups are well separated but the third (width 0.06) is essentially not a real cluster; its members sit on the border and would be worth re-examining</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A width of 0.06 is fine because it is still positive, and only negative widths signal a problem</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The per-cluster widths are exactly what the overall average conceals. A 0.06 group is not separated from its neighbours, so the honest move is to question that third group, maybe the true k is 2.</div><div class="lesson-qfb lesson-qfb-no">Positive but near zero means "sitting on the boundary," not "well fitted." You reserve alarm for negatives, but a near-zero cluster is still a weak, questionable group.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 2</div>
+<h2>The gap statistic: is there any grouping at all?</h2>
+
+<p>The silhouette has a blind spot. It is only defined for two or more clusters, because \(b(i)\), the distance to the nearest OTHER group, needs another group to exist. So it can rank k=2 against k=3, but it can never test the most important hypothesis of all: <strong>k=1, there are no groups</strong>. That is the gap statistic's job.</p>
+
+<p>The idea is a comparison against a null. Recall from Lesson 3 the within-cluster spread \(W_k\), the total squared distance from every point to its cluster centre; it always shrinks as k grows. The gap statistic asks: does \(W_k\) shrink FASTER for our data than it would for structureless data spread over the same range? It measures that against a <strong>uniform reference</strong> (points scattered at random across the data's range, the same kind of structureless noise we built two steps ago) and defines</p>
+
+<p>\[ \mathrm{Gap}(k) = \underbrace{E_n^*\!\left[\log W_k\right]}_{\text{null: averaged over random references}} - \; \log W_k \]</p>
+
+<p>where \(E_n^*[\log W_k]\) is the average \(\log W_k\) across many random reference datasets, and \(\log W_k\) is the value for your real data. A big gap means your data clusters much more tightly than random noise would; a gap near zero means it is no better than noise. You pick k by the <strong>one-standard-error rule</strong>: the smallest k whose gap is within one standard error of the following one,</p>
+
+<p>\[ \text{choose the smallest } k \text{ such that } \mathrm{Gap}(k) \ge \mathrm{Gap}(k+1) - s_{k+1} \]</p>
+
+<p>where \(s_{k+1}\) is the standard error of the reference average at \(k+1\). Crucially, this rule can land on <strong>k=1</strong>, its way of saying "stop, there are no real clusters here." The <code>clusGap()</code> function in the <code>cluster</code> package does the whole computation, references and all.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+gap &lt;- clusGap(x, FUN = kmeans, nstart = 10, K.max = 6, B = 25)   # x = Maria's scaled data
+round(gap$Tab[, &quot;gap&quot;], 3)                                        # the gap at k = 1..6
+#&gt; [1] -0.062  0.228  0.649  0.593  0.545  0.533
+maxSE(gap$Tab[, &quot;gap&quot;], gap$Tab[, &quot;SE.sim&quot;], method = &quot;firstSEmax&quot;)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gap climbs steeply, peaks at k=3, and then falls back, so the one-SE rule selects <strong>k=3</strong>. Maria's three tiers pass. Now the acid test: run the identical procedure on the pure-noise data, which we know has no groups.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+gap0 &lt;- clusGap(noise, FUN = kmeans, nstart = 10, K.max = 6, B = 25)
+maxSE(gap0$Tab[, &quot;gap&quot;], gap0$Tab[, &quot;SE.sim&quot;], method = &quot;firstSEmax&quot;)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On the noise, the gap statistic returns <strong>k=1</strong>. It refuses to invent tiers where there are none.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Of the three checks, only the gap statistic can vote "no clusters." The elbow and the silhouette both assume you have already decided to cluster and only help you tune k; the gap tests the prior question of whether you should cluster at all. Run it first.</div></div>
+
+<p>The panel below is the elbow view of that same \(W_k\) curve, the raw material the gap statistic compares against a random baseline.</p>
+<div class="lesson-widget" data-widget-type="cluster-validate" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Where each tool stops</h2>
+
+<p>A colleague hands you a dataset, insists it has "obviously three segments," and shows you a silhouette that peaks at k=3. You are not convinced the data has ANY real segments. Which check settles it, and why?</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The gap statistic, because it compares the data against a structureless reference and can return k=1, the verdict that there are no genuine segments</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The silhouette at k=3 already proves the segments are real; a peak is conclusive</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither can tell; you would have to eyeball the scatter plot and decide by hand</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A silhouette peaking at k=3 only means 3 beats 2 or 4; it cannot say whether even one split is justified, because it is undefined at k=1. The gap statistic tests against random noise, so it alone can conclude "no clusters."</div><div class="lesson-qfb lesson-qfb-no">Eyeballing is a fine sanity check but not a settled answer, and it fails in more than two dimensions. The gap statistic gives a principled test of exactly this question.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 3</div>
+<h2>Stability: do the groups survive a reshuffle?</h2>
+
+<p>A silhouette and a gap both judge one fixed clustering of one fixed dataset. But a real, meaningful grouping should be <strong>stable</strong>: if Maria had happened to log a slightly different sample of customers, she should get essentially the same tiers back. If tiny changes to the data reshuffle everyone into different groups, the structure was fragile and probably not real.</p>
+
+<p>We test that with the <strong>bootstrap</strong>: resample the customers with replacement to make a slightly different dataset, re-cluster it, and measure how much the new grouping agrees with the original. Repeat many times and average the agreement. The widget shows one bootstrap draw, some customers picked more than once, some left out.</p>
+
+<p>To turn "agree" into a number we use the <strong>Rand index</strong>: over every possible pair of customers, what fraction of pairs do the two clusterings treat the same way, both-together or both-apart? It runs from 0 to 1; near 1 means the two groupings are nearly identical. There is a neat one-liner for it: <code>outer(a, a, &quot;==&quot;)</code> builds the table of "are customers \(i\) and \(j\) in the same group?", and comparing that table for the two clusterings gives the fraction of pairs that agree.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rand index: the share of customer PAIRS on which two clusterings agree
+coagree &lt;- function(a, b) mean(outer(a, a, &quot;==&quot;) == outer(b, b, &quot;==&quot;))
+
+# assign every original customer to the nearest centre of a new clustering
+assign_to &lt;- function(x, centers) {
+  d &lt;- as.matrix(dist(rbind(centers, x)))
+  k &lt;- nrow(centers)
+  max.col(-d[-(1:k), seq_len(k)])          # for each point, the closest centre
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plan: bootstrap-resample the rows, cluster the resample, project its centres back onto ALL the original customers, and compare that labelling to the original with <code>coagree()</code>. A high average across many resamples means the tiers keep coming back.</p>
+<div class="lesson-widget" data-widget-type="bootstrap-sample" data-widget-config='{"tail":"Re-cluster this resample and compare it back to the original tiers."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Measure the stability of Maria's tiers</h2>
+
+<p>Below is the stability loop. The one thing that makes it a bootstrap is drawing the resample <strong>with replacement</strong>, so some customers repeat and some drop out, giving each resample its own slightly different shape. Fill in the blank that does that. (<code>km</code>, <code>x</code>, <code>coagree</code> and <code>assign_to</code> were built in the previous steps.)</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="replace\s*=\s*TRUE"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(7)
+ref &lt;- km$cluster                          # the original tiers we want to trust
+stability &lt;- replicate(50, {
+  idx &lt;- sample(nrow(x), ____)             # a bootstrap resample of the customers
+  cb  &lt;- kmeans(x[idx, ], centers = 3, nstart = 10)
+  coagree(ref, assign_to(x, cb$centers))   # how well this resample's tiers match the original
+})
+round(mean(stability), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: sampling with replacement is what makes it a bootstrap. Maria's tiers come back with essentially 1.00 agreement across resamples - very stable.</span><span class="lesson-tryit-fb lesson-tryit-no">A bootstrap resamples WITH replacement: sample(nrow(x), replace = TRUE).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(7)
+ref &lt;- km$cluster
+stability &lt;- replicate(50, {
+  idx &lt;- sample(nrow(x), replace = TRUE)
+  cb  &lt;- kmeans(x[idx, ], centers = 3, nstart = 10)
+  coagree(ref, assign_to(x, cb$centers))
+})
+round(mean(stability), 2)
+#&gt; [1] 1</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>Three checks, one honest verdict</h2>
+
+<p>No single number certifies a clustering. You triangulate:</p>
+
+<ul>
+
+<li><strong>Gap statistic first</strong> - does the data cluster at all, or is k=1 the honest answer?</li>
+
+<li><strong>Silhouette</strong> - if it does cluster, are the groups well separated, overall AND per cluster?</li>
+
+<li><strong>Stability</strong> - do the same groups survive resampling, or do they dissolve?</li>
+
+</ul>
+
+<p>Maria's tiers passed all three: a gap that selected k=3, a strong silhouette, and near-perfect bootstrap agreement. That is a clustering you can build a loyalty program on. When the three disagree, treat k as genuinely uncertain and let the decision the clusters will drive break the tie.</p>
+
+<p>In production R you would not hand-roll the stability loop. The <code>fpc</code> package wraps exactly this idea in <code>clusterboot()</code>, reporting a bootstrap Jaccard stability per cluster (rule of thumb: above 0.85 stable, below 0.6 probably not real).</p>
+
+<pre><code class="language-r">library(fpc)
+# clusterboot resamples B times, re-clusters, and scores each cluster's mean
+# Jaccard similarity to the original. Run this in your own R session (fpc is
+# not preinstalled in the interactive R here).
+cb &lt;- clusterboot(scale(cafe), B = 100, clustermethod = kmeansCBI,
+                  krange = 3, seed = 7)
+cb$bootmean          # one stability score per tier: higher is more reproducible</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Validation cannot conjure structure that is not there. If the gap says k=1 and the silhouette never clears 0.25, the honest report is "no clusters," not a prettier k. In Lesson 7 you will meet t-SNE and UMAP, which draw striking 2-D pictures of high-dimensional data, and precisely because they always produce a compelling picture, these same validation instincts are what stop you from reading groups into an embedding that has none.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five solid places to take cluster validation further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1111/1467-9868.00293">Tibshirani, Walther and Hastie (2001), Estimating the number of clusters via the gap statistic, JRSS-B</a> - the paper that introduced the gap statistic and the one-SE selection rule you used.</li>
+
+<li><a href="https://doi.org/10.1016/0377-0427(87">Rousseeuw (1987), Silhouettes, J. Computational and Applied Mathematics</a>90125-7) - the original silhouette paper, with the \(s(i)\) definition in full.</li>
+
+<li><a href="https://doi.org/10.1016/j.csda.2006.11.025">Hennig (2007), Cluster-wise assessment of cluster stability, Comp. Statistics and Data Analysis</a> - the bootstrap-and-Jaccard stability idea behind <code>fpc::clusterboot</code>.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, chapter 12 (free PDF)</a> - clustering with a clear, honest treatment of its practical pitfalls.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/cluster/html/clusGap.html">clusGap {cluster}: the R function you used</a> - every argument of the gap-statistic implementation, and the <code>maxSE</code> selection methods.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 6 complete</h2>
+
+<p>You can now interrogate a clustering instead of trusting it. You saw that k-means will carve tiers out of pure noise, so validation is a separate job. You read the silhouette as a per-point and per-cluster score of separation, used the gap statistic to test the prior question of whether any clustering is justified (watching it return k=1 on noise and k=3 on Maria's real tiers), and measured stability by bootstrap-resampling the customers and checking how often the same groups came back. Together those three checks turn "the algorithm found groups" into "the groups are real."</p>
+
+<p>Next, Lesson 7: t-SNE and UMAP. These methods make gorgeous two-dimensional maps of high-dimensional data, and their very persuasiveness is the danger. You will learn to read those embeddings, and to spot the traps that make them show groups and distances that are not really there.</p>
+</section>
+
+{% endraw %}

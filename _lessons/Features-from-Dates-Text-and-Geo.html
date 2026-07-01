@@ -1,0 +1,407 @@
+---
+title: "Feature Engineering Lesson 5: Features from Dates, Text and Geo"
+description: "Engineer model-ready features from timestamps, text and coordinates in R: date parts, cyclical hour encoding, keyword flags, and great-circle distance."
+keywords: "feature engineering, date features, lubridate, cyclical encoding, text features, stringr, haversine distance, geospatial features, R, model-ready columns"
+mathjax: true
+webr: true
+curriculum_id: "6.60.5"
+post_type: "LESSON"
+course_id: "ds-feature-engineering"
+course_title: "Feature Engineering in R"
+course_lesson: "5"
+course_total: "7"
+course_landing: "R-Feature-Engineering-Course.html"
+course_next: "Imputing-Missing-Values-in-Features.html"
+course_prev: "Interaction-and-Spline-Features.html"
+lesson_access: "free"
+catalog_blurb: "Turn timestamps, text and coordinates into numeric features a model can actually use."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 7</div>
+<h2>Features from Dates, Text and Geo</h2>
+
+<p>Picture a food-delivery app at dinnertime. Order #4811 lands at 7:40pm on a Saturday. The customer typed a note, "Please hurry, the kids are starving." The food leaves a pizzeria at one pair of map coordinates and has to reach a flat about 2 km away.</p>
+
+<p>To a model, that order is three useless raw fields: a timestamp string, a sentence, and four decimal numbers. A model only eats numbers, and not one of these is a number it can learn from yet. Feature engineering is the craft of turning them into ones that are.</p>
+
+<p>In the last lesson you reshaped a feature you already had. This lesson manufactures features out of columns that are not numbers at all, a timestamp, a piece of text, a pair of coordinates, and you will do it for all three.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Crack a timestamp into calendar parts, and encode the cyclical ones so 11pm sits next to midnight</li>
+
+<li>Turn a free-text note into numeric signals a model can use</li>
+
+<li>Collapse two map coordinates into a single distance feature</li>
+
+</ul>
+
+<p>Press Run on the table below to watch one raw timestamp column become three model-ready ones.</p>
+
+<p><strong>Prerequisites:</strong> you can write a <code>mutate()</code> (<a href="The-dplyr-Verbs.html">The dplyr Verbs</a>) and you know a model is fed a table of numbers (<a href="Train-Validation-Test-and-Data-Leakage.html">Train/Validation/Test and Data Leakage</a>). The date and string functions are re-taught from scratch as we go.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"caption":"Each timestamp becomes columns a model can read: the hour of day, the weekday, and a weekend flag.","before":{"cols":["order_id","placed_at"],"rows":[[4811,"2026-03-14 19:40"],[4813,"2026-03-16 08:20"],[4814,"2026-03-16 21:55"],[4817,"2026-03-20 23:15"]]},"after":{"cols":["order_id","placed_at","hour","weekday","is_weekend"],"rows":[[4811,"2026-03-14 19:40",19,"Sat",1],[4813,"2026-03-16 08:20",8,"Mon",0],[4814,"2026-03-16 21:55",21,"Mon",0],[4817,"2026-03-20 23:15",23,"Fri",0]]},"code":"library(lubridate)\ndf %>% mutate(\n  hour       = hour(ymd_hm(placed_at)),\n  weekday    = wday(ymd_hm(placed_at), label = TRUE),\n  is_weekend = as.integer(wday(ymd_hm(placed_at)) %in% c(1, 7))\n)"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Dates</div>
+<h2>A timestamp is a stack of features</h2>
+
+<p>A single timestamp like <code>2026-03-14 19:40</code> quietly contains a dozen features. Buried inside it are the hour (dinner rush or 3am?), the day of week (weekday commute or lazy Sunday?), the month and season, and whether it is a weekend. A model cannot see any of that while the timestamp is still text. The first job is to parse the text into a real date-time, then pull the parts out into columns of their own.</p>
+
+<p>First, the data. Each lesson runs in a fresh R session, so we build the orders table right here (run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(lubridate)
+library(stringr)
+
+# 8 food-delivery orders: a raw timestamp, a free-text note, and pickup/drop coordinates.
+orders &lt;- tibble(
+  order_id  = 4811:4818,
+  placed_at = c(&quot;2026-03-14 19:40&quot;, &quot;2026-03-15 12:05&quot;, &quot;2026-03-16 08:20&quot;,
+                &quot;2026-03-16 21:55&quot;, &quot;2026-03-17 13:30&quot;, &quot;2026-03-18 19:10&quot;,
+                &quot;2026-03-20 23:15&quot;, &quot;2026-03-21 18:45&quot;),
+  note      = c(&quot;Please hurry, the kids are starving&quot;,
+                &quot;Leave at the door and ring twice&quot;,
+                &quot;&quot;,
+                &quot;Extra napkins please&quot;,
+                &quot;URGENT - meeting starts soon&quot;,
+                &quot;No contact delivery, thanks!&quot;,
+                &quot;Call me when you arrive&quot;,
+                &quot;Ring the top buzzer, hurry please&quot;),
+  rest_lat  = c(40.7128, 40.7320, 40.7480, 40.7128, 40.7600, 40.7128, 40.7350, 40.7500),
+  rest_lng  = c(-74.0060, -73.9870, -73.9850, -74.0060, -73.9810, -74.0060, -73.9900, -73.9700),
+  cust_lat  = c(40.7300, 40.7100, 40.7700, 40.7400, 40.7350, 40.7600, 40.7150, 40.7800),
+  cust_lng  = c(-73.9950, -74.0100, -73.9600, -73.9900, -73.9700, -73.9750, -74.0000, -73.9550)
+)
+glimpse(orders)
+#&gt; Rows: 8
+#&gt; Columns: 8
+#&gt; $ order_id  &lt;int&gt; 4811, 4812, 4813, 4814, 4815, 4816, 4817, 4818
+#&gt; $ placed_at &lt;chr&gt; &quot;2026-03-14 19:40&quot;, &quot;2026-03-15 12:05&quot;, &quot;2026-03-16 08:20&quot;, ...
+#&gt; $ note      &lt;chr&gt; &quot;Please hurry, the kids are starving&quot;, &quot;Leave at the door ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>lubridate</code> package parses dates and dissects them. <code>ymd_hm()</code> reads a "year-month-day hour:minute" string into a real datetime; then <code>hour()</code>, <code>wday()</code> and <code>month()</code> pull each piece out into its own column. We wrap them in <code>transmute()</code>, which is <code>mutate()</code> that keeps only the columns you name and drops the rest, so <code>features</code> holds just these:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">features &lt;- orders |&gt;
+  transmute(
+    order_id,
+    placed     = ymd_hm(placed_at),                      # text -&gt; a real datetime
+    hour       = hour(placed),                            # 0 to 23
+    weekday    = wday(placed, label = TRUE),              # Sun, Mon, ...
+    is_weekend = as.integer(wday(placed) %in% c(1, 7)),   # wday: 1 = Sun, 7 = Sat
+    month      = month(placed, label = TRUE)
+  )
+features
+#&gt; # A tibble: 8 x 6
+#&gt;   order_id placed               hour weekday is_weekend month
+#&gt;      &lt;int&gt; &lt;dttm&gt;              &lt;int&gt; &lt;ord&gt;        &lt;int&gt; &lt;ord&gt;
+#&gt; 1     4811 2026-03-14 19:40:00    19 Sat              1 Mar
+#&gt; 2     4812 2026-03-15 12:05:00    12 Sun              1 Mar
+#&gt; 3     4813 2026-03-16 08:20:00     8 Mon              0 Mar
+#&gt; 4     4814 2026-03-16 21:55:00    21 Mon              0 Mar
+#&gt; 5     4815 2026-03-17 13:30:00    13 Tue              0 Mar
+#&gt; 6     4816 2026-03-18 19:10:00    19 Wed              0 Mar
+#&gt; 7     4817 2026-03-20 23:15:00    23 Fri              0 Mar
+#&gt; 8     4818 2026-03-21 18:45:00    18 Sat              1 Mar</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A handful of parts worth manufacturing from almost any timestamp:</p>
+
+<ul>
+
+<li><strong>hour / part of day</strong> - rush hour, overnight, lunchtime</li>
+
+<li><strong>day of week</strong> and an <strong>is_weekend</strong> flag - behaviour shifts sharply on weekends</li>
+
+<li><strong>month / quarter / season</strong> - seasonality</li>
+
+<li><strong>is_holiday</strong> - checked against a holiday calendar for your country</li>
+
+<li><strong>days since a reference event</strong> - tenure, recency, time to a deadline</li>
+
+</ul>
+
+<p>One caution before we go on: do not blindly add all of them. A tree-based model can split on a raw <code>hour</code> perfectly well, so the cyclical trick we meet next matters most for linear and distance-based models. Engineer the parts the problem actually needs.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Dates: the cyclical trap</div>
+<h2>Why 11pm and midnight should be neighbours</h2>
+
+<p>There is a trap hiding in that tidy <code>hour</code> column. As a plain number, the hours run 0, 1, 2, all the way to 23, and then snap back to 0. So 23:00 and 00:00, just one hour apart in real life, look 23 units apart to the model, while 00:00 and 01:00 look 1 apart. The number line has a cliff at midnight that the clock does not.</p>
+
+<p>The fix is to bend the straight 0-to-23 line into a circle, so the last hour wraps around right next to the first. We place each hour at an angle and read off its position with sine and cosine:</p>
+
+<p>\( \text{hour\_sin} = \sin\!\left(\frac{2\pi h}{24}\right), \qquad \text{hour\_cos} = \cos\!\left(\frac{2\pi h}{24}\right) \)</p>
+
+<p>Here \(h\) is the hour from 0 to 23, and \(\frac{2\pi h}{24}\) turns it into an angle around a full circle (24 hours equals \(2\pi\) radians, one whole turn). The two numbers <code>hour_sin</code> and <code>hour_cos</code> together pin each hour to a point on a clock face. Now 23:00 and 00:00 land right next to each other, exactly as they should.</p>
+
+<p>Every hour sits on the circle. Trace it: hour 23 and hour 0 are neighbours, not opposites. Here is the encoding computed for the hours either side of midnight:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hrs &lt;- c(22, 23, 0, 1, 2)
+clock &lt;- tibble(
+  hour     = hrs,
+  hour_sin = round(sin(2 * pi * hrs / 24), 3),
+  hour_cos = round(cos(2 * pi * hrs / 24), 3)
+)
+clock
+#&gt; # A tibble: 5 x 3
+#&gt;    hour hour_sin hour_cos
+#&gt;   &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1    22   -0.5      0.866
+#&gt; 2    23   -0.259    0.966
+#&gt; 3     0    0        1
+#&gt; 4     1    0.259    0.966
+#&gt; 5     2    0.5      0.866</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at hours 23 and 0: their sine and cosine are almost identical, so in feature space they sit right on top of each other. The midnight cliff is gone.</p>
+
+<p>This cyclical encoding pays off for models that measure distance or fit straight lines (linear and logistic regression, kNN, neural nets). Tree models split on thresholds and mostly shrug at the midnight cliff, so do not bother encoding cyclically for them. The same trick works for day of week (period 7) and month (period 12).</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"x":"hour_cos","y":"hour_sin","geoms":["point"],"data":[{"x":1,"y":0},{"x":0.966,"y":0.259},{"x":0.866,"y":0.5},{"x":0.707,"y":0.707},{"x":0.5,"y":0.866},{"x":0.259,"y":0.966},{"x":0,"y":1},{"x":-0.259,"y":0.966},{"x":-0.5,"y":0.866},{"x":-0.707,"y":0.707},{"x":-0.866,"y":0.5},{"x":-0.966,"y":0.259},{"x":-1,"y":0},{"x":-0.966,"y":-0.259},{"x":-0.866,"y":-0.5},{"x":-0.707,"y":-0.707},{"x":-0.5,"y":-0.866},{"x":-0.259,"y":-0.966},{"x":0,"y":-1},{"x":0.259,"y":-0.966},{"x":0.5,"y":-0.866},{"x":0.707,"y":-0.707},{"x":0.866,"y":-0.5},{"x":0.966,"y":-0.259}],"code":{"point":"ggplot(df, aes(hour_cos, hour_sin)) +\n  geom_point(size = 3, colour = \"#1f7a55\") +\n  coord_equal() +\n  labs(title = \"Every hour placed on a 24-hour circle\")"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The midnight cliff</h2>
+
+<p>You feed a logistic-regression model the raw <code>hour</code> column (0 to 23) to predict late deliveries. Orders at 23:00 and at 00:00 behave almost identically in reality, but the model treats them as far apart. What is the right fix?</p>
+<section class="exercise" data-exercise-id="Features-from-Dates-Text-and-Geo-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Drop the hour feature; time of day cannot matter to a linear model.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Replace raw hour with its sine and cosine, so 23:00 and 00:00 land next to each other on a circle.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Standardize hour to mean 0 and standard deviation 1.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Cyclical sin/cos encoding removes the artificial midnight cliff, so hours that are close in time become close in feature space too.</div><div class="lesson-qfb lesson-qfb-no">Centering and scaling only shifts and stretches the same straight line; 23:00 and 00:00 stay 23 units apart. Only wrapping the hours onto a circle fixes the cliff.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Text</div>
+<h2>A note is a bag of cheap signals</h2>
+
+<p>Free text looks hopeless to a model, a different sentence in every row. But you rarely need to <em>understand</em> the text to get value from it; you can often just <em>measure</em> it. The simplest, sturdiest text features are counts and flags, computed one row at a time with the <code>stringr</code> package:</p>
+
+<ul>
+
+<li><strong>length</strong> with <code>str_length()</code> - longer instructions may signal a fussier or trickier delivery</li>
+
+<li><strong>word count</strong> with <code>str_count()</code></li>
+
+<li><strong>keyword flags</strong> with <code>str_detect()</code> - does the note say <em>hurry</em>, <em>urgent</em>, <em>fragile</em>, <em>gate code</em>?</li>
+
+<li><strong>has-digits or all-caps</strong> - a flat number to call, a SHOUTED instruction</li>
+
+</ul>
+
+<p>Press Run to turn the note column into three numeric ones.</p>
+
+<p>These are the cheap, sturdy end of natural-language features. Full text modelling, TF-IDF, word embeddings, transformers, lives further up the road (and in the NLP course). But a length and a few keyword flags cost almost nothing, and they often capture most of the signal a short note actually carries. Start here.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"caption":"A sentence becomes numbers: how long it is, how many words, and whether it signals urgency.","before":{"cols":["order_id","note"],"rows":[[4811,"Please hurry, the kids are starving"],[4812,"Leave at the door and ring twice"],[4813,""],[4815,"URGENT - meeting starts soon"]]},"after":{"cols":["order_id","note","note_len","word_count","has_urgent"],"rows":[[4811,"Please hurry, the kids are starving",35,6,1],[4812,"Leave at the door and ring twice",32,7,0],[4813,"",0,0,0],[4815,"URGENT - meeting starts soon",28,4,1]]},"code":"library(stringr)\ndf %>% mutate(\n  note_len   = str_length(note),\n  word_count = str_count(note, \"[A-Za-z]+\"),\n  has_urgent = as.integer(str_detect(str_to_lower(note), \"hurry|urgent|asap\"))\n)"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Flag the urgent orders</h2>
+
+<p>You suspect notes that beg the driver to <em>hurry</em> (or shout <em>URGENT</em>) predict a tighter delivery window. Build a 0/1 flag that is 1 when the note contains any of <code>hurry</code>, <code>urgent</code>, or <code>asap</code>. We lowercase the note first with <code>str_to_lower()</code> so <code>URGENT</code> and <code>urgent</code> both match; you fill in the search pattern for <code>str_detect()</code>. Inside a regex, <code>|</code> means OR.</p>
+<section class="exercise" data-exercise-id="Features-from-Dates-Text-and-Geo-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="(hurry|urgent|asap)"><textarea class="lesson-tryit-input" spellcheck="false">urgent_orders &lt;- orders |&gt;
+  mutate(is_urgent = as.integer(str_detect(str_to_lower(note), ____))) |&gt;
+  filter(is_urgent == 1) |&gt;
+  select(order_id, note, is_urgent)
+urgent_orders</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Nice. str_detect returns TRUE/FALSE for each note, and as.integer turns that into the 0/1 column a model wants.</span><span class="lesson-tryit-fb lesson-tryit-no">Pass the alternation as a quoted string: "hurry|urgent|asap". The | means OR, so it matches a note containing any of the three words.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">urgent_orders &lt;- orders |&gt;
+  mutate(is_urgent = as.integer(str_detect(str_to_lower(note), &quot;hurry|urgent|asap&quot;))) |&gt;
+  filter(is_urgent == 1) |&gt;
+  select(order_id, note, is_urgent)
+urgent_orders
+#&gt; # A tibble: 3 x 3
+#&gt;   order_id note                                is_urgent
+#&gt;      &lt;int&gt; &lt;chr&gt;                                   &lt;int&gt;
+#&gt; 1     4811 Please hurry, the kids are starving         1
+#&gt; 2     4815 URGENT - meeting starts soon                1
+#&gt; 3     4818 Ring the top buzzer, hurry please           1</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Geo</div>
+<h2>Two points, one distance</h2>
+
+<p>Now the coordinates. Each order has a pickup point (the restaurant) and a drop point (the customer), each a latitude/longitude pair. Handing those four raw numbers to a model is close to useless: a latitude of 40.71 means nothing on its own, and the model has no way to know that two nearby points are nearby. The <em>useful</em> feature is the one thing a courier actually cares about, how far apart they are.</p>
+
+<p>The honest way to measure the distance between two points on the globe is the <strong>Haversine formula</strong>, the great-circle (shortest path over a sphere) distance:</p>
+
+<p>\( a = \sin^2\!\left(\frac{\Delta\phi}{2}\right) + \cos\phi_1 \cos\phi_2 \, \sin^2\!\left(\frac{\Delta\lambda}{2}\right) \)</p>
+
+<p>\( d = 2R \,\arcsin\!\left(\sqrt{a}\right) \)</p>
+
+<p>Reading the symbols: \(\phi_1, \phi_2\) are the two latitudes and \(\lambda_1, \lambda_2\) the two longitudes (in radians); \(\Delta\phi\) and \(\Delta\lambda\) are the differences between them; \(R \approx 6371\) km is the Earth's radius; and \(d\) is the distance along the surface. The \(\cos\phi_1\cos\phi_2\) term corrects for lines of longitude bunching closer together as you move away from the equator.</p>
+
+<p>It is a few lines of base R, and it vectorizes over the whole column at once:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Haversine: great-circle distance (km) between two lat/lng points (Earth radius 6371 km).
+haversine_km &lt;- function(lat1, lon1, lat2, lon2) {
+  to_rad &lt;- pi / 180
+  dlat &lt;- (lat2 - lat1) * to_rad
+  dlon &lt;- (lon2 - lon1) * to_rad
+  a &lt;- sin(dlat / 2)^2 +
+       cos(lat1 * to_rad) * cos(lat2 * to_rad) * sin(dlon / 2)^2
+  2 * 6371 * asin(pmin(1, sqrt(a)))
+}
+
+orders |&gt;
+  mutate(distance_km = round(
+    haversine_km(rest_lat, rest_lng, cust_lat, cust_lng), 2)) |&gt;
+  select(order_id, distance_km)
+#&gt; # A tibble: 8 x 2
+#&gt;   order_id distance_km
+#&gt;      &lt;int&gt;       &lt;dbl&gt;
+#&gt; 1     4811        2.13
+#&gt; 2     4812        3.12
+#&gt; 3     4813        3.23
+#&gt; 4     4814        3.31
+#&gt; 5     4815        2.93
+#&gt; 6     4816        5.86
+#&gt; 7     4817        2.38
+#&gt; 8     4818        3.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A caveat worth knowing: Haversine gives the straight-line distance over a perfect sphere. Real delivery follows roads, so the true trip is longer, and Earth is a slightly squashed sphere, so very long distances drift by a fraction of a percent. For most models the great-circle distance is a strong, cheap feature; when you genuinely need road distance or travel time, those come from a routing API, not a formula.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"caption":"Two coordinate pairs collapse into one number a model can use: the straight-line distance in kilometers.","before":{"cols":["order_id","rest_lat","rest_lng","cust_lat","cust_lng"],"rows":[[4811,40.7128,-74.006,40.73,-73.995],[4813,40.748,-73.985,40.77,-73.96],[4817,40.735,-73.99,40.715,-74]]},"after":{"cols":["order_id","rest_lat","rest_lng","cust_lat","cust_lng","distance_km"],"rows":[[4811,40.7128,-74.006,40.73,-73.995,2.13],[4813,40.748,-73.985,40.77,-73.96,3.23],[4817,40.735,-73.99,40.715,-74,2.38]]},"code":"df %>% mutate(\n  distance_km = round(2 * 6371 * asin(sqrt(\n    sin((cust_lat - rest_lat) * pi / 180 / 2)^2 +\n    cos(rest_lat * pi / 180) * cos(cust_lat * pi / 180) *\n    sin((cust_lng - rest_lng) * pi / 180 / 2)^2\n  )), 2))"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why distance beats raw coordinates</h2>
+
+<p>A teammate skips the distance calculation and feeds the four raw columns <code>rest_lat</code>, <code>rest_lng</code>, <code>cust_lat</code>, <code>cust_lng</code> straight into a linear model. Why is the engineered <code>distance_km</code> usually a far better feature?</p>
+<section class="exercise" data-exercise-id="Features-from-Dates-Text-and-Geo-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A linear model treats each coordinate as a separate number and cannot combine four of them into "how far apart"; distance_km hands it the exact quantity that drives delivery time.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Raw coordinates always slow training down too much to use.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Latitude and longitude are categorical, so a model cannot use them at all.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The thing the model needs (closeness) is a nonlinear combination of all four raw columns. Computing the distance yourself gives the model the signal directly instead of hoping it reverse-engineers the Haversine formula on its own.</div><div class="lesson-qfb lesson-qfb-no">They are perfectly good continuous numbers. The trouble is only that, on their own, they do not encode the distance the model actually needs.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Built row by row, so it cannot leak</h2>
+
+<p>Put the three acts together and the order that was three useless raw fields becomes a tidy block of numbers a model can learn from:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_ready &lt;- orders |&gt;
+  transmute(
+    order_id,
+    # --- from the timestamp ---
+    hour        = hour(ymd_hm(placed_at)),
+    is_weekend  = as.integer(wday(ymd_hm(placed_at)) %in% c(1, 7)),
+    hour_sin    = sin(2 * pi * hour / 24),
+    hour_cos    = cos(2 * pi * hour / 24),
+    # --- from the note ---
+    note_len    = str_length(note),
+    has_urgent  = as.integer(str_detect(str_to_lower(note), &quot;hurry|urgent|asap&quot;)),
+    # --- from the coordinates ---
+    distance_km = round(haversine_km(rest_lat, rest_lng, cust_lat, cust_lng), 2)
+  )
+glimpse(model_ready)
+#&gt; Rows: 8
+#&gt; Columns: 8
+#&gt; $ order_id    &lt;int&gt; 4811, 4812, 4813, 4814, 4815, 4816, 4817, 4818
+#&gt; $ hour        &lt;int&gt; 19, 12, 8, 21, 13, 19, 23, 18
+#&gt; $ is_weekend  &lt;int&gt; 1, 1, 0, 0, 0, 0, 0, 1
+#&gt; $ hour_sin    &lt;dbl&gt; -0.966, 0, 0.866, -0.707, -0.259, -0.966, -0.259, -1
+#&gt; $ note_len    &lt;int&gt; 35, 32, 0, 20, 28, 28, 23, 33
+#&gt; $ has_urgent  &lt;int&gt; 1, 0, 0, 0, 1, 0, 0, 1
+#&gt; $ distance_km &lt;dbl&gt; 2.13, 3.12, 3.23, 3.31, 2.93, 5.86, 2.38, 3.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what every one of those features has in common. Each is computed from a single row using only that row's own values: the hour from this order's timestamp, the urgency flag from this order's note, the distance from this order's two points. Nothing was learned by looking across rows.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Row-wise features are leak-safe by construction. Because each value depends only on its own row, it is identical whether you compute it before or after a train/test split. So unlike the target encoding (Lesson 2), the scaling (Lesson 3), and the spline knots (Lesson 4), date, text and geo features like these cannot leak the test set into training.</div></div>
+
+<p>That is a real gift: you can engineer them once, up front, on the whole dataset, and move on. The moment a feature starts <em>learning</em> a statistic across rows, an average target per category, a mean to subtract, a set of knots, you are back in leakage territory and it has to move inside the modelling pipeline. Which is exactly the trap waiting in the next lesson.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.feat.engineering/">Kuhn & Johnson, <em>Feature Engineering and Selection</em> (free online)</a> - the practical reference for turning raw fields into model-ready predictors.</li>
+
+<li><a href="https://r4ds.hadley.nz/datetimes">R for Data Science (2e), ch.17 "Dates and times"</a> - parsing dates and pulling out components with lubridate.</li>
+
+<li><a href="https://r4ds.hadley.nz/strings">R for Data Science (2e), ch.14 "Strings"</a> - measuring and extracting from text with stringr.</li>
+
+<li><a href="https://www.movable-type.co.uk/scripts/latlong.html">Movable Type: distance between two lat/long points (Haversine)</a> - the great-circle formula, clearly derived.</li>
+
+<li><a href="https://recipes.tidymodels.org/reference/step_date.html">tidymodels recipes: step_date()</a> - building date features inside a leak-free modelling pipeline.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You turned three columns that were not numbers into features a model can use: a timestamp cracked into calendar parts and cyclical hours, a free-text note measured into length and keyword flags, and a pair of coordinates collapsed into one great-circle distance. And you saw why this whole family is safe to build up front, each feature reads only its own row, so none of it can leak.</p>
+
+<p>Next, Lesson 6: Imputing Missing Values in Features. Here is the twist: filling a gap means estimating it from the <em>other</em> rows (a mean, a median, a model), so imputation learns across rows and, done carelessly, leaks. You will learn to do it inside the pipeline so it stays honest.</p>
+</section>
+
+{% endraw %}

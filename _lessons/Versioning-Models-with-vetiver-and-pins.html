@@ -1,0 +1,336 @@
+---
+title: "Machine Learning in Production Lesson 2: Versioning models with vetiver and pins"
+description: "Version a model with pins and vetiver: store every model on a board, keep and retrieve any past version, and read it back ready to predict, no retraining."
+keywords: "vetiver R, pins R package, model versioning, MLOps in R, pin_write, vetiver_model, board_folder, model registry, reproducible model, deploy a model in R"
+webr: true
+curriculum_id: "6.120.2"
+post_type: "LESSON"
+course_id: "ds-production"
+course_title: "Machine Learning in Production"
+course_lesson: "2"
+course_total: "6"
+course_landing: "R-ML-Production-Course.html"
+course_next: "Serving-a-Model-with-plumber.html"
+course_prev: "Reproducible-Pipelines-with-targets.html"
+lesson_access: "free"
+catalog_blurb: "Register, version and retrieve a trained model so you know which one is live."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 6</div>
+<h2>Versioning models with vetiver and pins</h2>
+
+<p>In Lesson 1, Dev's <a href="Reproducible-Pipelines-with-targets.html">targets pipeline</a> started producing a trained model that predicts which meal-kit customers will cancel. Good. But right now that model is just a variable sitting in his R session. Close the laptop and it is gone. Retrain it next week and the old one is quietly overwritten, with no record of which model actually made last month's predictions.</p>
+
+<p>Code has git for exactly this problem. Models had nothing. This lesson gives them the same discipline: a place to <strong>register</strong> a model, keep <strong>every version</strong>, and <strong>retrieve</strong> any one of them on demand.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a model left as a workspace object is unsafe to ship</li>
+
+<li>Store a model on a <strong>board</strong> and read it back, in any session, with pins</li>
+
+<li>Keep and retrieve past <strong>versions</strong> of a model, and understand what vetiver adds on top</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can <a href="Your-First-End-to-End-Model-in-R.html">fit a model end to end</a> and read <code>predict</code> output, and you can <a href="Writing-Functions-in-R.html">write a function</a>. The four boxes below are the model's whole life in production; this lesson is the second one.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Train","sub":"fit the model (last lesson: a targets pipeline)"},{"title":"Version","sub":"register it on a board, every write a new version"},{"title":"Retrieve","sub":"pull any version back, ready to predict"},{"title":"Serve","sub":"wrap it in an API (next lesson)"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>A trained model is just a loose object</h2>
+
+<p>Let us rebuild Dev's model so we can see the problem for real. Each lesson runs in a fresh R session, so here is a small stand-in for his customer data (one row per customer: boxes ordered, weeks since the last order, spend per box, and whether they cancelled) and the model fit on it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 200
+customers &lt;- data.frame(
+  boxes_ordered = rpois(n, 8) + 1,
+  weeks_since   = rpois(n, 3),
+  spend_per_box = round(runif(n, 6, 22), 1)
+)
+p &lt;- plogis(-1.4 + 0.18 * customers$weeks_since - 0.02 * customers$boxes_ordered)
+customers$cancelled &lt;- rbinom(n, 1, p)
+head(customers, 3)
+#&gt;   boxes_ordered weeks_since spend_per_box cancelled
+#&gt; 1             7           2          16.5         1
+#&gt; 2             8           2           9.0         1
+#&gt; 3             9           3          21.3         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model &lt;- glm(cancelled ~ boxes_ordered + weeks_since + spend_per_box,
+             data = customers, family = binomial)
+class(model)
+#&gt; [1] &quot;glm&quot; &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That <code>model</code> is a live object in memory, and nothing more. It predicts fine right now, but it has no home on disk, no name the rest of your team can ask for, and no record of when or how it was built.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">This is where models silently go wrong in production. Someone retrains, overwrites the object, ships it, and three weeks later a prediction looks off. Which model produced last month's numbers? Nobody can say, because the model was never stored, named, or versioned. We are about to fix all three.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The store</div>
+<h2>A board is a place you write models to</h2>
+
+<p>The <strong>pins</strong> package gives you a <strong>board</strong>: a store you write R objects to by name and read back later. Think of it as a shared shelf for models and datasets. The board can be a local folder, an S3 bucket, or a Posit Connect server; the code you write is identical, only the <code>board_*()</code> line changes.</p>
+
+<pre><code class="language-r">library(pins)
+
+board &lt;- board_folder(&quot;~/model-board&quot;)            # a folder; could be board_s3() or board_connect()
+pin_write(board, model, name = &quot;cancellation&quot;)    # store the model under a name
+pin_read(board, &quot;cancellation&quot;)                   # read it back, even in a brand-new session</code></pre>
+
+<p>Under the hood, a pin is just an object serialized to disk and read back. You already know the base R version of that, and it works here in your browser session, writing to a temporary file and reading it straight back:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># What pin_write / pin_read do at their core: persist an object, then restore it.
+path &lt;- tempfile(fileext = &quot;.rds&quot;)
+saveRDS(model, path)          # write the model out
+back &lt;- readRDS(path)         # read it back into a fresh object
+identical(coef(back), coef(model))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A board turns a model from a fragile in-memory object into a durable, named artifact. Anyone with access to the board can ask for <code>&quot;cancellation&quot;</code> and get the exact model back, no need to re-run Dev's training script.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The point of it</div>
+<h2>Every write keeps the old one</h2>
+
+<p>Persistence alone is not the win. The win is <strong>versioning</strong>. When you pin a model under a name that already exists, pins does not overwrite it. It keeps the old copy and adds a new <strong>version</strong>, stamped with the time and a content hash (a short fingerprint computed from the model's contents), like <code>20260701T090000Z-9b7e2</code>. You can list every version and read back any one of them.</p>
+
+<pre><code class="language-r">pin_write(board, model,     name = &quot;cancellation&quot;)   # today's model    -&gt; version 1
+# ... a week later, Dev retrains on fresh data ...
+pin_write(board, new_model, name = &quot;cancellation&quot;)   # the new model    -&gt; version 2, version 1 kept
+
+pin_versions(board, &quot;cancellation&quot;)
+#&gt; # A tibble: 2 x 3
+#&gt;   version                created             hash
+#&gt;   &lt;chr&gt;                  &lt;dttm&gt;              &lt;chr&gt;
+#&gt; 1 20260624T140000Z-a1c3f 2026-06-24 14:00:00 a1c3f
+#&gt; 2 20260701T090000Z-9b7e2 2026-07-01 09:00:00 9b7e2</code></pre>
+
+<p>Here is that exact behavior in a few lines of base R, so you can watch it happen. Our toy board is a list, and writing appends a version instead of replacing one:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">board &lt;- list()   # a toy board; real pins uses a folder, the idea is identical
+
+pin_write_toy &lt;- function(board, name, object) {
+  version &lt;- sprintf(&quot;%s-v%d&quot;, name, length(board[[name]]) + 1)  # real pins uses a timestamp + hash
+  board[[name]] &lt;- c(board[[name]], list(list(version = version, object = object)))
+  board
+}
+pin_read_toy &lt;- function(board, name, which = length(board[[name]])) {
+  board[[name]][[which]]$object   # default: the newest version
+}
+
+board &lt;- pin_write_toy(board, &quot;cancellation&quot;, model)        # version 1
+
+model_v2 &lt;- glm(cancelled ~ boxes_ordered + weeks_since,    # Dev retrains, a simpler model
+                data = customers, family = binomial)
+board &lt;- pin_write_toy(board, &quot;cancellation&quot;, model_v2)     # version 2
+
+sapply(board[[&quot;cancellation&quot;]], function(e) e$version)
+#&gt; [1] &quot;cancellation-v1&quot; &quot;cancellation-v2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Both models are still on the board. Retraining did not destroy last week's work, it added to a history. That is exactly what git does for code, now done for models: an append-only trail you can always walk back through.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What happens to last week's model?</h2>
+
+<p>Dev's <code>&quot;cancellation&quot;</code> model is already on the board (version 1). He retrains on new data and calls <code>pin_write</code> again under the same name <code>&quot;cancellation&quot;</code>. What happens to the version 1 model?</p>
+<section class="exercise" data-exercise-id="Versioning-Models-with-vetiver-and-pins-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is overwritten; a board only ever holds the latest model under each name</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It is kept as version 1; the new model becomes the latest, and you can still retrieve the old one</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The write fails with an error because the name already exists</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Writing under an existing name appends a new version, it never overwrites. The full history stays on the board, so last week's model is one <code>pin_read</code> away.</div><div class="lesson-qfb lesson-qfb-no">Re-using the name is the normal case, not an error. That is precisely how a new version gets recorded.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Retrieve a specific version</h2>
+
+<p>You have the <code>board</code> and <code>pin_read_toy()</code> from the last step, holding two versions of <code>&quot;cancellation&quot;</code>. By default the reader returns the newest version. Read back the <strong>first</strong> version specifically instead, by filling in its index.</p>
+<section class="exercise" data-exercise-id="Versioning-Models-with-vetiver-and-pins-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="which\s*=\s*1"><textarea class="lesson-tryit-input" spellcheck="false">old_model &lt;- pin_read_toy(board, &quot;cancellation&quot;, which = ____)
+coef(old_model)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That pulls version 1 back, the original model, untouched by the retrain. Being able to name an exact past version is the whole point of versioning.</span><span class="lesson-tryit-fb lesson-tryit-no">Version 1 lives at index 1 in the history. Set which = 1.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">old_model &lt;- pin_read_toy(board, &quot;cancellation&quot;, which = 1)
+coef(old_model)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The upgrade</div>
+<h2>vetiver: a model needs more than the object</h2>
+
+<p>A pin will happily store any object. But a <strong>model</strong> you plan to serve needs more than the fitted object to be trustworthy: it needs to know what valid input looks like, and it needs a record of how it was built. The <strong>vetiver</strong> package bundles all of that into a single "vetiver model" and then pins it for you.</p>
+
+<pre><code class="language-r">library(vetiver)
+
+v &lt;- vetiver_model(model, &quot;cancellation&quot;)   # bundle: the model + an input prototype + metadata</code></pre>
+
+<p>You do not have to take that on faith. Here is the same bundle built by hand, so you can see the two extra pieces vetiver adds. The <strong>prototype</strong> is a zero-row copy of the input: it carries the column names and types, but no data.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prototype &lt;- customers[0, c(&quot;boxes_ordered&quot;, &quot;weeks_since&quot;, &quot;spend_per_box&quot;)]  # 0 rows: shape only
+sapply(prototype, class)          # the columns and types valid new data must have
+#&gt; boxes_ordered   weeks_since spend_per_box
+#&gt;     &quot;numeric&quot;     &quot;integer&quot;     &quot;numeric&quot;
+
+v_model &lt;- list(
+  model     = model,              # the fitted model, ready to predict
+  prototype = prototype,          # the input contract: names and types
+  metadata  = list(
+    r_version = R.version.string,
+    packages  = &quot;stats::glm&quot;,
+    trained   = &quot;captured at write time&quot;
+  )
+)
+names(v_model)
+#&gt; [1] &quot;model&quot;     &quot;prototype&quot; &quot;metadata&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The prototype is what lets a deployed model reject bad input before it predicts nonsense. Send it a request missing <code>weeks_since</code>, or with <code>weeks_since</code> as text, and vetiver catches the mismatch instead of returning a confident wrong answer.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"The fitted model","sub":"the trained model, ready to predict"},{"title":"The input prototype","sub":"the column names and types valid new data must have"},{"title":"The metadata","sub":"R and package versions, and when it was trained"},{"title":"Pinned to a board","sub":"stored and versioned, exactly like a raw pin"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The whole loop</div>
+<h2>Write, version, retrieve, predict</h2>
+
+<p>vetiver reuses the same board, so the workflow is the one you already know, with <code>vetiver_pin_write</code> in place of <code>pin_write</code> and <code>vetiver_pin_read</code> to get a model back ready to predict.</p>
+
+<pre><code class="language-r">library(pins); library(vetiver)
+board &lt;- board_folder(&quot;~/model-board&quot;)
+
+vetiver_pin_write(board, v)                 # store the bundled model as a new version
+pin_versions(board, &quot;cancellation&quot;)         # every version you have kept
+
+# On the serving machine: pull a specific version back and predict. No retraining.
+v_live &lt;- vetiver_pin_read(board, &quot;cancellation&quot;,
+                           version = &quot;20260701T090000Z-9b7e2&quot;)
+predict(v_live, new_customer)</code></pre>
+
+<p>And the runnable version of that final, important move: store the bundle, pull it back, and predict from the retrieved model, no retraining anywhere.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">board &lt;- pin_write_toy(board, &quot;cancellation-vetiver&quot;, v_model)   # store the whole bundle
+
+pulled &lt;- pin_read_toy(board, &quot;cancellation-vetiver&quot;)            # pull it back (the latest version)
+new_customer &lt;- data.frame(boxes_ordered = 3, weeks_since = 6, spend_per_box = 12.5)
+predict(pulled$model, newdata = new_customer, type = &quot;response&quot;)
+#&gt;         1
+#&gt; 0.3768709</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The model in production is now a named, versioned artifact you can retrieve exactly and predict from immediately. That closes the loop: whatever is serving predictions is a specific version on the board, not a mystery object someone left in a session.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why can you predict straight away?</h2>
+
+<p>In the last step you read a model back with <code>vetiver_pin_read()</code> and called <code>predict()</code> on it immediately, with no retraining. What made that possible?</p>
+<section class="exercise" data-exercise-id="Versioning-Models-with-vetiver-and-pins-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The board re-fit the model from the training data it saved alongside it</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The bundle carried the fitted model itself plus its input prototype, so the exact trained model predicts and the prototype checks the new data has the right columns and types</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">pins reconstructed the model from its version hash</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. vetiver stored the fitted model, so no retraining is needed, and the prototype guards the input so predictions run on well-formed data.</div><div class="lesson-qfb lesson-qfb-no">A hash only identifies a version, it cannot rebuild a model. The fitted object itself is what was stored and read back.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://pins.rstudio.com/">pins for R (official docs)</a> - the board abstraction and how automatic versioning works, with every board backend.</li>
+
+<li><a href="https://pins.rstudio.com/articles/pins.html">pins: Get started</a> - a hands-on walkthrough of writing, reading and versioning a pin.</li>
+
+<li><a href="https://vetiver.posit.co/">vetiver (official docs)</a> - the version, deploy and monitor framework this lesson builds toward, for R and Python.</li>
+
+<li><a href="https://vetiver.posit.co/get-started/">vetiver: Get started</a> - build a vetiver model, store it on a board, and read it back, the exact workflow you just met.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>Dev's model is no longer a loose object that vanishes with his session. It lives on a board, under a name, with a full version history he can walk back through, and vetiver wraps it with the input contract and metadata that make it safe to serve. The moves: write each model to a board, let every write become an immutable version, retrieve any version on demand, and read it back ready to predict without retraining.</p>
+
+<p>Next, Lesson 3: <strong>Serving a model with plumber.</strong> You have a versioned model you can retrieve on any machine. Now you will wrap it in a small REST API so other systems can send it data and get predictions back, and you will see how vetiver can generate that API for you from the very bundle you built here.</p>
+</section>
+
+{% endraw %}

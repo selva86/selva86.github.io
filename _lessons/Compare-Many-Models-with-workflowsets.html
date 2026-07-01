@@ -1,0 +1,326 @@
+---
+title: "tidymodels Lesson 7: Compare many models with workflowsets"
+description: "Run a fair model bake-off in R with workflowsets: cross recipes with models, score them all on the same folds, rank the leaderboard, and finalize the winner."
+keywords: "workflowsets R, compare models in R, workflow_set, workflow_map, rank_results, tidymodels model selection, fit_resamples, last_fit, cross-validation comparison"
+mathjax: true
+webr: true
+curriculum_id: "6.50.7"
+post_type: "LESSON"
+course_id: "ds-tidymodels"
+course_title: "Modeling with tidymodels"
+course_lesson: "7"
+course_total: "7"
+course_landing: "R-tidymodels-Course.html"
+course_next: ""
+course_prev: "Tune-with-the-tune-package.html"
+lesson_access: "free"
+catalog_blurb: "How to compare several models on equal footing and pick the best."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 7</div>
+<h2>Compare many models with workflowsets</h2>
+
+<p>In Lesson 6 you tuned a single decision tree on the lender's loan book and confirmed it once on a sealed test set. But a tuned tree is only as good as the fact that it was a tree. In a real project you rarely commit to one model up front. You line up a few honest contenders, a plain logistic regression, that decision tree, a random forest, and you let them race.</p>
+
+<p>The trick is making the race <strong>fair</strong>: every contender judged on the exact same folds, by the exact same metric, with no contender peeking at data the others did not. The chart below is the finish line, three models, one ROC AUC bar each, the tallest one wins. This lesson is how you produce that chart with one tool instead of three copy-pasted scripts.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a fair model comparison needs the <strong>same resamples and the same metric</strong> for every contender</li>
+
+<li>Build a <strong>workflow set</strong> that crosses your preprocessors with your model specs into one object</li>
+
+<li>Run the whole bake-off across shared folds in one call, rank the leaderboard, and finalize the winner</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and use the <code>|&gt;</code> pipe, and from earlier lessons you can <a href="Bundle-Steps-with-workflows.html">bundle a recipe and model into a workflow</a> (Lesson 3), <a href="Resample-with-rsample.html">score across cross-validation folds</a> (Lesson 4), [measure with <code>roc_auc</code>](Measure-with-yardstick.html) (Lesson 5), and <a href="Tune-with-the-tune-package.html">tune a model honestly</a> (Lesson 6). We reuse that exact loan book here.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"logistic","y":0.66},{"x":"tree","y":0.63},{"x":"forest","y":0.69}],"geoms":["bar"],"x":"model","y":"roc_auc"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why you cannot just eyeball it</div>
+<h2>One race, same rules for everyone</h2>
+
+<p>Here is the tempting, wrong way to compare three models: fit each one however is convenient, glance at a number for each, keep the biggest. It breaks in two quiet ways. First, if each model is scored on a <strong>different</strong> random split of the data, you are comparing how lucky each split was, not how good each model is. Second, if you score a model on the rows it trained on, the most flexible model always looks best because it can memorize, which is the overfitting trap you have met all course.</p>
+
+<p>The fix is the same discipline you have built up lesson by lesson: judge every contender on <strong>one shared set of cross-validation folds</strong> with <strong>one shared metric</strong>. Same questions, same judges, same answer key. That is the entire idea behind a workflow set.</p>
+
+<p>So we start exactly where Lesson 6 ended, the same loan book, the same split, the same five folds. Run this once to rebuild it in this session:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(7)
+n &lt;- 240
+loans &lt;- data.frame(
+  income   = round(runif(n, 22000, 98000)),   # annual income, dollars
+  age      = round(runif(n, 21, 60)),
+  employed = round(runif(n, 2, 160)),          # months at current job
+  home     = factor(sample(c(&quot;own&quot;, &quot;rent&quot;, &quot;mortgage&quot;), n, TRUE))
+)
+risk &lt;- with(loans, plogis(-1.1 + 1.4 * (income &lt; 45000) +
+             1.0 * (employed &lt; 20) + 0.6 * (home == &quot;rent&quot;)))
+loans$defaulted &lt;- factor(ifelse(runif(n) &lt; risk, &quot;yes&quot;, &quot;no&quot;))
+loans$defaulted &lt;- relevel(loans$defaulted, ref = &quot;yes&quot;)   # &quot;yes&quot; is the event we predict
+
+set.seed(1)
+split &lt;- initial_split(loans, prop = 0.75, strata = defaulted)
+train &lt;- training(split)   # 179 rows to compare on
+test  &lt;- testing(split)    # 61 rows locked away for the final check
+folds &lt;- vfold_cv(train, v = 5, strata = defaulted)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The test set stays sealed for the whole bake-off. Every model is compared using cross-validation on the <strong>training</strong> folds only. The locked test set is touched exactly once, at the very end, to confirm the single model you crowned. Use it to choose, and it stops being an honest estimate of new-data performance.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The contenders</div>
+<h2>Three honest candidates</h2>
+
+<p>A bake-off needs entries. We pick three models that fail in different ways, so the comparison is meaningful rather than three flavors of the same thing:</p>
+
+<ul>
+
+<li><strong>Logistic regression</strong>, the simple linear baseline. If a fancy model cannot beat this, the complexity is not earning its keep.</li>
+
+<li><strong>A decision tree</strong> at <code>tree_depth = 4</code>, the moderately shallow tree Lesson 6 tuned to. One tree, interpretable, a little unstable.</li>
+
+<li><strong>A random forest</strong>, hundreds of trees averaged. More flexible, harder to interpret, usually steadier.</li>
+
+</ul>
+
+<p>All three can share <strong>one recipe</strong>, the leak-free preprocessor from Lesson 1: turn the <code>home</code> factor into dummy columns and put the numeric predictors on a common scale. The recipe learns its scaling from each fold's training rows only, so nothing leaks.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+library(recipes)
+library(workflows)
+library(rpart)
+library(randomForest)
+
+rec &lt;- recipe(defaulted ~ ., data = train) |&gt;
+  step_dummy(all_nominal_predictors()) |&gt;
+  step_normalize(all_numeric_predictors())
+
+lr_spec   &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+tree_spec &lt;- decision_tree(tree_depth = 4) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+rf_spec   &lt;- rand_forest(trees = 300) |&gt;
+  set_engine(&quot;randomForest&quot;) |&gt;
+  set_mode(&quot;classification&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three model specs, one recipe. Next we hand them to a single object that will keep them all on the same footing.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Cross the recipe with the models</h2>
+
+<p>A <strong>workflow set</strong> is the cross product of your preprocessors and your models. With \(P\) preprocessors and \(M\) model specs you get \(P \times M\) ready-to-fit workflows, each a recipe paired with a model. Here \(P = 1\) and \(M = 3\), so the set holds three workflows; swap in two recipes and you would get six, every combination, without writing them out by hand.</p>
+
+<p><code>workflow_set</code> builds that table for you. You pass it a named list of preprocessors and a named list of models. Fill in the function name.</p>
+<section class="exercise" data-exercise-id="Compare-Many-Models-with-workflowsets-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="workflow_set\b"><textarea class="lesson-tryit-input" spellcheck="false">library(workflowsets)
+
+all_wf &lt;- ____(
+  preproc = list(base = rec),
+  models  = list(logistic = lr_spec, tree = tree_spec, forest = rf_spec)
+)
+all_wf</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. workflow_set crosses the one recipe with the three models into three workflows, named by joining the preprocessor and model names: base_logistic, base_tree, base_forest.</span><span class="lesson-tryit-fb lesson-tryit-no">Use workflow_set(preproc = ..., models = ...) to cross the preprocessors with the model specs.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(workflowsets)
+
+all_wf &lt;- workflow_set(
+  preproc = list(base = rec),
+  models  = list(logistic = lr_spec, tree = tree_spec, forest = rf_spec)
+)
+all_wf
+#&gt; # A workflow set/tibble: 3 x 4
+#&gt;   wflow_id      info             option    result
+#&gt;   &lt;chr&gt;         &lt;list&gt;           &lt;list&gt;    &lt;list&gt;
+#&gt; 1 base_logistic &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+#&gt; 2 base_tree     &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+#&gt; 3 base_forest   &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">The whole bake-off in one call</div>
+<h2>Map one scorer over every workflow</h2>
+
+<p>You already know how to resample one workflow: in Lesson 4, <code>fit_resamples</code> fit a workflow across the folds and recorded its metrics. <code>workflow_map</code> does that for <strong>every</strong> workflow in the set, on the <strong>same</strong> folds, with the <strong>same</strong> metrics, in a single call. The five-step picture below is the whole tournament.</p>
+
+<p>You hand <code>workflow_map</code> the set, the name of the function to run on each workflow (<code>&quot;fit_resamples&quot;</code>), a <code>seed</code> so the folds are reused identically, and the same <code>resamples</code> and <code>metrics</code> arguments that function expects.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tune)
+library(yardstick)
+
+res &lt;- workflow_map(
+  all_wf,
+  &quot;fit_resamples&quot;,
+  seed      = 123,
+  resamples = folds,                            # the SAME folds for all three
+  metrics   = metric_set(roc_auc, accuracy)     # the SAME yardstick for all three
+)
+res
+#&gt; # A workflow set/tibble: 3 x 4
+#&gt;   wflow_id      info             option    result
+#&gt;   &lt;chr&gt;         &lt;list&gt;           &lt;list&gt;    &lt;list&gt;
+#&gt; 1 base_logistic &lt;tibble [1 x 4]&gt; &lt;opts[1]&gt; &lt;rsmp[+]&gt;
+#&gt; 2 base_tree     &lt;tibble [1 x 4]&gt; &lt;opts[1]&gt; &lt;rsmp[+]&gt;
+#&gt; 3 base_forest   &lt;tibble [1 x 4]&gt; &lt;opts[1]&gt; &lt;rsmp[+]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>result</code> column now reads <code>&lt;rsmp[+]&gt;</code>: every workflow has been resampled and carries its scores. Three models, fifteen little fits (three workflows times five folds), one call. No copy-paste, and impossible to accidentally hand one model a different split.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Build the set","sub":"cross preprocessors with models into one object"},{"title":"Map over resamples","sub":"fit every workflow on the same folds, same metrics"},{"title":"Collect and rank","sub":"gather every score, rank the candidates"},{"title":"Pick the winner","sub":"pull the top workflow out of the set"},{"title":"Confirm once","sub":"last fit on the locked test set"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What makes the bake-off fair?</h2>
+
+<p>You want to crown the best of your three models honestly. Which setup makes the comparison fair?</p>
+<section class="exercise" data-exercise-id="Compare-Many-Models-with-workflowsets-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Score every workflow on the same cross-validation folds with the same metric set</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Fit each model on its own fresh random split so each gets an independent look at the data</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Compare each model by its accuracy on the rows it was trained on</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Identical folds and an identical metric mean any difference in score reflects the model, not a lucky split or a different yardstick. That is the one thing a workflow set guarantees for you.</div><div class="lesson-qfb lesson-qfb-no">That is the overfitting trap. The most flexible model (the forest) can memorize the training rows and look best there while generalizing no better. Training-set scores cannot rank models honestly.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Read the leaderboard</div>
+<h2>Rank the contenders</h2>
+
+<p>The scores are in; now read them. <code>rank_results</code> flattens the whole set into one tidy leaderboard, one row per model per metric, sorted by the metric you name. <code>autoplot</code> draws the same thing as a ranked plot.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+rank_results(res, rank_metric = &quot;roc_auc&quot;)
+#&gt; # A tibble: 6 x 9
+#&gt;   wflow_id      .config        .metric   mean std_err     n model          rank
+#&gt;   &lt;chr&gt;         &lt;chr&gt;          &lt;chr&gt;    &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;         &lt;int&gt;
+#&gt; 1 base_forest   pre0_mod0_pos~ accuracy 0.690  0.027     5 rand_forest       1
+#&gt; 2 base_forest   pre0_mod0_pos~ roc_auc  0.690  0.031     5 rand_forest       1
+#&gt; 3 base_logistic pre0_mod0_pos~ accuracy 0.664  0.018     5 logistic_reg      2
+#&gt; 4 base_logistic pre0_mod0_pos~ roc_auc  0.662  0.030     5 logistic_reg      2
+#&gt; 5 base_tree     pre0_mod0_pos~ accuracy 0.641  0.030     5 decision_tree     3
+#&gt; 6 base_tree     pre0_mod0_pos~ roc_auc  0.631  0.029     5 decision_tree     3
+
+autoplot(res)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the leaderboard like a results table, not a verdict carved in stone. The random forest tops it, the logistic regression is a close second, and the single tree trails. The board below is that result, the report-ready view of those numbers:</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Look at <code>std_err</code> before you celebrate. The forest leads the logistic regression by about 0.03 ROC AUC, and each has a standard error near 0.03. On only 179 training rows the bands overlap, so the lead is real but slim. A ranking is the start of a decision, not the end: weigh it against interpretability and cost. Here the simple logistic regression is competitive enough that many lenders would prefer it for the explanation it gives a declined applicant.</div></div>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["Rank","Model","ROC AUC","Accuracy"],"rows":[[1,"Random forest",0.69,0.69],[2,"Logistic regression",0.66,0.66],[3,"Decision tree",0.63,0.64]],"title":"Model bake-off, ranked by ROC AUC","note":"Mean over 5 cross-validation folds on the loan training set."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which model do you crown?</h2>
+
+<p>On your leaderboard the random forest has the highest cross-validated ROC AUC, while the decision tree fits the training rows a touch harder. Which model do you finalize and take to the sealed test set?</p>
+<section class="exercise" data-exercise-id="Compare-Many-Models-with-workflowsets-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The decision tree, since a tighter fit on the training rows means it has learned the data more thoroughly</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The random forest, because the cross-validated score is the honest estimate of new-data performance, and that is what you are choosing on</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Run all three on the locked test set and keep whichever scores highest there</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. You crown on the cross-validated metric because it is your only fair read on unseen data. The forest's lead is slim, so it is fine to weigh interpretability too, but on score alone the forest wins.</div><div class="lesson-qfb lesson-qfb-no">That spends the test set three times. Once you pick the candidate that won on the test rows, the choice has seen them, and the test score is no longer an honest estimate. The test set votes exactly once, on the model you already chose.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Close it out</div>
+<h2>Crown the winner and confirm</h2>
+
+<p>You picked the random forest. Two moves finish the job. <code>extract_workflow</code> pulls that workflow back out of the set by its id (<code>base_forest</code>). Then <code>last_fit</code> does the honest finish you learned in Lesson 6: it trains the winner on the <strong>full</strong> training set and scores it once on the test set you sealed away in step 2. Fill in the function that does that final fit.</p>
+<section class="exercise" data-exercise-id="Compare-Many-Models-with-workflowsets-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="last_fit\b"><textarea class="lesson-tryit-input" spellcheck="false">final_wf  &lt;- extract_workflow(all_wf, id = &quot;base_forest&quot;)
+final_fit &lt;- ____(final_wf, split, metrics = metric_set(roc_auc, accuracy))
+collect_metrics(final_fit)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the finish. last_fit trains the winning workflow on the whole training set and gives you the first and only test-set score. If it lands near the cross-validated 0.69, your bake-off was honest.</span><span class="lesson-tryit-fb lesson-tryit-no">Use last_fit(final_wf, split, ...): it fits on the full training data and scores once on the locked test set inside split.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">final_wf  &lt;- extract_workflow(all_wf, id = &quot;base_forest&quot;)
+final_fit &lt;- last_fit(final_wf, split, metrics = metric_set(roc_auc, accuracy))
+collect_metrics(final_fit)
+#&gt; # A tibble: 2 x 4
+#&gt;   .metric  .estimator .estimate .config
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 accuracy binary         0.672 pre0_mod0_post0
+#&gt; 2 roc_auc  binary         0.668 pre0_mod0_post0</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://workflowsets.tidymodels.org/">workflowsets package documentation (tidymodels)</a> - the reference for <code>workflow_set()</code>, <code>workflow_map()</code>, <code>rank_results()</code>, and <code>extract_workflow()</code>.</li>
+
+<li><a href="https://www.tmwr.org/workflow-sets">Tidy Modeling with R, ch. 15: Screening many models</a> - Kuhn and Silge on building and comparing whole sets of model-and-recipe combinations.</li>
+
+<li><a href="https://www.tidymodels.org/start/">Get Started with tidymodels</a> - the official walk-through of the pieces (recipes, parsnip, workflows, resampling, tuning) this lesson composes.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 5 (free PDF)</a> - resampling and model selection, the statistics under the bake-off.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 7 complete</h2>
+
+<p>You ran a real model bake-off. You stood up three honest contenders on a shared recipe, crossed them into one workflow set, scored every one of them across the same five folds with the same metrics in a single <code>workflow_map</code> call, read the ranked leaderboard, crowned the winner on its cross-validated score (while keeping an eye on the slim margin and interpretability), and confirmed it once on the test set you had sealed all along.</p>
+
+<p>That completes the tidymodels course. You can now take a modeling problem from a raw data frame to a defensible chosen model: a leak-free recipe (Lesson 1), a model spec you can swap engines on (Lesson 2), the two bundled into a workflow (Lesson 3), honest scores from resampling (Lesson 4), the right metric to read them (Lesson 5), tuned hyperparameters (Lesson 6), and a fair comparison that picks the winner (here). Head back to the <a href="R-tidymodels-Course.html">course page</a> to claim your certificate and see where this fits in the Data Scientist track.</p>
+</section>
+
+{% endraw %}
