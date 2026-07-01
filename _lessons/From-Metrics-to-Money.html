@@ -1,0 +1,315 @@
+---
+title: "Model Evaluation Lesson 7: From Metrics to Money"
+description: "A better AUC is not a better business. Turn a churn model's score into money: price each outcome, set the threshold by cost, and read the profit, in R."
+keywords: "cost-sensitive threshold, expected value, cost-benefit matrix, break-even threshold, model business value, profit curve, AUC, ROC, churn, R"
+mathjax: true
+webr: true
+curriculum_id: "6.70.7"
+post_type: "LESSON"
+course_id: "ds-evaluation-tuning"
+course_title: "Model Evaluation and Tuning in R"
+course_lesson: "7"
+course_total: "7"
+course_landing: "R-Model-Evaluation-Course.html"
+course_next: ""
+course_prev: "Comparing-Models-Statistically.html"
+lesson_access: "free"
+catalog_blurb: "How to turn a metric gain into dollars and the decision it should drive."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 7</div>
+<h2>From Metrics to Money</h2>
+
+<p>In Lesson 6 you learned to tell a real metric difference between two models from the ordinary luck of a single split. So now you can say, with a straight face, that your new model is genuinely better.</p>
+
+<p>Here is where that runs into a wall. Maya runs customer retention at FreshBox, a meal-kit company. Her data scientist just shipped a churn model with an AUC of <strong>0.83</strong>, a real, tested improvement over the old one. Maya's boss asks a simpler question: "Good. How many dollars a month is that worth?" The AUC is not an answer to that question. Nothing on the metrics dashboard is.</p>
+
+<p>This lesson builds the bridge from a score to a number in dollars.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Put a dollar value on each cell of a confusion matrix, and write a model's profit as one formula</li>
+
+<li>Set the decision threshold from the costs, and see why 0.5 is almost always the wrong line to draw</li>
+
+<li>Say what a metric gain is actually worth, and why a bigger AUC is not automatically more money</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and write a small function, and from <a href="Scoring-Rules-and-Regression-Metrics.html">Lesson 5</a> you have met the confusion matrix, the ROC curve and AUC.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Score","sub":"the model gives each customer a churn probability"},{"title":"Price each outcome","sub":"attach a dollar value to a save, a wasted offer, a miss"},{"title":"Set the threshold by cost","sub":"contact everyone above break-even, not above 0.5"},{"title":"Read the profit","sub":"add up the dollars the policy earns"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>A prediction is only worth what it changes</h2>
+
+<p>A churn score sitting in a database earns nothing. It becomes worth something only when it triggers an <strong>action</strong>. At FreshBox that action is concrete: for every customer the model flags as likely to churn, Maya's team sends an <strong>$8 retention offer</strong> (a discount coupon). If the customer really was about to leave and the offer wins them back, FreshBox keeps a customer worth <strong>$120</strong> in future profit. If the customer was never going to leave, the $8 is simply wasted.</p>
+
+<p>So each customer falls into one of four outcomes, the same four cells of the confusion matrix you already know, but now each cell is worth a different amount of money. Slide the threshold on the classifier below and watch those four counts move; that is the machine we are about to price.</p>
+
+<p>Here is the price tag on each cell, measured against the alternative of <strong>running no offers at all</strong>:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Outcome</th>
+<th>What happens</th>
+<th>Dollar value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Save (true positive)</td>
+<td>offer a real churner, win them back</td>
+<td>+$112</td>
+</tr>
+<tr>
+<td>Waste (false positive)</td>
+<td>offer a customer who would have stayed</td>
+<td>-$8</td>
+</tr>
+<tr>
+<td>Miss (false negative)</td>
+<td>a real churner you never contacted</td>
+<td>$0</td>
+</tr>
+<tr>
+<td>Correct pass (true negative)</td>
+<td>a loyal customer you left alone</td>
+<td>$0</td>
+</tr>
+</tbody>
+</table>
+
+<p>The two zeros surprise people, so let us be exact about them. We measure every cell against doing nothing. If we run no offers, the churner leaves anyway, so <strong>failing</strong> to contact one (a miss) changes nothing versus that baseline: $0. Likewise, correctly leaving a loyal customer alone costs and earns nothing: $0. The program only ever makes or loses money in the top row, when it <strong>acts</strong>: a save earns \(+\$112\) (the \$120 kept minus the \$8 offer), a wasted offer costs \(-\$8\).</p>
+
+<p>That gives the whole program's profit as one clean formula. With \(b = 112\) the benefit of a save and \(c = 8\) the cost of a wasted offer:</p>
+
+<p>\[ \Pi = b \cdot \mathrm{TP} - c \cdot \mathrm{FP} \]</p>
+
+<p>where \(\mathrm{TP}\) (true positives) is the number of real churners you contacted and \(\mathrm{FP}\) (false positives) is the number of stayers you contacted. Every dollar the model is worth lives in that single line.</p>
+
+<p>Let us set up FreshBox's month and price today's policy. Each lesson runs in a fresh R session, so we build everything inline (run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># FreshBox: this month's 2000 at-risk customers, each scored by the churn model.
+# We spread them evenly across the risk range the model assigns (from near 0 up to
+# about 30%). That keeps the arithmetic exact; the conclusion does not depend on the shape.
+n &lt;- 2000
+p_churn &lt;- 0.30 * (seq_len(n) - 0.5) / n   # each customer's predicted churn probability
+
+# What each decision is worth in dollars, versus running no offers at all:
+save_value &lt;- 112   # contact a real churner and win them back: keep a $120 customer for an $8 offer
+waste_cost &lt;- 8     # contact someone who would have stayed: the $8 offer is wasted
+
+# Profit of offering to everyone the model scores above a threshold t.
+# A contacted customer is worth +112 with probability p (a save) and -8 with prob 1 - p (a waste).
+profit &lt;- function(t) {
+  p &lt;- p_churn[p_churn &gt; t]
+  sum(save_value * p - waste_cost * (1 - p))
+}
+
+profit(0.5)   # today's rule: send the offer only to scores above 0.5
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that last line and sit with it. Today's perfectly reasonable-sounding rule, "act on customers who are <em>more likely than not</em> to churn," earns FreshBox exactly <strong>$0</strong>, because in a given month no customer is more than about 30% likely to cancel, so the offer never goes out. A model that is never acted on is worth nothing, no matter how good its AUC.</p>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The twist</div>
+<h2>Why 0.5 is the wrong line to draw</h2>
+
+<p>The fix is not a better model. It is a better <strong>threshold</strong>, and the right threshold falls straight out of the costs. Ask the only question that matters for a single customer with churn probability \(p\): is sending them the offer worth it <em>on average</em>? Contacting them is worth \(+b\) if they were going to churn (probability \(p\)) and \(-c\) if they were not (probability \(1 - p\)). So the expected value of the offer is</p>
+
+<p>\[ \mathrm{EV}_{\text{offer}}(p) = p \cdot b - (1 - p) \cdot c \]</p>
+
+<p>Send the offer whenever that is positive. Setting \(\mathrm{EV}_{\text{offer}}(p) > 0\) and solving for \(p\) gives the tipping point, the <strong>break-even threshold</strong>:</p>
+
+<p>\[ p \cdot b > (1 - p) \cdot c \quad\Longrightarrow\quad p^{*} = \frac{c}{b + c} = \frac{8}{112 + 8} \approx 0.067 \]</p>
+
+<p>Contact anyone the model scores above about <strong>6.7%</strong>, not 50%. The cheaper the action and the more valuable the save, the lower this line drops. Sweep the threshold across the whole range and the profit traces a hill that peaks exactly at \(p^{*}\), then falls away on both sides, collapsing to $0 once the threshold climbs past the highest score in the book.</p>
+
+<p>Now put real dollars on three policies: offer to everyone, offer at today's 0.5 cutoff, and offer at the cost-based threshold.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Three policies, priced. (offer_all = contact everyone; cutoff_50 = today's rule;
+# cost_based = contact everyone above the break-even threshold 8/120.)
+round(c(offer_all  = profit(0),
+        cutoff_50  = profit(0.5),
+        cost_based = profit(8 / 120)))
+#&gt; offer_all  cutoff_50 cost_based
+#&gt;     20000          0      21778
+
+# The break-even threshold itself: contact iff p*112 - (1 - p)*8 &gt; 0, i.e. p &gt; 8/(112 + 8)
+waste_cost / (save_value + waste_cost)
+#&gt; [1] 0.06666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The story is stark. Today's 0.5 rule earns <strong>$0</strong>. Blanket-offering to everyone earns about <strong>$20,000</strong> a month, better, but it wastes an $8 coupon on thousands of loyal customers. The cost-based threshold earns about <strong>$21,800</strong>, roughly <strong>$2,000 more every month</strong>, about <strong>$24,000 a year</strong>, from a single line of arithmetic and not one change to the model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The best threshold is set by the costs, not by the number 0.5. When a false negative and a false positive cost the same, the break-even is 0.5 and the default is right. The whole discipline is to CHECK the ratio, \(c / (b + c)\), rather than assume it.</div></div>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0,"y":20000},{"x":0.05,"y":21666},{"x":0.067,"y":21778},{"x":0.1,"y":21332},{"x":0.15,"y":19000},{"x":0.2,"y":14672},{"x":0.25,"y":8326},{"x":0.3,"y":0},{"x":0.4,"y":0},{"x":0.5,"y":0}],"geoms":["line","point"],"x":"threshold","y":"profit"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Would lowering the cutoff make more money?</h2>
+
+<p>FreshBox's team currently sends the offer only to customers scored above 0.5, and the retention program is barely worth running. An analyst proposes dropping the cutoff to about 0.07. Why might that make <em>more</em> money, not less?</p>
+<section class="exercise" data-exercise-id="From-Metrics-to-Money-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">An $8 offer that rescues a $120 customer is worth sending to anyone even slightly likely to churn: break-even is 8/120, about 7%, so every customer above ~7% is profitable to contact, and the 0.5 cutoff was leaving nearly all of them out</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It cannot: a lower cutoff always means more offers wasted on stayers, so profit must fall</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Only if the model's AUC improves; the threshold by itself cannot change the profit</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The action is cheap and the save is valuable, so the profitable threshold sits far below 0.5. Moving the line from 0.5 to 0.07 is what turns a dead program into a real one, with no change to the model.</div><div class="lesson-qfb lesson-qfb-no">The threshold changes WHO you act on, which changes the true and false positives directly, which changes the profit, all with the same model and the same AUC. That is the entire point of this lesson.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Find the break-even threshold</h2>
+
+<p>The break-even threshold is the cost of a wasted offer divided by the total swing between a save and a waste: \(p^{*} = c / (b + c)\). Fill in the blank with that expression, then check it. (<code>save_value</code> is \(b\), <code>waste_cost</code> is \(c\).)</p>
+<section class="exercise" data-exercise-id="From-Metrics-to-Money-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="waste_cost\s*/\s*\(\s*save_value\s*\+\s*waste_cost\s*\)|8\s*/\s*(120|\(\s*112\s*\+\s*8\s*\))"><textarea class="lesson-tryit-input" spellcheck="false">save_value &lt;- 112   # benefit of a save
+waste_cost &lt;- 8     # cost of a wasted offer
+break_even &lt;- ____
+round(break_even, 3)   # contact everyone the model scores above this</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: 8 / (112 + 8) = 8/120 = 0.067. Contact anyone the model scores above about 7% churn risk.</span><span class="lesson-tryit-fb lesson-tryit-no">The break-even is the waste cost over the total swing: waste_cost / (save_value + waste_cost).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">save_value &lt;- 112
+waste_cost &lt;- 8
+break_even &lt;- waste_cost / (save_value + waste_cost)
+round(break_even, 3)
+#&gt; [1] 0.067</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">A common trap</div>
+<h2>A better AUC is not automatically more money</h2>
+
+<p>So Maya's model has an AUC of 0.83 and the old one had 0.80. Is the new one worth more money? Not necessarily, and seeing why is what separates a metric from a decision.</p>
+
+<p>AUC measures one thing: how well the model <strong>ranks</strong> churners above stayers, averaged over <em>every</em> possible threshold. It is deliberately threshold-free. Slide the threshold on the curve below and the operating point walks up and down, but the AUC printed in the corner never moves a millimetre.</p>
+
+<p>Money is not threshold-free. It is made at <strong>one</strong> operating point (your cost-based cutoff), on a specific <strong>volume</strong> of customers, with specific <strong>costs</strong>. Three consequences follow:</p>
+
+<ul>
+
+<li>A ranking gain only pays if it adds true positives <em>near the threshold you actually use</em>. Extra separation out in a region you never operate in is worth nothing.</li>
+
+<li>Even a tiny AUC gain can be worth a fortune if it lands at your operating point and your volume is large.</li>
+
+<li>AUC is blind to <strong>calibration</strong> (whether a 0.1 really means 10%), yet the cost-based threshold <em>depends</em> on calibration. Chasing AUC can even break the very number the threshold rule needs. This is why Lesson 5's proper scores matter here.</li>
+
+</ul>
+
+<p>So the honest way to value a ranking gain is to translate it into extra saves at your operating point, then multiply by the value of a save and the monthly volume.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Suppose the better model catches 40 more real churners each month at the SAME
+# false-alarm rate, when both are used at Maya's cost-based cutoff.
+extra_saves &lt;- 40
+round(c(per_month = extra_saves * save_value,
+        per_year  = extra_saves * save_value * 12))
+#&gt; per_month  per_year
+#&gt;      4480     53760</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A 0.03 AUC bump is not "3% more profit." It is worth whatever extra true positives it buys at your operating point, times the value per save, times your volume, and that could be $54,000 a year or close to nothing. Always convert a metric gain into dollars before you celebrate it.</div></div>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What is the AUC bump worth?</h2>
+
+<p>Maya's team upgrades the churn model and its AUC rises from 0.80 to 0.83. The boss asks how much extra profit to expect. What is the honest answer?</p>
+<section class="exercise" data-exercise-id="From-Metrics-to-Money-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It depends: translate the ranking gain into extra true positives at your cost-based operating point, then multiply by the value of a save and the monthly volume. A 0.03 AUC gain can be worth a lot or almost nothing</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">About 3% more profit, since the AUC rose by about 0.03</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing changes: AUC is only a ranking metric, so profit cannot move</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. AUC summarises ranking across all thresholds; profit is earned at one threshold on a real volume with real costs. You have to convert the gain into dollars at the point you actually operate.</div><div class="lesson-qfb lesson-qfb-no">That overcorrects. A better ranking usually does let you catch more real churners at the same false-alarm rate, which is worth real money. It just is not guaranteed, and never equal to the AUC delta.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The method</div>
+<h2>The same recipe on any decision</h2>
+
+<p>Nothing here was special to churn. Any time a model drives a decision with unequal costs, the same four steps turn its score into money. This is the reusable bridge; keep it.</p>
+
+<p>A fraud model, a loan approval, a medical screen, a marketing send: swap in that decision's costs and the recipe is unchanged. Two honest cautions before you ship it:</p>
+
+<ul>
+
+<li>The break-even threshold trusts the model's probabilities. If they are not <strong>calibrated</strong> (a 0.1 that does not mean 10%), fix that first, or the cost-based cutoff aims at the wrong place.</li>
+
+<li>Your costs are estimates. Re-run the profit at a few plausible values for \(b\) and \(c\); if the best policy barely moves, you can act with confidence, and if it swings wildly, you have learned that the costs are what you should go measure next.</li>
+
+</ul>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Score and calibrate","sub":"a probability per case, and check it means what it says"},{"title":"Fill the cost-benefit matrix","sub":"a dollar value for each of the four outcomes"},{"title":"Threshold at c / (b + c)","sub":"here 8 / 120, about 7%, not 0.5"},{"title":"Multiply by volume","sub":"expected profit per period is the bottom line"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://data-science-for-biz.com/">Provost & Fawcett, Data Science for Business (2013)</a> - the definitive treatment of expected-value framing, cost-benefit matrices and profit curves; the source of the approach used here.</li>
+
+<li><a href="https://cseweb.ucsd.edu/~elkan/rescale.pdf">Elkan (2001), The Foundations of Cost-Sensitive Learning (IJCAI)</a> - the short, readable proof that the optimal decision threshold is set by the cost ratio.</li>
+
+<li><a href="https://doi.org/10.1177/0272989X06295361">Vickers & Elkin (2006), Decision Curve Analysis, Medical Decision Making</a> - net benefit versus threshold, the same idea applied to real clinical decisions.</li>
+
+<li><a href="https://probably.tidymodels.org/">probably: post-processing and threshold selection (tidymodels)</a> - choose and evaluate a cost-based cutoff in R, rather than by hand.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="complete">
+<h2>Course complete</h2>
+
+<p>You built the last piece the others were missing. Lesson 5 gave you a metric that matches your decision; Lesson 6 let you trust a metric difference over the luck of a split; and now you can turn that trustworthy difference into dollars: price each outcome, set the threshold from the costs, read the profit, and value a metric gain in money rather than in points.</p>
+
+<p>That is the whole arc of Model Evaluation and Tuning: resample honestly, tune deliberately, score with the right rule, compare with real uncertainty, and translate the result into a business decision.</p>
+
+<p>Model Evaluation and Tuning is one of the graded modules in the Data Scientist track. Pass the assessment and it goes on your verified certificate, with a portfolio build to match.</p>
+</section>
+
+{% endraw %}
