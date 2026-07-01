@@ -1,0 +1,343 @@
+---
+title: "Imbalanced Classification Lesson 1: Beyond Binary: Multiclass Classification"
+description: "Classify into more than two classes: one-vs-rest and one-vs-one decomposition, the K-by-K confusion matrix, and macro, micro and weighted precision and recall in R."
+keywords: "multiclass classification, one-vs-rest, one-vs-one, OvR, OvO, confusion matrix, macro average, micro average, per-class recall, multiclass ROC, R"
+mathjax: true
+webr: true
+curriculum_id: "6.80.1"
+post_type: "LESSON"
+course_id: "ds-imbalanced-classification"
+course_title: "Imbalanced Classification in R"
+course_lesson: "1"
+course_total: "6"
+course_landing: "R-Imbalanced-Classification-Course.html"
+course_next: "Class-Imbalance-and-Resampling.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "How to classify into more than two categories, and measure it fairly."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 6</div>
+<h2>Beyond Binary: Multiclass Classification</h2>
+
+<p>Your photo app sorts each picture into people, pets, or food. A support system routes each ticket to billing, technical, or account. Neither is a yes/no question: there are three buckets, and every item lands in exactly one.</p>
+
+<p>Meet Maya. She runs a plant nursery and keeps a crate of 150 iris seedlings a botanist already sorted into three species (setosa, versicolor, virginica). She wants to learn the pattern in their petal and sepal measurements so she can sort next season's crates on sight. That is a <strong>multiclass</strong> problem, and most of what you learned for two classes needs a small twist to work for three or more.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Turn a many-class problem into simple yes/no problems with <strong>one-vs-rest</strong> and <strong>one-vs-one</strong></li>
+
+<li>Read a <strong>K-by-K confusion matrix</strong> and see which classes get mistaken for which</li>
+
+<li>Compute <strong>per-class</strong> precision and recall, and combine them with <strong>macro, micro and weighted</strong> averaging</li>
+
+<li>Read a per-class <strong>ROC</strong> curve when there are more than two classes</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you have met a binary classifier that outputs a score (logistic regression), plus the confusion matrix and accuracy/precision/recall from binary problems.</p>
+
+<p>Three species, three colored clouds. Setosa sits off on its own with tiny petals; versicolor and virginica crowd together, which is where the trouble will be.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"x":"petal_length","y":"petal_width","geoms":["point"],"data":[{"x":1.4,"y":0.2,"fill":"setosa"},{"x":1.5,"y":0.2,"fill":"setosa"},{"x":1.3,"y":0.2,"fill":"setosa"},{"x":1.7,"y":0.4,"fill":"setosa"},{"x":1.4,"y":0.3,"fill":"setosa"},{"x":1.5,"y":0.1,"fill":"setosa"},{"x":4.5,"y":1.5,"fill":"versicolor"},{"x":4.0,"y":1.3,"fill":"versicolor"},{"x":4.7,"y":1.4,"fill":"versicolor"},{"x":4.2,"y":1.5,"fill":"versicolor"},{"x":4.9,"y":1.5,"fill":"versicolor"},{"x":3.9,"y":1.1,"fill":"versicolor"},{"x":5.5,"y":2.1,"fill":"virginica"},{"x":6.0,"y":2.5,"fill":"virginica"},{"x":5.8,"y":1.8,"fill":"virginica"},{"x":5.1,"y":1.9,"fill":"virginica"},{"x":6.1,"y":2.3,"fill":"virginica"},{"x":5.6,"y":2.1,"fill":"virginica"}],"code":{"point":"ggplot(df, aes(petal_length, petal_width, colour = group)) + geom_point(size = 2.5)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>One target, three answers</h2>
+
+<p>A <strong>binary</strong> classifier answers a yes/no question: churn or not, spam or not. A <strong>multiclass</strong> classifier picks exactly one label from three or more. We write \(K\) for the number of classes, so Maya's problem has \(K = 3\). Each seedling gets one label, never two.</p>
+
+<p>Some models handle this out of the box. A decision tree, a random forest, or a multinomial logistic model looks at all three species at once and predicts one directly. Here is a forest doing exactly that on Maya's crate:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+set.seed(1)
+
+# Maya's crate: 150 seedlings, each one of THREE species.
+table(iris$Species)
+#&gt;     setosa versicolor  virginica
+#&gt;         50         50         50
+
+# A random forest is natively multiclass: it predicts one of three labels directly.
+rf &lt;- randomForest(Species ~ ., data = iris)
+head(predict(rf), 3)
+#&gt;      1      2      3
+#&gt; setosa setosa setosa
+#&gt; Levels: setosa versicolor virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>But some of the most useful models are binary at heart. Plain logistic regression and the classic support vector machine each draw ONE boundary between two sides. To use them here, we have to break the three-class problem into two-class pieces. There are two standard ways to do that, and they are the heart of this lesson.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first recipe</div>
+<h2>One-vs-rest: K yes/no models</h2>
+
+<p>The simplest trick is <strong>one-vs-rest</strong> (also called one-vs-all). Train one binary model per class, each asking a single yes/no question: "is this a setosa, or not?", "is this a versicolor, or not?", "is this a virginica, or not?". Three classes, three little models. To classify a new seedling, run all three and keep the class whose model is most confident.</p>
+
+<p>The prediction is the class whose model gives the highest score: \( \hat{y} = \arg\max_{k}\, f_k(x) \), where \(f_k(x)\) is the probability the class-\(k\) model assigns to seedling \(x\), and \(k\) runs over the \(K\) classes. "Argmax" just means "the \(k\) that makes \(f_k\) largest".</p>
+
+<p>You can build it by hand with three ordinary logistic regressions. Watch the argmax stitch the three yes/no answers back into one three-way prediction:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One-vs-rest by hand: three yes/no logistic models, then keep the most confident.
+classes &lt;- levels(iris$Species)
+
+models &lt;- lapply(classes, function(cl) {
+  is_class &lt;- as.integer(iris$Species == cl)     # 1 for this species, 0 for the rest
+  glm(is_class ~ Petal.Length + Petal.Width, data = iris, family = binomial)
+})
+
+scores &lt;- sapply(models, function(m) predict(m, type = &quot;response&quot;))
+colnames(scores) &lt;- classes                      # P(setosa), P(versicolor), P(virginica)
+pred &lt;- classes[max.col(scores)]                 # argmax: the most confident class wins
+table(predicted = pred, actual = iris$Species)
+#&gt;             actual
+#&gt; predicted    setosa versicolor virginica
+#&gt;   setosa         50          0         0
+#&gt;   versicolor      0         48         4
+#&gt;   virginica       0          2        46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Setosa is caught perfectly; versicolor and virginica trade a few mistakes, exactly the overlap you saw on the cover.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"3 species","sub":"one target, three possible labels"},{"title":"3 yes/no models","sub":"setosa vs rest, versicolor vs rest, virginica vs rest"},{"title":"3 scores","sub":"each model gives a probability for its own class"},{"title":"argmax","sub":"predict the class whose model is most confident"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Count the models</h2>
+
+<p>You are building a handwritten-digit recognizer with ten classes, the digits 0 through 9. Using <strong>one-vs-rest</strong>, how many binary classifiers do you train?</p>
+<section class="exercise" data-exercise-id="Beyond-Binary-Multiclass-Classification-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">10, one per class, each asking "this digit vs all the others"</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">45, one for every pair of digits</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">1 model that outputs all ten at once</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. One-vs-rest trains exactly one yes/no model per class, so ten classes means ten models, and you predict the digit whose model is most confident.</div><div class="lesson-qfb lesson-qfb-no">That would be a natively multiclass model like a random forest. One-vs-rest deliberately splits the job into separate binary models, one per class, giving 10.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second recipe</div>
+<h2>One-vs-one: every pair votes</h2>
+
+<p>The other decomposition is <strong>one-vs-one</strong>. Instead of "each class against the world", train a model for every PAIR of classes: setosa vs versicolor, setosa vs virginica, versicolor vs virginica. Each model only ever sees its two classes. To predict, run all the pairwise models and let them vote; the class with the most wins takes the seedling.</p>
+
+<p>How many models is that? One for each way to choose 2 classes out of \(K\): \[ \binom{K}{2} = \frac{K(K-1)}{2} \] For Maya's three species that is 3, the same as one-vs-rest. But the two recipes scale very differently as classes pile up:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>One-vs-rest (OvR)</th>
+<th>One-vs-one (OvO)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Models trained</td>
+<td>\(K\) (one per class)</td>
+<td>\(K(K-1)/2\) (one per pair)</td>
+</tr>
+<tr>
+<td>For 3 species</td>
+<td>3</td>
+<td>3</td>
+</tr>
+<tr>
+<td>For 10 classes</td>
+<td>10</td>
+<td>45</td>
+</tr>
+<tr>
+<td>Each model trains on</td>
+<td>all the data</td>
+<td>only its two classes</td>
+</tr>
+<tr>
+<td>Predict by</td>
+<td>highest score (argmax)</td>
+<td>majority vote</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">One-vs-one trains many more models for large \(K\), but each one is smaller and faster because it sees only two classes of data, and each pairwise contest is often better balanced. One-vs-rest keeps the model count low but each model trains on everything. Most libraries pick one of these for you; it is worth knowing which.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>How many pairwise models?</h2>
+
+<p>Suppose Maya adds a fourth species to the crate, so \(K = 4\). One-vs-one trains a model for every pair of classes. Fill in the blank with the count, using R as a calculator.</p>
+<section class="exercise" data-exercise-id="Beyond-Binary-Multiclass-Classification-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="choose\s*\(\s*(K|4)\s*,\s*2\s*\)|(K|4)\s*\*\s*\(?\s*(K\s*-\s*1|3)\s*\)?\s*/\s*2|&lt;-\s*6\b"><textarea class="lesson-tryit-input" spellcheck="false"># One-vs-one trains one model for every PAIR of classes.
+# For a 4-class problem, how many pairwise models is that?
+K &lt;- 4
+n_models &lt;- ____
+n_models</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: choose(4, 2) = 4 * 3 / 2 = 6 pairwise models. One-vs-rest would need only 4 here, one per class.</span><span class="lesson-tryit-fb lesson-tryit-no">Count the pairs: choose(K, 2), which is K * (K - 1) / 2. For K = 4 that is 6. Type choose(K, 2).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">K &lt;- 4
+n_models &lt;- choose(K, 2)   # K * (K - 1) / 2 = 6 pairs
+n_models
+#&gt; [1] 6</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">How scoring changes</div>
+<h2>The confusion matrix goes K-by-K</h2>
+
+<p>For a binary model the confusion matrix is a 2-by-2 grid: two ways to be right, two ways to be wrong. With \(K\) classes it becomes a \(K\)-by-\(K\) grid. The diagonal counts correct predictions; every off-diagonal cell tells you a specific mistake, which class was confused for which. Split the crate into training and test seedlings, fit a forest, and look:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+set.seed(1)
+
+train_idx &lt;- sample(nrow(iris), 100)   # 100 seedlings to learn from
+train &lt;- iris[train_idx, ]
+test  &lt;- iris[-train_idx, ]            # 50 held-out seedlings to score on
+
+rf   &lt;- randomForest(Species ~ ., data = train)
+pred &lt;- predict(rf, test)
+cm   &lt;- table(predicted = pred, actual = test$Species)
+cm
+#&gt;             actual
+#&gt; predicted    setosa versicolor virginica
+#&gt;   setosa         18          0         0
+#&gt;   versicolor      0         15         2
+#&gt;   virginica       0          1        14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read it like a map. Every setosa is caught (its row and column are clean). The only errors sit between versicolor and virginica: 2 true virginicas called versicolor, 1 true versicolor called virginica. A single accuracy number would hide exactly that: it would tell you "94% right" and never mention that all the trouble is on one pair.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading it fairly</div>
+<h2>Per-class metrics, then averaged</h2>
+
+<p>With more than two classes, precision and recall are computed <strong>per class</strong>, treating that class as "positive" and everything else as "negative". For class \(k\), recall is \[ \text{recall}_k = \frac{TP_k}{TP_k + FN_k} \] where \(TP_k\) is the number of true class-\(k\) seedlings the model caught and \(FN_k\) is the number it missed (called something else). So each class gets its own recall, its own precision.</p>
+
+<p>To report a single headline number you average the per-class scores, and there are three honest ways to do it:</p>
+
+<ul>
+
+<li><strong>Macro</strong> averages the per-class scores equally: \( \text{recall}_{\text{macro}} = \frac{1}{K}\sum_{k=1}^{K}\text{recall}_k \). Every class counts the same, whether it has 5 members or 5000.</li>
+
+<li><strong>Micro</strong> pools the counts first: \( \text{recall}_{\text{micro}} = \frac{\sum_k TP_k}{\sum_k (TP_k + FN_k)} \). In a single-label problem this equals overall accuracy, so big classes dominate.</li>
+
+<li><strong>Weighted</strong> is macro but each class is weighted by its size: \( \sum_k w_k\,\text{recall}_k \) with \( w_k = n_k / N \), where \(n_k\) is how many true class-\(k\) seedlings there are and \(N\) is the total.</li>
+
+</ul>
+
+<p>Read all three straight off the confusion matrix:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Recall per class = correct / actually-that-class = diagonal / column total.
+recall &lt;- diag(cm) / colSums(cm)
+round(recall, 2)
+#&gt;     setosa versicolor  virginica
+#&gt;       1.00       0.94       0.88
+
+macro_recall &lt;- mean(recall)             # every class weighted equally
+round(macro_recall, 2)
+#&gt; [1] 0.94
+
+micro_recall &lt;- sum(diag(cm)) / sum(cm)  # pool all cases; equals overall accuracy
+round(micro_recall, 2)
+#&gt; [1] 0.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">When classes are balanced, macro and micro look almost identical. They diverge when one class is rare: micro (and accuracy) are dominated by the big classes and stay high, while macro gives the rare class an equal vote and drops the moment the model neglects it. That is why macro-averaged recall is the number to watch on an imbalanced problem, the theme of the rest of this course.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which average tells the truth?</h2>
+
+<p>A fraud system sorts transactions into three classes: legit (9,000 cases), suspicious (900), and fraud (100). A lazy model nails legit but is hopeless on fraud. Which averaged recall will most clearly expose that failure?</p>
+<section class="exercise" data-exercise-id="Beyond-Binary-Multiclass-Classification-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Macro recall, the unweighted mean of the three per-class recalls</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Micro recall, pooled over every transaction</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Overall accuracy</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Macro gives fraud the same one-third weight as legit, so a class the model ignores drags the macro score down hard. Micro and weighted are ruled by the 9,000 legit cases and stay comfortably high.</div><div class="lesson-qfb lesson-qfb-no">Accuracy is also dominated by the huge legit class (about 90% of all cases), so it stays high and never reveals the fraud miss. Macro-averaged recall is what surfaces it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<div class="lesson-step-eyebrow">One more picture</div>
+<h2>Per-class ROC</h2>
+
+<p>You met the ROC curve for binary problems: sweep the threshold and trace true-positive rate against false-positive rate. For multiclass you draw <strong>one ROC per class</strong>, using the same one-vs-rest idea: class \(k\)'s positives against every other class pooled as the negative. Averaging the per-class areas gives a single <strong>macro-AUC</strong>.</p>
+
+<p>The widget below is one such curve, say "virginica vs the rest". Slide the threshold and watch the confusion counts and the operating point move, exactly as they would for any one of the \(K\) one-vs-rest curves you would draw for a multiclass model.</p>
+
+<p>Draw one of these for each class and you can see at a glance which class your model ranks well and which it struggles to separate, far more than a single AUC number ever tells you.</p>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://scikit-learn.org/stable/modules/multiclass.html">scikit-learn: Multiclass and multioutput algorithms</a> - a clear, language-agnostic reference on one-vs-rest and one-vs-one and when each is used.</li>
+
+<li><a href="https://yardstick.tidymodels.org/articles/multiclass.html">yardstick: Multiclass averaging (tidymodels)</a> - exactly how macro, micro and weighted averaging are computed on real R model output.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - classification, the confusion matrix, and sensitivity and specificity, gently explained.</li>
+
+<li><a href="https://arxiv.org/abs/2008.05756">Grandini, Bagli and Visani (2020), Metrics for Multi-Class Classification: an Overview</a> - a compact survey of every multiclass metric and averaging scheme in one place.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now take a problem with more than two classes and handle it end to end. One-vs-rest turns it into \(K\) yes/no models and predicts the argmax; one-vs-one trains \(K(K-1)/2\) pairwise models and votes; the confusion matrix grows to \(K\)-by-\(K\) and names every mistake; and precision and recall become per-class scores you combine with macro, micro or weighted averaging, macro being the one that refuses to let a rare class hide.</p>
+
+<p>That last point is the doorway to the rest of this course. The moment one class is rare, accuracy and micro-averaging flatter a model that quietly ignores it. Next, Lesson 2: Class Imbalance and Resampling, where you will fix that with under-sampling, over-sampling and SMOTE, applied without leaking into your evaluation.</p>
+</section>
+
+{% endraw %}
