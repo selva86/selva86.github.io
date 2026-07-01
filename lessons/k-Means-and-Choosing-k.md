@@ -33,7 +33,7 @@ By the end of this lesson you will be able to:
 - Follow Lloyd's algorithm, the two-move loop k-means runs, and grow the clusters yourself in R
 - Choose k with the elbow and the silhouette, and know when there is no honest answer
 
-**Prerequisites:** you can run R and read its output, and you have done [Lesson 1 on PCA](PCA-in-R.html) and [Lesson 2 on factor analysis](Factor-Analysis.html) (scaling a variable, reading a scatter plot). No new maths is assumed; every symbol is defined as it appears.
+**Prerequisites:** you can run R and read its output, and you have done [Lesson 1 on PCA](Principal-Component-Analysis.html) and [Lesson 2 on factor analysis](Factor-Analysis.html) (scaling a variable, reading a scatter plot). No new maths is assumed; every symbol is defined as it appears.
 
 ::widget kmeans-cluster {"k":3}
 
