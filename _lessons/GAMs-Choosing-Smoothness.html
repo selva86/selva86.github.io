@@ -1,0 +1,307 @@
+---
+title: "Advanced Regression Lesson 7: Choosing the Smoothness"
+description: "You set k generously and trust the penalty, but is the fit sound? Read gam.check to size k, spot concurvity between smooths, and check a GAM's residuals."
+keywords: "gam.check, choosing k, basis dimension, concurvity, mgcv, GAM diagnostics, effective degrees of freedom, k-index, penalized spline, R"
+mathjax: true
+webr: true
+curriculum_id: "6.130.7"
+post_type: "LESSON"
+course_id: "ds-reg-glm-expert"
+course_title: "Advanced Regression and GLMs"
+course_lesson: "7"
+course_total: "13"
+course_landing: "R-Advanced-Regression-Course.html"
+course_next: "Count-Models-Poisson-and-Negative-Binomial.html"
+course_prev: "GAMs-Splines-and-Smooths.html"
+lesson_access: "pro"
+catalog_blurb: "How to check a smooth curve is flexible enough and worth trusting."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 13</div>
+<h2>Choosing the Smoothness</h2>
+
+<p>Priya's ice-cream cart is back, and last lesson ended well. A straight line saw nothing in her sales, but a GAM, given permission to bend, found the temperature hill and explained more than half the variation. The recipe was one line, <code>s(temp)</code>, and a promise: set the flexibility ceiling generously, and the wiggliness penalty will dial the curve down to just what the data supports.</p>
+
+<p>That promise hides two questions we never actually checked. Was the ceiling high enough, or did the penalty quietly run out of room? And once a GAM hands you a set of bending curves, can you trust their shapes at all? This lesson is the diagnostic half of GAMs: sizing the smoothness, and deciding whether to believe the fit.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Tell apart <code>k</code>, the flexibility ceiling you set, and the effective degrees of freedom the penalty actually spends, and spot when the ceiling is too low</li>
+
+<li>Read <code>gam.check</code> to decide whether <code>k</code> is large enough, and raise it when it is not</li>
+
+<li>Recognize concurvity, the smooth-term version of collinearity, and measure it before you trust a curve</li>
+
+<li>Check a GAM's residuals the way you check a linear model's, so a bad fit cannot slip past</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can <a href="GAMs-Splines-and-Smooths.html">fit a GAM and read its edf</a> (last lesson), you know the <a href="The-Bias-Variance-Tradeoff.html">bias-variance tradeoff</a>, and you can read a <a href="OLS-Regression-from-Scratch.html">linear model's residuals</a>.</p>
+
+<p>Drag the smoothness dial once more. Everything in this lesson is about landing on that middle setting on purpose, and being able to prove you landed there.</p>
+<div class="lesson-widget" data-widget-type="spline-smoother" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The two numbers</div>
+<h2>k is a ceiling; edf is the bill</h2>
+
+<p>Priya kept logging, and her book now covers 200 days of one summer with a new column: the day of the season, 1 to 120. Sales still follow temperature, but they also rise and fall across the summer as festivals, school holidays and a seaside week come and go, a pattern with several bumps in it. We rebuild the fuller dataset inline (a fresh session, so all her data lives right here) and fit the whole thing at once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(mgcv)
+set.seed(7)
+n &lt;- 200
+ice &lt;- data.frame(
+  day      = round(runif(n, 1, 120)),      # day of the 120-day summer
+  temp     = round(runif(n, 12, 36), 1),   # daily high temperature (Celsius)
+  humidity = round(runif(n, 30, 90)),      # percent relative humidity
+  weekend  = rbinom(n, 1, 0.3)             # 1 on Saturday and Sunday
+)
+hill   &lt;- -0.22 * (ice$temp - 24)^2                 # the temperature hill, peak near 24C
+season &lt;- 14 * sin(ice$day / 120 * 6 * pi)          # a wiggly across-summer pattern
+ice$sales &lt;- round(pmax(0, 150 + hill + season +
+              10 * ice$weekend - 0.12 * ice$humidity + rnorm(n, 0, 7)))
+
+g &lt;- gam(sales ~ s(temp) + s(day) + s(humidity) + weekend, data = ice)
+round(summary(g)$s.table, 3)
+#&gt;               edf Ref.df      F p-value
+#&gt; s(temp)     3.429  4.251 47.585       0
+#&gt; s(day)      8.861  8.994 55.475       0
+#&gt; s(humidity) 1.000  1.000 16.654       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the <code>edf</code> column, the <em>effective degrees of freedom</em>: it counts how much each smooth actually bent. Temperature spent 3.4, the seasonal <code>day</code> term spent 8.9, humidity collapsed to 1.0, a straight line. That is the penalty doing its job, buying curvature only where the data pays for it.</p>
+
+<p>Now the number you set without thinking. When you write <code>s(day)</code>, <code>mgcv</code> lays down a fixed set of building-block curves, <code>k</code> of them (default <code>k = 10</code>), and one is used up to anchor the smooth, leaving a ceiling of <code>k - 1 = 9</code> on how wiggly it can get. The penalty then chooses an edf somewhere <em>below</em> that ceiling:</p>
+
+<p>\[ 1 \;\le\; \mathrm{edf} \;\le\; k-1 \]</p>
+
+<p>Here \(\mathrm{edf}\) is the flexibility actually used and \(k-1\) is the most on offer. An edf near 1 means the smooth barely bent (essentially a line); an edf pressed up near \(k-1\) means the penalty wanted all the flexibility you gave it, and perhaps more. Think of <code>k</code> as a credit limit and edf as the bill. Temperature's bill (3.4) sits comfortably under its limit (9): plenty of room. But look again at <code>day</code>: edf 8.9 against a ceiling of 9. That smooth spent almost every basis function it was allowed, and that is the warning sign this whole lesson is built to read.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the ceiling</h2>
+
+<p>You fit a smooth with <code>s(x)</code>, so <code>mgcv</code> uses the default <code>k = 10</code> and the ceiling is <code>k&#x27; = 9</code>. The summary reports <strong>edf = 8.9</strong> for that term. What is that number telling you?</p>
+<section class="exercise" data-exercise-id="GAMs-Choosing-Smoothness-step3" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The penalty spent almost all the flexibility you allowed (edf 8.9 against a ceiling of 9), so k may be too small; raise it and check again</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">edf 8.9 is high, so the smooth is overfitting; lower k to rein it in</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing to worry about: edf is below k', which is all that matters</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. An edf sitting right against k' is the classic not-enough-room signal. The penalty would have bent the curve further if the basis had let it, so you raise k and refit to find out.</div><div class="lesson-qfb lesson-qfb-no">edf is ALWAYS below k' by construction, so "below k'" tells you nothing on its own. What matters is HOW FAR below. Sitting right up against the ceiling is precisely the case that needs a bigger k.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The diagnostic</div>
+<h2>gam.check: is k big enough?</h2>
+
+<p>Reading the edf-against-ceiling hint by eye is good instinct, but <code>mgcv</code> gives you a proper test. The function <code>gam.check()</code> does two jobs in one call: it prints a <strong>basis-size table</strong> telling you whether each <code>k</code> is large enough, and it draws four <strong>residual-diagnostic plots</strong> (we read those next). Its sister <code>k.check()</code> returns just the table, which is all we need for the first job. Because the test compares your residuals against a randomly shuffled reference, we set a seed so the numbers repeat.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)                 # k.check uses a randomized reference; seed it for a repeatable result
+round(k.check(g), 2)
+#&gt;             k'  edf k-index p-value
+#&gt; s(temp)      9 3.43    1.00    0.50
+#&gt; s(day)       9 8.86    0.98    0.33
+#&gt; s(humidity)  9 1.00    0.96    0.34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four columns. <code>k&#x27;</code> is the ceiling (basis size minus the one anchoring function); <code>edf</code> is how much bent, as before. The <code>k-index</code> measures whether there is still pattern left in the residuals that a wigglier smooth could have caught: values near or above <strong>1</strong> are healthy, and clearly <strong>below 1</strong> means leftover structure the current fit is too stiff to follow. The <code>p-value</code> is a formal test of that same idea; a small one flags a smooth that is too stiff for its data.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Raise <code>k</code> when EITHER signal fires: a k-index below 1 with a small p-value, OR an edf sitting right against its <code>k&#x27;</code>. Here <code>day</code> shows the second kind: its k-index (0.98) and p-value (0.33) look calm, but edf 8.86 is glued to the ceiling of 9. That alone is reason enough to give it more room and re-check. <code>k</code> is only ever an upper bound you are testing, never a setting you trust blind.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Give the smooth more room</h2>
+
+<p>The <code>day</code> smooth is pinned at its ceiling (edf 8.86, k' = 9), so we cannot yet know its true shape: the penalty may be straining against a limit we set too low. Raise the basis size for the <code>day</code> term well past 9 and re-run the check. Fill in a larger <code>k</code>.</p>
+<section class="exercise" data-exercise-id="GAMs-Choosing-Smoothness-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="k\s*=\s*([2-9][0-9])"><textarea class="lesson-tryit-input" spellcheck="false">g_ok &lt;- gam(sales ~ s(temp) + s(day, k = ____) + s(humidity) + weekend,
+            data = ice)
+set.seed(1); round(k.check(g_ok), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Any generous k works. With k = 30 the day smooth spends edf 14.8 against a ceiling of 29, comfortably clear, and deviance explained rises from 83.5% to 85.3%. The ceiling really was holding it back.</span><span class="lesson-tryit-fb lesson-tryit-no">Set a bigger basis for the day term, for example k = 30. It must be well above the old ceiling of 9 so the penalty has room to spare.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">g_ok &lt;- gam(sales ~ s(temp) + s(day, k = 30) + s(humidity) + weekend,
+            data = ice)
+set.seed(1); round(k.check(g_ok), 2)
+#&gt;             k'   edf k-index p-value
+#&gt; s(temp)      9  3.40    1.01    0.54
+#&gt; s(day)      29 14.81    1.09    0.88
+#&gt; s(humidity)  9  1.00    0.96    0.34</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<div class="lesson-step-eyebrow">The other half of gam.check</div>
+<h2>Reading the residual plots</h2>
+
+<p>Sizing <code>k</code> asks whether the curve is flexible enough. The residual plots ask a different question: are the model's <em>assumptions</em> holding? <code>gam.check</code> draws four, and the two you read first are the same ones you know from a linear model. The <strong>residuals-versus-fitted</strong> plot should show a formless, even band around zero: no funnel, no arc. The <strong>Q-Q plot</strong> should track its diagonal, telling you the residuals are roughly normal.</p>
+
+<p>Toggle the three shapes below. A healthy fit scatters flat and even. A funnel means the spread grows with the prediction (non-constant variance), so the standard errors, and every p-value you just read off the summary, are wrong. A U-shaped arc means the model missed a bend, a hint that some smooth needs more room or a term is missing.</p>
+
+<p>For a GAM the fix usually routes back through smoothness. A leftover arc in one predictor's residuals often means its <code>k</code> is too small, exactly what <code>gam.check</code>'s basis table would also flag, so the two diagnostics agree. A funnel points somewhere else, at the scale of the response itself, a job for a different error family that the next lessons take up.</p>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Name the trouble</h2>
+
+<p>You check a fitted model and its residuals-versus-fitted plot fans open from left to right: a tight cluster at low fitted values, a wide spray at high ones. The Q-Q plot is roughly straight. What has the plot caught, and does it threaten the p-values from the summary?</p>
+<section class="exercise" data-exercise-id="GAMs-Choosing-Smoothness-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A missed curve: the model needs a smooth term or a bigger k to capture a bend it is currently ignoring</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Non-constant variance: the errors grow with the fitted value, so the standard errors and every p-value built on them are unreliable until you address it</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing: a fan is what a healthy, constant-variance residual plot looks like</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A funnel is the signature of non-constant variance. The fitted curve itself may be fine, but the uncertainty around it is mis-stated, so the significance tests cannot be trusted as they stand. A transform or a different error family is the fix.</div><div class="lesson-qfb lesson-qfb-no">A healthy plot is an even band of roughly constant width. A fan is the textbook picture of NON-constant variance, the opposite of what the assumptions want.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The hidden trap</div>
+<h2>Concurvity: collinearity for curves</h2>
+
+<p>There is one failure a healthy-looking fit can still hide. Suppose Priya also logs the "feels-like" temperature her weather app shows, which is really just the actual temperature nudged a little by humidity. She adds a smooth of it to the model, alongside the smooth of temperature.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ice$feels_like &lt;- ice$temp + 0.1 * ice$humidity + rnorm(n, 0, 0.5)   # the app's apparent temp
+gc &lt;- gam(sales ~ s(temp) + s(feels_like), data = ice)
+round(summary(gc)$s.table, 3)
+#&gt;                 edf Ref.df      F p-value
+#&gt; s(temp)       3.144  3.908 21.129   0.000
+#&gt; s(feels_like) 1.000  1.000  0.279   0.598</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Something looks off. Temperature is wildly significant, but <code>feels_like</code>, which we know carries almost the same information, has been flattened to a straight, insignificant line (p = 0.60). Swap the two terms' order in the formula and the roles flip. The model cannot tell the pair apart, so it hands the whole effect to one and starves the other. This is <strong>concurvity</strong>: the smooth-term version of the collinearity you meet with correlated predictors in ordinary regression. It happens whenever one smooth can be closely reproduced by the others.</p>
+
+<p><code>mgcv</code> measures it directly. <code>concurvity()</code> reports, for each smooth, how much of it the <em>other</em> smooths can reconstruct, on a scale from 0 (independent) to 1 (completely redundant).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(concurvity(gc, full = TRUE), 2)
+#&gt;          para s(temp) s(feels_like)
+#&gt; worst       0    0.94          0.94
+#&gt; observed    0    0.80          0.93
+#&gt; estimate    0    0.90          0.88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the <code>worst</code> row, the pessimistic upper bound (the <code>observed</code> and <code>estimate</code> rows are gentler estimates of the same thing). Both smooths score <strong>0.94</strong>, near the top of the scale: almost everything one curve does, the other could do too. That is why the individual shapes and p-values above are not to be trusted, and why one of the two terms should go.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What 0.94 means</h2>
+
+<p><code>concurvity()</code> reports a worst-case score of <strong>0.94</strong> between <code>s(temp)</code> and <code>s(feels_like)</code>. What does that tell you, and what should you do?</p>
+<section class="exercise" data-exercise-id="GAMs-Choosing-Smoothness-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The two smooths carry almost the same information, so the model cannot separate their effects; their individual shapes and p-values are unreliable. Drop one, or combine them</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The two predictors are strongly correlated with sales, so both are clearly important and should stay</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">0.94 is acceptable; concurvity only signals a real problem once it climbs past 1</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Concurvity runs from 0 to 1, and 0.94 is near total overlap. Keeping both leaves you with two untrustworthy curves. Pick the one that is cheaper to measure or easier to explain, and drop the other.</div><div class="lesson-qfb lesson-qfb-no">Concurvity is bounded between 0 and 1, so it never exceeds 1. A value near 1 IS the problem. As a rule of thumb, start worrying once the worst-case score climbs past about 0.8.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>A GAM you can trust</h2>
+
+<p>Three checks stand between a fitted GAM and a trustworthy one. Run them in order every time:</p>
+
+<ol>
+
+<li>**Is each <code>k</code> big enough?** Use <code>gam.check</code> / <code>k.check</code>: no smooth's edf should sit against its <code>k&#x27;</code>, and k-indices should be near 1. Raise <code>k</code> and re-check any that strain.</li>
+
+<li><strong>Do the residuals behave?</strong> The residuals-versus-fitted band is flat and even (no funnel, no arc) and the Q-Q plot tracks its line.</li>
+
+<li><strong>Is concurvity low?</strong> No smooth should be largely reconstructable from the others (worst-case well under about 0.8).</li>
+
+</ol>
+
+<p>Priya's sensible model, temperature plus the seasonal day term with room to bend plus humidity, passes all three. Its <code>k.check</code> came back clean a moment ago; here is its concurvity, with the redundant <code>feels_like</code> left out.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(concurvity(g_ok, full = TRUE)[&quot;worst&quot;, ], 2)
+#&gt;        para     s(temp)      s(day) s(humidity)
+#&gt;        0.38        0.36        0.39        0.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every worst-case score sits below 0.4, comfortably clear: temperature, season and humidity each carry their own information. A sized-right, residual-clean, low-concurvity GAM is one whose bending curves you can actually read and report to Priya, which was the entire point of letting the model bend in the first place.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1201/9781315370279">Simon Wood, Generalized Additive Models: An Introduction with R (2nd ed.)</a> - the definitive book, by mgcv's own author; its chapters on smoothness selection and model checking are the source for everything here.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/choose.k.html">mgcv reference: choosing the basis dimension k</a> - the official guidance on picking k and reading the k-index test that gam.check reports.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/concurvity.html">mgcv reference: concurvity</a> - what the measure is, how to read the worst / observed / estimate rows, and its limits.</li>
+
+<li><a href="https://noamross.github.io/gams-in-r-course/">Noam Ross, GAMs in R (free interactive course)</a> - chapter 2 walks through gam.check, basis size and concurvity with worked examples.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 7 (free PDF)</a> - "Moving Beyond Linearity": the gentle grounding for effective degrees of freedom and how smoothness trades bias for variance.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 7 complete</h2>
+
+<p>Last lesson you gave Priya's regression the ability to bend; this lesson you learned to trust the bend. <code>k</code> is only a ceiling on flexibility and edf is what the penalty actually spends, so an edf pinned against its <code>k&#x27;</code> (Priya's day smooth at 8.9 of 9) means the ceiling is too low. <code>gam.check</code> and <code>k.check</code> size every <code>k</code>, and through their residual plots they check the old assumptions of constant variance and normality. And <code>concurvity</code> guards against the quiet trap of two smooths carrying the same information, which flattens one curve and makes both untrustworthy. Sized right, residual-clean, low concurvity: that is a GAM you can read out loud.</p>
+
+<p>Next, Lesson 8: counts. Priya's sales are whole numbers that pile up near zero on the coldest days, and a straight-line or smooth model of them can happily predict impossible negative sales. Poisson regression, and its overdispersed cousin the negative binomial, build a GLM that respects what a count actually is.</p>
+</section>
+
+{% endraw %}
