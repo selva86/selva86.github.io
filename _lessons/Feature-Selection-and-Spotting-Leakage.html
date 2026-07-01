@@ -1,0 +1,343 @@
+---
+title: "Feature Engineering Lesson 7: Feature Selection and Spotting Leakage"
+description: "Select features in R with filter, wrapper and embedded methods, then spot target leakage before it inflates your model's score and fails silently in production."
+keywords: "feature selection, R, data leakage, target leakage, filter methods, wrapper methods, embedded methods, lasso, glmnet, variable importance, stepwise selection, cross-validation"
+mathjax: true
+webr: true
+curriculum_id: "6.60.7"
+post_type: "LESSON"
+course_id: "ds-feature-engineering"
+course_title: "Feature Engineering in R"
+course_lesson: "7"
+course_total: "7"
+course_landing: "R-Feature-Engineering-Course.html"
+course_next: ""
+course_prev: "Imputing-Missing-Values-in-Features.html"
+lesson_access: "free"
+catalog_blurb: "Keep the features that earn their place, and catch leaks that inflate your score."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 7</div>
+<h2>Feature Selection and Spotting Leakage</h2>
+
+<p>For six lessons you have been manufacturing features: encoding, transforming, splitting dates, imputing gaps. Now you have more columns than you need, and a new pair of questions. Which features actually earn their place in the model? And is any column secretly cheating?</p>
+
+<p>Picture the model you built to predict which free-trial users of a project-management app convert to a paid plan. You have 600 trials and eight behavioral columns about each one, from weekly logins to support tickets. Some genuinely predict conversion. Some are noise dressed up as signal. And one column your data team joined in later will hand you a stunning test score that collapses the moment you ship. This lesson is about telling all three apart.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Rank features by a fast filter, and tell filter, wrapper and embedded selection apart</li>
+
+<li>Choose the right selection method for the job</li>
+
+<li>Define target leakage, spot its tell-tale signs, and remove a leak before it fools you</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit and read a logistic regression, you know a train/test split and what overfitting is, and you have met data leakage once already (<a href="Train-Validation-Test-and-Data-Leakage.html">Train/Validation/Test and Data Leakage</a>). Comfortable with <a href="The-dplyr-Verbs.html">dplyr</a> helps. Every new idea here is taught from scratch.</p>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"weekly logins","value":100},{"label":"features used","value":73},{"label":"team size","value":49},{"label":"docs opened","value":24},{"label":"emails clicked","value":14},{"label":"support tickets","value":8}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why bother</div>
+<h2>More features is not more signal</h2>
+
+<p>It is tempting to throw every column you have at a model and let it sort them out. It rarely works out well. Each irrelevant feature is one more chance for the model to fit noise instead of signal, so it nudges variance up and generalization down, the overfitting you met in the imputation lesson. Extra columns also cost money to collect and store, slow training and scoring, and bury the two or three features that actually matter under a pile that does not.</p>
+
+<p>So the goal of feature selection is simple to state: keep the smallest set of features that predicts well, and drop the rest. First, the data. Each lesson runs in a fresh R session, so we build the 600 trials right here (run this once). Only the first three columns truly drive conversion; the other five are along for the ride.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 600
+z &lt;- function(x) as.numeric(scale(x))
+
+dat &lt;- data.frame(
+  weekly_logins    = pmax(0, round(rnorm(n, 12, 4))),  # real signal
+  features_used    = rpois(n, 5),                       # real signal
+  team_size        = rpois(n, 4) + 1,                   # real signal
+  docs_opened      = rpois(n, 6),                        # no signal
+  emails_clicked   = rpois(n, 3),                        # no signal
+  support_tickets  = rpois(n, 1),                        # no signal
+  page_pings       = round(rnorm(n, 40, 12)),            # no signal
+  session_gap_days = round(rnorm(n, 7, 3))               # no signal
+)
+
+# The true conversion score depends ONLY on the first three columns:
+score &lt;- 1.2 * z(dat$weekly_logins) + 0.8 * z(dat$features_used) +
+         0.5 * z(dat$team_size) + rnorm(n, 0, 0.6)
+
+# The top 35% most-engaged trials convert (exactly 210 of the 600):
+dat$converted &lt;- as.integer(rank(score, ties.method = &quot;first&quot;) &gt; 0.65 * n)
+
+table(dat$converted)
+#&gt; 
+#&gt;   0   1 
+#&gt; 390 210</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eight candidate features, one target, and a secret we built in: only three columns carry signal. A good selection method should rediscover that from the data alone. There are three families of methods that try, and they differ in one thing: how much they let the model itself do the choosing.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Family 1</div>
+<h2>Filter methods: rank one feature at a time</h2>
+
+<p>The cheapest family ignores the model entirely. A <strong>filter</strong> scores each feature on its own by how strongly it moves with the target, ranks them, and keeps the top few. Here the score is the absolute Pearson correlation between a feature and the outcome.</p>
+
+<p>For a feature \(x_j\) (say weekly logins) and the target \(y\) (converted, coded 0 or 1), the correlation is</p>
+
+<p>\[ \rho_j = \frac{\sum_{i=1}^{n}\left(x_{ij}-\bar{x}_j\right)\left(y_i-\bar{y}\right)}{\sqrt{\sum_{i=1}^{n}\left(x_{ij}-\bar{x}_j\right)^2}\;\sqrt{\sum_{i=1}^{n}\left(y_i-\bar{y}\right)^2}} \]</p>
+
+<p>where \(x_{ij}\) is feature \(j\) for trial \(i\), \(\bar{x}_j\) is that feature's average, \(y_i\) is whether trial \(i\) converted, and \(\bar{y}\) is the conversion rate. The value \(\rho_j\) runs from \(-1\) to \(1\); we take \(\lvert\rho_j\rvert\) because a strong negative relationship is just as useful as a strong positive one. Rank the features by that number and the signal should float to the top:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- setdiff(names(dat), &quot;converted&quot;)
+
+# Filter score: how strongly each feature moves with the target, on its own.
+strength &lt;- sapply(dat[preds], function(x) abs(cor(x, dat$converted)))
+sort(round(strength, 2), decreasing = TRUE)
+#&gt;    weekly_logins    features_used        team_size      docs_opened 
+#&gt;             0.56             0.37             0.22             0.05 
+#&gt; session_gap_days   emails_clicked       page_pings  support_tickets 
+#&gt;             0.03             0.02             0.02             0.01 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three real drivers sit at the top (0.56, 0.37, 0.22) and the five noise columns collapse toward zero, exactly as designed. Filters are wonderful for a first cut: they are fast, they do not care which model you will use, and they scale to thousands of columns. Their blind spot is that they judge each feature <strong>alone</strong>. A filter cannot see that two features are near-duplicates (it will happily keep both), and it misses a feature that is useless by itself but powerful in combination with another. For that, you have to let the model weigh in.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Keep the features that clear the bar</h2>
+
+<p>You have the <code>strength</code> ranking from the last step. Turn a ranking into a <em>selection</em> by keeping only the features whose association clears a modest cutoff, so the real signals stay and the near-zero noise drops. Fill in the comparison.</p>
+<section class="exercise" data-exercise-id="Feature-Selection-and-Spotting-Leakage-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="&gt;"><textarea class="lesson-tryit-input" spellcheck="false"># Keep features whose absolute correlation clears 0.15; noise sits well below it.
+keep &lt;- names(strength)[strength ____ 0.15]
+keep</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: strength > 0.15 keeps the features above the cutoff. The three real drivers clear it comfortably; the five noise columns fall short and are dropped.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the features whose strength is greater than the cutoff, so use the greater-than sign: strength > 0.15.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">keep &lt;- names(strength)[strength &gt; 0.15]
+keep
+#&gt; [1] &quot;weekly_logins&quot; &quot;features_used&quot; &quot;team_size&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Family 2</div>
+<h2>Wrapper methods: let the model judge subsets</h2>
+
+<p>A <strong>wrapper</strong> does what a filter refuses to: it uses the actual model as the judge. It trains the model on different subsets of features and keeps the subset that scores best, so it can reward features that only shine together and punish redundant ones.</p>
+
+<p>The catch is cost. There are too many subsets to try them all (eight features already give 255 non-empty subsets), so wrappers search greedily. Backward stepwise selection is the classic:</p>
+
+<ol>
+
+<li>Start with every feature in the model.</li>
+
+<li>Try removing each one; see which removal most improves the model's score.</li>
+
+<li>Drop that feature, refit, and repeat.</li>
+
+<li>Stop when no single removal helps any more.</li>
+
+</ol>
+
+<p>R's <code>step()</code> runs exactly that loop, scoring by AIC (a measure that rewards fit and penalizes extra features):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">full    &lt;- glm(converted ~ ., data = dat, family = binomial)
+reduced &lt;- step(full, direction = &quot;backward&quot;, trace = 0)
+formula(reduced)
+#&gt; converted ~ weekly_logins + features_used + team_size + docs_opened</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The search keeps the three real drivers and drops four of the five noise columns, because a noise feature usually does not pay for its complexity in AIC. Notice it hangs on to <code>docs_opened</code> here, a column with no real signal but the least innocent-looking of the noise: AIC would rather tolerate a borderline extra than risk dropping something useful. That is worth internalizing early, <strong>selection is a heuristic, not an oracle</strong>; treat any method's output as a shortlist to sanity-check. Wrappers usually pick a sharper subset than a filter, but they pay for it: they refit the model many times (slow on wide data), and they can overfit the <em>selection itself</em> if you tune it on the same data you evaluate on, a leak we will name in a moment.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Family 3</div>
+<h2>Embedded methods: selection baked into training</h2>
+
+<p>The third family gets selection for free by choosing a model that selects <strong>while</strong> it fits. The star is the <strong>Lasso</strong>, a linear or logistic regression with an L1 penalty. It fits the usual coefficients but pays a fine proportional to their absolute size, which pushes weak coefficients not just small but exactly to zero. A coefficient of zero means that feature is out of the model. For a linear fit:</p>
+
+<p>\[ \hat{\beta} = \arg\min_{\beta}\;\; \underbrace{\frac{1}{2n}\sum_{i=1}^{n}\left(y_i - x_i^{\top}\beta\right)^2}_{\text{fit the data}} \;+\; \underbrace{\lambda\sum_{j=1}^{p}\lvert\beta_j\rvert}_{\text{penalty on size}} \]</p>
+
+<p>where \(\beta_j\) is the weight on feature \(j\), \(p\) is the number of features, and \(\lambda\ge 0\) is the penalty strength: turn \(\lambda\) up and more coefficients are forced to zero. (For our yes/no target the fit term becomes the logistic loss, but the \(\lambda\sum\lvert\beta_j\rvert\) penalty, the part that does the selecting, is identical.) The <code>glmnet</code> package fits it and picks a sensible \(\lambda\) by cross-validation:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glmnet)
+
+x &lt;- model.matrix(converted ~ ., data = dat)[, -1]   # the eight predictors as a matrix
+y &lt;- dat$converted
+set.seed(1)
+cv &lt;- cv.glmnet(x, y, family = &quot;binomial&quot;, alpha = 1) # alpha = 1 IS the Lasso
+
+cf &lt;- as.matrix(coef(cv, s = &quot;lambda.1se&quot;))  # coefficients at a well-regularized lambda
+rownames(cf)[cf[, 1] != 0]                   # the features Lasso KEPT (coefficient not zero)
+#&gt; [1] &quot;(Intercept)&quot;   &quot;weekly_logins&quot; &quot;features_used&quot; &quot;team_size&quot;    
+#&gt; [5] &quot;docs_opened&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lasso keeps the signal and zeros most of the noise in a single fit, with no separate search. (On this sample it, too, holds on to <code>docs_opened</code>, the same borderline column the wrapper kept, another reminder that a selected set is a shortlist, not gospel.) Tree ensembles select in their own way: a random forest ranks features by how much each one improves its splits, and you keep the top of that ranking. The chart below shows an illustrative importance ranking for this trial data, the kind an embedded method produces.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Embedded methods are usually the best default: they are model-aware like a wrapper but cost one fit like a filter. One caveat: when two features are strongly correlated, the Lasso tends to keep one and zero the other almost at random, so do not read a zeroed coefficient as proof a feature is worthless.</div></div>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"weekly logins","value":100},{"label":"features used","value":68},{"label":"team size","value":41},{"label":"emails clicked","value":11},{"label":"docs opened","value":9},{"label":"support tickets","value":6},{"label":"page pings","value":4},{"label":"session gap days","value":3}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Choose the family</h2>
+
+<p>You have just pulled in a dataset with 3,000 candidate features and a single afternoon. You want a quick first cut to shrink the pile before you do any serious modeling, and you do not want the ranking to depend on which model you eventually pick. Which selection family fits this job best?</p>
+<section class="exercise" data-exercise-id="Feature-Selection-and-Spotting-Leakage-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Filter methods: score each feature on its own against the target, fast and model-agnostic</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Wrapper methods: search subsets, refitting the model for each candidate</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Embedded methods: let a single model like the Lasso select during training</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A filter is O(one pass per feature), needs no model, and gives a model-independent ranking, which is precisely what a fast first cut over 3,000 columns calls for. Refine with an embedded method afterward.</div><div class="lesson-qfb lesson-qfb-no">Embedded selection is excellent and you should reach for it next, but it ties the choice to one model's fit. For a fast, model-agnostic first pass over thousands of columns, the filter is the right tool.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The bigger danger</div>
+<h2>Target leakage: the feature that already knows</h2>
+
+<p>Selection decides which honest features to keep. Leakage is a nastier problem: a feature that should never have been a candidate at all. <strong>Target leakage</strong> is when a feature carries information you would not actually have at prediction time, usually because it is a consequence of the outcome rather than a cause. Train on it and your test score looks brilliant. Ship it and the model falls apart, because in the real world that feature is not there yet.</p>
+
+<p>Back to the trials. Your data team joins in a billing column, <code>invoice_amount</code>, the dollars invoiced to each account. It sounds like a fine feature. But an invoice only exists <strong>after</strong> a trial converts to paid, so <code>invoice_amount</code> is greater than zero for exactly the converters and zero for everyone else. It does not predict conversion; it <em>is</em> conversion, relabeled.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The billing column the data team joined in: dollars invoiced to each trial.
+set.seed(7)
+dat$invoice_amount &lt;- ifelse(dat$converted == 1, round(runif(n, 20, 400)), 0)
+
+# The tell: does a feature line up with the target almost perfectly?
+table(paid = dat$invoice_amount &gt; 0, converted = dat$converted)
+#&gt;        converted
+#&gt; paid      0   1
+#&gt;   FALSE 390   0
+#&gt;   TRUE    0 210</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every converter has a bill, no non-converter does: a perfect line-up. Drag the toggle in the widget below to feel what that does to a model. With the honest features, the held-out accuracy (the fraction of trials the model classifies correctly) is a believable 0.78. Flip the leak on and it rockets to 0.99, a number too good to be real.</p>
+<div class="lesson-widget" data-widget-type="data-split" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Spot the leak</h2>
+
+<p>Your trial-conversion model posts an astonishing 0.999 accuracy on the held-out test set, and almost all of the importance sits on one feature, <code>invoice_amount</code>. A teammate is thrilled and wants to ship it today. What is the most likely explanation?</p>
+<section class="exercise" data-exercise-id="Feature-Selection-and-Spotting-Leakage-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model is genuinely excellent; a 0.999 accuracy just means these features are very predictive</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The feature is target leakage: an invoice exists only after a trial converts, so it encodes the answer and will be zero (or absent) for every genuinely new trial at prediction time</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The held-out test set is simply too small to give a trustworthy score</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. <code>invoice_amount</code> is a consequence of the outcome, not a predictor of it. At prediction time, before you know whether they convert, there is no invoice, so the model loses the crutch it was leaning on and collapses.</div><div class="lesson-qfb lesson-qfb-no">Test-set size is not the issue. A feature that is a proxy for the outcome inflates the score at any test size; enlarging the test set would not fix a feature that is really the answer in disguise.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Catch it, then drop it</h2>
+
+<p>Leaks hide in plain sight, so train yourself to look for three tells:</p>
+
+<ol>
+
+<li><strong>A score too good to be true.</strong> Near-perfect accuracy on a hard problem is a red flag, not a trophy.</li>
+
+<li><strong>One feature dominating.</strong> When a single column carries almost all the importance, ask where it comes from. The chart below is that exact warning sign for the trial model: <code>invoice_amount</code> towers over every honest feature.</li>
+
+<li><strong>A provenance and timing check.</strong> For each feature ask one question: <em>would I know this value at the moment I make the prediction?</em> If it is recorded at or after the outcome, it leaks.</li>
+
+</ol>
+
+<p>::widget importance-bars {"items":[{"label":"invoice amount","value":100},{"label":"weekly logins","value":29},{"label":"features used","value":21},{"label":"team size","value":13},{"label":"docs opened","value":6},{"label":"emails clicked","value":4}]}</p>
+
+<p>The fix is blunt: a leaked feature is not a feature, so drop it before modeling and keep only inputs you would have <em>before</em> the outcome is known. Fill in the column to remove.</p>
+<section class="exercise" data-exercise-id="Feature-Selection-and-Spotting-Leakage-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="invoice_amount"><textarea class="lesson-tryit-input" spellcheck="false"># Keep only inputs available BEFORE conversion is known.
+# Drop the leaked billing column (and the target itself):
+model_inputs &lt;- dat[, !names(dat) %in% c(&quot;____&quot;, &quot;converted&quot;)]
+ncol(model_inputs)   # how many honest predictors remain</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: dropping invoice_amount leaves the eight honest predictors. The score falls back to earth, but now it is a score you can actually trust in production.</span><span class="lesson-tryit-fb lesson-tryit-no">Remove the leaked billing column by name: invoice_amount. It is the consequence of conversion, so it cannot be a model input.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">model_inputs &lt;- dat[, !names(dat) %in% c(&quot;invoice_amount&quot;, &quot;converted&quot;)]
+ncol(model_inputs)
+#&gt; [1] 8</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.jmlr.org/papers/v3/guyon03a.html">Guyon & Elisseeff (2003), An Introduction to Variable and Feature Selection (JMLR, free PDF)</a> - the standard reference that frames filter, wrapper and embedded methods.</li>
+
+<li><a href="https://dl.acm.org/doi/10.1145/2382577.2382579">Kaufman, Rosset & Perlich (2012), Leakage in Data Mining (ACM)</a> - the paper that named and dissected leakage, with real competition case studies.</li>
+
+<li><a href="https://www.feat.engineering/">Kuhn & Johnson, Feature Engineering and Selection (free online)</a> - book-length treatment of selection done inside resampling, the leak-free way.</li>
+
+<li><a href="https://scikit-learn.org/stable/common_pitfalls.html">scikit-learn user guide: Common pitfalls and recommended practices</a> - the clearest short write-up of why fitting any step on all the data leaks, and the split-first fix.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Module complete</h2>
+
+<p>You reached the end of Feature Engineering. You can now take a pile of candidate columns and do the two things that separate a working model from a fragile one: keep the features that earn their place, and refuse the ones that cheat.</p>
+
+<p>You learned three ways to select: a <strong>filter</strong> ranks each feature on its own (fast, model-agnostic, blind to interactions), a <strong>wrapper</strong> lets the model judge subsets (sharper, slower), and an <strong>embedded</strong> method like the Lasso selects while it fits (usually the best default). And you learned the failure that no metric will warn you about: <strong>target leakage</strong>, a feature that encodes the answer, which you now catch with three tells, a score too good to be true, one feature dominating, and a provenance-and-timing check, and prevent by doing every learned step inside the split.</p>
+
+<p>Feature Engineering is a graded module in the Data Scientist track. Pass its assessment and it joins your verified certificate. Next up is Model Evaluation and Tuning, where honest features finally meet honest scoring: cross-validation done right, the metrics that matter, and comparing models without fooling yourself.</p>
+</section>
+
+{% endraw %}
