@@ -1,0 +1,325 @@
+---
+title: "Imbalanced Classification Lesson 6: Why AUC Is Not Enough"
+description: "A high AUC can still hide a weak model: it ignores calibration, precision on a rare class, and how it behaves at your real threshold. What to check instead."
+keywords: "AUC, ROC AUC, why AUC is not enough, calibration, precision recall, PR curve, class imbalance, model evaluation, R"
+mathjax: true
+webr: true
+curriculum_id: "6.80.6"
+post_type: "LESSON"
+course_id: "ds-imbalanced-classification"
+course_title: "Imbalanced Classification in R"
+course_lesson: "6"
+course_total: "6"
+course_landing: "R-Imbalanced-Classification-Course.html"
+course_next: ""
+course_prev: "Calibrating-Predicted-Probabilities.html"
+lesson_access: "free"
+catalog_blurb: "What a single AUC score hides, and which numbers to check instead."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 6</div>
+<h2>Why AUC Is Not Enough</h2>
+
+<p>The bank's data team ships two fraud detectors. Both score <strong>AUC 0.90</strong> on the same test set. The slide deck says "great model" and picks one at random. In production, one detector saves the bank millions and the other floods the review team with false alarms and misprices every risk decision.</p>
+
+<p>One number could not tell them apart. This lesson is about everything a single AUC hides, and the handful of numbers that would have caught the difference.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Say exactly what one AUC number measures, and what it does not</li>
+
+<li>See why AUC is blind to whether a predicted 0.7 really means 70%</li>
+
+<li>See why a high AUC can sit on top of terrible precision when the positive class is rare</li>
+
+<li>Report the metric that matches the decision, instead of trusting AUC alone</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit a classifier and read a confusion matrix. From earlier in this course: the ROC curve, precision and recall (<a href="ROC-PR-Lift-and-Gains-Curves.html">ROC, PR, Lift and Gains Curves</a>), reliability diagrams (<a href="Calibrating-Predicted-Probabilities.html">Calibrating Predicted Probabilities</a>), and why accuracy lies on a rare class (<a href="Class-Imbalance-and-Resampling.html">Class Imbalance and Resampling</a>).</p>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>What one AUC number actually means</h2>
+
+<p>Start with what AUC is doing right, because it is a genuinely useful number. Take one real fraud transaction and one real legit transaction at random. Ask your model to score both. AUC is simply <strong>the probability that the fraud gets the higher score</strong>.</p>
+
+<p>That is the whole definition. Write \(s(x)\) for the score a model gives a transaction \(x\). With \(x^{+}\) a random actual-fraud case and \(x^{-}\) a random actual-legit case,</p>
+
+<p>\[ \text{AUC} = P\big(s(x^{+}) > s(x^{-})\big) \]</p>
+
+<p>An AUC of 1.0 means every fraud outscores every legit (perfect ranking); 0.5 means the model orders them no better than a coin flip. It equals the area under the ROC curve you met in Lesson 4, and it is also the Mann-Whitney U statistic, so you can compute it by hand from scores and labels, no package required:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># AUC = the chance a random positive is scored above a random negative.
+set.seed(1)
+n     &lt;- 1000
+fraud &lt;- rbinom(n, 1, 0.5)                              # a balanced toy set, to define AUC cleanly
+score &lt;- plogis(rnorm(n, mean = ifelse(fraud == 1, 1, -1)))
+
+auc &lt;- function(score, y) {                             # Mann-Whitney form, base R only
+  pos  &lt;- score[y == 1]; neg &lt;- score[y == 0]
+  wins &lt;- outer(pos, neg, &quot;&gt;&quot;)                          # every positive-vs-negative pair
+  ties &lt;- outer(pos, neg, &quot;==&quot;)
+  (sum(wins) + 0.5 * sum(ties)) / length(wins)          # fraction of pairs ranked correctly
+}
+round(auc(score, fraud), 2)
+#&gt; [1] 0.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">AUC measures <strong>ranking only</strong>: can the model put positives above negatives? It says nothing about the actual score values, nothing about the class balance, and nothing about the one threshold you will deploy at. Those three blind spots are the rest of this lesson.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Blind spot 1</div>
+<h2>AUC cannot see calibration</h2>
+
+<p>Here is the first thing AUC throws away. Take a well-calibrated model A, whose score really is the probability of fraud, and build model B by squeezing every score toward 0.5: \(s_B = 0.5 + 0.25\,(s_A - 0.5)\). That is a <strong>strictly increasing</strong> transform, so it never changes the <em>order</em> of any two scores. And AUC depends only on order.</p>
+
+<p>So A and B have the <strong>exact same AUC</strong>, to every decimal, even though B's probabilities are now badly wrong:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+n      &lt;- 2000
+x      &lt;- rnorm(n)
+p_true &lt;- plogis(1.4 * x)             # the real probability of fraud
+y      &lt;- rbinom(n, 1, p_true)
+
+pA &lt;- p_true                          # Model A: honest, calibrated probabilities
+pB &lt;- 0.5 + (pA - 0.5) * 0.25         # Model B: same ranking, squashed toward 0.5
+
+auc(pA, y) - auc(pB, y)               # a monotone squeeze keeps the ranking, so AUC is identical
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>But if you <em>use</em> those probabilities, say expected loss = probability times transaction amount, B is a disaster. The Brier score (mean squared error of the probabilities, lower is better) exposes what AUC could not:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">brier &lt;- function(p, y) mean((p - y)^2)   # how far the probabilities sit from the outcomes
+brier(pB, y) &gt; brier(pA, y)               # TRUE: B's probabilities are worse, yet AUC called it a tie
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <strong>reliability diagram</strong> shows the damage directly: bin the predictions, then plot how often each bin actually turned out to be fraud against what it claimed. A calibrated model sits on the diagonal. Drag the slider to push a model over- or under-confident and watch the curve bow away, all while its AUC would not move a hair.</p>
+<div class="lesson-widget" data-widget-type="calibration-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Same AUC, different probabilities</h2>
+
+<p>Models A and B both report <strong>AUC 0.90</strong>. Your team ranks accounts by expected loss, computed as <em>predicted probability times balance</em>, so the probability value itself drives money. A is calibrated; B's scores are squashed toward 0.5. Which do you trust for this, and what did AUC tell you?</p>
+<section class="exercise" data-exercise-id="Why-AUC-Is-Not-Enough-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Either one is fine; an equal AUC means their probabilities are equally good</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Model A, because it is calibrated, and AUC could not see the difference, it scored them equal</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Model B, because pulling scores toward 0.5 makes it more cautious and safer</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. AUC judged only the ranking, which the squeeze preserved. When the probability itself is the input to a decision, you must check calibration separately.</div><div class="lesson-qfb lesson-qfb-no">Pulling scores toward 0.5 does not add caution, it just makes the probabilities wrong. B's Brier score is worse even though its AUC is identical.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Blind spot 2</div>
+<h2>A high AUC can hide awful precision</h2>
+
+<p>The second blind spot bites hardest on exactly the problems this course is about: rare positives. Fraud is maybe 2% of transactions. Watch a genuinely good-ranking model post a shiny AUC:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The bank's real base rate: about 2% of transactions are fraud.
+set.seed(7)
+N     &lt;- 10000
+y     &lt;- rbinom(N, 1, 0.02)                       # roughly 200 fraud, 9800 legit
+sig   &lt;- rnorm(N, mean = ifelse(y == 1, 2, 0))    # a real signal: fraud scores higher
+score &lt;- plogis(sig)
+
+round(auc(score, y), 2)                            # looks excellent
+#&gt; [1] 0.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now set a threshold that catches 80% of the fraud, the kind of recall a fraud team wants, and look at <strong>precision</strong>: of everything you flag, how much is truly fraud?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">thr       &lt;- quantile(score[y == 1], 0.20)        # 80% of fraud scores above this cut
+flag      &lt;- score &gt;= thr
+recall    &lt;- sum(flag &amp; y == 1) / sum(y == 1)
+precision &lt;- sum(flag &amp; y == 1) / sum(flag)
+round(c(recall = recall, precision = precision), 2)
+#&gt;    recall precision
+#&gt;      0.80      0.12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Recall 0.80, precision about 0.12. Roughly <strong>seven of every eight fraud alerts are false alarms</strong>, and yet the AUC was 0.92. The reason is arithmetic: ROC's false-positive rate is \(\text{FP} / N_{\text{legit}}\), and \(N_{\text{legit}}\) is enormous, so even a "small" false-positive rate is a flood of alerts in raw counts. Precision divides by the flags you actually raised, so it feels the imbalance that AUC averages away. Slide the threshold on the widget below and watch precision and recall trade off, the trade one AUC number quietly summarizes.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">This is why Lesson 4 preferred the <strong>precision-recall curve</strong> on rare positives. PR-AUC moves when precision collapses; ROC-AUC often does not.</div></div>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Blind spot 3</div>
+<h2>AUC averages over thresholds you will never use</h2>
+
+<p>AUC is the area under the whole ROC curve, which means it is an <strong>average of the true-positive rate across every possible threshold</strong>, from "flag nothing" to "flag everything". Formally it weights all operating points equally:</p>
+
+<p>\[ \text{AUC} = \int_{0}^{1} \text{TPR}\,(\text{FPR})\; d(\text{FPR}) \]</p>
+
+<p>But you never deploy "every threshold". You deploy <strong>one</strong>. A fraud team can only review, say, the riskiest 3% of transactions it has people to investigate. The number that matters is the recall <em>inside that budget</em>, not the average over thresholds nobody will ever set:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The fraud team can review only the top 3% of transactions they flag.
+budget &lt;- 0.03
+cutoff &lt;- quantile(score, 1 - budget)             # flag the riskiest 3% by score
+flag   &lt;- score &gt;= cutoff
+round(c(alerts_reviewed = mean(flag),
+        fraud_caught    = sum(flag &amp; y == 1) / sum(y == 1)), 2)
+#&gt; alerts_reviewed    fraud_caught
+#&gt;            0.03            0.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At the 3% you can actually action, this AUC-0.92 model catches only about <strong>half</strong> the fraud. A rosy global average, a sobering local reality. Two models can tie on AUC and still differ wildly right here, in the low-alert corner where the business lives, because AUC spent most of its area on thresholds you would never choose. (Slide the operating point on the ROC widget above to feel it: the whole curve earns the AUC, but you only ever stand at one dot on it.)</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">An AUC is computed over all thresholds; a decision happens at one. Always report the metric at the operating point you will deploy, not just the area over points you will not.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What would you check first?</h2>
+
+<p>A colleague hands you a fraud model and one number: <strong>AUC 0.93</strong>. Before you agree to deploy it, which single follow-up tells you the most about whether it is actually useful?</p>
+<section class="exercise" data-exercise-id="Why-AUC-Is-Not-Enough-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Its overall accuracy on the test set</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Its precision and recall at the alert budget you can actually review</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A second AUC computed on more data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. That is the operating point you will deploy at, and it exposes the false-alarm rate and the catch rate that AUC averages over and hides.</div><div class="lesson-qfb lesson-qfb-no">More data tightens the same summary; it does not tell you how the model behaves at your threshold or whether its probabilities are calibrated.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Report the metric that matches the decision</h2>
+
+<p>None of this means AUC is useless. It is a fine one-line summary of <em>ranking quality</em>, and a good sanity check. It is just the wrong thing to report as the <em>only</em> thing. Pick the metric from the decision you are actually making:</p>
+
+<ul>
+
+<li><strong>Triaging a ranked list under a budget?</strong> Report precision at your budget (precision at k) and recall at that budget, plus PR-AUC when positives are rare.</li>
+
+<li><strong>Feeding the probability into a cost or expected-loss calculation?</strong> Report calibration: a reliability curve, and a Brier score or log-loss.</li>
+
+<li><strong>Acting at a fixed threshold?</strong> Report precision and recall at that cutoff, priced by the cost of a miss versus a false alarm (Lesson 3).</li>
+
+</ul>
+
+<p>The flow below turns "what is the decision?" into "what should I report?".</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Name the decision","sub":"who acts on the score, at what threshold or review budget"},{"title":"Ranking and triage","sub":"report precision at your budget and PR-AUC, not ROC-AUC alone"},{"title":"Using the probability","sub":"report calibration: a reliability curve plus Brier or log-loss"},{"title":"Fixed threshold","sub":"report precision and recall at that cutoff, priced by cost"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Precision at the operating point</h2>
+
+<p>You still have <code>score</code> and <code>y</code> (the real fraud labels) from the imbalanced model. A reviewer flags every transaction scoring at least 0.9. Fill in the blank so <code>precision</code> is the fraction of those flags that are truly fraud, the deployable number AUC never showed you.</p>
+<section class="exercise" data-exercise-id="Why-AUC-Is-Not-Enough-step9" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="sum\(\s*flag\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">flag      &lt;- score &gt;= 0.9
+precision &lt;- sum(flag &amp; y == 1) / sum(____)
+round(precision, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. Precision divides the true fraud you flagged by ALL the flags you raised, sum(flag).</span><span class="lesson-tryit-fb lesson-tryit-no">Precision is (fraud correctly flagged) / (everything flagged). The denominator is the total number of flags: sum(flag).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">flag      &lt;- score &gt;= 0.9
+precision &lt;- sum(flag &amp; y == 1) / sum(flag)   # true fraud flagged / all flags
+round(precision, 3)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1007/s10994-009-5119-5">Hand (2009), Measuring classifier performance: a coherent alternative to the area under the ROC curve, Machine Learning 77</a> - the classic argument that AUC can be incoherent, and what to do instead.</li>
+
+<li><a href="https://doi.org/10.1371/journal.pone.0118432">Saito and Rehmsmeier (2015), The Precision-Recall Plot Is More Informative than the ROC Plot on Imbalanced Datasets, PLOS ONE</a> - exactly why ROC-AUC flatters a model on rare positives.</li>
+
+<li><a href="https://doi.org/10.1145/1143844.1143874">Davis and Goadrich (2006), The Relationship Between Precision-Recall and ROC Curves, ICML</a> - the formal link between the two curve families.</li>
+
+<li><a href="https://doi.org/10.1145/1102351.1102430">Niculescu-Mizil and Caruana (2005), Predicting Good Probabilities With Supervised Learning, ICML</a> - why good ranking does not imply good probabilities, and how to calibrate.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Module complete</h2>
+
+<p>You can now say precisely what a single AUC number does and does not tell you. It measures ranking, and only ranking, so it is blind to three things that decide whether a model is worth deploying:</p>
+
+<ol>
+
+<li><strong>Calibration:</strong> a monotone squeeze leaves AUC untouched while wrecking the probabilities. Check it with a reliability curve and Brier or log-loss.</li>
+
+<li><strong>Precision on a rare class:</strong> a high ROC-AUC can sit on top of one-in-eight precision. Check PR-AUC and precision at your budget.</li>
+
+<li><strong>Your operating point:</strong> AUC averages over thresholds you will never use. Check recall and precision at the one you will.</li>
+
+</ol>
+
+<p>That closes the Imbalanced Classification course: you handled many classes, rebalanced a rare one, moved the threshold under real costs, read the full curve family, calibrated the probabilities, and now you know which number to trust when. Imbalanced Classification is a graded module in the Data Scientist track. Pass the assessment and it goes on your verified certificate, with a portfolio project to match.</p>
+</section>
+
+{% endraw %}
