@@ -129,6 +129,27 @@ NEW widgets for sections 6-12 (built before the batch; runnable interactive-R re
 
 ---
 
+# Data Scientist track - ADVANCED tier (roadmap sections 13-22, Pro; first lesson of each section free as a taste)
+
+## ds-reg-glm-expert  (track: scientist; curriculum_id 6.130; landing R-Advanced-Regression-Course.html; access: pro)  [roadmap §13]
+1. Robust-Regression-M-Estimators - why one outlier tilts an OLS line, and how M-estimators (Huber) down-weight it. widgets: NEW:robust-weights, leverage-point
+2. Robust-Regression-MM-and-Breakdown - the breakdown point, MM-estimation, and rlm vs lmrob for real robustness. widgets: NEW:robust-weights, residual-plot
+3. Quantile-Regression - modeling the median and the tails, not just the mean, when spread changes with x. widgets: NEW:quantile-lines
+4. Ridge-Regression-and-Shrinkage - the bias-variance trade of shrinking coefficients, and when ridge helps. widgets: NEW:coef-path
+5. Lasso-and-Elastic-Net - L1 selection, the coefficient path, and elastic net for correlated predictors. widgets: NEW:coef-path
+6. GAMs-Splines-and-Smooths - letting the data choose a smooth curve with penalized splines in mgcv. widgets: NEW:spline-smoother
+7. GAMs-Choosing-Smoothness - the wiggliness penalty, k, concurvity, and reading gam.check. widgets: NEW:spline-smoother, residual-plot
+8. Count-Models-Poisson-and-Negative-Binomial - Poisson regression, overdispersion, and the negative-binomial fix. widgets: NEW:count-dist
+9. Zero-Inflated-and-Hurdle-Models - when a pile of extra zeros needs a two-part model. widgets: NEW:count-dist
+10. Gamma-and-Tweedie-Regression - modeling positive, right-skewed outcomes and insurance-style loss. widgets: NEW:glm-family-shapes
+11. Beta-and-Ordinal-Regression - proportions in [0,1] with beta, and ordered categories with proportional odds. widgets: NEW:ordinal-cumlogit, NEW:glm-family-shapes
+12. Mixed-Models-Random-Intercepts - random intercepts, partial pooling, and the ICC with lme4. widgets: NEW:shrinkage-pool
+13. Mixed-Models-Random-Slopes-and-GLMMs - random slopes, GLMMs, and troubleshooting convergence. widgets: NEW:shrinkage-pool
+
+NEW widgets for section 13 (built + mount-tested + emitted-R WebR-verified before the batch): **robust-weights**, **quantile-lines**, **coef-path**, **spline-smoother**, **count-dist**, **glm-family-shapes**, **ordinal-cumlogit**, **shrinkage-pool**. Everything else reuses the existing library. §14-22 arcs + widgets are appended after the §13 pilot verifies.
+
+---
+
 # Data Analyst track (level 2, all free)
 
 Nine courses, one per roadmap section of the Data Analyst track. All free (the analyst track is part of the free common base). Each course's `section` in `Scripts/build_lessons_tracker.py` COURSE_ROADMAP must match the roadmap section number so the breadcrumb + reverse-link line up. Ground every lesson in ONE concrete, named dataset (a small tibble of real-feeling rows) carried through the lesson; teach from scratch; <=12 steps each.
