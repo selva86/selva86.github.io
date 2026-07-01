@@ -1,0 +1,332 @@
+---
+title: "Unsupervised Learning Lesson 2: Factor Analysis"
+description: "Learn factor analysis in R: what a latent factor is, the factor model and communalities, running factanal to read loadings, and how it differs from PCA."
+keywords: "factor analysis in R, factanal, latent factors, loadings, communalities, uniqueness, exploratory factor analysis, PCA vs factor analysis, unsupervised learning"
+mathjax: true
+webr: true
+curriculum_id: "6.9.2"
+post_type: "LESSON"
+course_id: "ds-unsupervised"
+course_title: "Unsupervised Learning in R"
+course_lesson: "2"
+course_total: "8"
+course_landing: "R-Unsupervised-Learning-Course.html"
+course_next: "k-Means-and-Choosing-k.html"
+course_prev: "PCA-in-R.html"
+lesson_access: "free"
+catalog_blurb: "Find the hidden factors behind correlated measurements, and how it differs from PCA."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 8</div>
+<h2>Factor Analysis</h2>
+
+<p>In Lesson 1, PCA took many correlated columns and repackaged them into a few directions of maximum spread. Factor analysis starts from the same raw material, correlated columns, but asks a completely different question.</p>
+
+<p>Meet Dr. Anand, a school psychologist. She gives 300 students six tests: vocabulary, reading, and essay writing, then algebra, geometry, and calculus. Six numbers per student. When she lines up how the scores move together, a striking pattern appears in the grid below: the three language tests rise and fall together, the three math tests rise and fall together, and across the two groups there is almost no relationship at all.</p>
+
+<p>Two green blocks, nothing in between. It is as if two invisible things are pulling the strings: one lifts every language score, another lifts every math score. Dr. Anand cannot measure "verbal ability" or "math ability" with a ruler, yet the pattern begs for them. Factor analysis is the tool that recovers those hidden things from the correlations alone.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say what a latent factor is, and how factor analysis differs from PCA</li>
+
+<li>Read the factor model equation and define loading, communality, and uniqueness</li>
+
+<li>Run factor analysis in R, read the loadings, and check how many factors you need</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you have done <a href="PCA-in-R.html">Lesson 1 on PCA</a> (correlation, variance explained, scaling) and can run R. No linear algebra assumed; every term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["vocabulary","reading","essay","algebra","geometry","calculus"],"matrix":[[1,0.81,0.75,-0.01,0.02,-0.06],[0.81,1,0.76,-0.01,0.03,-0.04],[0.75,0.76,1,-0.01,0.03,-0.06],[-0.01,-0.01,-0.01,1,0.81,0.76],[0.02,0.03,0.03,0.81,1,0.75],[-0.06,-0.04,-0.06,0.76,0.75,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The reframe</div>
+<h2>Two questions, two tools</h2>
+
+<p>PCA and factor analysis both start with a table of correlated numbers, and both hand you back a smaller set of numbers. That is why they are so often confused. But they are answers to different questions.</p>
+
+<p>PCA is a <strong>summary</strong>. It rebuilds your data as new axes ranked by spread, with no story about where the data came from. Factor analysis is a <strong>model</strong>. It assumes there are a few unseen causes, called <strong>latent factors</strong> (latent just means hidden, not directly measured), and that those causes are what make your observed columns correlate. A latent factor for Dr. Anand is "verbal ability": no single column, but the shared thing that makes vocabulary, reading, and essay move together.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>PCA</th>
+<th>Factor analysis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What it asks</td>
+<td>Which new axes capture the most spread?</td>
+<td>What hidden factors could have produced these scores?</td>
+</tr>
+<tr>
+<td>Direction of thinking</td>
+<td>Data leads to components (a summary of the data)</td>
+<td>Factors lead to data (a model of the data's causes)</td>
+</tr>
+<tr>
+<td>Noise term</td>
+<td>None; components re-express all the variance</td>
+<td>Each variable keeps its own leftover, its unique part</td>
+</tr>
+<tr>
+<td>What you read at the end</td>
+<td>Scores and variance explained</td>
+<td>Loadings, communalities, and the factors' meaning</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">PCA re-describes the variance you have. Factor analysis proposes hidden causes that would explain why your variables correlate in the first place. Same input, opposite direction of reasoning.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The model</div>
+<h2>The factor model, in one equation</h2>
+
+<p>Here is the whole idea as a formula. Write each student's standardized test score \(x_j\) (the j-th of the six tests) as a blend of the shared factors plus a leftover:</p>
+
+<p>\[ x_j = \lambda_{j1} F_1 + \lambda_{j2} F_2 + \varepsilon_j \]</p>
+
+<p>Every symbol, in plain words:</p>
+
+<ul>
+
+<li>\(x_j\): one observed, standardized test score (say, vocabulary).</li>
+
+<li>\(F_1, F_2\): the two <strong>common factors</strong> shared by all six tests. Here \(F_1\) is verbal ability and \(F_2\) is quantitative ability. They are unmeasured; we only ever see the six \(x_j\).</li>
+
+<li>\(\lambda_{jm}\): the <strong>loading</strong> of test \(j\) on factor \(m\), how strongly that factor drives that test. Vocabulary should load heavily on \(F_1\) and near zero on \(F_2\).</li>
+
+<li>\(\varepsilon_j\): the <strong>unique factor</strong> for test \(j\), everything about that one test the common factors do not explain: its own specific skill plus measurement noise.</li>
+
+</ul>
+
+<p>From the loadings come the two numbers you will read most. Because the scores are standardized (total variance 1), the <strong>communality</strong> is the share of a test's variance the common factors explain, and the <strong>uniqueness</strong> is the leftover:</p>
+
+<p>\[ h_j^2 = \lambda_{j1}^2 + \lambda_{j2}^2, \qquad \psi_j = 1 - h_j^2 \]</p>
+
+<p>And here is the deepest difference from PCA. Factor analysis chooses the loadings \(\Lambda\) and uniquenesses \(\Psi\) so that together they rebuild the correlation matrix you started with:</p>
+
+<p>\[ \Sigma = \Lambda \Lambda^\top + \Psi \]</p>
+
+<p>\(\Sigma\) is the correlation grid from the cover, \(\Lambda\) is the 6-by-2 table of loadings, and \(\Psi\) is a diagonal of the six uniquenesses. PCA has no \(\Psi\) term at all. That extra "each variable gets its own private noise" is exactly what turns a summary into a model of hidden causes.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What is a uniqueness?</h2>
+
+<p>In Dr. Anand's fit, the vocabulary test comes out with a uniqueness of about 0.20. What does that 0.20 represent?</p>
+<section class="exercise" data-exercise-id="Factor-Analysis-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The share of vocabulary's variance the two common factors do NOT explain: its own specific part plus noise</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The correlation between vocabulary and reading</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The weight of vocabulary on the verbal factor</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Uniqueness is 1 minus communality. About 80% of vocabulary is explained by the shared verbal factor, and the remaining 20% is unique to that test.</div><div class="lesson-qfb lesson-qfb-no">That weight is the loading (about 0.89 here). Uniqueness is the leftover variance after the factors, not a loading.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit factor analysis in R</h2>
+
+<p>Base R ships factor analysis in one function, <code>factanal</code>. Before running it, here is the whole procedure so nothing is a black box:</p>
+
+<p>::widget process-flow {"steps":[{"title":"Standardize","sub":"put every test on a mean-0, sd-1 scale (factanal does this for you)"},{"title":"Estimate","sub":"find the loadings and uniquenesses that best rebuild the correlations"},{"title":"Test","sub":"ask whether this many factors is enough (a chi-square test)"},{"title":"Rotate and score","sub":"rotate for a clean reading, then place each student on the factors"}]}</p>
+
+<p>First, build the data. To have an answer we can check against, we invent two hidden abilities and let them drive the six tests. In real life you never see these two columns; you see only the six scores, and recovering the abilities is the entire job of factor analysis.</p>
+<section class="exercise" data-exercise-id="Factor-Analysis-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="factors\s*=\s*2"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(42)
+n &lt;- 300
+verbal &lt;- rnorm(n)   # each student's hidden verbal ability
+quant  &lt;- rnorm(n)   # each student's hidden quantitative ability
+
+# Six tests, each driven by ONE ability plus its own noise:
+tests &lt;- data.frame(
+  vocabulary = round(55 + 10*verbal + rnorm(n, 0, 5)),
+  reading    = round(58 + 11*verbal + rnorm(n, 0, 5)),
+  essay      = round(60 +  9*verbal + rnorm(n, 0, 6)),
+  algebra    = round(57 + 11*quant  + rnorm(n, 0, 5)),
+  geometry   = round(59 + 10*quant  + rnorm(n, 0, 5)),
+  calculus   = round(56 +  9*quant  + rnorm(n, 0, 6))
+)
+round(cor(tests), 2)          # the same two blocks you saw on the cover
+#&gt;            vocabulary reading essay algebra geometry calculus
+#&gt; vocabulary       1.00    0.81  0.75   -0.01     0.02    -0.06
+#&gt; reading          0.81    1.00  0.76   -0.01     0.03    -0.04
+#&gt; essay            0.75    0.76  1.00   -0.01     0.03    -0.06
+#&gt; algebra         -0.01   -0.01 -0.01    1.00     0.81     0.76
+#&gt; geometry         0.02    0.03  0.03    0.81     1.00     0.75
+#&gt; calculus        -0.06   -0.04 -0.06    0.76     0.75     1.00</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Two abilities, so two factors. factanal estimates them by maximum likelihood and prints the loadings and uniquenesses.</span><span class="lesson-tryit-fb lesson-tryit-no">We suspect two hidden abilities, verbal and quantitative, so set factors = 2.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">fa &lt;- factanal(tests, factors = 2, scores = &quot;regression&quot;)
+fa</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the output</div>
+<h2>Loadings: what each factor means</h2>
+
+<p>The <strong>loadings</strong> are the heart of the result: how strongly each factor drives each test. <code>factanal</code> hides tiny loadings (below about 0.1) so the structure jumps out.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fa &lt;- factanal(tests, factors = 2, scores = &quot;regression&quot;)
+fa$loadings
+#&gt;
+#&gt; Loadings:
+#&gt;            Factor1 Factor2
+#&gt; vocabulary  0.893
+#&gt; reading     0.907
+#&gt; essay       0.837
+#&gt; algebra             0.909
+#&gt; geometry            0.890
+#&gt; calculus            0.839
+#&gt;
+#&gt;                Factor1 Factor2
+#&gt; SS loadings      2.326   2.322
+#&gt; Proportion Var   0.388   0.387
+#&gt; Cumulative Var   0.388   0.775</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read it row by row. Vocabulary, reading, and essay load heavily on Factor 1 and blank on Factor 2. Algebra, geometry, and calculus do the reverse. Each test loads on exactly one factor. That clean one-factor-per-variable pattern is called <strong>simple structure</strong>, and it is what lets Dr. Anand confidently name Factor 1 "verbal ability" and Factor 2 "quantitative ability". Factor analysis recovered the two hidden columns from the correlations alone, never having seen them.</p>
+
+<p>Because we asked for <code>scores = &quot;regression&quot;</code>, we also get each student's estimated position on the two factors. Plot them and every student becomes a single dot on a verbal-versus-quantitative map:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- as.data.frame(fa$scores)
+plot(scores$Factor1, scores$Factor2,
+     xlab = &quot;Factor 1 (verbal ability)&quot;,
+     ylab = &quot;Factor 2 (quantitative ability)&quot;,
+     pch = 19, col = &quot;#2563a8&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">How much was explained</div>
+<h2>Communalities: the factors' reach</h2>
+
+<p>The <strong>communality</strong> of a test is how much of its variance the two factors together account for. It is just the squared loadings added up, and the leftover is the uniqueness.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Communality = variance a test shares with the common factors
+round(1 - fa$uniquenesses, 2)
+#&gt; vocabulary    reading      essay    algebra   geometry   calculus
+#&gt;       0.80       0.82       0.70       0.83       0.79       0.71</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading and algebra sit around 0.82 and 0.83: the shared abilities explain most of what those tests measure. Essay and calculus, near 0.70, keep more that is theirs alone (essay writing leans on something beyond raw verbal ability). The bars below rank the tests by communality, so you can see at a glance which tests the two factors capture best.</p>
+<div class="lesson-widget" data-widget-type="importance-bars" data-widget-config='{"items":[{"label":"algebra","value":83},{"label":"reading","value":82},{"label":"vocabulary","value":80},{"label":"geometry","value":79},{"label":"calculus","value":71},{"label":"essay","value":70}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing and trusting</div>
+<h2>How many factors? And the fine print</h2>
+
+<p>We assumed two factors. <code>factanal</code> can check that assumption with a formal test: its null hypothesis is "this many factors is enough to reproduce the correlations."</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Is two factors enough? A high p-value here is GOOD news.
+c(chi_square = round(fa$STATISTIC, 2),
+  df         = fa$dof,
+  p_value    = round(fa$PVAL, 3))
+#&gt; chi_square         df    p_value
+#&gt;       1.25       4.00      0.869</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0.869, far above 0.05, so we do not reject the two-factor model: two factors already rebuild the six correlations well. Note the flipped logic from most tests you have met: a <strong>high</strong> p-value means the model fits, because the null is the model being adequate.</p>
+
+<p>Two more things worth knowing before you trust a factor solution:</p>
+
+<ul>
+
+<li><strong>Rotation.</strong> The clean simple structure above is not automatic; <code>factanal</code> applies a varimax rotation by default, which spins the factors to make each variable load on as few as possible. Rotation changes the loadings' presentation, not the fit.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Factor analysis has real limits. It needs several variables per factor (three or more) to be stable. Factor <strong>scores are estimated, not exact</strong>, so treat a student's position as approximate. And the method only finds <strong>linear common causes</strong>: you still choose the number of factors and must name them yourself, which takes judgement, not just code.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>PCA or factor analysis?</h2>
+
+<p>A colleague has 15 survey items and believes a few unmeasured attitudes are what make the items correlate. She wants to estimate those attitudes and see which items measure each one. Which method fits her goal?</p>
+<section class="exercise" data-exercise-id="Factor-Analysis-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Factor analysis: she is positing hidden causes behind the correlations, exactly what it models</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">PCA, because it always keeps more of the variance</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither, you cannot model variables you never observed</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. She hypothesizes latent attitudes that PRODUCE the item correlations and wants their loadings. That is the factor-analysis question, not the PCA one.</div><div class="lesson-qfb lesson-qfb-no">Modeling unobserved (latent) variables from the correlations of observed ones is precisely what factor analysis does.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four trustworthy places to take factor analysis further:</p>
+
+<ul>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, section 14.7 (free PDF)</a> - factor analysis as a latent-variable model, and how it relates to PCA.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/factanal.html">factanal: the R function you used, full documentation</a> - every argument and every value it returns.</li>
+
+<li><a href="https://scholarworks.umass.edu/pare/vol10/iss1/7/">Costello and Osborne (2005), Best Practices in Exploratory Factor Analysis (open access)</a> - a short, practical checklist: how many factors, which rotation, how much data.</li>
+
+<li><a href="https://personality-project.org/r/psych/HowTo/factor.pdf">Revelle, Using the psych package for factor analysis in R (PDF)</a> - a step-by-step walkthrough for when you outgrow factanal.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now tell factor analysis apart from PCA (a model of hidden causes, not a summary of variance), read the factor model equation, run <code>factanal</code>, and interpret loadings, communalities, and the number-of-factors test. You watched it recover Dr. Anand's two abilities from the correlations alone.</p>
+
+<p>Next, Lesson 3: k-Means and Choosing k. PCA and factor analysis both work on the columns, the variables. k-means turns to the rows, the individual students, and asks a new question: which ones clump together into groups, and how do you decide how many groups there are?</p>
+</section>
+
+{% endraw %}
