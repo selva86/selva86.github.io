@@ -1,0 +1,405 @@
+---
+title: "Imbalanced Classification Lesson 5: Calibrating Predicted Probabilities"
+description: "A model can rank well and still lie about its probabilities. Read a reliability diagram, then use Platt and isotonic calibration in R so a 0.7 really means 70%."
+keywords: "probability calibration, reliability diagram, Platt scaling, isotonic regression, Brier score, expected calibration error, calibrated probabilities, R"
+mathjax: true
+webr: true
+curriculum_id: "6.80.5"
+post_type: "LESSON"
+course_id: "ds-imbalanced-classification"
+course_title: "Imbalanced Classification in R"
+course_lesson: "5"
+course_total: "6"
+course_landing: "R-Imbalanced-Classification-Course.html"
+course_next: "Why-AUC-Is-Not-Enough.html"
+course_prev: "ROC-PR-Lift-and-Gains-Curves.html"
+lesson_access: "free"
+catalog_blurb: "Make a predicted 0.7 actually mean a 70% chance."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 6</div>
+<h2>Calibrating Predicted Probabilities</h2>
+
+<p>In Lesson 4 you read the curves that judge a model across every threshold. Every one of them quietly trusted the score itself: that a transaction the model rates 0.8 really is fraud about 80% of the time. This lesson checks that assumption, and repairs it when it fails.</p>
+
+<p>Think of a weather forecaster. When she says "70% chance of rain," you want it to actually rain on roughly 70 of every 100 such days. A model that says "0.7 chance of fraud" deserves the same test. When it passes, we call it <strong>calibrated</strong>, and only then can a probability be read at face value.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Explain what a calibrated probability is, and why a great AUC does not guarantee one</li>
+
+<li>Read a reliability diagram and tell an over-confident model from an under-confident one</li>
+
+<li>Put a single number on calibration with the Brier score and expected calibration error</li>
+
+<li>Repair a miscalibrated model in R with Platt scaling and isotonic regression, the leak-free way</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit a classifier in R and know a train/test split (<a href="Train-Validation-Test-and-Data-Leakage.html">Train, Validation, Test and Data Leakage</a>), and you know a classifier outputs a probability score (Lesson 3). In Lesson 2 you oversampled the rare class to lift recall; this lesson cleans up the probabilities that trick left behind.</p>
+<div class="lesson-widget" data-widget-type="calibration-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">What it means</div>
+<h2>What a calibrated probability means</h2>
+
+<p>A calibrated probability is one you can take at face value. Formally, a model is calibrated when, among all the transactions it scores at some value \(p\), the fraction that turn out to be fraud is exactly \(p\):</p>
+
+<p>\[ P(Y = 1 \mid \hat p = p) = p \qquad \text{for every } p. \]</p>
+
+<p>Here \(\hat p\) is the model's predicted probability of fraud and \(Y\) is the true outcome (1 for fraud, 0 for legit). In words: gather every transaction the model rated 0.30; if the model is calibrated, about 30% of them really were fraud. That is exactly how you would grade the weather forecaster, and exactly the standard a risk score must meet before anyone acts on the number.</p>
+
+<p>Calibration is a <em>different job</em> from ranking. Lesson 4's AUC only asked whether fraud tends to outscore legit; it never asked what the scores actually were. So a model can rank beautifully and still be badly miscalibrated. To watch that happen, we rebuild the fraud detector, oversampled exactly the way Lesson 2 did it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The bank's fraud detector, rebuilt from scratch (each lesson is a fresh R session).
+# Fraud is rare and spends a little differently. Build the three sets we will need.
+set.seed(42)
+make_txns &lt;- function(n_legit, n_fraud) {
+  legit &lt;- data.frame(amount  = round(rlnorm(n_legit, 3.3, 0.8), 2),
+                      foreign = rbinom(n_legit, 1, 0.04),
+                      class   = 0)
+  fraud &lt;- data.frame(amount  = round(rlnorm(n_fraud, 3.9, 0.9), 2),
+                      foreign = rbinom(n_fraud, 1, 0.30),
+                      class   = 1)
+  d &lt;- rbind(legit, fraud)
+  d[sample(nrow(d)), ]                       # shuffle the rows
+}
+train &lt;- make_txns(1900, 100)   # 5% fraud - the model is fit on this
+calib &lt;- make_txns(950,  50)    # 5% fraud - HELD OUT, to learn the calibration fix later
+test  &lt;- make_txns(950,  50)    # 5% fraud - untouched, for the honest final check
+table(train$class)
+#&gt; 
+#&gt;    0    1 
+#&gt; 1900  100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the miscalibration. In Lesson 2 you oversampled the rare fraud rows to lift recall, and I warned it distorts the probabilities. Here is that distortion in the open: balance the training rows 50/50, fit a plain logistic regression, and ask what it predicts.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Balance the TRAINING rows 50/50 by duplicating fraud (Lesson 2's oversampling), then fit.
+set.seed(1)
+min_i     &lt;- which(train$class == 1)
+extra     &lt;- sample(min_i, sum(train$class == 0) - length(min_i), replace = TRUE)
+train_bal &lt;- train[c(seq_len(nrow(train)), extra), ]
+
+fit    &lt;- glm(class ~ amount + foreign, data = train_bal, family = binomial)
+p_cal  &lt;- predict(fit, calib, type = &quot;response&quot;)   # scores on the held-out calibration set
+p_test &lt;- predict(fit, test,  type = &quot;response&quot;)   # scores on the untouched test set
+
+# The model trained as if fraud were common, so on average it &quot;sees&quot; it everywhere.
+round(c(mean_predicted = mean(p_test), actual_fraud_rate = mean(test$class)), 3)
+#&gt; mean_predicted actual_fraud_rate 
+#&gt;          0.416             0.050</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model predicts fraud with an average probability of 0.42, on a set where only 5% of transactions really are fraud, more than eight times too high. That is <em>over-confidence</em>, and next we draw it.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<div class="lesson-step-eyebrow">See the gap</div>
+<h2>The reliability diagram</h2>
+
+<p>The tool for seeing calibration is the <strong>reliability diagram</strong>. Sort the predictions into bins (0.0 to 0.1, 0.1 to 0.2, and so on), and for each bin plot one point: the mean predicted probability across the horizontal axis, the fraction that were actually fraud up the vertical. Perfect calibration lands every point on the 45-degree diagonal, because there predicted equals observed.</p>
+
+<p>Drag the slider below to tilt a model from under- to over-confident and watch the curve bow away from the diagonal. Below it lies over-confidence (the model claims more certainty than it earns); above it, under-confidence.</p>
+
+<p>Now the real thing, on our fraud model. Bin its test-set predictions and plot observed against predicted.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Bin the predictions, then in each bin compare mean predicted probability with the
+# fraction that were ACTUALLY fraud. A calibrated model sits on the diagonal.
+reliability &lt;- function(p, y, nbins = 10) {
+  b &lt;- cut(p, breaks = seq(0, 1, length.out = nbins + 1), include.lowest = TRUE)
+  d &lt;- data.frame(predicted = tapply(p, b, mean),
+                  observed  = tapply(y, b, mean),
+                  n         = as.integer(table(b)))
+  d[!is.na(d$predicted), ]
+}
+
+rel_raw &lt;- reliability(p_test, test$class)
+plot(rel_raw$predicted, rel_raw$observed, type = &quot;b&quot;, pch = 19,
+     xlim = 0:1, ylim = 0:1,
+     xlab = &quot;mean predicted probability&quot;, ylab = &quot;observed fraud rate&quot;,
+     main = &quot;Reliability: the raw, over-confident model&quot;)
+abline(0, 1, lty = 2)              # the diagonal = perfect calibration
+round(rel_raw, 3)
+#&gt;           predicted observed   n
+#&gt; (0.2,0.3]     0.299    0.000   1
+#&gt; (0.3,0.4]     0.347    0.015 657
+#&gt; (0.4,0.5]     0.438    0.054 204
+#&gt; (0.5,0.6]     0.538    0.106  47
+#&gt; (0.6,0.7]     0.652    0.150  20
+#&gt; (0.7,0.8]     0.738    0.083  12
+#&gt; (0.8,0.9]     0.854    0.256  43
+#&gt; (0.9,1]       0.937    0.562  16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every point sits well below the diagonal. A transaction the model rates around 0.65 is truly fraud only about 15% of the time, and even its most confident scores, above 0.9, are right only 56% of the time. The model is confidently wrong about its own confidence.</p>
+<div class="lesson-widget" data-widget-type="calibration-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the diagram</h2>
+
+<p>A model's reliability curve sits <strong>above</strong> the diagonal for every bin: in the group it rated around 0.3, about 55% turned out to be fraud. What is this model doing?</p>
+<section class="exercise" data-exercise-id="Calibrating-Predicted-Probabilities-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is over-confident: it claims more certainty than the outcomes justify</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It is under-confident: the real fraud rate is higher than its cautious scores suggest</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is perfectly calibrated: a curve is a curve</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Above the diagonal means events happen MORE often than predicted, so the model is hedging. It should push its probabilities up.</div><div class="lesson-qfb lesson-qfb-no">Only the 45-degree diagonal is calibrated. A curve above or below it is a systematic gap between predicted and observed.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Score it</div>
+<h2>Put a number on it: Brier and ECE</h2>
+
+<p>A picture is convincing, but you also want a single number to compare models and to track a fix. Two are standard.</p>
+
+<p>The <strong>Brier score</strong> is just the mean squared error of the probabilities against the 0/1 outcome:</p>
+
+<p>\[ \text{BS} = \frac{1}{n}\sum_{i=1}^{n} (\hat p_i - y_i)^2 . \]</p>
+
+<p>Lower is better; a perfect model that says 1.0 for every fraud and 0.0 for every legit scores 0. It rewards being both right <em>and</em> honest about certainty.</p>
+
+<p>The <strong>expected calibration error (ECE)</strong> targets calibration directly. Reuse the reliability bins, take the gap between mean predicted and observed frequency in each bin, and average those gaps weighted by how many points fall in each bin:</p>
+
+<p>\[ \text{ECE} = \sum_{b=1}^{B} \frac{n_b}{n}\,\bigl|\, \text{obs}_b - \text{pred}_b \,\bigr| , \]</p>
+
+<p>where \(n_b\) is the count in bin \(b\) and \(\text{obs}_b, \text{pred}_b\) are its observed and mean-predicted values. An ECE of 0 means every bin lands on the diagonal.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">brier &lt;- function(p, y) mean((p - y)^2)          # mean squared gap; lower is better
+
+# ECE: average bin gap between predicted and observed, weighted by bin size.
+ece &lt;- function(p, y, nbins = 10) {
+  b &lt;- cut(p, breaks = seq(0, 1, length.out = nbins + 1), include.lowest = TRUE)
+  total &lt;- 0
+  for (lvl in levels(b)) {
+    ix &lt;- which(b == lvl)
+    if (length(ix) == 0) next
+    total &lt;- total + length(ix) * abs(mean(p[ix]) - mean(y[ix]))
+  }
+  total / length(p)
+}
+
+round(c(brier = brier(p_test, test$class), ece = ece(p_test, test$class)), 3)
+#&gt; brier   ece 
+#&gt; 0.180 0.366</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hold on to those two numbers. A calibrated model should drive both down without touching how the model ranks transactions.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fix one: a sigmoid</div>
+<h2>Platt scaling</h2>
+
+<p>The first repair is <strong>Platt scaling</strong>: learn a small S-shaped curve that squashes the model's scores back toward the truth. Concretely, fit a one-variable logistic regression whose input is the model's score (its log-odds) and whose output is the calibrated probability:</p>
+
+<p>\[ p_{\text{cal}} = \sigma(a\,s + b), \qquad \sigma(z) = \frac{1}{1 + e^{-z}}, \]</p>
+
+<p>where \(s\) is the model's raw score, \(\sigma\) is the logistic (sigmoid) function, and \(a\) and \(b\) are the two numbers the calibration fit learns. The intercept \(b\) can shift every prediction down at once, which is exactly what an over-confident, base-rate-inflated model needs.</p>
+
+<p>The one rule that matters: fit \(a\) and \(b\) on the <strong>held-out calibration set</strong>, never on the rows the model trained on (the next step shows why).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">logit &lt;- function(p) qlogis(pmin(pmax(p, 1e-6), 1 - 1e-6))   # log-odds, clamped off 0 and 1
+z_cal  &lt;- logit(p_cal)
+z_test &lt;- logit(p_test)
+
+platt   &lt;- glm(calib$class ~ z_cal, family = binomial)       # fit on the CALIBRATION set
+p_platt &lt;- predict(platt, data.frame(z_cal = z_test), type = &quot;response&quot;)   # apply to test
+
+round(c(brier_raw = brier(p_test, test$class),
+        brier_platt = brier(p_platt, test$class),
+        ece_raw = ece(p_test, test$class),
+        ece_platt = ece(p_platt, test$class)), 3)
+#&gt; brier_raw brier_platt   ece_raw ece_platt 
+#&gt;     0.180       0.042     0.366     0.014</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One sigmoid, fit from two numbers, collapses both scores: the Brier score more than halves and the calibration error nearly vanishes. The predictions now sit near the true 5% base rate instead of the inflated 0.42 they started at.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fix two: any monotonic shape</div>
+<h2>Isotonic regression</h2>
+
+<p>Platt assumes the fix is an S-curve. <strong>Isotonic regression</strong> assumes less: it learns <em>any</em> non-decreasing map from score to probability, so it can bend into shapes a sigmoid cannot. Formally it finds the function \(g\) that minimises squared error subject to never going downhill:</p>
+
+<p>\[ \min_{g \text{ non-decreasing}} \sum_{i=1}^{n} \bigl(g(\hat p_i) - y_i\bigr)^2 . \]</p>
+
+<p>The classic solver is <em>pool adjacent violators</em>: walk the scores in order, and wherever the running average would dip, merge those points into one flat step. The result is a staircase you read new scores through.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ord     &lt;- order(p_cal)                                      # sort scores ascending
+iso_fit &lt;- isoreg(p_cal[ord], calib$class[ord])              # non-decreasing fit on calibration
+keep    &lt;- !duplicated(p_cal[ord])                           # unique breakpoints for the step map
+iso_map &lt;- approxfun(p_cal[ord][keep], iso_fit$yf[keep],
+                     method = &quot;constant&quot;, rule = 2)          # a reusable step function
+p_iso   &lt;- iso_map(p_test)                                   # read the test scores through it
+
+round(c(raw = brier(p_test, test$class),
+        platt = brier(p_platt, test$class),
+        isotonic = brier(p_iso, test$class)), 3)
+#&gt; raw platt isotonic 
+#&gt; 0.180 0.042    0.041</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both fixes work; here they nearly tie. Notice what neither one touched.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Platt (a rising sigmoid) and isotonic (a non-decreasing staircase) are both <strong>monotonic</strong>: they never swap the order of two scores, only relabel their values. So calibration cannot change how the model ranks transactions, which means the ROC curve and AUC from Lesson 4 are exactly the same before and after. Calibration fixes <em>what the number means</em>, not <em>who outscores whom</em>.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Isotonic is more flexible, so it overfits on small calibration sets, its staircase memorises noise. As a rule of thumb, prefer Platt when the calibration set is small (a few hundred points or fewer) and isotonic when it is large. And no calibrator can rescue a model that ranks badly: calibration adjusts probabilities, it does not add skill.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Score the calibrated model</h2>
+
+<p>You have three sets of test-set predictions in memory: <code>p_test</code> (raw), <code>p_platt</code> (Platt), and <code>p_iso</code> (isotonic). Calibration must be judged on the untouched test set. Fill the blank so the second line scores the <strong>Platt-calibrated</strong> predictions, then compare.</p>
+<section class="exercise" data-exercise-id="Calibrating-Predicted-Probabilities-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="p_platt"><textarea class="lesson-tryit-input" spellcheck="false">brier_raw   &lt;- mean((p_test - test$class)^2)
+brier_platt &lt;- mean((____ - test$class)^2)   # score the CALIBRATED predictions
+round(c(raw = brier_raw, platt = brier_platt), 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the calibrated vector. Its Brier score drops far below the raw one, on data neither the model nor the calibrator ever saw.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the Platt-calibrated predictions: the object is p_platt. Drop it into the blank.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">brier_raw   &lt;- mean((p_test - test$class)^2)
+brier_platt &lt;- mean((p_platt - test$class)^2)
+round(c(raw = brier_raw, platt = brier_platt), 3)
+#&gt; raw platt 
+#&gt; 0.180 0.042</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The one pitfall</div>
+<h2>Fit the calibrator on held-out data</h2>
+
+<p>Here is the mistake that quietly fakes a perfect result: calibrate on the same rows the model trained on. The model already fits those rows too well, so its scores there look almost right, and a calibrator fit on them will report a near-diagonal reliability curve. Then it collapses on live data, precisely the leakage pattern Lesson 2 warned about with resampling.</p>
+
+<p>The discipline is a three-way split: train the model, fit the calibrator on a separate held-out slice, and report calibration on a test set neither has seen. That is why every fit above used <code>calib</code> to learn the map and <code>test</code> to judge it.</p>
+
+<p>In a full tidymodels workflow you would not hand-roll this. The <strong>probably</strong> package fits Platt and isotonic calibration inside resampling, so the held-out discipline is automatic. Run this one in a local R session:</p>
+
+<pre><code class="language-r">library(probably)   # tidymodels calibration; install from CRAN in a local session
+# `preds` holds a truth column plus a .pred_fraud probability column.
+cal &lt;- cal_estimate_logistic(preds, truth = class, estimate = .pred_fraud)   # Platt
+preds_cal &lt;- cal_apply(preds, cal)
+# cal_estimate_isotonic(...) swaps in the isotonic fit; cal_plot_reliability(...) draws the curve.</code></pre>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split three ways","sub":"a training set, a held-out calibration set, and an untouched test set"},{"title":"Fit the model on train","sub":"this is the model whose probabilities need repairing"},{"title":"Fit the calibrator on the calibration set","sub":"learn the score-to-probability map on rows the model never trained on"},{"title":"Evaluate on the test set","sub":"measure calibration on rows neither the model nor the calibrator has seen"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The tempting shortcut</h2>
+
+<p>A teammate fits isotonic regression on the very rows the model was trained on. The reliability diagram now sits almost perfectly on the diagonal, and the AUC is unchanged. What actually happened?</p>
+<section class="exercise" data-exercise-id="Calibrating-Predicted-Probabilities-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model is calibrated and ready to ship</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Calibration leaked: fit on training rows, it looks perfect there and will drift live; and AUC is unchanged because a monotonic map never reorders scores</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Something is broken: calibrating should have raised the AUC too</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. In-sample calibration flatters itself, and calibration never changes ranking, so the flat AUC is expected, not a bug.</div><div class="lesson-qfb lesson-qfb-no">Calibration is monotonic by design, so it leaves the ranking, and therefore the ROC curve and AUC, untouched. An unchanged AUC is correct.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.microsoft.com/en-us/research/publication/probabilistic-outputs-for-support-vector-machines-and-comparisons-to-regularized-likelihood-methods/">Platt (1999), Probabilistic Outputs for Support Vector Machines</a> - the original sigmoid-calibration method that bears his name.</li>
+
+<li><a href="https://doi.org/10.1145/1102351.1102430">Niculescu-Mizil and Caruana (2005), Predicting Good Probabilities With Supervised Learning, ICML</a> - the empirical study of which models are miscalibrated and when Platt beats isotonic.</li>
+
+<li><a href="https://arxiv.org/abs/1706.04599">Guo et al. (2017), On Calibration of Modern Neural Networks</a> - reliability diagrams, ECE, and why high-accuracy models are often over-confident.</li>
+
+<li><a href="https://scikit-learn.org/stable/modules/calibration.html">scikit-learn User Guide: Probability calibration</a> - a clear, visual walkthrough of reliability curves and sigmoid vs isotonic.</li>
+
+<li><a href="https://probably.tidymodels.org/">probably (tidymodels) calibration reference</a> - the R package that fits Platt and isotonic calibration leak-free inside resampling.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You now know what a probability is supposed to mean, and how to make a model's probabilities mean it:</p>
+
+<ul>
+
+<li><strong>Calibrated</strong> = among the cases scored \(p\), a fraction \(p\) are positive. Ranking (AUC) is a different job.</li>
+
+<li>The <strong>reliability diagram</strong> shows the gap; the <strong>Brier score</strong> and <strong>ECE</strong> put a number on it.</li>
+
+<li><strong>Platt</strong> (a sigmoid) and <strong>isotonic</strong> (a monotonic staircase) repair it, fit on a <strong>held-out</strong> calibration set, and both leave the ranking untouched.</li>
+
+</ul>
+
+<p>You have now met accuracy, recall and precision, the ROC and PR curves, thresholds, and calibration. Each exposes something a single headline number would hide.</p>
+
+<p>Next, Lesson 6: Why AUC Is Not Enough. It pulls the whole course together, showing how one AUC score can look excellent while hiding poor calibration, a bad operating threshold, and a cost the model never accounted for.</p>
+</section>
+
+{% endraw %}
