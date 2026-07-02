@@ -1,0 +1,502 @@
+---
+title: "Experimentation Lesson 7: Contextual Bandits and Off-Policy Evaluation"
+description: "Upgrade Thompson sampling to a contextual bandit in base R, then score a new policy from logged data with inverse-propensity and doubly robust scoring."
+keywords: "contextual bandit in R, off-policy evaluation, inverse propensity scoring, doubly robust estimator, policy value, logged bandit feedback, counterfactual evaluation, propensity score, base R bandit"
+mathjax: true
+webr: true
+curriculum_id: "6.170.7"
+post_type: "LESSON"
+course_id: "ds-experimentation"
+course_title: "Experimentation"
+course_lesson: "7"
+course_total: "7"
+course_landing: "R-Experimentation-Course.html"
+course_next: ""
+course_prev: "Thompson-Sampling-and-Bayesian-Bandits.html"
+lesson_access: "pro"
+catalog_blurb: "Let the best variant depend on the reader, and score new rules from logs."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 7</div>
+<h2>Contextual Bandits and Off-Policy Evaluation</h2>
+
+<p>Lesson 6 ended the Diwali campaign on a high: Thompson sampling routed Meera's 40,000 emails at half the regret of epsilon-greedy, and faded its own exploration with no knob to tune. But one assumption survived all six lessons unexamined: that a single subject line is best for <strong>everyone</strong>. Meera's list says otherwise. "Your size is going fast" lands with longtime loyalty members; "40 percent off ends Friday" lands with bargain hunters. A bandit that could see who it is emailing would beat any one-size-fits-all winner.</p>
+
+<p>This finale does two jobs. First it teaches the bandit to see: a <strong>contextual bandit</strong> lets the best line depend on the reader, and the upgrade costs a dozen lines of base R. Then it answers the question every finished campaign begs: Meera now has a smarter policy for next year, so can she score it on this year's log, <strong>without sending a single new email</strong>? That is off-policy evaluation, and its two workhorses, inverse-propensity scoring and the doubly robust estimator, close the course.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain what a context is, and what a context-blind bandit pays, forever, for not seeing it</li>
+
+<li>Upgrade Thompson sampling to a per-segment contextual bandit in base R and read its allocation</li>
+
+<li>Read a bandit log, say what a propensity is, and show why the log's naive averages mislead</li>
+
+<li>Score a brand-new policy from logged data alone with inverse-propensity scoring</li>
+
+<li>Strengthen that score with the doubly robust estimator, and say when no estimator can help</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> <a href="Thompson-Sampling-and-Bayesian-Bandits.html">Thompson Sampling and Bayesian Bandits</a>, this lesson starts the morning after that campaign ends: Beta belief curves, probability-of-best, and regret are assumed, as is the campaign itself from <a href="Multi-Armed-Bandits-Explore-vs-Exploit.html">Multi-Armed Bandits, Explore vs Exploit</a>. All code is base R.</p>
+<div class="lesson-widget" data-widget-type="bandit-explore" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The discovery</div>
+<h2>The best line depends on who is reading</h2>
+
+<p>Two days after the campaign closes, Meera's analyst slices the final tallies by a column the bandit never looked at: the membership segment. 24,000 of the 40,000 subscribers are <strong>bargain hunters</strong>, signed up through discount partners, and 16,000 are <strong>loyalty members</strong>, two or more years of full-price orders. Split that way, the scoreboard stops telling one story and starts telling two: line B ("40 percent off ends Friday") clearly led among bargain hunters, while line C ("Your size is going fast") clearly led among loyalty members.</p>
+
+<p>As always in this course, the simulator knows the truth that Meera can only estimate. Here it is, one open rate per segment and line, and the blend checks out against the campaign-wide rates the whole course has used:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">share  &lt;- c(bargain = 0.60, loyalty = 0.40)   # Meera's list mix
+p_true &lt;- rbind(bargain = c(A = 0.30, B = 0.58, C = 0.49),
+                loyalty = c(A = 0.30, B = 0.38, C = 0.64))
+colSums(share * p_true)   # blended rates: exactly the truths of Lessons 5 and 6
+#&gt;    A    B    C
+#&gt; 0.30 0.50 0.55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>C's famous 0.55 was never one number. It was a 0.49 among bargain hunters and a 0.64 among loyalty members, averaged by the list mix. Draw the two segments side by side and the flip is impossible to miss:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">barplot(t(p_true), beside = TRUE, col = c(&quot;#5b6ee1&quot;, &quot;#c25e00&quot;, &quot;#1b7f5c&quot;),
+        ylim = c(0, 0.7), legend.text = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;),
+        args.legend = list(x = &quot;topleft&quot;, bty = &quot;n&quot;),
+        ylab = &quot;true open rate&quot;, main = &quot;The best line flips with the segment&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The segment is a <strong>context</strong>: a fact Meera knows about each recipient before choosing which line to send. A rule that looks at the context and names a line, "B to bargain hunters, C to loyalty members", is called a <strong>policy</strong>. A policy \(\pi\) (the Greek letter pi, the usual symbol for a policy) has a value: the campaign-wide open rate it would earn,</p>
+
+<p>\[ V(\pi) \;=\; \sum_{x} \Pr(x)\; p_{x,\,\pi(x)} \]</p>
+
+<p>where \(x\) runs over the segments, \(\Pr(x)\) is the share of the list in segment \(x\) (0.60 and 0.40 here), \(\pi(x)\) is the line the policy picks for that segment, and \(p_{x,a}\) is the true open rate of line \(a\) in segment \(x\). Compare the best any single line can do with the best per-segment rule:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v_one &lt;- max(colSums(share * p_true))        # C for everyone: the best single line
+v_ctx &lt;- sum(share * apply(p_true, 1, max))  # the best line for each segment
+round(c(C_for_everyone = v_one, best_line_per_segment = v_ctx,
+        extra_opens_per_40k = 40000 * (v_ctx - v_one)), 3)
+#&gt;        C_for_everyone best_line_per_segment   extra_opens_per_40k
+#&gt;                 0.550                 0.604              2160.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The one-size-fits-all winner is a weighted average of segment truths, and an average leaves money on the table whenever the segments disagree. On this list, seeing the context is worth 0.054 opens per send: 2,160 opens every campaign, before any cleverness about exploration.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The upgrade</div>
+<h2>A bandit that sees context</h2>
+
+<p>A <strong>contextual bandit</strong> is Lesson 6's machine with one new reflex: look at the context first, then run the usual draw among the belief curves <em>for that context</em>. With two segments and three lines, Meera keeps six Beta curves instead of three, a 2 by 3 grid of cells, and each send touches only its own segment's row:</p>
+
+<p>It is literally two small bandits running side by side, one per segment. Regret changes meaning accordingly: each send is now judged against the best line <strong>for that recipient's segment</strong>, \( \text{regret}_t = \max_a p_{x_t,a} - p_{x_t,a_t} \), where \(x_t\) is the segment of send \(t\) and \(a_t\) the line it received. Put the blind and the sighted bandit on identical traffic:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n_rounds &lt;- 4000
+run_bandit &lt;- function(contextual) {
+  opens &lt;- matrix(0, 2, 3, dimnames = dimnames(p_true))  # one cell per segment x line
+  sends &lt;- matrix(0, 2, 3, dimnames = dimnames(p_true))
+  regret &lt;- 0
+  for (t in 1:n_rounds) {
+    seg &lt;- if (runif(1) &lt; share[&quot;bargain&quot;]) &quot;bargain&quot; else &quot;loyalty&quot;
+    if (contextual) {   # draw from THIS segment's six-curve row
+      draw &lt;- rbeta(3, opens[seg, ] + 1, sends[seg, ] - opens[seg, ] + 1)
+    } else {            # blind: pool both segments into one curve per line
+      o &lt;- colSums(opens); s &lt;- colSums(sends)
+      draw &lt;- rbeta(3, o + 1, s - o + 1)
+    }
+    pick &lt;- which.max(draw)
+    opens[seg, pick] &lt;- opens[seg, pick] + rbinom(1, 1, p_true[seg, pick])
+    sends[seg, pick] &lt;- sends[seg, pick] + 1
+    regret &lt;- regret + max(p_true[seg, ]) - p_true[seg, pick]
+  }
+  list(sends = sends, regret = regret)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">blind &lt;- run_bandit(contextual = FALSE)
+aware &lt;- run_bandit(contextual = TRUE)
+blind$sends
+#&gt;          A   B    C
+#&gt; bargain 28 291 2135
+#&gt; loyalty 13 199 1334
+aware$sends
+#&gt;          A    B    C
+#&gt; bargain 18 2089  302
+#&gt; loyalty 34   16 1541
+round(c(blind_regret = blind$regret, contextual_regret = aware$regret), 1)
+#&gt;      blind_regret contextual_regret
+#&gt;             256.2              47.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two tables like a manager. The blind bandit did exactly what Lesson 6 trained it to do: it found the best single line and sent C to everyone, 2,135 sends to bargain hunters for whom C is the wrong answer. The contextual bandit routed 2,089 bargain sends to B and 1,541 loyalty sends to C: it learned both segment winners. The bill is five times smaller, 48 opens against 256, and the gap only grows, because the blind bandit's mistake is structural. Even after it converges perfectly, it keeps paying 0.09 opens on every bargain send, which spread over the whole list (bargain hunters are 60% of it) is exactly the 0.054-per-send tax from the last step, in a straight line forever. Its Lesson 6 guarantee is intact, it just guarantees the wrong target: the best single line, not the best rule.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Two segments cost six curves. Add device (3 kinds) and time of day (4 slots) and the grid is 72 cells, each learning from scratch. Real systems at that scale replace the per-cell tally with a model that predicts reward from the context features, so evidence is shared across similar contexts; LinUCB, from the paper in the references, is the classic example. The explore-exploit logic you already own sits unchanged on top.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"See the context","sub":"the segment arrives with each send: bargain hunter or loyalty member"},{"title":"Draw within the segment","sub":"one imagined rate per line, from the Beta curves kept for that segment"},{"title":"Send to the imagined winner","sub":"the line with the highest draw gets this email"},{"title":"Update that segment only","sub":"the chosen cell gains an open or an ignore; the other segment is untouched"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The blind bandit runs forever</h2>
+
+<p>Suppose Meera never learns about the segments and her Lesson 6 context-blind Thompson bandit runs on this list indefinitely. Bargain hunters are 60% of traffic, and for them line B (0.58) truly beats line C (0.49). What does the blind bandit eventually do about that?</p>
+<section class="exercise" data-exercise-id="Contextual-Bandits-and-Off-Policy-Evaluation-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Given enough sends it will notice bargain hunters behave differently and start routing them to B</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It settles on C for everyone and pays about 0.09 opens of regret on every bargain-hunter send, forever</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Its regret still bends flat eventually, because Thompson sampling always reaches the Lai-Robbins floor</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Blindness converts a learnable difference into a permanent tax: about 0.054 opens per send across the list, 2,160 opens per 40,000, and no amount of additional data removes it, because the information needed is not in what the bandit can see.</div><div class="lesson-qfb lesson-qfb-no">The Lesson 6 guarantee is against the best SINGLE line, and the blind bandit does find that. Measured against what is actually achievable on this list, the best line per segment, its regret grows in a straight line.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The asset</div>
+<h2>The log, and the number almost everyone forgets to keep</h2>
+
+<p>The campaign is over, and the bandit left something behind that is worth more than its opens: the <strong>log</strong>. For every one of the 40,000 sends, the platform wrote down four things: the context it saw, the line it sent, whether the email was opened, and one number that looks like bookkeeping but is the key to everything that follows: the <strong>propensity</strong>, the probability the policy had of sending that particular line at that moment.</p>
+
+<p>Where does that probability come from? Lesson 6 mentioned that production platforms do not re-draw after every send; they run in frozen batches. In the campaign's final and largest batch, 10,000 sends, the platform had long since converged and froze the allocation at A 5%, B 15%, C 80%, the same for every recipient, because a blind policy cannot vary by segment. Those three numbers are the propensities. Rebuild that batch's log in full, truth hidden from Meera as always:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n     &lt;- 10000
+alloc &lt;- c(A = 0.05, B = 0.15, C = 0.80)   # the frozen final-batch allocation
+seg   &lt;- sample(rownames(p_true), n, replace = TRUE, prob = share)
+line  &lt;- sample(names(alloc),     n, replace = TRUE, prob = alloc)
+open  &lt;- rbinom(n, 1, p_true[cbind(seg, line)])
+prop  &lt;- unname(alloc[line])               # the send-time probability of the line sent
+log_df &lt;- data.frame(seg, line, prop, open)
+head(log_df, 5)
+#&gt;       seg line prop open
+#&gt; 1 loyalty    C  0.8    1
+#&gt; 2 bargain    C  0.8    0
+#&gt; 3 bargain    C  0.8    0
+#&gt; 4 bargain    C  0.8    1
+#&gt; 5 bargain    C  0.8    0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four Cs in the first five rows: that is the 80% talking. This shape, one row per decision holding (context, action, propensity, reward), is called <strong>logged bandit feedback</strong>, and it is the raw material of this lesson's remaining question: Meera drafts next year's policy, "B to bargain hunters, C to loyalty members", and wants its value <strong>before deploying it</strong>. Scoring one policy using data collected by a different policy is called <strong>off-policy evaluation</strong>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Log the propensity at decision time, when it is one free extra column, not after the fact, when it may be unrecoverable. Any randomized policy has one: a Thompson batch's allocation shares, epsilon-greedy's mostly-leader mix, even a plain A/B split's fixed 50/50.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">If the old policy was deterministic, always C, full stop, then every propensity is 0 or 1 and the log contains no information at all about lines it never sent. Randomness in the logger is not messiness; it is the raw material off-policy evaluation spends.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>The obvious score, and why it lies</h2>
+
+<p>Meera's first instinct is everyone's first instinct. Her proposed policy names a line for each segment, so: keep the log rows where the old campaign <em>happened to send</em> what the new policy <em>would have sent</em>, and average their opens. Those matched rows are real sends with real rewards, what could be wrong with averaging them?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pi_new &lt;- c(bargain = &quot;B&quot;, loyalty = &quot;C&quot;)       # next year's proposal
+match  &lt;- log_df$line == pi_new[log_df$seg]     # rows where old send == new choice
+c(matched_rows = sum(match))
+#&gt; matched_rows
+#&gt;         4108
+round(mean(log_df$open[match]), 3)
+#&gt; [1] 0.625</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.625. The true value of this policy, computed from the truth matrix in step 2, is 0.604. The naive average is high by 0.021, which over 40,000 sends promises about 840 opens that will never arrive. And it is not bad luck; re-run the log a thousand times and the naive score keeps landing near 0.627. To see why, ask not how many rows matched, but <strong>who</strong> they are:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(rbind(the_list = prop.table(table(log_df$seg)),
+            matched_rows = prop.table(table(log_df$seg[match]))), 2)
+#&gt;              bargain loyalty
+#&gt; the_list        0.60    0.40
+#&gt; matched_rows    0.22    0.78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The list is 60/40 bargain-to-loyalty, but the matched rows are 22/78, nearly reversed. The mechanism: on loyalty members the new policy picks C, the old campaign's favorite, so they agree on 80% of loyalty rows. On bargain hunters the new policy picks B, which the old campaign sent just 15% of the time. Matching therefore harvests loyalty rows generously and bargain rows grudgingly, and loyalty-plus-C happens to be the new policy's best-performing half (0.64 against 0.58). The naive average grades the policy almost entirely on its easiest audience.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Matched rows are real data, but they are not a fair sample of the policy you are scoring. The old policy decided which rows exist, so its preferences leak into any straight average of them. This is selection bias with a steering wheel, and fixing it is exactly what the propensity column is for.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Inverse-propensity scoring</h2>
+
+<p>The composition table says the problem out loud: matched bargain-B rows are scarce, one for every 6.7 the new policy would actually generate, while matched loyalty-C rows are plentiful. The fix is to make each row count for what it is standing in for. A matched row the old policy produced with probability \(p_i\) represents \(1/p_i\) sends of the new policy, so weight it by exactly that. This is <strong>inverse-propensity scoring</strong>, IPS for short (the references trace the idea to Horvitz and Thompson's 1952 survey-sampling estimator):</p>
+
+<p>\[ \hat V_{\text{IPS}} \;=\; \frac{1}{n} \sum_{i=1}^{n} \frac{\mathbb{1}\!\left[\pi_{\text{new}}(x_i) = a_i\right]}{p_i} \, r_i \]</p>
+
+<p>Every symbol in words: \(n\) is all 10,000 logged rows, \(x_i\) is row \(i\)'s context (its segment), \(a_i\) the line the old campaign sent it, \(r_i\) its reward (1 for an open, 0 for silence), and \(p_i\) the logged propensity of \(a_i\). The indicator \(\mathbb{1}[\cdot]\) is 1 when the new policy would have sent the same line and 0 otherwise, so unmatched rows contribute zero, but, crucially, they stay in the denominator: the average runs over all \(n\) rows, not just the matches.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w   &lt;- match / log_df$prop      # 0 for unmatched rows; 1/p for matched ones
+ips &lt;- mean(w * log_df$open)
+truth &lt;- sum(share * p_true[cbind(names(pi_new), pi_new)])
+round(c(truth = truth, naive = mean(log_df$open[match]), ips = ips), 3)
+#&gt; truth naive   ips
+#&gt; 0.604 0.625 0.596</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The naive score missed high by 0.021 and would keep missing high on every re-run. IPS lands 0.008 low, and that residue is honest sampling noise around the true 0.604, not bias. The reweighting works for a one-line reason: within a segment, line \(a\) appears in the log with probability \(p_a\), and dividing by \(p_a\) cancels it, so every (segment, line) pocket re-enters the average at the weight the <em>list</em> gives it, not the weight the <em>old policy</em> gave it. Look at the weights it took:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(round(w[match], 2))
+#&gt; 1.25 6.67
+#&gt; 3208  900</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each of the 900 matched bargain-B rows was scaled up to speak for the 6.7 sends the old policy withheld, and the 3,208 loyalty-C rows were scaled down to 1.25. Fairness restored, but notice the price: 900 rows carrying weight 6.67 means a real share of the estimate rides on a small crowd, which makes the estimator noisy.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">IPS is unbiased only if the logged propensities are correct and every line the new policy wants had some chance under the old one. And its variance explodes as propensities shrink: at \(p = 0.15\) the weights are a manageable 6.7, at \(p = 0.01\) they are 100, and one lucky open among them can swing the whole score. Small propensities are where IPS goes to die.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Score the incumbent from the same log</h2>
+
+<p>The comparison Meera actually has to defend in the planning meeting is against the incumbent: "C for everyone", the line the old campaign crowned. Score that policy from the same log with IPS. Remember: the estimator averages over all 10,000 rows, and the zeros are load-bearing.</p>
+<section class="exercise" data-exercise-id="Contextual-Bandits-and-Off-Policy-Evaluation-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="match_c\s*(/\s*log_df\$prop\s*\*\s*log_df\$open|\*\s*log_df\$open\s*/\s*log_df\$prop)"><textarea class="lesson-tryit-input" spellcheck="false">pi_c    &lt;- c(bargain = &quot;C&quot;, loyalty = &quot;C&quot;)   # the incumbent: C for everyone
+match_c &lt;- log_df$line == pi_c[log_df$seg]
+
+ips_c &lt;- mean(____)                          # weight, then reward: over ALL rows
+round(ips_c, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">0.552, against a true value of 0.55: the log scores a policy it never ran almost exactly. Put it beside the contextual policy at 0.60 and the 2,160-open case for going contextual next year has been made without sending a single new email.</span><span class="lesson-tryit-fb lesson-tryit-no">Weight every row by its match with the incumbent divided by the logged propensity, then multiply by the reward: match_c / log_df$prop * log_df$open. And average with mean() over ALL rows, not just the matched ones; dropping the zeros re-creates the naive estimator.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">pi_c    &lt;- c(bargain = &quot;C&quot;, loyalty = &quot;C&quot;)
+match_c &lt;- log_df$line == pi_c[log_df$seg]
+
+ips_c &lt;- mean(match_c / log_df$prop * log_df$open)
+round(ips_c, 3)
+#&gt; [1] 0.552</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The stronger fix</div>
+<h2>The doubly robust estimator</h2>
+
+<p>IPS has a strange blind spot: it throws away 59% of the log (the unmatched rows) and stakes everything on the propensities being right. There is an opposite strategy, called the <strong>direct method</strong>: use <em>every</em> row to fit a reward model \(\hat r(x, a)\), a prediction of the open rate for each context and line, then score the new policy purely on predictions. All the data, no weights, but now everything rides on the model being right, and a model fitted to the old policy's traffic inherits its blind spots.</p>
+
+<p>The <strong>doubly robust</strong> estimator refuses to choose. Start from the model's answer, then use IPS not on raw rewards but on the model's <em>errors</em>, correcting the prediction wherever matched rows prove it wrong:</p>
+
+<p>\[ \hat V_{\text{DR}} \;=\; \frac{1}{n} \sum_{i=1}^{n} \left( \hat r\!\left(x_i, \pi_{\text{new}}(x_i)\right) \;+\; \frac{\mathbb{1}\!\left[\pi_{\text{new}}(x_i) = a_i\right]}{p_i} \Big( r_i - \hat r(x_i, a_i) \Big) \right) \]</p>
+
+<p>The first term is the direct method's guess for row \(i\); the second is the IPS machinery from the last step applied to the residual \(r_i - \hat r(x_i, a_i)\), the gap between what actually happened and what the model predicted for the line actually sent. The name is earned: the estimator is unbiased if <strong>either</strong> the propensities are right (the correction then repairs any model, as its errors get reweighted to cancel) <strong>or</strong> the model is right (the residuals then average to zero and the noisy correction has nothing to do). Only both failing together sinks it.</p>
+
+<p>Watch both halves of the promise work. First, right propensities repairing a wrong model: fit the crudest model on offer, one open rate per line, context-blind, so it believes B earns 0.496 for everyone when the truth is 0.58 and 0.38:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">r_line   &lt;- tapply(log_df$open, log_df$line, mean)   # a context-BLIND reward model
+round(r_line, 3)
+#&gt;     A     B     C
+#&gt; 0.304 0.496 0.552
+r_model  &lt;- r_line[pi_new[log_df$seg]]   # its guess for what the NEW policy sends
+r_logged &lt;- r_line[log_df$line]          # its guess for what was ACTUALLY sent
+dr &lt;- mean(r_model + w * (log_df$open - r_logged))
+round(c(ips = ips, dr = dr, truth = truth), 3)
+#&gt;   ips    dr truth
+#&gt; 0.596 0.596 0.604</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Second, a right model repairing wrong propensities. Suppose the propensity column had been lost and an analyst shrugged and assumed uniform thirds. IPS is wrecked; DR, given a decent model (here the segment-by-line cell means, which the log estimates well), barely notices:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cell &lt;- tapply(log_df$open, list(log_df$seg, log_df$line), mean)  # segment x line model
+w_wrong   &lt;- match / (1/3)                    # propensities replaced by a wrong guess
+ips_wrong &lt;- mean(w_wrong * log_df$open)
+dr_wrong  &lt;- mean(cell[cbind(log_df$seg, pi_new[log_df$seg])] +
+                  w_wrong * (log_df$open - cell[cbind(log_df$seg, log_df$line)]))
+round(c(ips_wrong_propensities = ips_wrong, dr_wrong_propensities = dr_wrong, truth = truth), 3)
+#&gt; ips_wrong_propensities  dr_wrong_propensities                  truth
+#&gt;                  0.770                  0.596                  0.604</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>IPS with wrong propensities reports 0.77 for a 0.60 policy, an error that would detonate in production. DR shrugs it off. And there is a quieter, everyday benefit: even when propensities are perfectly known, anchoring on a model and reweighting only the <em>surprises</em> shrinks the noise. Replay the whole final batch 200 times and compare all three estimators:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+score_once &lt;- function() {
+  seg  &lt;- sample(rownames(p_true), n, replace = TRUE, prob = share)
+  line &lt;- sample(names(alloc),     n, replace = TRUE, prob = alloc)
+  open &lt;- rbinom(n, 1, p_true[cbind(seg, line)])
+  prop &lt;- unname(alloc[line]); match &lt;- line == pi_new[seg]
+  r_ln &lt;- tapply(open, line, mean)
+  c(naive = mean(open[match]),
+    ips   = mean(match / prop * open),
+    dr    = mean(r_ln[pi_new[seg]] + match / prop * (open - r_ln[line])))
+}
+runs &lt;- replicate(200, score_once())
+round(rbind(mean = rowMeans(runs), sd = apply(runs, 1, sd)), 4)
+#&gt;       naive    ips     dr
+#&gt; mean 0.6274 0.6045 0.6049
+#&gt; sd   0.0074 0.0154 0.0111</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the table as three personalities. The naive average is <em>precisely wrong</em>: tightly clustered around 0.627, a truth-free number, and its small sd makes it dangerously convincing. IPS is <em>honestly noisy</em>: centered on the true 0.604 with the widest spread. DR is honest and calmer: same center, sd down from 0.0154 to 0.0111, which by the square-root law means it wrings the same precision out of roughly half the log.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">IPS trusts the propensities completely; the direct method trusts the model completely; doubly robust needs only one of the two to hold, and pays less variance even when both do. It is the default scorer in every serious off-policy toolkit for a reason.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Log every decision","sub":"context, line sent, its send-time probability, and the reward"},{"title":"Propose a new policy","sub":"a rule that names a line for each context"},{"title":"Model the rewards","sub":"predict each open rate from the logged data"},{"title":"Reweight the surprises","sub":"IPS applied to the model errors, where the two policies agree"},{"title":"Read the score","sub":"a policy value, before a single new email is sent"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The policy the log cannot see</h2>
+
+<p>Emboldened, Meera drafts a bolder policy for next Diwali: keep B for bargain hunters, but send loyalty members a brand-new line D, "Early access for members only", which did not exist during the campaign. Can IPS or DR score this policy from the log?</p>
+<section class="exercise" data-exercise-id="Contextual-Bandits-and-Off-Policy-Evaluation-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes, IPS can: the inverse-propensity weights compensate for how rarely the old policy chose D</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Yes, DR can: double robustness means the model side covers whatever the log missed</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither: the log carries no evidence about D at all, so scoring it needs new exploration, a pilot that actually sends some D</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. This is the overlap requirement: off-policy evaluation can only reweight actions the old policy had some chance of taking. For anything truly new, buy evidence, for instance a small randomized pilot, exactly the kind of exploration this course began with.</div><div class="lesson-qfb lesson-qfb-no">The reward model is fitted to the log, which contains no sends of D, so its prediction for D is pure invention, and with no matched rows the correction term is zero. DR does not fail loudly here; it quietly returns an unchecked guess, which is worse.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://arxiv.org/abs/1003.0146">Li, Chu, Langford and Schapire (2010), A Contextual-Bandit Approach to Personalized News Article Recommendation</a> - the LinUCB paper: contextual bandits with a model instead of per-cell tallies, serving news at Yahoo scale, with the offline-evaluation trick that inspired much of this field.</li>
+
+<li><a href="https://arxiv.org/abs/1103.4601">Dudik, Langford and Li (2011), Doubly Robust Policy Evaluation and Learning</a> - the paper behind this lesson's second half: the DR estimator for logged bandit feedback, with the either-or guarantee proved.</li>
+
+<li><a href="https://doi.org/10.1080/01621459.1952.10483446">Horvitz and Thompson (1952), A Generalization of Sampling Without Replacement from a Finite Universe</a> - where inverse-propensity weighting comes from: the survey-sampling estimator that IPS transplants to policy evaluation.</li>
+
+<li><a href="http://incompleteideas.net/book/the-book-2nd.html">Sutton and Barto, Reinforcement Learning: An Introduction, 2nd edition, chapter 2 (free HTML)</a> - contextual bandits as associative search, and the bridge from bandits to full reinforcement learning.</li>
+
+<li><a href="https://arxiv.org/abs/2008.07146">Saito et al. (2020), Open Bandit Dataset and Pipeline</a> - a real production bandit log, released with code, on which you can run the exact estimators you built here.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 7 complete</h2>
+
+<p>The course's last assumption fell. You gave the bandit eyes, six Beta curves instead of three, and watched the contextual version route B to bargain hunters and C to loyalty members for a regret bill of 48 against the blind bandit's 256, a gap that compounds forever because blindness is a structural tax, 2,160 opens per campaign on this list. Then you learned to spend the log: the propensity column recorded at send time, the naive matched average unmasked as a 22/78 sample of a 60/40 list, IPS restoring honesty by making each row speak for the sends it stands in for, and the doubly robust estimator surviving a wrong model and wrong propensities in turn while cutting the noise by more than a quarter. The final try-it was the quiet triumph: you priced two policies against each other, 0.60 versus 0.55, from data alone.</p>
+
+<p>That completes the Experimentation course. Look at what you can now do end to end: size an experiment so it can see the effect it is hunting (Lesson 1), sharpen it with variance reduction (Lesson 2), keep it honest against peeking and broken randomizers (Lesson 3), design around interference with clusters and switchbacks (Lesson 4), earn during the test when the moment calls for a bandit (Lessons 5 and 6), and value the next idea from the wreckage of the last one (this lesson). Every experiment your team runs from now on leaves behind a log; you are the person who knows it is an asset.</p>
+</section>
+
+{% endraw %}
