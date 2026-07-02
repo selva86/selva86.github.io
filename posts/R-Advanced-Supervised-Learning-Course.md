@@ -73,6 +73,12 @@ The final lesson puts the pieces together. Build one honest pipeline that tunes 
 
 [Start Lesson 8: A Tuned, Stacked Model End-to-End](A-Tuned-Stacked-Model-End-to-End.html)
 
+### Section quiz: check what stuck
+
+Ten graded questions across the whole section, maximum-margin and kernel SVMs, regularized discriminant analysis, Gaussian processes, stacking, Bayesian optimization, approximate nearest neighbors, and honest tuning, plus two live R snippets you can run. A quick way to find the ideas worth a second pass before you move on.
+
+[Take the Advanced Supervised Learning quiz](Advanced-Supervised-Learning-Quiz.html)
+
 ## Who this is for
 
 You can fit and read a logistic regression or a random forest, and you know what a train and test split is for. That is the whole prerequisite. Every advanced idea here, from the margin to the kernel trick to a Gaussian process posterior, is built from scratch as it arrives. It follows naturally from the Classification and Model Evaluation material on the Data Scientist path, but nothing beyond a first machine-learning course is assumed.
