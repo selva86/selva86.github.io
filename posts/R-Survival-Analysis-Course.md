@@ -67,6 +67,12 @@ Machine learning meets censoring: random survival forests can bend where Cox sta
 
 [Start Lesson 7: Survival ML and Evaluation](Survival-ML-and-Evaluation.html)
 
+### Section quiz: check what stuck
+
+Ten graded questions across the whole section, censoring, Kaplan-Meier and the log-rank test, Cox proportional hazards and checking it, parametric and AFT models, competing risks, and honest model scoring, plus two live R snippets you can run. A quick way to find the ideas worth a second pass before you move on.
+
+[Take the Survival Analysis quiz](Survival-Analysis-Quiz.html)
+
 ## Who this is for
 
 You can fit and read a simple regression, you know probability as a long-run fraction, and you can work with a data frame in R. That is the whole prerequisite. Every survival idea, from censoring to the hazard to the Cox model, is built from scratch as it arrives. It follows naturally from the regression material on the Data Scientist path, but no prior survival analysis is assumed.
