@@ -1,0 +1,340 @@
+---
+title: "Bayesian Modeling Lesson 1: The Bayesian Update"
+description: "Learn the Bayesian update from scratch: prior times likelihood gives the posterior. Build it in base R on a real conversion rate and read all three curves."
+keywords: "bayes theorem, bayesian update, prior likelihood posterior, posterior distribution, grid approximation, credible interval, beta binomial, bayesian inference in R, conversion rate"
+mathjax: true
+webr: true
+curriculum_id: "6.160.1"
+post_type: "LESSON"
+course_id: "ds-bayesian"
+course_title: "Bayesian Modeling"
+course_lesson: "1"
+course_total: "8"
+course_landing: "R-Bayesian-Modeling-Course.html"
+course_next: "Conjugacy-and-Choosing-Priors.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "How prior knowledge and new data combine into one honest updated estimate."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 8</div>
+<h2>The Bayesian Update</h2>
+
+<p>Every model you have fit so far answers with a single best number and a standard error. Bayesian modeling answers differently: every value the unknown could take gets a weight, and one fixed rule reshuffles those weights whenever new data arrives. This course builds that machinery from the ground up, and this lesson builds the rule itself.</p>
+
+<p>Here is the situation the whole lesson lives in. Asha runs an online plant store. Her past checkout pages have converted about 10 percent of visitors into buyers. This morning she launched a redesigned page: 40 visitors so far, 8 purchases. That is 20 percent, double her history, on a sample small enough to be a fluke. What should she believe now?</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Name the three pieces of every Bayesian update (the prior, the likelihood and the posterior) and say in words what each one measures</li>
+
+<li>Compute a posterior for a conversion rate in base R, no special packages needed</li>
+
+<li>Read a prior-likelihood-posterior chart and predict how it moves as data grows</li>
+
+<li>Report a posterior honestly: a point estimate, a 95 percent credible interval, and a direct probability statement</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can work in R (vectors, plots), you know probability as a long-run fraction, and you have met the binomial setting: a count of successes in n independent tries.</p>
+
+<p>The picture below is the whole lesson in one frame: a belief curve meets evidence and moves. Drag the sliders to see it happen, then we will build every piece by hand.</p>
+<div class="lesson-widget" data-widget-type="bayes-update" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Belief, drawn</div>
+<h2>The prior: what you believed before the data</h2>
+
+<p>Start with the unknown itself. Call the true conversion rate of the new page \(\theta\) (the Greek letter theta): out of every 100 visitors who reach the page in the long run, \(\theta \times 100\) of them buy. It is one fixed number, and nobody knows it, not even Asha.</p>
+
+<p>The Bayesian move is to describe that uncertainty with a curve. Lay out every value \(\theta\) could take, from 0 to 1, and give each one a height: high where the value is plausible, low where it is not. That curve, written \(p(\theta)\), is called the <strong>prior</strong>, because it captures what you believed <em>prior to</em> seeing the new data.</p>
+
+<p>Asha is not starting from ignorance. Her records show a dozen past page designs converting between roughly 5 and 17 percent, typically near 10. So her prior should pile its weight around 0.10 and fade out by 0.20. R has a ready-made family of curves for values between 0 and 1, drawn by <code>dbeta()</code>. Its two shape numbers position the peak and set the width; the pair 8 and 72 puts the peak near 8 / (8 + 72) = 0.10 with the spread her records suggest. (Why this exact family is the natural choice is the subject of Lesson 2. For now it is simply a curve that matches her experience.)</p>
+
+<p>Each lesson runs in a fresh interactive R session, so we build everything right here. Run this first:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># theta: every candidate value the conversion rate could take
+theta &lt;- seq(0, 1, length.out = 1001)
+
+# Asha's belief before this morning, as a curve over theta
+prior &lt;- dbeta(theta, 8, 72)
+
+plot(theta, prior, type = &quot;l&quot;, lwd = 2, col = &quot;grey35&quot;, xlim = c(0, 0.4),
+     xlab = &quot;conversion rate (theta)&quot;, ylab = &quot;plausibility&quot;,
+     main = &quot;What Asha believed before this morning&quot;)
+abline(v = 0.10, lty = 2)
+
+# where the middle 95 percent of this belief sits
+round(qbeta(c(0.025, 0.975), 8, 72), 3)
+#&gt; [1] 0.045 0.174</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the curve like a mountain of belief: the summit near 0.10 is the rate Asha finds most plausible, and 95 percent of her belief sits between 0.045 and 0.174. A rate of 0.30 is not impossible under this prior, just nearly weightless.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Evidence, scored</div>
+<h2>The likelihood: how well each rate explains the data</h2>
+
+<p>Now the morning's data: 8 purchases out of 40 visitors. The second ingredient asks a precise question of every candidate rate. <em>If</em> the true rate were \(\theta\), how probable would this exact result be?</p>
+
+<p>You already know the tool that answers it. If each of 40 visitors buys independently with probability \(\theta\), the number of buyers follows a binomial distribution, so</p>
+
+<p>\[ P(8 \text{ of } 40 \mid \theta) \;=\; \binom{40}{8}\, \theta^{8} \,(1-\theta)^{32}. \]</p>
+
+<p>Read every piece: the vertical bar means "given", so the left side is the probability of the morning's result given a candidate rate. \(\binom{40}{8}\) counts the ways to choose which 8 of the 40 visitors were the buyers, \(\theta^{8}\) covers the 8 who bought (each with probability \(\theta\)), and \((1-\theta)^{32}\) covers the 32 who did not.</p>
+
+<p>Held at fixed data and viewed as a function of \(\theta\), this is called the <strong>likelihood</strong>. Score a few candidates and the plot makes the idea concrete:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># for each candidate rate: how probable is exactly 8 of 40?
+lik &lt;- dbinom(8, size = 40, prob = theta)
+
+setNames(round(dbinom(8, 40, c(0.05, 0.10, 0.20, 0.30)), 4),
+         c(&quot;5%&quot;, &quot;10%&quot;, &quot;20%&quot;, &quot;30%&quot;))
+#&gt;     5%    10%    20%    30%
+#&gt; 0.0006 0.0264 0.1560 0.0557
+
+plot(theta, lik, type = &quot;l&quot;, lwd = 2, col = &quot;firebrick&quot;, xlim = c(0, 0.4),
+     xlab = &quot;conversion rate (theta)&quot;, ylab = &quot;P(8 of 40 | theta)&quot;,
+     main = &quot;How well each rate explains the morning&quot;)
+abline(v = 0.20, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A true rate of 5 percent would produce this morning about 6 times in 10,000; a rate of 20 percent produces it about 156 times in 1,000. The curve peaks exactly at 8/40 = 0.20, the rate that explains the data best.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The likelihood is evidence about \(\theta\), not belief about \(\theta\). It is not a probability distribution over \(\theta\): its area is not 1, and its height at 0.20 is not the probability that \(\theta\) equals 0.20. It answers only one question, how well each candidate rate explains what happened.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does the likelihood peak mean?</h2>
+
+<p>The likelihood curve for Asha's morning peaks at \(\theta = 0.20\). Taken on its own, what does that tell you?</p>
+<section class="exercise" data-exercise-id="The-Bayesian-Update-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It proves that 20 percent of all future visitors will buy</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Among all candidate rates, 0.20 gives the observed 8-of-40 the highest probability. It says nothing yet about how plausible each rate was to begin with</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The probability that theta equals 0.20 is highest, so Asha should just report 20 percent</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The likelihood scores explanations: rate by rate, how probable would this morning be. Belief about the rate needs the other half, the prior, and combining the two is the next step.</div><div class="lesson-qfb lesson-qfb-no">The likelihood is not a probability distribution over theta. Its area is not 1, so its height is not P(theta). It reads: IF the rate were 0.20, THEN this morning would be this probable. Turning that into belief about theta requires the prior, which is exactly what the update does next.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The rule</div>
+<h2>Bayes' theorem: multiply, then rescale</h2>
+
+<p>You now hold two curves over the same axis. The prior says what was plausible before the morning. The likelihood says how well each rate explains the morning. Bayes' theorem is the one legitimate way to merge them, and you have seen its skeleton before with events: \(P(A \mid B) = P(B \mid A)\,P(A) / P(B)\). Swap the events for our objects, a parameter and data, and it reads</p>
+
+<p>\[ p(\theta \mid \text{data}) \;=\; \frac{p(\text{data} \mid \theta)\; p(\theta)}{p(\text{data})}. \]</p>
+
+<p>Name every piece once, in words:</p>
+
+<ul>
+
+<li>\(p(\theta)\) is the <strong>prior</strong>: plausibility of each rate before the data (our grey curve).</li>
+
+<li>\(p(\text{data} \mid \theta)\) is the <strong>likelihood</strong>: how well each rate explains the data (our red curve).</li>
+
+<li>\(p(\theta \mid \text{data})\) is the <strong>posterior</strong>: plausibility of each rate <em>after</em> the data. This is the answer.</li>
+
+<li>\(p(\text{data})\) is a single number, not a curve: the overall probability of the morning averaged across all rates. Its only job is to rescale the result so the total plausibility is 1.</li>
+
+</ul>
+
+<p>Because the denominator is the same for every \(\theta\), it cannot change which rates are favored. The entire shape of the answer comes from the numerator, which gives the working form used everywhere in practice:</p>
+
+<p>\[ \text{posterior} \;\propto\; \text{likelihood} \times \text{prior}, \]</p>
+
+<p>where \(\propto\) means "proportional to": equal up to that one rescaling constant.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The Bayesian update is multiply, then rescale. At each candidate rate, multiply what you believed by how well that rate explains the data. Where both are substantial the posterior is high. Where either is near zero, the product dies: no belief without plausibility, no belief without evidence.</div></div>
+
+<p>And on our grid of 1,001 candidate rates, "rescale" could not be simpler: divide by the sum, so the weights add to 1. You are about to do it.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Compute the update on a grid</h2>
+
+<p>Everything you need, rebuilt in one place so this step stands alone (run it):</p>
+<section class="exercise" data-exercise-id="The-Bayesian-Update-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(lik\s*\*\s*prior|prior\s*\*\s*lik)"><textarea class="lesson-tryit-input" spellcheck="false">theta &lt;- seq(0, 1, length.out = 1001)          # a fine grid of candidate rates
+prior &lt;- dbeta(theta, 8, 72)                   # belief before the morning
+lik   &lt;- dbinom(8, size = 40, prob = theta)    # evidence: 8 sales in 40 visits</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the whole engine: belief times evidence at every candidate rate, then one rescale. Everything else in Bayesian statistics is bookkeeping around this line.</span><span class="lesson-tryit-fb lesson-tryit-no">Multiply the two curves you built: the belief curve and the evidence curve. The blank is prior * lik (either order works, multiplication commutes).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">unnorm    &lt;- prior * lik
+posterior &lt;- unnorm / sum(unnorm)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">Read it</div>
+<h2>Reading the three curves</h2>
+
+<p>Put all three on one canvas. Each curve is rescaled to sum to 1 so they share a scale honestly:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">unnorm    &lt;- prior * lik
+posterior &lt;- unnorm / sum(unnorm)
+
+prior_w &lt;- prior / sum(prior)     # the same three curves,
+lik_w   &lt;- lik / sum(lik)         # each rescaled to total 1
+
+plot(theta, prior_w, type = &quot;l&quot;, lwd = 2, col = &quot;grey35&quot;, xlim = c(0, 0.4),
+     ylim = range(prior_w, lik_w, posterior),
+     xlab = &quot;conversion rate (theta)&quot;, ylab = &quot;share of plausibility&quot;,
+     main = &quot;Prior, likelihood, posterior&quot;)
+lines(theta, lik_w, lwd = 2, col = &quot;firebrick&quot;)
+lines(theta, posterior, lwd = 3, col = &quot;navy&quot;)
+legend(&quot;topright&quot;, c(&quot;prior (peak near 0.10)&quot;, &quot;likelihood (peak 0.20)&quot;, &quot;posterior&quot;),
+       col = c(&quot;grey35&quot;, &quot;firebrick&quot;, &quot;navy&quot;), lwd = c(2, 2, 3), bty = &quot;n&quot;)
+
+round(theta[which.max(posterior)], 3)   # where the updated belief peaks
+#&gt; [1] 0.127</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior peaks near 0.13, between the prior's 0.10 and the data's 0.20, and it is narrower than the prior. Both facts have the same explanation: the posterior is a compromise weighted by information. Here is the arithmetic behind it. A <code>dbeta(theta, 8, 72)</code> prior carries exactly as much information as having already watched 80 visitors and seen 8 buy. The morning adds 40 real visitors with 8 buyers. Pool them:</p>
+
+<p>\[ \frac{8 + 8}{80 + 40} \;=\; \frac{16}{120} \;\approx\; 0.133, \]</p>
+
+<p>which is precisely the posterior mean. The prior outweighs the data two to one (80 imaginary visitors against 40 real ones), so the update travels only a third of the distance from 0.10 toward 0.20. Collect another 200 visitors tomorrow and the real data will dominate.</p>
+
+<p>Now feel that trade-off directly. The widget below runs the same update on a generic measurement (its belief curves are normal, living on an open scale instead of 0 to 1, but the geometry is identical). Set the prior mean and the data average apart, then drag the number of data points from 1 up to 200 and watch the posterior slide toward the evidence and tighten. Then drop n to 3 and widen or narrow the prior confidence: with little data, the prior is most of the answer.</p>
+<div class="lesson-widget" data-widget-type="bayes-update" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Who wins the tug of war?</h2>
+
+<p>Suppose Asha instead leaves the new page up for a week and collects 4,000 visitors with 800 purchases (still 20 percent), then runs the same update with the same prior. Where does the posterior end up?</p>
+<section class="exercise" data-exercise-id="The-Bayesian-Update-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Still about a third of the way to 0.20, because the prior always keeps its two-to-one weight</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Exactly at the average of 0.10 and 0.20, since the update always splits the difference</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Essentially at 0.20, with a much narrower curve: the data now carry 50 times the information of the prior</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right: (8 + 800) / (80 + 4000) is about 0.198, and the curve tightens as evidence piles up. With enough data the prior barely matters, which is exactly how honest updating should behave.</div><div class="lesson-qfb lesson-qfb-no">The update never just splits the difference. It weighs each side by how much information it carries, and 4,000 real visitors carry vastly more than a prior worth 80.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Report it</div>
+<h2>Say it like an analyst: a mean, an interval, a probability</h2>
+
+<p>A whole curve is the honest answer, but Asha needs numbers for a decision. All of them read directly off the posterior:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># one number: the balance point of the posterior
+post_mean &lt;- sum(theta * posterior)
+round(post_mean, 3)
+#&gt; [1] 0.133
+
+# a range: the middle 95 percent of the posterior weight
+cdf &lt;- cumsum(posterior)
+ci  &lt;- c(theta[which(cdf &gt;= 0.025)[1]], theta[which(cdf &gt;= 0.975)[1]])
+round(ci, 3)
+#&gt; [1] 0.079 0.199
+
+# a direct answer: how probable is it the new page beats the old 10 percent?
+round(sum(posterior[theta &gt; 0.10]), 3)
+#&gt; [1] 0.859</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three deliverables, each in plain language:</p>
+
+<ul>
+
+<li><strong>Posterior mean 0.133</strong>: the single best estimate, already blending history with the morning.</li>
+
+<li><strong>95 percent credible interval (0.079, 0.199)</strong>: given the model and the data, there is a 95 percent probability the true rate lies in this range. You can say that sentence with a straight face, because \(\theta\) has a distribution here.</li>
+
+<li><strong>P(new page beats 10 percent) = 0.859</strong>: an 86 percent chance the redesign is an improvement. Real support, not proof. If shipping the page is cheap, that may be plenty; if it is costly, collect more visitors and update again.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">That first sentence is exactly the one a classical 95 percent confidence interval does not permit. A confidence interval makes a promise about the procedure: across many repetitions, 95 percent of intervals built this way trap the truth. The credible interval speaks about \(\theta\) itself, directly. The price of that directness is printed in its preamble: <em>given the model and the data</em>.</div></div>
+
+<p>And that price is real, so read the fine print once. This posterior assumed independent visitors with one constant rate (no weekend effects, no traffic-source mix), and it assumed a prior worth 80 visitors of history. A different defensible prior would move these numbers somewhat at n = 40, and much less at n = 4,000. The prior is not cheating; it is an assumption stated in the open, where a critic can attack it. Choosing one well, and measuring how much it matters, is Lesson 2.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What the interval actually says</h2>
+
+<p>Asha reports: "95 percent credible interval for the conversion rate: 0.079 to 0.199." Which reading is correct?</p>
+<section class="exercise" data-exercise-id="The-Bayesian-Update-step10" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Given the model and the morning's data, there is a 95 percent probability that the true conversion rate of the new page lies between 0.079 and 0.199</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">About 95 percent of Asha's visitors have a conversion rate inside this interval</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">If Asha repeated mornings like this many times and built an interval each time, about 95 percent of those intervals would contain the true rate</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right, and note the preamble doing the work: given the model and the data. The statement is direct because theta carries a distribution, and it is conditional because the posterior inherits every assumption the model and prior made.</div><div class="lesson-qfb lesson-qfb-no">That is the guarantee a classical CONFIDENCE interval makes: a promise about the procedure across repetitions. The credible interval says something stronger and simpler about this one interval, a direct probability statement about theta, which is only possible because theta has a distribution.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.bayesrulesbook.com/">Bayes Rules! (Johnson, Ott and Dogucu), free online book</a> - the friendliest full course on exactly this path; chapters 1 to 3 are this lesson at book length, with the same Beta prior machinery.</li>
+
+<li><a href="https://xcelab.net/rm/">Statistical Rethinking (McElreath)</a> - the book that made grid approximation the standard way into Bayesian thinking; its chapter 2 globe-tossing example is the twin of Asha's page.</li>
+
+<li><a href="https://sites.stat.columbia.edu/gelman/book/">Bayesian Data Analysis, 3rd edition (Gelman, Carlin, Stern, Dunson, Vehtari, Rubin), free PDF</a> - the canonical graduate reference this whole course builds toward.</li>
+
+<li><a href="https://allendowney.github.io/ThinkBayes2/">Think Bayes, 2nd edition (Downey), free online</a> - the same update built as code-first tables and grids, an excellent second pass from a programming angle.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You built the entire engine of Bayesian inference on a 1,001-point grid: a prior worth 80 visitors of history, a binomial likelihood scoring every candidate rate against 8-of-40, and one line, multiply then rescale, that turned them into a posterior with mean 0.133, a 95 percent credible interval of (0.079, 0.199), and an 86 percent probability that the redesign beats the old rate. You also read the geometry: the posterior is an information-weighted compromise that slides toward the data and tightens as evidence grows.</p>
+
+<p>One loose thread: we picked <code>dbeta(8, 72)</code> off the shelf, and our posterior turned out to be exactly the same kind of curve. That is no coincidence. Next, Lesson 2: Conjugacy and Choosing Priors, where the update becomes two additions you can do in your head, and where you learn to pick a prior you can defend, and to measure how much it mattered.</p>
+</section>
+
+{% endraw %}
