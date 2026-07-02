@@ -124,6 +124,9 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `shrinkage-pool` | pooling slider -> small noisy groups shrink toward the grand mean | §13 mixed/multilevel models; §16 hierarchical models, partial pooling |
 | `kernel-svm` | linear/poly/RBF toggle -> boundary bends to wrap the inner class; support vectors circled | §14 SVM + the kernel trick |
 | `bayes-update` | prior mean/confidence + data sliders -> prior x likelihood -> posterior; tightens with n | §16 the Bayesian update, conjugacy, choosing priors |
+| `gp-posterior` | lengthscale toggle -> GP posterior mean + 95% band that pinches at data, flares in gaps | §14 Gaussian processes for regression & uncertainty |
+| `stacking-blend` | errors/weights toggle -> stacked RMSE beats every base learner; meta-learner blend weights | §14 stacking & the Super Learner |
+| `bayesopt-acq` | Next-sample button -> GP surrogate + Expected-Improvement acquisition homes in on the global max | §14 Bayesian optimization for hyperparameters |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 

@@ -148,6 +148,18 @@ NEW widgets for sections 6-12 (built before the batch; runnable interactive-R re
 
 NEW widgets for section 13 (built + mount-tested + emitted-R WebR-verified before the batch): **robust-weights**, **quantile-lines**, **coef-path**, **spline-smoother**, **count-dist**, **glm-family-shapes**, **ordinal-cumlogit**, **shrinkage-pool**. Everything else reuses the existing library. §14-22 arcs + widgets are appended after the §13 pilot verifies.
 
+## ds-advanced-supervised  (track: scientist; curriculum_id 6.140; landing R-Advanced-Supervised-Learning-Course.html; access: pro)  [roadmap §14]
+1. Support-Vector-Machines-Maximum-Margin - the maximum-margin classifier, the margin, and support vectors, built from the intuition up. widgets: kernel-svm, decision-region
+2. Kernel-SVMs-and-the-Kernel-Trick - poly and RBF kernels bend the boundary; how C and gamma trade fit against smoothness. widgets: kernel-svm
+3. Regularized-Discriminant-Analysis - shrinking the covariance between LDA and QDA when classes are many or data is thin. widgets: decorrelation
+4. Gaussian-Processes-for-Regression - a distribution over functions: posterior mean plus honest uncertainty that widens off the data. widgets: NEW:gp-posterior
+5. Stacking-and-the-Super-Learner - cross-validated base learners blended by a meta-learner that beats each alone. widgets: NEW:stacking-blend
+6. Bayesian-Optimization-for-Hyperparameters - a GP surrogate and an acquisition function find good settings in few evaluations. widgets: NEW:bayesopt-acq, tuning-search
+7. Approximate-Nearest-Neighbors-at-Scale - trading exactness for speed with HNSW-style indexes when brute-force kNN is too slow. widgets: knn-vote
+8. A-Tuned-Stacked-Model-End-to-End - putting SVM, GP and trees together: tune, stack, and evaluate one honest pipeline. widgets: learning-curve
+
+NEW widgets for section 14 (built + mount-tested + emitted-R WebR-verified before the batch): **gp-posterior**, **stacking-blend**, **bayesopt-acq**. Reuses: kernel-svm (from §13), decision-region, decorrelation, tuning-search, knn-vote, learning-curve.
+
 ---
 
 # Data Analyst track (level 2, all free)

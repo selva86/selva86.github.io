@@ -414,6 +414,128 @@
 })();
 
 ;
+/* bayesopt-acq.js */
+/* bayesopt-acq.js - Bayesian optimization, one step at a time. A cheap GP surrogate stands
+ * in for an expensive black-box objective; the acquisition function (Expected Improvement)
+ * scores where to look next, trading off "high predicted value" against "high uncertainty".
+ * Press Next sample to run one BO step: EI picks the next x, the objective is evaluated there,
+ * the surrogate updates. Watch it lock onto the global peak in a few evaluations, then probe
+ * the runner-up. Emits the same EI loop as runnable base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function f(x) { return 1.5 * Math.exp(-(x - 6) * (x - 6) / 1.5) + Math.exp(-(x - 2.5) * (x - 2.5) / 0.8); }
+  function rbf(a, b, l) { var d = a - b; return Math.exp(-d * d / (2 * l * l)); }
+  function pnorm(z) {
+    var b1 = 0.319381530, b2 = -0.356563782, b3 = 1.781477937, b4 = -1.821255978, b5 = 1.330274429, p = 0.2316419, c = 0.39894228;
+    var t = 1 / (1 + p * Math.abs(z)), y = 1 - c * Math.exp(-z * z / 2) * t * (b1 + t * (b2 + t * (b3 + t * (b4 + t * b5))));
+    return z >= 0 ? y : 1 - y;
+  }
+  function dnorm(z) { return 0.39894228 * Math.exp(-z * z / 2); }
+  function inv(M) {
+    var n = M.length, A = M.map(function (r, i) { return r.concat(Array.from({ length: n }, function (_, j) { return i === j ? 1 : 0; })); });
+    for (var c = 0; c < n; c++) { var pv = A[c][c]; for (var j = 0; j < 2 * n; j++) A[c][j] /= pv; for (var r = 0; r < n; r++) { if (r === c) continue; var fct = A[r][c]; for (var k = 0; k < 2 * n; k++) A[r][k] -= fct * A[c][k]; } }
+    return A.map(function (row) { return row.slice(n); });
+  }
+  function matvec(M, v) { return M.map(function (row) { return row.reduce(function (s, x, i) { return s + x * v[i]; }, 0); }); }
+
+  var L = 0.9, S0 = 1e-4, GRID = (function () { var g = []; for (var i = 0; i < 100; i++) g.push(8 * i / 99); return g; })();
+
+  function surrogate(X, Y) {
+    var n = X.length, K = [];
+    for (var i = 0; i < n; i++) { K.push([]); for (var j = 0; j < n; j++) K[i].push(rbf(X[i], X[j], L) + (i === j ? S0 : 0)); }
+    var Ki = inv(K), alpha = matvec(Ki, Y), best = Math.max.apply(null, Y);
+    return GRID.map(function (xg) {
+      var ks = X.map(function (xt) { return rbf(xg, xt, L); });
+      var m = ks.reduce(function (s, kv, i) { return s + kv * alpha[i]; }, 0);
+      var Kiks = matvec(Ki, ks), v = 1 - ks.reduce(function (s, kv, i) { return s + kv * Kiks[i]; }, 0), sd = Math.sqrt(Math.max(v, 1e-9));
+      var z = (m - best) / sd, ei = (m - best) * pnorm(z) + sd * dnorm(z);
+      return { x: xg, m: m, sd: sd, ei: Math.max(ei, 0) };
+    });
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var X, Y;
+    function reset() { X = [1, 4, 7.5]; Y = X.map(f); }
+    reset();
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+        '<button class="bo-next" style="font:600 13px IBM Plex Sans,sans-serif;color:#fff;background:' + P.ink + ';border:0;border-radius:8px;padding:7px 15px;cursor:pointer">Next sample &rarr;</button>' +
+        '<button class="bo-reset" style="font:600 13px IBM Plex Sans,sans-serif;color:' + P.mut + ';background:none;border:1px solid ' + P.line + ';border-radius:8px;padding:7px 13px;cursor:pointer">Reset</button>' +
+      '</div>' +
+      '<div class="bo-plot"></div>' +
+      '<div class="bo-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'The same Expected-Improvement loop in base R' });
+
+    var plot = el.querySelector('.bo-plot'), read = el.querySelector('.bo-read');
+    var W = 340, Ht = 170, Ha = 70, RX = [0, 8], RYo = [-0.2, 1.8];
+    function px(x) { return (x - RX[0]) / (RX[1] - RX[0]) * W; }
+    function pyo(y) { return Ht - (y - RYo[0]) / (RYo[1] - RYo[0]) * Ht; }
+    function draw(nextX) {
+      var post = surrogate(X, Y);
+      var maxEI = Math.max.apply(null, post.map(function (p) { return p.ei; })), argEI = post.reduce(function (a, b) { return b.ei > a.ei ? b : a; }).x;
+      // objective panel: true curve (dashed), GP mean + band, samples
+      var truePts = GRID.map(function (x) { return px(x).toFixed(1) + ',' + pyo(f(x)).toFixed(1); });
+      var meanPts = post.map(function (p) { return px(p.x).toFixed(1) + ',' + pyo(p.m).toFixed(1); });
+      var top = post.map(function (p) { return [px(p.x), pyo(p.m + 1.96 * p.sd)]; }), bot = post.map(function (p) { return [px(p.x), pyo(p.m - 1.96 * p.sd)]; });
+      var band = 'M' + top.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' L') + ' L' + bot.reverse().map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' L') + ' Z';
+      var dots = X.map(function (xt, i) { return '<circle cx="' + px(xt).toFixed(1) + '" cy="' + pyo(Y[i]).toFixed(1) + '" r="4" fill="' + P.ink + '"/>'; }).join('');
+      var objSvg = '<svg viewBox="0 0 ' + W + ' ' + Ht + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px 8px 0 0;border-bottom:0" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="objective and GP surrogate">' +
+        '<path d="' + band + '" fill="' + P.acc + '" opacity="0.13"/>' +
+        '<polyline points="' + truePts.join(' ') + '" fill="none" stroke="' + P.mut + '" stroke-width="1.3" stroke-dasharray="4 3"/>' +
+        '<polyline points="' + meanPts.join(' ') + '" fill="none" stroke="' + P.acc + '" stroke-width="2"/>' + dots +
+        (nextX != null ? '<line x1="' + px(nextX).toFixed(1) + '" y1="0" x2="' + px(nextX).toFixed(1) + '" y2="' + Ht + '" stroke="' + P.c0 + '" stroke-width="1.5" stroke-dasharray="3 2"/>' : '') + '</svg>';
+      // acquisition panel: EI curve, argmax marked
+      var eiPts = post.map(function (p) { return px(p.x).toFixed(1) + ',' + (Ha - p.ei / (maxEI || 1) * (Ha - 8)).toFixed(1); });
+      var acqSvg = '<svg viewBox="0 0 ' + W + ' ' + Ha + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:0 0 8px 8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="expected improvement">' +
+        '<polyline points="' + eiPts.join(' ') + '" fill="none" stroke="' + P.c0 + '" stroke-width="1.8"/>' +
+        '<line x1="' + px(argEI).toFixed(1) + '" y1="0" x2="' + px(argEI).toFixed(1) + '" y2="' + Ha + '" stroke="' + P.c0 + '" stroke-width="1.3" stroke-dasharray="3 2"/>' +
+        '<text x="6" y="12" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">acquisition (EI)</text></svg>';
+      plot.innerHTML = objSvg + acqSvg;
+      var bi = Y.indexOf(Math.max.apply(null, Y));
+      read.innerHTML = 'Evaluations: <b>' + X.length + '</b>. Best so far: <b style="font-family:IBM Plex Mono,monospace">f(' + X[bi].toFixed(2) + ') = ' + Y[bi].toFixed(2) + '</b> (true max &asymp; 1.50 at x&asymp;6). The blue curve is Expected Improvement; its peak is where BO looks next, balancing a high predicted mean against wide uncertainty.';
+    }
+    el.querySelector('.bo-next').addEventListener('click', function () {
+      var post = surrogate(X, Y), pick = post.reduce(function (a, b) { return b.ei > a.ei ? b : a; }).x;
+      X.push(pick); Y.push(f(pick)); draw();
+    });
+    el.querySelector('.bo-reset').addEventListener('click', function () { reset(); draw(); });
+    // initial view shows where EI would send the first step
+    (function () { var post = surrogate(X, Y); draw(post.reduce(function (a, b) { return b.ei > a.ei ? b : a; }).x); })();
+  }
+
+  function rcode() {
+    return [
+      '# Bayesian optimization: a GP surrogate + Expected Improvement, base R.',
+      'f <- function(x) 1.5*exp(-(x-6)^2/1.5) + exp(-(x-2.5)^2/0.8)  # expensive black box',
+      'rbf <- function(a,b,l) exp(-outer(a,b,"-")^2/(2*l^2))',
+      'xg <- seq(0, 8, length.out = 100)',
+      'X <- c(1, 4, 7.5); Y <- f(X)                     # 3 initial evaluations',
+      'ei_pick <- function(X, Y, l=0.9, s0=1e-4) {',
+      '  K <- rbf(X,X,l) + s0*diag(length(X)); Ki <- solve(K)',
+      '  Ks <- rbf(xg, X, l)',
+      '  mu <- as.numeric(Ks %*% (Ki %*% Y))            # surrogate mean',
+      '  s  <- sqrt(pmax(1 - rowSums((Ks %*% Ki) * Ks), 1e-9))  # surrogate sd',
+      '  z  <- (mu - max(Y)) / s',
+      '  ei <- (mu - max(Y))*pnorm(z) + s*dnorm(z)      # expected improvement',
+      '  xg[which.max(ei)]                              # look here next',
+      '}',
+      'for (i in 1:5) { xn <- ei_pick(X, Y); X <- c(X, xn); Y <- c(Y, f(xn)) }',
+      'round(c(best_x = X[which.max(Y)], best_y = max(Y)), 2)',
+      '# a handful of evaluations find the global peak (x=6, f=1.5).'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('bayesopt-acq', mount);
+})();
+
+;
 /* bias-variance-target.js */
 /* bias-variance-target.js - the dartboard view of bias and variance.
  * Shots at a bullseye. Bias offsets the cluster's CENTER from the target;
@@ -2290,6 +2412,102 @@
   }
 
   window.LessonWidgets.register('gmm-clusters', mount);
+})();
+
+;
+/* gp-posterior.js */
+/* gp-posterior.js - a Gaussian process for regression, made visible. Six training points,
+ * a posterior mean curve, and a shaded 95% band that pinches tight where data lives and
+ * flares wide where it does not - the GP's honest "I don't know here". Toggle the lengthscale
+ * to feel the bias-variance dial: short = wiggly and local, long = smooth and stiff. Emits
+ * runnable base-R computing the exact posterior mean and sd from the RBF kernel.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  // training data: matches the runnable R (sin(x) + seed(1) noise, hardcoded so the picture is exact)
+  var XTR = [-4, -3, -1, 0, 2, 3];
+  var YTR = [0.820, -0.123, -0.925, 0.160, 0.942, 0.059];
+
+  function rbf(a, b, l) { var d = a - b; return Math.exp(-d * d / (2 * l * l)); }
+
+  // invert an n x n matrix via Gauss-Jordan (n = 6 here, tiny)
+  function inv(M) {
+    var n = M.length, A = M.map(function (r, i) { return r.concat(Array.from({ length: n }, function (_, j) { return i === j ? 1 : 0; })); });
+    for (var c = 0; c < n; c++) {
+      var piv = A[c][c];
+      for (var j = 0; j < 2 * n; j++) A[c][j] /= piv;
+      for (var r = 0; r < n; r++) { if (r === c) continue; var f = A[r][c]; for (var k = 0; k < 2 * n; k++) A[r][k] -= f * A[c][k]; }
+    }
+    return A.map(function (row) { return row.slice(n); });
+  }
+  function matvec(M, v) { return M.map(function (row) { return row.reduce(function (s, x, i) { return s + x * v[i]; }, 0); }); }
+
+  function posterior(l, sig) {
+    var n = XTR.length, K = [];
+    for (var i = 0; i < n; i++) { K.push([]); for (var j = 0; j < n; j++) K[i].push(rbf(XTR[i], XTR[j], l) + (i === j ? sig * sig : 0)); }
+    var Ki = inv(K), alpha = matvec(Ki, YTR);
+    return function (xs) {
+      var ks = XTR.map(function (xt) { return rbf(xs, xt, l); });
+      var mean = ks.reduce(function (s, kv, i) { return s + kv * alpha[i]; }, 0);
+      var Kiks = matvec(Ki, ks);
+      var v = 1 - ks.reduce(function (s, kv, i) { return s + kv * Kiks[i]; }, 0);
+      return { m: mean, sd: Math.sqrt(Math.max(v, 1e-9)) };
+    };
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var l = 1.0, sig = 0.1;
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="gp-seg" style="margin-bottom:12px">' + u.seg([{ v: '0.5', label: 'Short' }, { v: '1', label: 'Medium' }, { v: '2', label: 'Long' }], '1') + '</div>' +
+      '<div class="gp-plot"></div>' +
+      '<div class="gp-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'The exact GP posterior mean and sd, from the RBF kernel in base R' });
+
+    var plot = el.querySelector('.gp-plot'), read = el.querySelector('.gp-read');
+    var W = 340, H = 240, RX = [-5.4, 5.4], RY = [-2.2, 2.2];
+    function px(x) { return (x - RX[0]) / (RX[1] - RX[0]) * W; }
+    function py(y) { return H - (y - RY[0]) / (RY[1] - RY[0]) * H; }
+    function draw() {
+      var f = posterior(l, sig), N = 80, top = [], bot = [], mid = [];
+      for (var i = 0; i <= N; i++) { var x = RX[0] + (RX[1] - RX[0]) * i / N, r = f(x); top.push([px(x), py(r.m + 1.96 * r.sd)]); bot.push([px(x), py(r.m - 1.96 * r.sd)]); mid.push([px(x), py(r.m)]); }
+      var band = 'M' + top.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' L') + ' L' + bot.slice().reverse().map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' L') + ' Z';
+      var line = 'M' + mid.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' L');
+      var dots = XTR.map(function (xt, i) { return '<circle cx="' + px(xt).toFixed(1) + '" cy="' + py(YTR[i]).toFixed(1) + '" r="4.5" fill="' + P.ink + '"/>'; }).join('');
+      // sd at a data-rich point vs a data-poor edge, for the reading
+      var sdNear = f(-3).sd, sdFar = f(5).sd;
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Gaussian process posterior">' +
+        '<path d="' + band + '" fill="' + P.acc + '" opacity="0.15"/>' +
+        '<path d="' + line + '" fill="none" stroke="' + P.acc + '" stroke-width="2.2"/>' + dots + '</svg>';
+      read.innerHTML = 'Lengthscale <b style="font-family:IBM Plex Mono,monospace">' + l.toFixed(1) + '</b>: the band is tight near the points (sd &asymp; <b>' + sdNear.toFixed(2) + '</b>) and flares out where there is no data (sd &asymp; <b>' + sdFar.toFixed(2) + '</b>). ' + (l < 0.7 ? 'Short lengthscale &rarr; the mean wiggles and forgets fast between points.' : l > 1.5 ? 'Long lengthscale &rarr; a smooth, stiff mean that may miss local bumps.' : 'A medium lengthscale balances the two.');
+    }
+    u.wireSeg(el.querySelector('.gp-seg'), function (v) { l = parseFloat(v); draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# A Gaussian process posterior, from scratch: mean + uncertainty, no packages.',
+      'xtr <- c(-4, -3, -1, 0, 2, 3)',
+      'set.seed(1); ytr <- sin(xtr) + rnorm(6, 0, 0.1)   # noisy observations',
+      'rbf <- function(a, b, l) exp(-outer(a, b, "-")^2 / (2 * l^2))',
+      'l <- 1.0; sig <- 0.1                              # lengthscale, noise sd',
+      'K   <- rbf(xtr, xtr, l) + sig^2 * diag(length(xtr))',
+      'xte <- seq(-5, 5, length.out = 6)',
+      'Ks  <- rbf(xte, xtr, l); Kss <- rbf(xte, xte, l)',
+      'mu  <- as.numeric(Ks %*% solve(K, ytr))          # posterior mean',
+      'sd  <- sqrt(pmax(diag(Kss - Ks %*% solve(K, t(Ks))), 0))  # predictive sd',
+      'round(data.frame(x = xte, mean = mu, sd = sd), 2)',
+      '# sd is small next to a training point and grows out at the edges (-5, 5):',
+      '# that widening band is the GP telling you where it has no evidence.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('gp-posterior', mount);
 })();
 
 ;
@@ -4655,6 +4873,85 @@
   }
 
   window.LessonWidgets.register('spline-smoother', mount);
+})();
+
+;
+/* stacking-blend.js */
+/* stacking-blend.js - stacking (the Super Learner), made visible. Three base learners each
+ * cross-validated, then a meta-learner fit on their OUT-OF-FOLD predictions learns how to
+ * blend them. The stacked model beats every single base learner. Toggle between the test
+ * errors (the blend's bar is lowest) and the blend weights (how much the meta-learner leans
+ * on each base). Emits runnable R that builds the whole stack with base R + rpart.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  // values from the runnable R below (5-fold OOF, seed 1)
+  var ERR = [{ k: 'linear', v: 0.542 }, { k: 'poly', v: 0.396 }, { k: 'tree', v: 0.423 }, { k: 'stacked', v: 0.391 }];
+  var WT = [{ k: 'linear', v: -0.08 }, { k: 'poly', v: 0.71 }, { k: 'tree', v: 0.29 }];
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var view = 'err';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="st-seg" style="margin-bottom:12px">' + u.seg([{ v: 'err', label: 'Test error' }, { v: 'wt', label: 'Blend weights' }], 'err') + '</div>' +
+      '<div class="st-plot"></div>' +
+      '<div class="st-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Build the stack: 3 base learners, out-of-fold preds, a meta-learner' });
+
+    var plot = el.querySelector('.st-plot'), read = el.querySelector('.st-read');
+    var W = 340, H = 210;
+    function draw() {
+      var data = view === 'err' ? ERR : WT;
+      var maxv = Math.max.apply(null, data.map(function (d) { return Math.abs(d.v); })) * 1.15;
+      var n = data.length, bw = W / n * 0.6, gap = W / n;
+      var base = view === 'err' ? H - 26 : H / 2;   // errors from the floor; weights around a zero line
+      var bars = data.map(function (d, i) {
+        var cx = gap * i + gap / 2, h = Math.abs(d.v) / maxv * (view === 'err' ? (H - 40) : (H / 2 - 20));
+        var y = d.v >= 0 ? base - h : base, hh = h;
+        var isBest = view === 'err' && d.k === 'stacked';
+        var col = isBest ? P.acc : (d.v < 0 ? P.bad : P.c0);
+        return '<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + hh.toFixed(1) + '" rx="3" fill="' + col + '" opacity="' + (isBest ? 1 : 0.82) + '"/>' +
+          '<text x="' + cx.toFixed(1) + '" y="' + (base + 16).toFixed(1) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.mut + '">' + d.k + '</text>' +
+          '<text x="' + cx.toFixed(1) + '" y="' + (d.v >= 0 ? y - 4 : y + hh + 12).toFixed(1) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10.5" fill="' + P.ink + '">' + d.v.toFixed(view === 'err' ? 3 : 2) + '</text>';
+      }).join('');
+      var zline = view === 'wt' ? '<line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '" stroke="' + P.line2 + '" stroke-width="1"/>' : '';
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stacking ' + view + '">' + zline + bars + '</svg>';
+      read.innerHTML = view === 'err'
+        ? 'RMSE on held-out folds. The <b style="color:' + P.acc + '">stacked</b> model (0.391) edges below the best single learner, poly (0.396): the blend is never worse than its parts, and usually a little better.'
+        : 'How the meta-learner blends the three. It leans hardest on <b>poly</b> (0.71) and <b>tree</b> (0.29), and gives <b>linear</b> a tiny negative weight, correcting where the others agree.';
+    }
+    u.wireSeg(el.querySelector('.st-seg'), function (v) { view = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Stacking: cross-validate 3 base learners, then blend their out-of-fold preds.',
+      'library(rpart)',
+      'set.seed(1)',
+      'n <- 120; x <- runif(n, 0, 6); y <- sin(x) + 0.3*x + rnorm(n, 0, 0.4)',
+      'd <- data.frame(x, y)',
+      'K <- 5; fold <- sample(rep(1:K, length.out = n))',
+      'oof <- matrix(NA, n, 3); colnames(oof) <- c("linear","poly","tree")',
+      'for (k in 1:K) {                          # out-of-fold predictions only',
+      '  tr <- d[fold != k, ]; te <- which(fold == k)',
+      '  oof[te,1] <- predict(lm(y ~ x, tr), d[te,])',
+      '  oof[te,2] <- predict(lm(y ~ poly(x,3), tr), d[te,])',
+      '  oof[te,3] <- predict(rpart(y ~ x, tr), d[te,])',
+      '}',
+      'rmse <- function(p) sqrt(mean((d$y - p)^2))',
+      'base <- apply(oof, 2, rmse)',
+      'meta <- lm(d$y ~ oof)                      # the meta-learner learns the blend',
+      'round(c(base, stacked = rmse(predict(meta))), 3)',
+      '# stacked RMSE sits below every base learner: the blend wins.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('stacking-blend', mount);
 })();
 
 ;
