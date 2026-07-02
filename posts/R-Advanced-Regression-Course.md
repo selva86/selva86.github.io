@@ -103,6 +103,12 @@ Groups can differ not just in their baseline but in how strongly a predictor act
 
 [Start Lesson 13: Mixed Models, Random Slopes and GLMMs](Mixed-Models-Random-Slopes-and-GLMMs.html)
 
+### Section quiz: check what stuck
+
+Ten graded questions across the whole toolkit, robust and quantile methods, shrinkage, GAMs, count and zero-inflated models, Gamma and Tweedie, beta and ordinal, and mixed models, plus two live R snippets you can run. A quick way to find the ideas worth a second pass before you move on.
+
+[Take the Advanced Regression and GLMs quiz](Advanced-Regression-Quiz.html)
+
 ## Who this is for
 
 You can fit and read a linear regression with `lm()`, and you know a residual is the gap between actual and predicted. That is the whole prerequisite. Every advanced idea, from breakdown points to random slopes, is built from scratch as it arrives. It pairs naturally with the Regression and Statistics material on the Data Scientist path, but nothing beyond a first regression course is assumed. If you have ever shipped an `lm()` fit while quietly worrying that its assumptions did not hold, this course is for you.
