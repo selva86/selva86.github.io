@@ -130,6 +130,8 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `km-curve` | arm toggle -> Kaplan-Meier step curves with censoring ticks; medians where curves cross 50% | §15 survival data, Kaplan-Meier & log-rank |
 | `hazard-ratio` | HR toggle -> S1(t)=S0(t)^HR; curve pulls below (HR>1) or above (HR<1) baseline, never crossing | §15 Cox proportional hazards, checking PH |
 | `competing-risks` | time-point toggle -> stacked cumulative-incidence bands (event-free/relapse/death) summing to 1 | §15 competing risks & cumulative incidence |
+| `mcmc-walk` | proposal-width toggle -> Metropolis trace + running histogram vs true posterior; mixing/acceptance trade-off | §16 MCMC, the Metropolis sampler, diagnostics |
+| `ppc-overlay` | good/bad-model toggle -> histogram of a replicated test statistic with the observed value marked (PPC p-value) | §16 posterior predictive checks, Bayesian workflow |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 

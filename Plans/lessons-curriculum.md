@@ -171,6 +171,18 @@ NEW widgets for section 14 (built + mount-tested + emitted-R WebR-verified befor
 
 NEW widgets for section 15 (built + mount-tested + emitted-R WebR-verified before the batch): **km-curve**, **hazard-ratio**, **competing-risks**. Reuses: glm-family-shapes (from §13), residual-plot, calibration-curve. Package note: `survival` is WebR-known-good for survfit/survdiff/coxph/survreg/concordance/multi-state CIF; `flexsurv` and `ranger` are NOT verified - show them as `r-static` only.
 
+## ds-bayesian  (track: scientist; curriculum_id 6.160; landing R-Bayesian-Modeling-Course.html; access: pro)  [roadmap §16]
+1. The-Bayesian-Update - prior times likelihood proportional to posterior, built from one concrete example (a coin/conversion rate), reading the three densities. widgets: bayes-update
+2. Conjugacy-and-Choosing-Priors - the Beta-Binomial and Normal-Normal conjugate pairs (closed-form posterior updates in base R), weak vs informative priors, prior sensitivity. widgets: bayes-update
+3. MCMC-and-the-Metropolis-Sampler - why we sample when there is no closed form, the Metropolis algorithm built from scratch, mixing and acceptance. widgets: NEW:mcmc-walk
+4. HMC-NUTS-and-MCMC-Diagnostics - the idea of Hamiltonian Monte Carlo/NUTS, and reading convergence: trace plots, R-hat, effective sample size. widgets: NEW:mcmc-walk, residual-plot
+5. Hierarchical-Models-and-Partial-Pooling - varying intercepts, partial pooling and shrinkage, the multilevel idea (fit with lme4 as a runnable stand-in; the Bayesian version is conceptual). widgets: shrinkage-pool
+6. Posterior-Predictive-Checks - simulate data from the fitted model and compare to the observed, test statistics, the Bayesian workflow. widgets: NEW:ppc-overlay
+7. Bayesian-Model-Comparison-LOO-and-WAIC - out-of-sample predictive accuracy (ELPD), leave-one-out CV and WAIC, computed from a log-likelihood matrix in base R. widgets: calibration-curve
+8. Bayesian-Regression-and-GLMs-End-to-End - a complete Bayesian regression workflow: prior, fit, check, compare, and report a posterior with credible intervals. widgets: ols-fit
+
+NEW widgets for section 16 (built + mount-tested + emitted-R WebR-verified before the batch): **mcmc-walk**, **ppc-overlay**. Reuses: bayes-update (from §13), shrinkage-pool (from §13), residual-plot, calibration-curve, ols-fit. **CRITICAL package note: Stan does NOT run in WebR** (`rstan`, `brms`, `rstanarm`, `cmdstanr` all need C++ compilation and are unavailable). Every runnable ```r block must be BASE R: conjugate updates in closed form (Beta-Binomial, Normal-Normal), the Metropolis sampler hand-coded, hierarchical models via `lme4::lmer` (WebR-known-good) as a runnable stand-in, LOO/WAIC computed from a hand-built log-likelihood matrix. Show any `brms`/`rstanarm`/`rstan` call as `r-static` ONLY, never as runnable `r`.
+
 ---
 
 # Data Analyst track (level 2, all free)
