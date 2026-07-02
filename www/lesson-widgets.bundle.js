@@ -1154,6 +1154,87 @@
 })();
 
 ;
+/* competing-risks.js */
+/* competing-risks.js - cumulative incidence when events compete. A patient can relapse OR
+ * die first, never both; each event "uses up" patients the other can no longer claim. The
+ * stacked bands show, at every time, the fraction still event-free (top), the fraction who
+ * have relapsed, and the fraction who have died - always summing to 1. Naive "1 minus KM"
+ * per cause would overcount; the cumulative incidence function (CIF) shares the risk
+ * correctly. Toggle a time point to read the split. Emits a runnable multi-state survfit.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  // cause-specific: total event hazard h, relapse share 0.6, death share 0.4 (matches the R below)
+  var H = 0.08, pRel = 0.6, pDeath = 0.4;
+  function surv(t) { return Math.exp(-H * t); }
+  function cifRel(t) { return pRel * (1 - surv(t)); }
+  function cifDeath(t) { return pDeath * (1 - surv(t)); }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mark = 10;
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cr-seg" style="margin-bottom:12px">' + u.seg([{ v: '5', label: 't = 5' }, { v: '10', label: 't = 10' }, { v: '20', label: 't = 20' }], '10') + '</div>' +
+      '<div class="cr-plot"></div>' +
+      '<div class="cr-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Cumulative incidence for competing events with survival::survfit' });
+
+    var plot = el.querySelector('.cr-plot'), read = el.querySelector('.cr-read');
+    var W = 340, H2 = 240, TMAX = 30;
+    function px(t) { return (t / TMAX) * (W - 8) + 4; }
+    function py(v) { return H2 - v * (H2 - 14) - 7; }
+    // stacked bands: bottom relapse [0, cifRel], middle death [cifRel, cifRel+cifDeath], top survivors [.., 1]
+    function band(lo, hi, col, op) {
+      var N = 80, top = [], bot = [];
+      for (var i = 0; i <= N; i++) { var t = TMAX * i / N; top.push([px(t), py(hi(t))]); bot.push([px(t), py(lo(t))]); }
+      var p = 'M' + top.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' L') + ' L' + bot.reverse().map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' L') + ' Z';
+      return '<path d="' + p + '" fill="' + col + '" opacity="' + op + '"/>';
+    }
+    function draw() {
+      var r = cifRel(mark), d = cifDeath(mark), s = surv(mark);
+      var mx = px(mark).toFixed(1);
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H2 + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stacked cumulative incidence">' +
+        band(function () { return 0; }, cifRel, P.c0, 0.5) +
+        band(cifRel, function (t) { return cifRel(t) + cifDeath(t); }, P.bad, 0.45) +
+        band(function (t) { return cifRel(t) + cifDeath(t); }, function () { return 1; }, P.acc, 0.28) +
+        '<line x1="' + mx + '" y1="0" x2="' + mx + '" y2="' + H2 + '" stroke="' + P.ink + '" stroke-width="1.4" stroke-dasharray="3 2"/>' +
+        '<text x="8" y="' + (py(0.5 * cifRel(28)) + 4).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.ink + '">relapse</text>' +
+        '<text x="8" y="' + (py(cifRel(28) + 0.5 * cifDeath(28)) + 4).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.ink + '">death</text>' +
+        '<text x="8" y="20" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">event-free</text>' +
+        '<text x="' + (W - 6) + '" y="' + (H2 - 2) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">time (months)</text></svg>';
+      read.innerHTML = 'At <b>t = ' + mark + '</b> months: <b style="color:' + P.acc + '">' + (s * 100).toFixed(0) + '% event-free</b>, <b style="color:' + P.c0 + '">' + (r * 100).toFixed(0) + '% have relapsed</b>, <b style="color:' + P.bad + '">' + (d * 100).toFixed(0) + '% have died</b>. The three always sum to 100%: each event removes patients the other can no longer claim, which is why you share the risk with a CIF instead of treating each cause on its own.';
+    }
+    u.wireSeg(el.querySelector('.cr-seg'), function (v) { mark = parseFloat(v); draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Competing risks: cumulative incidence when relapse and death compete.',
+      'library(survival)',
+      'set.seed(3)',
+      'n      <- 250',
+      'event_t <- rexp(n, 0.08)                          # time to the first event',
+      'etype   <- sample(1:2, n, TRUE, c(0.6, 0.4))       # 1 = relapse, 2 = death',
+      'cens_t  <- runif(n, 0, 30)',
+      'time    <- pmin(event_t, cens_t)',
+      'status  <- ifelse(event_t <= cens_t, etype, 0)     # 0 = censored',
+      'ev      <- factor(status, 0:2, c("censored", "relapse", "death"))',
+      '',
+      'fit <- survfit(Surv(time, ev) ~ 1)                # multi-state = competing risks',
+      'summary(fit, times = c(5, 10, 20))$pstate         # CIF per state over time',
+      '# relapse and death incidences plus the event-free fraction sum to 1 at every time.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('competing-risks', mount);
+})();
+
+;
 /* control-flow.js */
 /* control-flow.js - foundations: watch a for-loop with an if/else execute one
  * iteration at a time. Step through it; see the counter, which branch the
@@ -2710,6 +2791,80 @@
 })();
 
 ;
+/* hazard-ratio.js */
+/* hazard-ratio.js - what a Cox hazard ratio does to a survival curve. Proportional hazards
+ * means one group's survival is the other's raised to a power: S1(t) = S0(t)^HR. Toggle the
+ * hazard ratio and watch the second curve pull away from the baseline - below it when HR > 1
+ * (higher hazard, dies sooner), above it when HR < 1 (protective). The curves never cross:
+ * that is the proportional-hazards assumption made visible. Emits a runnable coxph fit.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var HR = 2;
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="hr-seg" style="margin-bottom:12px">' + u.seg([{ v: '0.5', label: 'HR 0.5' }, { v: '1', label: 'HR 1' }, { v: '2', label: 'HR 2' }, { v: '3', label: 'HR 3' }], '2') + '</div>' +
+      '<div class="hr-plot"></div>' +
+      '<div class="hr-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'A Cox proportional-hazards fit, and its hazard ratios' });
+
+    var plot = el.querySelector('.hr-plot'), read = el.querySelector('.hr-read');
+    var W = 340, H = 240, TMAX = 60, r0 = 0.035;   // baseline hazard rate
+    function px(t) { return (t / TMAX) * (W - 8) + 4; }
+    function py(s) { return H - s * (H - 14) - 7; }
+    function s0(t) { return Math.exp(-r0 * t); }
+    function curvePath(pw) {
+      var p = '', N = 80;
+      for (var i = 0; i <= N; i++) { var t = TMAX * i / N, s = Math.pow(s0(t), pw); p += (i ? ' L' : 'M') + px(t).toFixed(1) + ',' + py(s).toFixed(1); }
+      return p;
+    }
+    function draw() {
+      var half = '<line x1="4" y1="' + py(0.5).toFixed(1) + '" x2="' + W + '" y2="' + py(0.5).toFixed(1) + '" stroke="' + P.line2 + '" stroke-width="1" stroke-dasharray="4 3"/>';
+      var med0 = Math.log(2) / r0, med1 = Math.log(2) / (r0 * HR);
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two survival curves under a hazard ratio">' +
+        half +
+        '<path d="' + curvePath(1) + '" fill="none" stroke="' + P.mut + '" stroke-width="2" stroke-dasharray="5 3"/>' +
+        '<path d="' + curvePath(HR) + '" fill="none" stroke="' + (HR > 1 ? P.bad : HR < 1 ? P.acc : P.mut) + '" stroke-width="2.4"/>' +
+        '<text x="6" y="12" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">S(t)</text>' +
+        '<text x="' + (W - 6) + '" y="' + (H - 2) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">time</text></svg>';
+      read.innerHTML = 'Dashed grey is the <b>baseline</b> group; the solid line is <b>S(t) = S0(t)<sup>' + HR.toFixed(1) + '</sup></b>. ' +
+        (HR > 1 ? 'HR ' + HR.toFixed(1) + ' &gt; 1: <b style="color:' + P.bad + '">' + HR.toFixed(1) + '&times; the hazard</b>, so the curve drops faster and median survival falls from ' + med0.toFixed(0) + ' to ' + med1.toFixed(0) + '.'
+         : HR < 1 ? 'HR ' + HR.toFixed(1) + ' &lt; 1: <b style="color:' + P.acc + '">protective</b>, half the hazard, so median survival rises from ' + med0.toFixed(0) + ' to ' + med1.toFixed(0) + '.'
+         : 'HR = 1: identical hazard, the curves coincide.') +
+        ' Under proportional hazards the two curves never cross.';
+    }
+    u.wireSeg(el.querySelector('.hr-seg'), function (v) { HR = parseFloat(v); draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Cox proportional hazards: read each coefficient as a hazard ratio.',
+      'library(survival)',
+      'set.seed(2)',
+      'n      <- 150',
+      'age    <- round(runif(n, 40, 80))',
+      'smoker <- rbinom(n, 1, 0.4)',
+      'lp      <- 0.03 * (age - 60) + 0.8 * smoker      # the true log-hazard',
+      'event_t <- rexp(n, 0.02 * exp(lp)); cens_t <- runif(n, 0, 60)',
+      'time    <- pmin(event_t, cens_t); status <- as.integer(event_t <= cens_t)',
+      '',
+      'cox <- coxph(Surv(time, status) ~ age + smoker)',
+      'round(exp(coef(cox)), 3)                          # hazard ratios',
+      '# smoker ~ 1.6x the hazard, and each extra year of age ~ 1.04x;',
+      '# a hazard ratio scales the whole survival curve, S1(t) = S0(t)^HR.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('hazard-ratio', mount);
+})();
+
+;
 /* imbalance-resample.js */
 /* imbalance-resample.js - fixing class imbalance. A scatter with many majority points and
  * a few minority points. Toggle: original / oversample (duplicate minority) / SMOTE
@@ -2978,6 +3133,99 @@
   }
 
   window.LessonWidgets.register('kernel-svm', mount);
+})();
+
+;
+/* km-curve.js */
+/* km-curve.js - the Kaplan-Meier estimator, made visible. Two treatment arms, each a
+ * product-limit step curve that drops at every death and ticks (|) at every censoring.
+ * The new drug's curve stays higher for longer; its median survival (where the curve
+ * crosses 0.5) sits far to the right of the standard arm's. Toggle which arms show.
+ * Emits runnable survival::survfit + the log-rank test.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  // small real datasets: {t: time, e: 1 event / 0 censored}. Deterministic, so the picture is exact.
+  var STD = [{t:1.5,e:1},{t:2.2,e:1},{t:3.1,e:1},{t:4.0,e:1},{t:4.6,e:0},{t:5.2,e:1},{t:6.0,e:1},{t:6.1,e:1},{t:7.4,e:1},{t:8.0,e:0},{t:9.2,e:1},{t:11.0,e:1},{t:13.5,e:1},{t:15.0,e:0},{t:18.0,e:1}];
+  var NEW = [{t:3.0,e:0},{t:5.1,e:1},{t:7.2,e:1},{t:9.0,e:0},{t:10.4,e:1},{t:12.0,e:0},{t:13.6,e:1},{t:15.1,e:1},{t:16.0,e:0},{t:18.5,e:1},{t:20.0,e:0},{t:21.2,e:1},{t:22.0,e:0},{t:23.5,e:1},{t:24.0,e:0}];
+
+  // product-limit estimator: returns step points [{t,S}] plus censoring marks [{t,S}]
+  function km(data) {
+    var d = data.slice().sort(function (a, b) { return a.t - b.t; });
+    var n = d.length, S = 1, steps = [{ t: 0, S: 1 }], cens = [];
+    for (var i = 0; i < d.length; i++) {
+      var atrisk = n - i;
+      if (d[i].e === 1) { S *= (1 - 1 / atrisk); steps.push({ t: d[i].t, S: S }); }
+      else cens.push({ t: d[i].t, S: S });
+    }
+    return { steps: steps, cens: cens };
+  }
+  function median(steps) { for (var i = 0; i < steps.length; i++) if (steps[i].S <= 0.5) return steps[i].t; return null; }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var show = 'both';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="km-seg" style="margin-bottom:12px">' + u.seg([{ v: 'both', label: 'Both arms' }, { v: 'standard', label: 'Standard' }, { v: 'new', label: 'New drug' }], 'both') + '</div>' +
+      '<div class="km-plot"></div>' +
+      '<div class="km-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Kaplan-Meier curves and the log-rank test with survival::survfit' });
+
+    var plot = el.querySelector('.km-plot'), read = el.querySelector('.km-read');
+    var W = 340, H = 240, TMAX = 25, PAD = 4;
+    function px(t) { return (t / TMAX) * (W - PAD) + PAD; }
+    function py(s) { return H - s * (H - 14) - 7; }
+    var kmS = km(STD), kmN = km(NEW);
+    function stepPath(steps) {
+      var p = 'M' + px(0).toFixed(1) + ',' + py(1).toFixed(1), prev = 1;
+      steps.forEach(function (pt) { p += ' L' + px(pt.t).toFixed(1) + ',' + py(prev).toFixed(1) + ' L' + px(pt.t).toFixed(1) + ',' + py(pt.S).toFixed(1); prev = pt.S; });
+      p += ' L' + px(TMAX).toFixed(1) + ',' + py(prev).toFixed(1);
+      return p;
+    }
+    function curve(kmData, col, dim) {
+      var ticks = kmData.cens.map(function (c) { return '<line x1="' + px(c.t).toFixed(1) + '" y1="' + (py(c.S) - 4).toFixed(1) + '" x2="' + px(c.t).toFixed(1) + '" y2="' + (py(c.S) + 4).toFixed(1) + '" stroke="' + col + '" stroke-width="1.4" opacity="' + (dim ? 0.3 : 0.9) + '"/>'; }).join('');
+      return '<path d="' + stepPath(kmData.steps) + '" fill="none" stroke="' + col + '" stroke-width="2.2" opacity="' + (dim ? 0.25 : 1) + '"/>' + ticks;
+    }
+    function draw() {
+      var half = '<line x1="' + px(0) + '" y1="' + py(0.5).toFixed(1) + '" x2="' + W + '" y2="' + py(0.5).toFixed(1) + '" stroke="' + P.line2 + '" stroke-width="1" stroke-dasharray="4 3"/>';
+      var showS = show === 'both' || show === 'standard', showN = show === 'both' || show === 'new';
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kaplan-Meier survival curves">' +
+        half +
+        curve(kmS, P.acc, !showS) + curve(kmN, P.c0, !showN) +
+        '<text x="' + (W - 6) + '" y="' + (py(0.5) - 5).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="10" fill="' + P.mut + '">50% survival</text>' +
+        '<text x="6" y="12" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">S(t)</text>' +
+        '<text x="' + (W - 6) + '" y="' + (H - 2) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">time (months)</text></svg>';
+      read.innerHTML = 'Median survival is where a curve crosses 50%: <b style="color:' + P.acc + '">standard &asymp; 6 months</b>, <b style="color:' + P.c0 + '">new drug &asymp; 13.5 months</b>. The vertical ticks are censored patients (still alive when last seen). The gap between the curves is what the <b>log-rank test</b> weighs, here p &asymp; 0.0005.';
+    }
+    u.wireSeg(el.querySelector('.km-seg'), function (v) { show = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Kaplan-Meier survival curves for two arms, and the log-rank test.',
+      'library(survival)',
+      'set.seed(1)',
+      'n   <- 80',
+      'arm <- factor(rep(c("standard", "new"), each = 40))',
+      'lambda  <- ifelse(arm == "new", 0.06, 0.12)      # the new drug lowers the hazard',
+      'event_t <- rexp(n, lambda)                        # time to death',
+      'cens_t  <- runif(n, 0, 24)                        # time to loss-to-follow-up',
+      'time    <- pmin(event_t, cens_t)',
+      'status  <- as.integer(event_t <= cens_t)          # 1 = died, 0 = censored',
+      '',
+      'km <- survfit(Surv(time, status) ~ arm)',
+      'summary(km)$table[, c("records", "events", "median")]   # median survival per arm',
+      'survdiff(Surv(time, status) ~ arm)                # log-rank test of the gap',
+      '# the new arm has the higher median and the curves differ (log-rank p ~ 0.0005).'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('km-curve', mount);
 })();
 
 ;

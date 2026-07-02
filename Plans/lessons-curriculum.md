@@ -160,6 +160,17 @@ NEW widgets for section 13 (built + mount-tested + emitted-R WebR-verified befor
 
 NEW widgets for section 14 (built + mount-tested + emitted-R WebR-verified before the batch): **gp-posterior**, **stacking-blend**, **bayesopt-acq**. Reuses: kernel-svm (from §13), decision-region, decorrelation, tuning-search, knn-vote, learning-curve.
 
+## ds-survival  (track: scientist; curriculum_id 6.150; landing R-Survival-Analysis-Course.html; access: pro)  [roadmap §15]
+1. Survival-Data-and-Censoring - what makes time-to-event data special: right-censoring, the survival function S(t) and the hazard, why ordinary regression cannot handle "still alive at last contact". widgets: km-curve
+2. Kaplan-Meier-and-the-Log-Rank-Test - the product-limit estimator step by step, reading a KM curve and its median, comparing two arms with the log-rank test. pkg survival (survfit, survdiff). widgets: km-curve
+3. Cox-Proportional-Hazards - the semiparametric workhorse: the hazard ratio, partial likelihood, reading coxph output. pkg survival (coxph). widgets: NEW:hazard-ratio
+4. Checking-Proportional-Hazards - testing the PH assumption with Schoenfeld residuals (cox.zph), what a violation looks like, and time-varying covariates. pkg survival. widgets: NEW:hazard-ratio, residual-plot
+5. Parametric-and-AFT-Models - Weibull/exponential survival and the accelerated-failure-time view with survreg; when a parametric fit beats Cox. pkg survival survreg runnable (flexsurv only as r-static, not WebR-verified). widgets: glm-family-shapes
+6. Competing-Risks-and-Cumulative-Incidence - why 1-minus-KM overcounts with competing events, the cumulative incidence function, and the Fine-Gray idea. pkg survival (multi-state survfit). widgets: NEW:competing-risks
+7. Survival-ML-and-Evaluation - random survival forests and how to score a survival model honestly: Harrell's C-index and the time-dependent Brier score. pkg survival (concordance; ranger only as r-static). widgets: calibration-curve
+
+NEW widgets for section 15 (built + mount-tested + emitted-R WebR-verified before the batch): **km-curve**, **hazard-ratio**, **competing-risks**. Reuses: glm-family-shapes (from §13), residual-plot, calibration-curve. Package note: `survival` is WebR-known-good for survfit/survdiff/coxph/survreg/concordance/multi-state CIF; `flexsurv` and `ranger` are NOT verified - show them as `r-static` only.
+
 ---
 
 # Data Analyst track (level 2, all free)

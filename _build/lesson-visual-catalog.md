@@ -127,6 +127,9 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `gp-posterior` | lengthscale toggle -> GP posterior mean + 95% band that pinches at data, flares in gaps | §14 Gaussian processes for regression & uncertainty |
 | `stacking-blend` | errors/weights toggle -> stacked RMSE beats every base learner; meta-learner blend weights | §14 stacking & the Super Learner |
 | `bayesopt-acq` | Next-sample button -> GP surrogate + Expected-Improvement acquisition homes in on the global max | §14 Bayesian optimization for hyperparameters |
+| `km-curve` | arm toggle -> Kaplan-Meier step curves with censoring ticks; medians where curves cross 50% | §15 survival data, Kaplan-Meier & log-rank |
+| `hazard-ratio` | HR toggle -> S1(t)=S0(t)^HR; curve pulls below (HR>1) or above (HR<1) baseline, never crossing | §15 Cox proportional hazards, checking PH |
+| `competing-risks` | time-point toggle -> stacked cumulative-incidence bands (event-free/relapse/death) summing to 1 | §15 competing risks & cumulative incidence |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 

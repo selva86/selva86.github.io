@@ -50,6 +50,7 @@ COURSE_ROADMAP = {
     'ds-production': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 12, 'sectionLabel': 'Shipping your first model (production essentials)'},
     'ds-reg-glm-expert': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 13, 'sectionLabel': 'Regression and GLMs - the expert cut'},
     'ds-advanced-supervised': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 14, 'sectionLabel': 'Advanced supervised learning'},
+    'ds-survival': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 15, 'sectionLabel': 'Survival and time-to-event'},
     # Data Analyst track (level 2, all free) - one course per roadmap section.
     'nr-basics': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 1, 'sectionLabel': 'Syntax, types and vectors'},
     'nr-structures': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 2, 'sectionLabel': 'Lists, data frames and tibbles'},
