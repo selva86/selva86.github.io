@@ -1,0 +1,504 @@
+---
+title: "Advanced Supervised Learning Lesson 4: Gaussian Processes for Regression"
+description: "Gaussian process regression in R from scratch: the RBF kernel, a posterior mean with an honest 95 percent band, tuning the lengthscale, and when GPs break."
+keywords: "gaussian process regression, GP regression, RBF kernel, lengthscale, kriging, posterior mean, predictive uncertainty, marginal likelihood, kernlab, gausspr, R"
+mathjax: true
+webr: true
+curriculum_id: "6.140.4"
+post_type: "LESSON"
+course_id: "ds-advanced-supervised"
+course_title: "Advanced Supervised Learning"
+course_lesson: "4"
+course_total: "8"
+course_landing: "R-Advanced-Supervised-Learning-Course.html"
+course_next: "Stacking-and-the-Super-Learner.html"
+course_prev: "Regularized-Discriminant-Analysis.html"
+lesson_access: "pro"
+catalog_blurb: "Predict a curve and get honest uncertainty that widens where data is thin."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 8</div>
+<h2>Gaussian Processes for Regression</h2>
+
+<p>In Lesson 3 you steadied a classifier on thin data by blending two covariance estimates. This lesson stays in the thin-data world but changes jobs: regression, where the model must not only predict a number but admit how sure it is.</p>
+
+<p>Meet Asha, a process engineer at a small ceramics factory. She needs the kiln temperature that maximizes glaze hardness. Each test firing ties up the kiln for a full day, so her entire dataset is <strong>six firings</strong>: temperatures from 880 to 1180 degrees Celsius, hardness measured in Vickers (HV) for each. Between 1000 and 1140 degrees there is a 140 degree stretch where she has never fired at all. Before she books another kiln day, she wants two things from a model: its best guess at every untried temperature, and an honest admission of <strong>where that guess is shaky</strong>.</p>
+
+<p>That is exactly what a Gaussian process (GP) delivers: a prediction curve plus a band that pinches tight at her six firings and flares wide in the gap. By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain what "a distribution over functions" means and how the RBF kernel encodes "close temperatures give similar hardness"</li>
+
+<li>Compute the GP posterior mean and its predictive uncertainty from the kernel matrix, in a few lines of base R</li>
+
+<li>Read a GP band: why it pinches to roughly the noise level at a data point, flares in gaps, and returns to the prior far away</li>
+
+<li>Tune the lengthscale with the log marginal likelihood, and spot the overconfidence a wrong lengthscale causes</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> the <a href="Kernel-SVMs-and-the-Kernel-Trick.html">kernel trick lesson</a> (the RBF kernel as a similarity score; here it takes on a second role), ordinary <a href="Linear-Regression.html">linear regression</a>, the normal distribution (mean, sd, and what a 95% interval is), and the bias-variance trade-off from the ML Workflow course.</p>
+
+<p>The interactive below is the whole lesson in miniature: a GP fit to six points, its 95% band pinching at the data and flaring between and beyond it. Toggle the lengthscale and watch the fit change character; we will build every part of this picture from scratch.</p>
+<div class="lesson-widget" data-widget-type="gp-posterior" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>A prediction without a confession</h2>
+
+<p>Every regression tool you have met so far hands back one curve. Let us see what that costs Asha. Each lesson runs in a fresh R session, so we start by typing in her lab notebook: six firings, six hardness readings.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+kiln &lt;- data.frame(
+  temp     = c(880, 920, 970, 1000, 1140, 1180),  # firing temperature, deg C
+  hardness = c(448, 502, 561, 584, 573, 522)      # glaze hardness, Vickers HV
+)
+kiln
+#&gt;   temp hardness
+#&gt; 1  880      448
+#&gt; 2  920      502
+#&gt; 3  970      561
+#&gt; 4 1000      584
+#&gt; 5 1140      573
+#&gt; 6 1180      522</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hardness climbs to 584 at 1000 degrees, then is already falling by 1140. The peak Asha wants is probably somewhere inside the gap she never fired. Fit the standard tool, a quadratic regression (one parabola through the points), and ask it about three temperatures: 970 (right next to a firing), 1070 (the middle of the gap), and 1250 (past her hottest firing, into territory the kiln has never seen).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_lm &lt;- lm(hardness ~ poly(temp, 2), data = kiln)   # an ordinary curved (quadratic) fit
+new_temps &lt;- data.frame(temp = c(970, 1070, 1250))
+round(predict(fit_lm, new_temps, interval = &quot;prediction&quot;), 1)
+#&gt;     fit   lwr   upr
+#&gt; 1 562.2 541.4 583.0
+#&gt; 2 599.5 577.4 621.5
+#&gt; 3 417.8 379.3 456.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look closely at the interval widths. At 970, where a real firing sits 30 degrees away, the interval is about 42 HV wide. At 1070, the centre of a 140 degree hole in the data, it is about 44 HV wide. <strong>Nearly identical.</strong> The parabola is just as confident where Asha has no evidence as where she has plenty, because its confidence comes from trusting the parabola shape everywhere. And at 1250 it calmly announces that hardness collapses to 418, a strong claim about a region it has never seen.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">curve_df &lt;- data.frame(temp = seq(850, 1250, by = 5))
+curve_df$hardness &lt;- predict(fit_lm, curve_df)
+ggplot(kiln, aes(temp, hardness)) +
+  annotate(&quot;rect&quot;, xmin = 1000, xmax = 1140, ymin = -Inf, ymax = Inf,
+           alpha = 0.08, fill = &quot;#2563a8&quot;) +
+  geom_line(data = curve_df, colour = &quot;#b5631a&quot;, linewidth = 1) +
+  geom_point(size = 3) +
+  labs(title = &quot;One confident curve, even where Asha never fired&quot;,
+       x = &quot;firing temperature (deg C)&quot;, y = &quot;glaze hardness (HV)&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The shaded strip is the no-data gap, and the curve sails through it without blinking. What Asha needs is a model whose uncertainty is <strong>local</strong>: small where firings exist, large where they do not. That requires a different starting point entirely.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>A distribution over functions</h2>
+
+<p>Here is the mental shift. Instead of picking one curve and defending it, a Gaussian process starts from <strong>all</strong> smooth curves that could plausibly relate temperature to hardness, and treats the true one as an unknown draw from that collection. Before seeing any data, every plausible curve is on the table; this collection-with-probabilities is called the <strong>prior</strong> (what the model believes before evidence). Data will then eliminate the curves that disagree with the six firings, and whatever spread remains at each temperature IS the uncertainty.</p>
+
+<p>But "all plausible curves" needs a precise definition, and one number does the defining. A Gaussian process says: pick any set of temperatures, and the hardness values there follow a joint normal distribution whose covariance between two temperatures \(x\) and \(x'\) is given by a <strong>kernel function</strong>. Ours is the RBF (radial basis function) kernel you met in the SVM lesson, now playing a new role, covariance rather than classifier similarity:</p>
+
+<p>\[ k(x, x') = \sigma_f^2 \exp\!\left( -\frac{(x - x')^2}{2\ell^2} \right) \]</p>
+
+<p>Read every symbol. \(x\) and \(x'\) are two firing temperatures. \(\sigma_f\) (sigma-f, the <strong>signal sd</strong>) is how far hardness can plausibly swing away from its average level; we will use 50 HV, close to the spread in Asha's notebook. \(\ell\) (ell, the <strong>lengthscale</strong>) is the distance in degrees over which two firings stop resembling each other; we will start at 60 degrees. The kernel returns a covariance: large when the temperatures are close (their hardness values must move together), near zero when far apart (free to differ). In plain words: <strong>glaze fired at 960 should be about as hard as glaze fired at 970, but 1180 owes 880 nothing.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">k_rbf &lt;- function(a, b, sigf, l) sigf^2 * exp(-outer(a, b, &quot;-&quot;)^2 / (2 * l^2))
+sigf &lt;- 50   # signal sd: how far hardness can swing around its average (HV)
+l    &lt;- 60   # lengthscale: how far apart two firings stop resembling each other (deg C)
+
+# similarity between two firings 40, 140 and 300 degrees apart:
+round(exp(-c(40, 140, 300)^2 / (2 * l^2)), 3)
+#&gt; [1] 0.801 0.066 0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two firings 40 degrees apart share 80% of their variation. Across the 140 degree gap, less than 7%. Across 300 degrees, essentially nothing. That fading similarity is the entire model.</p>
+
+<p>To see what this prior actually believes, we can draw whole curves from it: build the kernel matrix over a fine temperature grid, then use its Cholesky factor (a matrix square root) to turn independent normal noise into correlated, smooth curves.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xs &lt;- seq(850, 1250, by = 5)                            # a fine grid of temperatures
+Kp &lt;- k_rbf(xs, xs, sigf, l) + 1e-8 * diag(length(xs))  # tiny jitter keeps chol() stable
+
+set.seed(9)
+draws &lt;- t(chol(Kp)) %*% matrix(rnorm(length(xs) * 3), ncol = 3)
+prior_df &lt;- data.frame(temp = rep(xs, 3),
+                       hardness = as.vector(draws) + 532,  # centred on a typical hardness
+                       draw = factor(rep(1:3, each = length(xs))))
+ggplot(prior_df, aes(temp, hardness, colour = draw)) +
+  geom_line(linewidth = 0.9, show.legend = FALSE) +
+  geom_point(data = kiln, aes(temp, hardness), inherit.aes = FALSE, size = 3) +
+  labs(title = &quot;Three curves drawn from the prior, before seeing any data&quot;,
+       x = &quot;firing temperature (deg C)&quot;, y = &quot;glaze hardness (HV)&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three perfectly plausible hardness curves: smooth, wandering within about plus or minus 100 HV of the centre (that is \(2\sigma_f\)), each forgetting its own level after a couple of lengthscales. Notice that none of them passes through Asha's black points. Of course not: the prior has not met the data yet. Making the curves obey the data is the next step.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A kernel is a prior over functions stated as one line of math. Choosing \(\sigma_f\), \(\ell\), and the kernel shape IS the modeling assumption, in the same way "it is a parabola" was the quadratic fit's assumption. The difference: the GP assumption is only about smoothness, not about global shape, and it will confess ignorance wherever the data leaves it unconstrained.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The posterior</div>
+<h2>Condition on the six firings</h2>
+
+<p>Now keep only the prior curves that agree with the notebook. "Agree" allows for measurement noise: Asha's hardness tester repeats to about \(\sigma_n = 8\) HV (sigma-n, the <strong>noise sd</strong>), so a surviving curve must pass within roughly 8 HV of each reading, not exactly through it. The curves that survive this filter are the <strong>posterior</strong>: the prior updated by evidence. Because everything is jointly normal, the surviving collection is again a normal distribution at every temperature, and its mean and sd have closed formulas. For a new temperature \(x_*\):</p>
+
+<p>\[ \mu_<em> = K_</em> \, K^{-1} y, \qquad \sigma_<em>^2 = k(x_</em>, x_<em>) - K_</em> \, K^{-1} K_*^\top \]</p>
+
+<p>Every symbol in words: \(y\) is the vector of six hardness readings (centred, so the prior mean is zero). \(K\) is the 6 by 6 kernel matrix of the training firings <strong>plus \(\sigma_n^2\) on its diagonal</strong> (the noise allowance). \(K_<em>\) holds the kernel similarities between the new temperature and each of the six firings. So the posterior mean \(\mu_</em>\) is a weighted sum of the six readings, where the weights \(K^{-1}y\) are computed once and the similarities \(K_<em>\) do the reaching. The predictive variance \(\sigma_</em>^2\) starts at the prior variance \(k(x_<em>,x_</em>) = \sigma_f^2\) and <strong>subtracts</strong> whatever the six firings explain. Near a firing they explain almost everything; in the gap, very little. That subtraction is where the honest band comes from.</p>
+
+<p>Ten lines of base R, no packages:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sig_n &lt;- 8                                    # tester repeatability: about 8 HV of noise
+yc    &lt;- kiln$hardness - mean(kiln$hardness)  # centre hardness so the prior mean is 0
+
+K     &lt;- k_rbf(kiln$temp, kiln$temp, sigf, l) + sig_n^2 * diag(6)  # 6 x 6 training kernel
+Ks    &lt;- k_rbf(xs, kiln$temp, sigf, l)                             # grid-to-training kernel
+alpha &lt;- solve(K, yc)                                              # the prediction weights
+mu    &lt;- as.numeric(Ks %*% alpha) + mean(kiln$hardness)            # posterior mean
+sd_f  &lt;- sqrt(pmax(sigf^2 - rowSums((Ks %*% solve(K)) * Ks), 0))   # predictive sd
+
+post &lt;- data.frame(temp = xs, mean = round(mu, 1), sd = round(sd_f, 1))
+print(post[post$temp %in% c(880, 970, 1000, 1070, 1140, 1250), ], row.names = FALSE)
+#&gt;  temp  mean   sd
+#&gt;   880 451.8  7.6
+#&gt;   970 562.4  6.8
+#&gt;  1000 582.1  7.4
+#&gt;  1070 597.6 28.8
+#&gt;  1140 570.1  7.7
+#&gt;  1250 502.8 40.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the sd column like a story. At the six firings and right next to them, the sd sits near 7, basically the tester's own noise: the model knows the curve there as well as the instrument allows. At 1070, mid-gap, the sd has quadrupled to 28.8. At 1250, beyond every firing, it reaches 40 and is heading back to the prior's 50: past the data, the GP steadily returns to "your guess is as good as mine."</p>
+
+<p>One caution so the comparison with the quadratic fit stays fair. This sd describes the underlying hardness curve, not a single future firing, while <code>predict(..., interval = &quot;prediction&quot;)</code> back in step 2 included the measurement noise. To predict a new firing, widen the GP band to \(\sqrt{\sigma_*^2 + \sigma_n^2}\): about 10.5 at 970 and 29.9 at 1070. Now the comparison is honest, and the verdict is unchanged: at 970 both tools give a band about 42 HV wide, but at 1070 the GP's grows to 117 HV while the parabola's stayed at 44.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(post, aes(temp, mean)) +
+  geom_ribbon(aes(ymin = mean - 1.96 * sd, ymax = mean + 1.96 * sd),
+              fill = &quot;#2563a8&quot;, alpha = 0.15) +
+  geom_line(colour = &quot;#2563a8&quot;, linewidth = 1) +
+  geom_point(data = kiln, aes(temp, hardness), inherit.aes = FALSE, size = 3) +
+  labs(title = &quot;Tight at the six firings, wide where she never fired&quot;,
+       x = &quot;firing temperature (deg C)&quot;, y = &quot;glaze hardness (HV)&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the picture from the cover, built by hand. And it answers Asha's real question with unusual honesty: the posterior mean does bulge upward in the gap (597.6 at 1070, higher than either neighbouring firing), hinting the hardness peak may hide in there, but the band says the truth at 1070 could be anywhere from about 541 to 654. Translation: <strong>the most valuable thing Asha can do next is fire inside the gap.</strong> A model that tells you where it is ignorant tells you where to look.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why does the band pinch?</h2>
+
+<p>At 970 degrees, one grid point away from a real firing, the GP reports sd 6.8, yet at 1070 it reports 28.8. Why does the model claim near-certainty at 970?</p>
+<section class="exercise" data-exercise-id="Gaussian-Processes-for-Regression-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Conditioning collapsed the spread there: every prior curve that survived must pass within measurement noise of the 561 observed at 970, so at that temperature the survivors barely disagree</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The GP memorizes training points the way 1-nearest-neighbour does, so its error and its sd at a training temperature are exactly zero</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The band is a fixed-width ribbon drawn around the mean curve, and the mean happens to pass close to the data points</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The posterior is the set of prior curves consistent with the data. At a firing they are all pinned to within about the noise sd (8 HV), so the spread is about 7; in the gap the kernel lets them fan out, so the spread grows.</div><div class="lesson-qfb lesson-qfb-no">The width is computed pointwise from the kernel algebra and varies from 6.8 to 40 across this single plot. A fixed-width ribbon is what the quadratic fit effectively gave, and it is exactly the failure this lesson set out to fix.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The dial</div>
+<h2>The lengthscale decides everything</h2>
+
+<p>You set \(\ell = 60\) on my say-so. It deserves suspicion: the lengthscale is the strongest assumption in the model, the same bias-variance dial you have turned in every lesson of this track. Refit the same six points at \(\ell = 15\) (only firings within a few degrees resemble each other), 60, and 300 (everything resembles everything).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">post_l &lt;- function(l) {
+  K  &lt;- k_rbf(kiln$temp, kiln$temp, sigf, l) + sig_n^2 * diag(6)
+  Ks &lt;- k_rbf(xs, kiln$temp, sigf, l)
+  m  &lt;- as.numeric(Ks %*% solve(K, yc)) + mean(kiln$hardness)
+  s  &lt;- sqrt(pmax(sigf^2 - rowSums((Ks %*% solve(K)) * Ks), 0))
+  data.frame(temp = xs, mean = m, sd = s, setting = paste(&quot;lengthscale =&quot;, l))
+}
+sweep3 &lt;- rbind(post_l(15), post_l(60), post_l(300))
+sweep3$setting &lt;- factor(sweep3$setting,
+  levels = c(&quot;lengthscale = 15&quot;, &quot;lengthscale = 60&quot;, &quot;lengthscale = 300&quot;))
+
+ggplot(sweep3, aes(temp, mean)) +
+  geom_ribbon(aes(ymin = mean - 1.96 * sd, ymax = mean + 1.96 * sd),
+              fill = &quot;#2563a8&quot;, alpha = 0.15) +
+  geom_line(colour = &quot;#2563a8&quot;, linewidth = 0.9) +
+  geom_point(data = kiln, aes(temp, hardness), inherit.aes = FALSE, size = 1.6) +
+  facet_wrap(~ setting) +
+  labs(x = &quot;firing temperature (deg C)&quot;, y = &quot;glaze hardness (HV)&quot;) +
+  theme_minimal(base_size = 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same data, three different worldviews. At \(\ell = 15\) the mean spikes at each firing and slumps back to the flat average between them: the model forgets each observation within a few degrees, so it wiggles locally and panics everywhere else. At \(\ell = 300\) the mean is a stiff, gentle arc and the band is skinny everywhere, even mid-gap: if everything resembles everything, six points feel like abundant coverage. Put numbers on that danger, the mid-gap sd under each setting:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sapply(c(15, 60, 300), function(l) round(post_l(l)$sd[xs == 1070], 1))
+#&gt; [1] 50.0 28.8  5.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The long lengthscale claims sd 5 at a temperature Asha never fired, a tighter claim than the tester's own 8 HV of noise. An overlong lengthscale does not just smooth the mean; it manufactures false confidence exactly where honesty matters most. The band is only as truthful as the dial behind it. This is the same short-versus-long trade you can feel in the cover interactive's toggle.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>The one line that makes the prediction</h2>
+
+<p>All of GP prediction funnels through one line: turning the training kernel matrix <code>K</code> and the centred readings <code>yc</code> into the weight vector <code>alpha</code>, by solving the linear system \(K\alpha = y\). Fill in the blank (both objects are still in your session), and the second line will predict the mid-gap hardness at 1070 degrees.</p>
+<section class="exercise" data-exercise-id="Gaussian-Processes-for-Regression-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="solve[^)]*K"><textarea class="lesson-tryit-input" spellcheck="false">alpha &lt;- ____
+round(as.numeric(k_rbf(1070, kiln$temp, sigf, l) %*% alpha) + mean(kiln$hardness), 1)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the heart of the GP: alpha = K inverse times y, computed the stable way. Every prediction is then just similarities times these six weights, which is why it lands on 597.6, the same mid-gap value as the table.</span><span class="lesson-tryit-fb lesson-tryit-no">Solve the linear system K alpha = yc. In R that is solve(K, yc), which computes K inverse times yc without forming the inverse explicitly.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">alpha &lt;- solve(K, yc)
+round(as.numeric(k_rbf(1070, kiln$temp, sigf, l) %*% alpha) + mean(kiln$hardness), 1)
+#&gt; [1] 597.6</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Let the data decide</div>
+<h2>Tuning the dial with the marginal likelihood</h2>
+
+<p>Cross-validation could pick \(\ell\), but with six points there is barely anything to hold out. GPs carry their own tuning instrument: the <strong>log marginal likelihood</strong>, the log-probability of the six readings under the prior that a given \(\ell\) defines, with every possible curve averaged over. For centred readings \(y\) and the noise-augmented kernel matrix \(K\):</p>
+
+<p>\[ \log p(y \mid \ell) = -\tfrac{1}{2} y^\top K^{-1} y \;-\; \tfrac{1}{2} \log |K| \;-\; \tfrac{n}{2} \log 2\pi \]</p>
+
+<p>Two working parts (the third term is a constant, with \(n = 6\)). The first term, \(-\tfrac12 y^\top K^{-1} y\), rewards a kernel that finds the data unsurprising: it is a fit term. The second, \(-\tfrac12 \log |K|\) where \(|K|\) is the determinant (the volume of outcomes the prior spreads itself over), <strong>penalizes a kernel that could explain anything</strong>. A wiggly short-\(\ell\) prior spreads over a huge volume of curves, so it pays a big penalty; a rigid long-\(\ell\) prior concentrates on few curves, so if the data disagrees the fit term punishes it. The best \(\ell\) balances the two, an automatic Occam's razor. Sweep it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_ml &lt;- function(l) {
+  K &lt;- k_rbf(kiln$temp, kiln$temp, sigf, l) + sig_n^2 * diag(6)
+  fit_term   &lt;- -0.5 * sum(yc * solve(K, yc))               # reward: K explains the data
+  complexity &lt;- -0.5 * as.numeric(determinant(K)$modulus)   # penalty: K spreads too wide
+  fit_term + complexity - 3 * log(2 * pi)                   # n/2 = 3 for the constant
+}
+grid &lt;- data.frame(lengthscale = seq(20, 200, by = 5))
+grid$logML &lt;- sapply(grid$lengthscale, log_ml)
+grid$lengthscale[which.max(grid$logML)]
+#&gt; [1] 70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(grid, aes(lengthscale, logML)) +
+  geom_line(colour = &quot;#2563a8&quot;, linewidth = 1) +
+  geom_vline(xintercept = 70, linetype = 2) +
+  labs(title = &quot;The data votes for a lengthscale near 70 degrees&quot;,
+       x = &quot;lengthscale (deg C)&quot;, y = &quot;log marginal likelihood&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curve climbs away from the twitchy short lengthscales, peaks near 70, then falls off a cliff toward the overconfident long ones (by \(\ell = 300\) it is catastrophically low; the stiff prior is genuinely shocked by the data's rise and fall). Our hand-picked 60 was close to the data's own choice of 70. In practice you tune \(\sigma_f\) and \(\sigma_n\) the same way, usually all three at once with an optimizer rather than a grid.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">In practice</div>
+<h2>One package call, and when a GP breaks</h2>
+
+<p>You have now built everything a GP package does. In day-to-day work, <code>kernlab</code> wraps it in one call with the same formula interface as <code>lm()</code>. Two translation notes, because they bite: <code>gausspr()</code> standardizes the inputs before fitting, so our 60 degree lengthscale must be converted to standardized units, and its <code>rbfdot</code> kernel writes the RBF as \(\exp(-\sigma (x - x')^2)\), so \(\sigma = 1 / (2\ell^2)\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(kernlab)
+
+l_scaled &lt;- 60 / sd(kiln$temp)   # gausspr standardizes inputs; convert our 60 degrees
+fit_gp &lt;- gausspr(hardness ~ temp, data = kiln, kernel = &quot;rbfdot&quot;,
+                  kpar = list(sigma = 1 / (2 * l_scaled^2)),  # rbfdot: sigma = 1/(2 l^2)
+                  var  = 64 / var(kiln$hardness))             # noise, in scaled-y units
+round(as.numeric(predict(fit_gp, new_temps)), 1)
+#&gt; [1] 562.4 598.1 502.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Within a hardness point of our hand-built 562.4, 597.6 and 502.8; the sliver of difference is kernlab using the sample variance as its signal variance where we chose 50 squared. For the uncertainty band, keep the ten honest lines you wrote in this lesson; <code>gausspr</code>'s variance interface is limited, and you now know the band is just one more <code>solve()</code> away.</p>
+
+<p>So when do you reach for a GP, and when do you run from it?</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Prediction</th>
+<th>Uncertainty</th>
+<th>Comfortable n</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quadratic lm</td>
+<td>one global shape</td>
+<td>trusts that shape everywhere, even in gaps</td>
+<td>huge</td>
+</tr>
+<tr>
+<td>Random forest</td>
+<td>flexible</td>
+<td>rough add-ons, often poorly calibrated</td>
+<td>large</td>
+</tr>
+<tr>
+<td>Gaussian process</td>
+<td>flexible and smooth</td>
+<td>widens off the data by construction</td>
+<td>small to a few thousand</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Reach for a GP</strong> when observations are few and expensive, and knowing where you are ignorant is worth real money: lab experiments like Asha's, simulator calibration, drug dose-response, and, in two lessons, hyperparameter search, where a GP stands in for an expensive model-training run. <strong>It breaks</strong> in three known ways. First, cost: prediction runs through <code>solve()</code> on an n by n matrix, whose work grows with the cube of n, so tens of thousands of rows need sparse approximations or a different tool. Second, the kernel is the assumption: fit an RBF to seasonal data and both the mean and the band will be confidently wrong (kernels exist for periodic, linear-trend, and rougher behaviour; see the references). Third, as you saw at \(\ell = 300\), an untuned dial silently converts honest uncertainty into false confidence.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Is the band a guarantee?</h2>
+
+<p>A colleague looks at Asha's plot and says: "Nice. So by definition, 95% of all future firings will land inside that band, whatever kernel and lengthscale you happened to pick." Are they right?</p>
+<section class="exercise" data-exercise-id="Gaussian-Processes-for-Regression-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes: the band is mean plus or minus 1.96 sd, and 1.96 sd covers 95% of any normal distribution, so the coverage holds automatically</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: the band is honest only conditional on the kernel and its tuned dials; at lengthscale 300 the model claimed sd 5 in the mid-gap while lengthscale 60 said 28.8, and nothing inside either model flags which claim to trust</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, but only because six points are too few; once Asha has twenty firings, any reasonable kernel's 95% band can be taken at face value</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The band inherits every assumption behind it, which is why you tuned the lengthscale with the marginal likelihood and why, with data to spare, you would still check coverage on held-out points. Honest uncertainty is conditional honesty.</div><div class="lesson-qfb lesson-qfb-no">More data tightens and stabilizes the band near the data, but a misspecified kernel keeps making confident, wrong claims in unexplored regions, like the RBF fit to seasonal data. Sample size does not repair a wrong assumption; checking the kernel does.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four solid places to take this further:</p>
+
+<ul>
+
+<li><a href="https://gaussianprocess.org/gpml/">Rasmussen and Williams, "Gaussian Processes for Machine Learning" (free book)</a> - the canonical text; chapter 2 is exactly this lesson's math, with the marginal likelihood in chapter 5.</li>
+
+<li><a href="https://distill.pub/2019/visual-exploration-gaussian-processes/">A Visual Exploration of Gaussian Processes (Distill)</a> - interactive priors, posteriors, and kernels; the best complement to the widget on the cover.</li>
+
+<li><a href="https://www.cs.toronto.edu/~duvenaud/cookbook/">The Kernel Cookbook (David Duvenaud)</a> - what each kernel family assumes and how to combine them, for the day RBF is the wrong shape.</li>
+
+<li><a href="https://cran.r-project.org/package=kernlab">kernlab on CRAN</a> - the package behind <code>gausspr()</code>, with the kernel zoo (<code>rbfdot</code>, <code>polydot</code>, and friends) documented.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You can now do what almost no other regression tool does: predict and confess in the same breath. You watched a quadratic fit stay equally confident inside a 140 degree data hole, rebuilt the fix from one line of math (the RBF kernel as a prior over smooth curves), conditioned it on six kiln firings with a handful of base R lines, and got a posterior mean plus a band that pinches to the tester's noise at the data and flares to near-prior width beyond it. You felt the lengthscale act as the bias-variance dial, caught the long-lengthscale fit manufacturing false certainty, let the marginal likelihood pick the dial honestly, and matched it all with a one-call <code>kernlab</code> fit.</p>
+
+<p>Next, Lesson 5: Stacking and the Super Learner. You now have several strong, very different learners in hand: SVMs, discriminant blends, GPs, forests. Instead of crowning one winner, we will let cross-validation blend them into a stack that outperforms every single one of them.</p>
+</section>
+
+{% endraw %}
