@@ -1,0 +1,407 @@
+---
+title: "Advanced Regression Lesson 10: Gamma and Tweedie Regression"
+description: "Model positive, right-skewed outcomes and insurance-style losses in R: fit a Gamma GLM with a log link, read multipliers on the mean, and handle zero-heavy loss with Tweedie."
+keywords: "Gamma regression, Tweedie regression, GLM, log link, insurance pricing, pure premium, compound Poisson-Gamma, variance function, right-skewed, mgcv, tw, R"
+mathjax: true
+webr: true
+curriculum_id: "6.130.10"
+post_type: "LESSON"
+course_id: "ds-reg-glm-expert"
+course_title: "Advanced Regression and GLMs"
+course_lesson: "10"
+course_total: "13"
+course_landing: "R-Advanced-Regression-Course.html"
+course_next: "Beta-and-Ordinal-Regression.html"
+course_prev: "Zero-Inflated-and-Hurdle-Models.html"
+lesson_access: "pro"
+catalog_blurb: "How to model strictly positive, skewed amounts and losses with many zeros."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 10 of 13</div>
+<h2>Gamma and Tweedie Regression</h2>
+
+<p>In Lesson 9 you tamed counts that piled up at zero. The thing you predicted was still a whole number: how many claims, how many repairs. Now the outcome changes character again. It becomes an amount of money: strictly positive, stretched out to the right by a few very large values, and sometimes floored at an exact zero.</p>
+
+<p>Meet Nadia, who prices motor insurance. She has last year's book of business, thousands of policies, and for each one two numbers she has to model. First, when a driver did make a claim, how big was it: a few hundred pounds for a scraped bumper, occasionally many thousands for a write-off. Second, across every policy on the books, what did the company pay out in total: for most drivers, exactly nothing.</p>
+
+<p>Those two outcomes have shapes an ordinary straight line cannot respect. The three curves below are the tools built for them. Gamma is for the positive, skewed claim amount. Tweedie is for the total loss with its wall of zeros. Toggle between them to see the shape each one is built to fit.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say why ordinary regression is the wrong tool for a positive, right-skewed amount, and fit a Gamma model instead</li>
+
+<li>Read a Gamma model's coefficients as multipliers on the mean</li>
+
+<li>Recognise an outcome that is zero-or-positive, insurance-style loss, and model it with a Tweedie GLM</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit and read <a href="OLS-Regression-from-Scratch.html">a linear model</a>, and you have met the GLM idea, the log link, and reading <code>exp(coef)</code> as a multiplier in the <a href="Count-Models-Poisson-and-Negative-Binomial.html">count-model lessons</a>. Comfortable with logs and exponents (<code>exp</code> is always positive).</p>
+<div class="lesson-widget" data-widget-type="glm-family-shapes" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why the straight line fails</div>
+<h2>A claim amount is not a measurement on the whole number line</h2>
+
+<p>Nadia's first outcome is <code>amount</code>, the size of a claim in pounds. It has three habits that ordinary least squares (the straight-line <code>lm</code> you know) cannot honour:</p>
+
+<ul>
+
+<li><strong>It is never negative.</strong> A claim cannot cost minus 400 pounds, yet a regression line runs happily below zero.</li>
+
+<li><strong>It is right-skewed.</strong> Most claims are small, a few are enormous, so the mean sits well above the median. A symmetric bell curve is the wrong picture.</li>
+
+<li><strong>Its spread grows with its size.</strong> Small claims barely vary; large ones swing by thousands. Ordinary regression assumes the noise is the same size everywhere.</li>
+
+</ul>
+
+<p>Here is Nadia's book, built right here so every line on this page runs in interactive R. Each policy draws a Poisson number of claims (how often it claims) and a Gamma amount per claim (how big), and the total loss is those claims added up. Hold on to how this is built, it returns at the end of the lesson.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 4000
+car_value &lt;- round(runif(n, 5, 45), 1)                 # car value, thousands of pounds
+young     &lt;- rbinom(n, 1, 0.30)                         # 1 = main driver under 25
+
+# Each policy: a Poisson number of claims (how often), each a Gamma amount (how big).
+# The total loss is those claims summed. Most policies never claim, so loss = 0.
+claims_per &lt;- rpois(n, exp(-1.9 + 0.55 * young + 0.010 * car_value))
+sev_mean   &lt;- exp(6.4 + 0.022 * car_value + 0.35 * young)   # mean claim size, pounds
+loss &lt;- numeric(n); amt &lt;- c(); acv &lt;- c(); ayg &lt;- c()
+for (i in seq_len(n)) {
+  k &lt;- claims_per[i]
+  if (k &gt; 0) {
+    a &lt;- rgamma(k, shape = 2, scale = sev_mean[i] / 2)
+    loss[i] &lt;- sum(a)
+    amt &lt;- c(amt, a); acv &lt;- c(acv, rep(car_value[i], k)); ayg &lt;- c(ayg, rep(young[i], k))
+  }
+}
+yf &lt;- function(z) factor(z, levels = c(0, 1), labels = c(&quot;25+&quot;, &quot;under25&quot;))
+policies &lt;- data.frame(loss = round(loss), car_value = car_value, young = yf(young))
+claims   &lt;- data.frame(amount = round(amt), car_value = acv, young = yf(ayg))
+c(policies = nrow(policies), claims = nrow(claims), zero_loss = round(mean(policies$loss == 0), 3))
+#&gt;  policies    claims zero_loss
+#&gt;  4000.000   957.000     0.791</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Of 4000 policies, only 957 ever produced a claim. The histogram below plots a representative sample of those claim amounts: a tall stack of small claims and a thin tail of rare, expensive ones (the largest of all 957 reaches 8462 pounds). The mean claim (1283) sits far above the median (999) precisely because that tail drags it up. This lopsided, floored-at-zero shape is exactly what a straight line gets wrong.</p>
+
+<p>Fit a straight line anyway and watch two things break. Its point guess is fine, but the symmetric noise it assumes makes its 95% prediction interval dip well below zero, a real, sizeable chance of a negative claim, which is impossible:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lm_fit &lt;- lm(amount ~ car_value + young, data = claims)
+predict(lm_fit, data.frame(car_value = 8, young = &quot;25+&quot;), interval = &quot;prediction&quot;)
+#&gt;        fit       lwr      upr
+#&gt; 1 564.1949 -1309.925 2438.315</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>And the spread is not constant. Split the claims into three groups by their fitted size and look at the standard deviation in each: it climbs from 611 to 1344 as the mean climbs. But look at the last column, the ratio of spread to mean stays almost fixed near 0.72:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">claims$bucket &lt;- cut(predict(lm_fit), 3, labels = c(&quot;cheap&quot;, &quot;mid&quot;, &quot;dear&quot;))
+aggregate(amount ~ bucket, claims,
+          function(z) c(mean = round(mean(z)), sd = round(sd(z)), cv = round(sd(z) / mean(z), 2)))
+#&gt;   bucket amount.mean amount.sd amount.cv
+#&gt; 1  cheap      848.00    611.00      0.72
+#&gt; 2    mid     1198.00    851.00      0.71
+#&gt; 3   dear     1848.00   1344.00      0.73</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That last fact, spread proportional to the mean, is not a nuisance. It is a fingerprint, and it points straight at the model we want.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2389},{"x":2938},{"x":3071},{"x":673},{"x":787},{"x":575},{"x":2714},{"x":1268},{"x":2005},{"x":1241},{"x":392},{"x":982},{"x":811},{"x":99},{"x":207},{"x":1872},{"x":580},{"x":952},{"x":1882},{"x":1818},{"x":3769},{"x":1453},{"x":73},{"x":804},{"x":185},{"x":839},{"x":714},{"x":471},{"x":541},{"x":549},{"x":587},{"x":958},{"x":1348},{"x":4804},{"x":472},{"x":1372},{"x":1269},{"x":3598},{"x":1571},{"x":2236},{"x":1219},{"x":2043},{"x":2503},{"x":1278},{"x":396},{"x":942},{"x":1018},{"x":1279},{"x":1490},{"x":4049},{"x":1702},{"x":2675},{"x":517},{"x":754},{"x":1930},{"x":509},{"x":589},{"x":4075},{"x":913},{"x":1836},{"x":1193},{"x":924},{"x":1070},{"x":663},{"x":931},{"x":1090},{"x":462},{"x":1090},{"x":1992},{"x":6826}],"geoms":["histogram"],"x":"amount","y":"count","code":{"histogram":"ggplot(claim_sample, aes(amount)) +\n  geom_histogram(bins = 12)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The right model, part 1</div>
+<h2>Gamma regression: a positive mean, spread that scales with it</h2>
+
+<p>The <strong>Gamma distribution</strong> is the natural home for a positive, right-skewed amount. Its signature is the fingerprint you just saw: a roughly <strong>constant coefficient of variation</strong>. The coefficient of variation is the standard deviation divided by the mean, the spread expressed as a fraction of the size. For Nadia's claims it stayed near 0.72 whether the typical claim was 848 or 1848. Big claims vary more in absolute pounds, but by the same relative amount.</p>
+
+<p>Written as a variance function, that is:</p>
+
+<p>\[ \mathrm{Var}[Y] = \phi\, \mu^2, \]</p>
+
+<p>where \(Y\) is the claim amount, \(\mu\) ("mu") is its mean (the value the model predicts), and \(\phi\) ("phi") is the <strong>dispersion</strong>, a single number setting the overall noise level. Because the mean is squared, the variance grows as the mean grows, exactly the funnel in the table. Line this up against the families you already know and the pattern is clear:</p>
+
+<ul>
+
+<li><strong>Normal:</strong> \(\mathrm{Var}[Y] = \sigma^2\), constant everywhere. What <code>lm</code> assumes, and what Nadia's data breaks.</li>
+
+<li><strong>Poisson:</strong> \(\mathrm{Var}[Y] = \mu\), variance equals the mean (Lesson 8).</li>
+
+<li><strong>Gamma:</strong> \(\mathrm{Var}[Y] = \phi\,\mu^2\), variance grows with the square of the mean.</li>
+
+</ul>
+
+<p>The second half of the model is the <strong>link</strong>, and it is the same log link from the count lessons. We do not model \(\mu\) with a straight line, because a line can go negative and a claim cannot. We model its logarithm:</p>
+
+<p>\[ \log(\mu) = \beta_0 + \beta_1 x \quad\Longleftrightarrow\quad \mu = e^{\beta_0 + \beta_1 x}, \]</p>
+
+<p>where \(x\) is a predictor (say the car's value), \(\beta_0\) the intercept and \(\beta_1\) the slope, both on the log scale. Whatever the line computes, \(e^{(\cdot)}\) maps it to a positive number, so the predicted mean claim is always above zero. And because effects sit inside an exponent, they <strong>multiply</strong> rather than add, precisely as the Poisson rate ratios did.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A Gamma GLM assumes the spread scales with the mean (constant coefficient of variation) and keeps the mean positive through a log link. It is the default model for money and other strictly positive, right-skewed amounts.</div></div>
+
+<p>The panel below is that Gamma shape: pinned at zero on the left, a long tail on the right. If your outcome's spread does NOT scale with its mean, the Gamma assumption is the wrong one, and you would check a residual plot to catch it. But for claim amounts it fits like a glove.</p>
+<div class="lesson-widget" data-widget-type="glm-family-shapes" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the Gamma model</h2>
+
+<p><code>glm()</code> fits it in one line. The only new part versus a Poisson is the family: you name <code>Gamma</code> and, inside it, the link you want. Fill in the family with a Gamma using a log link, then run it.</p>
+<section class="exercise" data-exercise-id="Gamma-and-Tweedie-Regression-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="Gamma[\s\S]*log"><textarea class="lesson-tryit-input" spellcheck="false">gam_fit &lt;- glm(amount ~ car_value + young, family = ____, data = claims)
+summary(gam_fit)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the whole change: family = Gamma(link = "log") tells glm to use the Gamma likelihood and model the log of the mean.</span><span class="lesson-tryit-fb lesson-tryit-no">You need family = Gamma(link = "log"). Name the Gamma family and set its link to log inside the parentheses.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">gam_fit &lt;- glm(amount ~ car_value + young, family = Gamma(link = &quot;log&quot;), data = claims)
+summary(gam_fit)
+#&gt; Coefficients:
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  6.374823   0.061279 104.029  &lt; 2e-16 ***
+#&gt; car_value    0.023181   0.002055  11.280  &lt; 2e-16 ***
+#&gt; youngunder25 0.331530   0.046851   7.076 2.87e-12 ***
+#&gt;
+#&gt; (Dispersion parameter for Gamma family taken to be 0.510382)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the model</div>
+<h2>Coefficients are multipliers on the mean</h2>
+
+<p>On the log scale the estimates are hard to feel. Exponentiate them and each becomes a concrete multiplier on the expected claim:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gam_fit &lt;- glm(amount ~ car_value + young, family = Gamma(link = &quot;log&quot;), data = claims)
+round(exp(coef(gam_fit)), 3)
+#&gt;  (Intercept)    car_value youngunder25
+#&gt;      586.882        1.023        1.393</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read them like this:</p>
+
+<ul>
+
+<li>\(e^{\beta_1} = 1.023\) for <code>car_value</code>: each extra 1000 pounds of car value multiplies the expected claim by about 1.023, roughly <strong>2.3% more per 1000 pounds</strong>. A pricier car costs a little more to fix.</li>
+
+<li>\(e^{\beta_2} = 1.393\) for <code>young</code>: a policy whose main driver is under 25 has an expected claim about <strong>1.39 times</strong> as large as an older driver's, close to 40% bigger. Not "plus 1.39", 1.39 times.</li>
+
+</ul>
+
+<p>The log link is why these multiply. Because \(\mu = e^{\beta_0} \cdot e^{\beta_1 \text{car}} \cdot e^{\beta_2 \text{young}}\), turning <code>young</code> on scales the whole mean by \(e^{\beta_2}\). To get a mean claim in pounds for any policy, feed it to <code>predict</code> with <code>type = &quot;response&quot;</code>, which applies the link and hands back a number on the original scale:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(gam_fit, data.frame(car_value = 40, young = &quot;under25&quot;), type = &quot;response&quot;)
+#&gt;        1
+#&gt; 2066.477</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A young driver in a 40000-pound car has an expected claim of about 2066 pounds. The dispersion (0.51) is the square of that coefficient of variation you measured (0.72 squared is about 0.51), the model reporting the same relative spread you saw by hand.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">You might be tempted to just take <code>log(amount)</code> and run <code>lm</code>. That models the mean of the log, which back-transforms to the geometric mean (close to the median), not the mean in pounds, and getting the true mean back needs a bias correction (Duan's smearing). A Gamma GLM models the mean on the pound scale directly and keeps the natural mean-variance link, which is usually what you actually want to report.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does 1.393 mean?</h2>
+
+<p>Nadia's <code>young</code> coefficient exponentiates to \(e^{\beta_2} = 1.393\). Her manager asks her to say, in one plain sentence, what that means for an under-25 driver's claims. Which is correct?</p>
+<section class="exercise" data-exercise-id="Gamma-and-Tweedie-Regression-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">An under-25 driver's expected claim is about 1.39 times as large, roughly 40% bigger, than an older driver's</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">An under-25 driver's expected claim is about 1.39 pounds larger than an older driver's</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">An under-25 driver's expected claim is about 1.39% larger than an older driver's</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. An exponentiated Gamma log-link coefficient is a multiplicative factor on the mean: 1.39 times the expected claim, a 39% increase.</div><div class="lesson-qfb lesson-qfb-no">A multiplier of 1.393 means 39.3% larger, not 1.39%. Read exp(coef) as "times as large", so 1.393 is a 39% increase.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">A new problem</div>
+<h2>Total loss per policy: mostly exactly zero</h2>
+
+<p>Nadia's second job is the one that actually sets the price: the <strong>total loss per policy</strong>, what the company expects to pay out over a year for each driver. That is the number a premium has to cover. And it looks nothing like the claim amounts, because now she counts <strong>every</strong> policy, including the many that never claimed at all.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(zero_share = round(mean(policies$loss == 0), 3), mean_loss = round(mean(policies$loss)))
+#&gt; zero_share  mean_loss
+#&gt;      0.791    307.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Almost 79% of policies had a total loss of exactly zero pounds. The other 21% have a positive, skewed loss just like the claim amounts. So the outcome is a <strong>spike at exactly 0 plus a positive tail</strong>, and none of the tools so far can fit it:</p>
+
+<ul>
+
+<li><strong>Gamma</strong> lives on strictly positive values; its density places zero probability at exactly 0, so it cannot explain the wall of zero-loss policies.</li>
+
+<li><strong>Poisson</strong> only puts weight on whole numbers, but a total loss is a continuous amount of money, 307.42 pounds is perfectly possible.</li>
+
+<li>**Log-transform then <code>lm</code>** falls at the first hurdle: \(\log(0)\) is undefined, so the majority of the book would be thrown away.</li>
+
+</ul>
+
+<p>Toggle the widget to Tweedie to see the shape we need: a bar of probability sitting right at 0, then a Gamma-like tail for the policies that did claim.</p>
+<div class="lesson-widget" data-widget-type="glm-family-shapes" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The right model, part 2</div>
+<h2>Tweedie: a Poisson count of Gamma-sized claims</h2>
+
+<p>The <strong>Tweedie distribution</strong> fits that spike-plus-tail shape, and it does so with a story you have already built. Look back at how Nadia's data was made: each policy drew a <strong>Poisson number of claims</strong> (how often it claimed, often zero) and each claim was a <strong>Gamma amount</strong> (how big), and the total loss was those amounts summed. A total that is a Poisson count of Gamma pieces is called a <strong>compound Poisson-Gamma</strong>, and that is exactly a Tweedie. When the Poisson draws zero claims, the sum is an exact 0 (the spike); when it draws one or more, the sum is positive and skewed (the tail). Frequency and severity, folded into one distribution.</p>
+
+<p>Here is that mechanism in miniature, a handful of policies built the same way:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+n_claims &lt;- rpois(8, 0.6)                                  # claims per policy: often 0
+total    &lt;- sapply(n_claims, function(k)
+              if (k == 0) 0 else round(sum(rgamma(k, shape = 2, scale = 600))))
+data.frame(policy = 1:8, claims = n_claims, total_loss = total)
+#&gt;   policy claims total_loss
+#&gt; 1      1      0          0
+#&gt; 2      2      1       2597
+#&gt; 3      3      2       1524
+#&gt; 4      4      0          0
+#&gt; 5      5      0          0
+#&gt; 6      6      1        391
+#&gt; 7      7      0          0
+#&gt; 8      8      1       1004</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five policies claimed nothing (a total of exactly 0), and policy 3 shows the sum of two claims. What ties Tweedie to the families you know is a single <strong>power parameter</strong> \(p\) in its variance function:</p>
+
+<p>\[ \mathrm{Var}[Y] = \phi\, \mu^p. \]</p>
+
+<p>Here \(\mu\) is the mean loss, \(\phi\) the dispersion, and \(p\) the power that sets the shape. That one number slides between everything you have met:</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The power \(p\) is a dial across the whole GLM family: \(p = 0\) is Normal (constant variance), \(p = 1\) is Poisson (variance = mean), \(p = 2\) is Gamma (variance grows with the mean squared). A Tweedie with \(1 < p < 2\) sits in between, the only region that produces a spike of exact zeros plus a positive continuous tail.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Poisson frequency","sub":"how many claims: often 0"},{"title":"Gamma severity","sub":"how big each claim is"},{"title":"Compound total","sub":"the claims summed = a Tweedie loss"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the Tweedie model</h2>
+
+<p>There is no single "best" \(p\), so a good tool estimates it from the data. The <code>mgcv</code> package fits a Tweedie GLM with its <code>tw()</code> family and finds \(p\) for you. The formula and reading are just like a Gamma fit. Fill in the family with <code>tw()</code> and run it.</p>
+<section class="exercise" data-exercise-id="Gamma-and-Tweedie-Regression-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="family\s*=\s*tw"><textarea class="lesson-tryit-input" spellcheck="false">library(mgcv)
+tw_fit &lt;- gam(loss ~ car_value + young, family = ____, data = policies)
+tw_fit$family$family</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. family = tw() tells mgcv to fit a Tweedie and estimate the power p from the data (here about 1.36, safely between Poisson and Gamma).</span><span class="lesson-tryit-fb lesson-tryit-no">Use family = tw(). That is mgcv's Tweedie family; it estimates the power parameter p for you.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(mgcv)
+tw_fit &lt;- gam(loss ~ car_value + young, family = tw(), data = policies)
+tw_fit$family$family
+#&gt; [1] &quot;Tweedie(p=1.359)&quot;
+round(exp(coef(tw_fit)), 3)
+#&gt;  (Intercept)    car_value youngunder25
+#&gt;       98.393        1.030        2.317</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>Which model fits the outcome?</h2>
+
+<p>An insurer wants to model the <strong>total payout per home-insurance policy</strong> over a year. Most policies pay out exactly 0; a minority have one or more claims and pay a positive, right-skewed amount. Which model matches this outcome?</p>
+<section class="exercise" data-exercise-id="Gamma-and-Tweedie-Regression-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A Tweedie GLM: it places probability mass at exactly 0 (the many no-claim policies) plus a Gamma-like tail for those that pay out</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A Gamma GLM with a log link</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Log-transform the payout, then ordinary lm</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">A Poisson regression</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A zero-or-positive outcome, a spike at 0 plus a skewed positive tail, is the Tweedie's home ground (a compound Poisson-Gamma, power p between 1 and 2).</div><div class="lesson-qfb lesson-qfb-no">The payout is a continuous amount of money, not a count of events; Poisson only places weight on whole numbers, so it cannot model a 307.42-pound loss.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1007/978-1-4419-0118-7">Dunn and Smyth (2018), Generalized Linear Models With Examples in R</a> - has worked Gamma and Tweedie chapters in R; the closest companion to this lesson.</li>
+
+<li><a href="https://doi.org/10.1201/9780203753736">McCullagh and Nelder (1989), Generalized Linear Models, 2nd ed.</a> - the canonical reference for GLM families, link functions, and variance functions.</li>
+
+<li><a href="https://doi.org/10.1007/978-3-642-10791-7">Ohlsson and Johansson (2010), Non-Life Insurance Pricing with Generalized Linear Models</a> - how actuaries use Gamma for claim severity and Tweedie for the pure premium.</li>
+
+<li><a href="https://cran.r-project.org/package=mgcv">mgcv package (Simon Wood)</a> - the <code>tw()</code> Tweedie family you fit with here; see <code>?Tweedie</code> and <code>?tw</code>.</li>
+
+<li><a href="https://cran.r-project.org/package=statmod">statmod package (Smyth and colleagues)</a> - its <code>tweedie()</code> family fits a Tweedie GLM with a fixed power, the classic alternative to letting mgcv estimate <code>p</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 10 complete</h2>
+
+<p>You can now model amounts, not just counts. You can say why a straight line fails on a positive, right-skewed outcome, fit a Gamma GLM with a log link, and read its coefficients as multipliers on the mean. And when the outcome is zero-or-positive, an insurance loss with a wall of zeros, you can reach for a Tweedie GLM, understand it as a compound Poisson-Gamma, and read its coefficient as the frequency-times-severity multiplier a pricer actually needs.</p>
+
+<p>Next, Lesson 11: Beta and Ordinal Regression. You have handled outcomes that are positive and unbounded. Now come outcomes that are penned inside fixed walls: a proportion trapped in the interval from 0 to 1 (a beta model), and an ordered rating like "poor, fair, good, excellent" (proportional-odds ordinal regression).</p>
+</section>
+
+{% endraw %}
