@@ -132,6 +132,9 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `competing-risks` | time-point toggle -> stacked cumulative-incidence bands (event-free/relapse/death) summing to 1 | §15 competing risks & cumulative incidence |
 | `mcmc-walk` | proposal-width toggle -> Metropolis trace + running histogram vs true posterior; mixing/acceptance trade-off | §16 MCMC, the Metropolis sampler, diagnostics |
 | `ppc-overlay` | good/bad-model toggle -> histogram of a replicated test statistic with the observed value marked (PPC p-value) | §16 posterior predictive checks, Bayesian workflow |
+| `power-curve` | effect-size toggle -> power-vs-sample-size curve with the n-for-80%-power mark; emits `power.t.test` | §17 designing for power, sample size, the effect/alpha/n tradeoff |
+| `cuped-variance` | pre-period correlation toggle -> raw vs CUPED 95% CI shrinking by sqrt(1-rho^2); emits the raw-vs-CUPED SEs | §17 variance reduction, CUPED, stratification |
+| `bandit-explore` | epsilon-greedy vs Thompson toggle -> cumulative-regret curves for a 3-arm bandit; emits a base-R bandit sim | §17 multi-armed bandits, explore/exploit, Thompson sampling |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 

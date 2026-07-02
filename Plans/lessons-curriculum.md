@@ -183,6 +183,17 @@ NEW widgets for section 15 (built + mount-tested + emitted-R WebR-verified befor
 
 NEW widgets for section 16 (built + mount-tested + emitted-R WebR-verified before the batch): **mcmc-walk**, **ppc-overlay**. Reuses: bayes-update (from §13), shrinkage-pool (from §13), residual-plot, calibration-curve, ols-fit. **CRITICAL package note: Stan does NOT run in WebR** (`rstan`, `brms`, `rstanarm`, `cmdstanr` all need C++ compilation and are unavailable). Every runnable ```r block must be BASE R: conjugate updates in closed form (Beta-Binomial, Normal-Normal), the Metropolis sampler hand-coded, hierarchical models via `lme4::lmer` (WebR-known-good) as a runnable stand-in, LOO/WAIC computed from a hand-built log-likelihood matrix. Show any `brms`/`rstanarm`/`rstan` call as `r-static` ONLY, never as runnable `r`.
 
+## ds-experimentation  (track: scientist; curriculum_id 6.170; landing R-Experimentation-Course.html; access: pro)  [roadmap §17]
+1. Designing-Experiments-for-Power - what statistical power is, the effect-size/alpha/n tradeoff, computing the required sample size before you run anything, and reading a power curve. Ground it in one concrete A/B test (a checkout conversion lift). widgets: NEW:power-curve
+2. Variance-Reduction-with-CUPED - use pre-experiment data to shrink the variance of an A/B estimate with zero bias: the CUPED adjustment (regress out a pre-period covariate), the 1 minus rho-squared variance-reduction identity, and stratification as a cousin. widgets: NEW:cuped-variance
+3. Experiment-Pitfalls-Peeking-and-SRM - the three ways online experiments lie: peeking (repeated significance testing inflates false positives), sample-ratio mismatch (a broken randomizer, caught with a chi-square test), and network/interference effects. widgets: null-distribution
+4. Cluster-and-Switchback-Experiments - when units interfere you randomize clusters or alternate treatment over time (switchbacks); the variance cost of clustering (design effect) and how switchbacks handle marketplace spillovers. widgets: process-flow, null-distribution
+5. Multi-Armed-Bandits-Explore-vs-Exploit - the explore/exploit dilemma, regret as the cost of learning, and epsilon-greedy as the simplest adaptive allocation; when a bandit beats a fixed A/B split. widgets: NEW:bandit-explore
+6. Thompson-Sampling-and-Bayesian-Bandits - sampling from each arm's Beta posterior to allocate traffic in proportion to the probability an arm is best; why it explores efficiently and beats epsilon-greedy on regret. widgets: NEW:bandit-explore
+7. Contextual-Bandits-and-Off-Policy-Evaluation - adding features so the best arm depends on context, and scoring a new policy from logged data without deploying it: inverse-propensity scoring and the doubly-robust estimator. widgets: bandit-explore, process-flow
+
+NEW widgets for section 17 (built + mount-tested + emitted-R WebR-verified before the batch): **power-curve**, **cuped-variance**, **bandit-explore**. Reuses: null-distribution, process-flow. **Package note: ALL runnable ```r is BASE R** - power via `power.t.test`/`power.prop.test`, CUPED via `lm`/`cov`/`var`, SRM via `chisq.test`, bandits hand-coded with `rbeta`/`rbinom`, IPS/DR estimators as plain vectorized base R. Show any specialized package (`gsDesign`, `contextual`, `bandit`) as `r-static` ONLY, never as runnable `r`.
+
 ---
 
 # Data Analyst track (level 2, all free)

@@ -52,6 +52,7 @@ COURSE_ROADMAP = {
     'ds-advanced-supervised': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 14, 'sectionLabel': 'Advanced supervised learning'},
     'ds-survival': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 15, 'sectionLabel': 'Survival and time-to-event'},
     'ds-bayesian': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16, 'sectionLabel': 'Bayesian and hierarchical modeling'},
+    'ds-experimentation': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 17, 'sectionLabel': 'Experimentation and online learning'},
     # Data Analyst track (level 2, all free) - one course per roadmap section.
     'nr-basics': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 1, 'sectionLabel': 'Syntax, types and vectors'},
     'nr-structures': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 2, 'sectionLabel': 'Lists, data frames and tibbles'},
