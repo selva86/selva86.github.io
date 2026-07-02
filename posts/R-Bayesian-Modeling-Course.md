@@ -73,6 +73,12 @@ The capstone: a complete Bayesian regression workflow on one dataset. Choose and
 
 [Start Lesson 8: Bayesian Regression and GLMs, End to End](Bayesian-Regression-and-GLMs-End-to-End.html)
 
+### Section quiz: check what stuck
+
+Ten graded questions across the whole section, the prior-times-likelihood update, conjugacy and credible intervals, MCMC and sampler diagnostics, hierarchical partial pooling and the funnel, posterior predictive checks, LOO and WAIC, and reading a GLM slope through a log link, plus two live R snippets you can run. A quick way to find the ideas worth a second pass before you move on.
+
+[Take the Bayesian Modeling quiz](Bayesian-Modeling-Quiz.html)
+
 ## Who this is for
 
 You can fit and read a simple regression, you know probability as a long-run fraction, and you can work with vectors and plots in R. That is the whole prerequisite. Every Bayesian idea, from the prior to R-hat to partial pooling, is built from scratch the moment it arrives. The course follows naturally from the regression material on the Data Scientist path, but no prior Bayesian experience is assumed.
