@@ -78,10 +78,19 @@ def _kill_tree(pid):
                 pass
 
 
+# The batch runs each lesson subprocess on an EXPLICIT model + effort, decoupled from
+# the CLI default, so the owner can set their interactive default to anything (e.g. Fable)
+# without changing what the batch uses. Opus 4.8 + xhigh effort chosen 2026-07-03 for the
+# dense DS-Advanced material (the Fable default hit its quota mid-§18). Edit here to change.
+BATCH_MODEL = 'opus'      # alias -> latest Opus (4.8); or a full id like 'claude-opus-4-8'
+BATCH_EFFORT = 'xhigh'    # low | medium | high | xhigh | max
+
+
 def run_claude(cli, prompt, timeout=None):
-    print('+ %s -p "%s"  (cwd=%s)' % (cli, prompt, PROJECT_ROOT), flush=True)
+    print('+ %s -p "%s"  (--model %s --effort %s, cwd=%s)' % (cli, prompt, BATCH_MODEL, BATCH_EFFORT, PROJECT_ROOT), flush=True)
     try:
-        proc = subprocess.Popen([cli, '-p', prompt, '--dangerously-skip-permissions'], cwd=PROJECT_ROOT)
+        proc = subprocess.Popen([cli, '-p', prompt, '--dangerously-skip-permissions',
+                                 '--model', BATCH_MODEL, '--effort', BATCH_EFFORT], cwd=PROJECT_ROOT)
     except FileNotFoundError:
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127
