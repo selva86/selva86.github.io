@@ -1,0 +1,372 @@
+---
+title: "Robustness and Drift Lesson 2: Detecting Distribution Shift"
+description: "Labels arrive late in production. Catch distribution shift from the features alone with the PSI, the KS two-sample test, and a classifier two-sample test in R."
+keywords: "distribution shift detection, population stability index, PSI, Kolmogorov-Smirnov test, classifier two-sample test, data drift, model monitoring, R"
+mathjax: true
+webr: true
+curriculum_id: "6.190.2"
+post_type: "LESSON"
+course_id: "ds-robustness-drift"
+course_title: "Robustness, Drift and Distribution Shift"
+course_lesson: "2"
+course_total: "7"
+course_landing: "R-Robustness-and-Drift-Course.html"
+course_next: "Adapting-to-Drift-Reweighting-and-Retraining.html"
+course_prev: "Kinds-of-Distribution-Shift.html"
+lesson_access: "pro"
+catalog_blurb: "How to catch data drift from the inputs alone, before the labels arrive."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 7</div>
+<h2>Detecting Distribution Shift</h2>
+
+<p>In Lesson 1, Nadia's fraud detector quietly broke when fraudsters changed tactics. The damage was real, but its accuracy only revealed it <strong>weeks later</strong>, once the chargebacks came in and the true fraud labels finally caught up. In production that lag is normal: labels are slow, expensive, or never arrive at all.</p>
+
+<p>So you cannot sit and watch accuracy. You have to notice the world moving from the <strong>inputs alone</strong>, the transaction features streaming in today, long before anyone confirms which were fraud. Slide the monitor below: as the weeks pass, this week's live feature drifts away from what the model trained on, and a single number climbs until it trips an alarm.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Compute and read the <strong>Population Stability Index (PSI)</strong> on a feature, using the 0.1 and 0.2 thresholds</li>
+
+<li>Run and interpret a <strong>Kolmogorov-Smirnov two-sample test</strong> comparing training data to live data</li>
+
+<li>Build a <strong>classifier two-sample test</strong>, training a model to tell training from live and reading its AUC as a drift score</li>
+
+<li>Pick the right detector and know each one's blind spot</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you finished <a href="Kinds-of-Distribution-Shift.html">Lesson 1</a>, you can fit and read a classifier, and you know what a histogram, a p-value, and AUC are.</p>
+<div class="lesson-widget" data-widget-type="drift-monitor" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>You cannot wait for the labels</h2>
+
+<p>Drift detection reframes the question. You are not asking "did the model get this transaction right?", because the answer arrives too late. You are asking a question you <em>can</em> answer today from features alone:</p>
+
+<blockquote><p>Does the data coming in now look like the data the model trained on?</p></blockquote>
+
+<p>That is a <strong>two-sample question</strong>. Hold a fixed <strong>reference sample</strong>, the feature values the model learned from, and a <strong>current window</strong>, a recent batch of live values. If those two samples plausibly came from the same distribution, you are stable. If they clearly did not, something moved.</p>
+
+<p>Let us set up Nadia's monitor concretely. We watch one feature, the purchase <code>amount</code>, standardized so the average transaction sits at 0 and one unit means one standard deviation (that is why the numbers below hover around zero and can go negative, they are no longer raw dollars). We build the training reference, a later week that is genuinely unchanged, and a later week whose amounts have all crept up by about 0.6 standard deviations (bigger baskets: the covariate shift from Lesson 1, where the inputs move but the labelling rule does not). Each lesson runs in a fresh R session, so we create all three right here.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 2000
+ref     &lt;- rnorm(n, mean = 0,   sd = 1)   # what the model trained on
+stable  &lt;- rnorm(n, mean = 0,   sd = 1)   # a later week: inputs unchanged
+drifted &lt;- rnorm(n, mean = 0.6, sd = 1)   # a later week: baskets grew
+round(c(ref = mean(ref), stable = mean(stable), drifted = mean(drifted)), 3)
+#&gt;     ref  stable drifted
+#&gt;  -0.014   0.016   0.584</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We now have a truth to detect: <code>stable</code> really is drawn like <code>ref</code>, and <code>drifted</code> really is not. A good detector should stay quiet on <code>stable</code> and fire on <code>drifted</code>. We will run three of them, from the simplest to the most powerful.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Detector one</div>
+<h2>PSI: compare the histograms, bin by bin</h2>
+
+<p>The <strong>Population Stability Index</strong> is the workhorse of production monitoring, and the idea is exactly what you just watched in the cover: chop the feature into bins, then measure how far the current fractions have moved from the reference fractions.</p>
+
+<p><strong>Intuition.</strong> Slice the reference into 10 equal-sized buckets (its deciles). In the training data, by construction, 10% of transactions land in each bucket. Now drop the current window into those same buckets. If it also puts about 10% in each, nothing moved. If it piles up in the high buckets and empties the low ones, the inputs have shifted.</p>
+
+<p><strong>The formula.</strong> With \(B\) bins, let \(e_i\) be the fraction of the <strong>reference</strong> sample in bin \(i\) (expected) and \(o_i\) the fraction of the <strong>current</strong> sample in the same bin (observed). The index is</p>
+
+<p>\[ \mathrm{PSI} = \sum_{i=1}^{B} \left(o_i - e_i\right)\,\ln\!\frac{o_i}{e_i}. \]</p>
+
+<p>Each bin contributes a gap \((o_i - e_i)\) weighted by the log-ratio \(\ln(o_i/e_i)\) of how the proportions changed. A bin that barely moves adds almost nothing; a bin that empties or overflows adds a lot. The sum is a single non-negative number: 0 means the two histograms match perfectly.</p>
+
+<p><strong>In R</strong>, it is a few lines of base R. Bin on the reference's quantiles, tally both samples, and apply the formula.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">psi &lt;- function(reference, current, bins = 10) {
+  cuts &lt;- as.numeric(quantile(reference, probs = seq(0, 1, length.out = bins + 1)))
+  cuts[1] &lt;- -Inf; cuts[length(cuts)] &lt;- Inf     # let live values fall outside the training range
+  e &lt;- as.numeric(table(cut(reference, cuts))) / length(reference)
+  o &lt;- as.numeric(table(cut(current,   cuts))) / length(current)
+  e &lt;- pmax(e, 1e-4); o &lt;- pmax(o, 1e-4)          # guard against log(0) in an empty bin
+  sum((o - e) * log(o / e))
+}
+round(c(stable = psi(ref, stable), drifted = psi(ref, drifted)), 3)
+#&gt;  stable drifted
+#&gt;   0.007   0.348</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The convention, from decades of credit-scorecard monitoring, reads the number like a traffic light:</p>
+
+<ul>
+
+<li><strong>PSI < 0.1</strong> stable, no meaningful shift.</li>
+
+<li><strong>0.1 to 0.2</strong> a moderate shift, keep watching.</li>
+
+<li><strong>PSI > 0.2</strong> a significant shift, investigate and likely retrain.</li>
+
+</ul>
+
+<p>The <code>stable</code> window scores <strong>0.007</strong> (green), and <code>drifted</code> scores <strong>0.348</strong>, well past the 0.2 alarm. PSI caught it, with no labels anywhere in sight.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the PSI</h2>
+
+<p>A monitor reports <strong>PSI = 0.09</strong> on the <code>amount</code> feature this week, up from 0.02 last week. Fraud labels for this week will not arrive for a month. What is the right read?</p>
+<section class="exercise" data-exercise-id="Detecting-Distribution-Shift-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Alarm: 0.09 is above zero, so the model has already lost accuracy and must be retrained today</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Below the 0.1 line, so no significant shift yet, but the jump from 0.02 is worth watching next week</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Ignore it entirely: without labels, PSI tells you nothing useful</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. 0.09 is still in the "stable" band (< 0.1), so no action is forced, but the trend from 0.02 toward 0.1 is exactly the early warning PSI exists to give.</div><div class="lesson-qfb lesson-qfb-no">The whole point of PSI is that it works without labels. It is telling you something real about the inputs; here it says "stable but drifting up, keep an eye on it."</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Detector two</div>
+<h2>The KS test: the biggest gap between two curves</h2>
+
+<p>PSI needs you to choose bins. The <strong>Kolmogorov-Smirnov (KS) two-sample test</strong> needs no bins at all, and it comes with a p-value, so you can ask whether a gap is bigger than sampling noise would explain.</p>
+
+<p><strong>Intuition.</strong> For any sample, the <strong>empirical cumulative distribution function (ECDF)</strong> \(\hat{F}(t)\) is simply the fraction of values at or below \(t\). Draw the ECDF of the reference and the ECDF of the current window on the same axes. If the samples match, the two curves lie on top of each other. If they differ, the curves separate. The KS statistic is the size of the <strong>largest vertical gap</strong> between them:</p>
+
+<p>\[ D = \max_{t}\,\bigl|\,\hat{F}_{\text{ref}}(t) - \hat{F}_{\text{cur}}(t)\,\bigr|. \]</p>
+
+<p>Here \(t\) ranges over all possible feature values, and \(D\) (between 0 and 1) is the worst disagreement anywhere along the axis. A small \(D\) means the curves hug; a large \(D\) means they pull apart. See the gap for yourself, then read the test.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+d &lt;- data.frame(amount = c(ref, drifted),
+                window = rep(c(&quot;reference&quot;, &quot;current&quot;), each = n))
+ggplot(d, aes(amount, colour = window)) +
+  stat_ecdf(linewidth = 1) +
+  labs(title = &quot;Reference vs current: the KS gap is the widest vertical distance&quot;,
+       y = &quot;cumulative fraction&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ks.test()</code> computes \(D\) and its p-value for you. The null hypothesis is "both samples came from the same distribution," so a tiny p-value is evidence of drift.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ks_stable  &lt;- ks.test(ref, stable)
+ks_drifted &lt;- ks.test(ref, drifted)
+round(c(stable_D = unname(ks_stable$statistic),
+        drifted_D = unname(ks_drifted$statistic)), 3)
+#&gt;  stable_D drifted_D
+#&gt;     0.021     0.246
+signif(c(stable_p = ks_stable$p.value, drifted_p = ks_drifted$p.value), 3)
+#&gt;  stable_p  drifted_p
+#&gt;  7.70e-01   8.93e-53</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For <code>stable</code>, \(D = 0.021\) and the p-value is <strong>0.77</strong>: the tiny gap is exactly what two samples from the same distribution look like, so we do not reject. For <code>drifted</code>, \(D = 0.246\) with a p-value near zero: a gap that large is essentially impossible by chance. Drift, confirmed.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">With thousands of live rows, KS becomes <em>too</em> sensitive: a shift too small to matter can still return a microscopic p-value. In production, watch the effect size \(D\) itself (is the gap big enough to care about?), not just whether p cleared 0.05.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Run the test yourself</h2>
+
+<p>You suspect this week's live traffic has drifted. To find out, you compare it against the training reference with a KS test. You have two windows in memory: <code>stable</code> (a week you know matches) and <code>drifted</code> (the suspect week). Fill the blank with the window that represents the drifted live traffic, then read the result.</p>
+<section class="exercise" data-exercise-id="Detecting-Distribution-Shift-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="ks\.test\(\s*ref\s*,\s*drifted"><textarea class="lesson-tryit-input" spellcheck="false">ks_live &lt;- ks.test(ref, ____)
+ks_live</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the comparison that matters: the live window against the training reference. D jumps to 0.25 with a vanishingly small p-value, so you reject 'same distribution' and declare drift.</span><span class="lesson-tryit-fb lesson-tryit-no">Compare the reference against the suspect live window: ks.test(ref, drifted). Testing ref against stable would just confirm a week you already know is fine.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">ks_live &lt;- ks.test(ref, drifted)
+ks_live
+#&gt;
+#&gt;  Asymptotic two-sample Kolmogorov-Smirnov test
+#&gt;
+#&gt; data:  ref and drifted
+#&gt; D = 0.2455, p-value &lt; 2.2e-16
+#&gt; alternative hypothesis: two-sided</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">Detector three</div>
+<h2>The classifier two-sample test: can a model tell them apart?</h2>
+
+<p>PSI and KS look at <strong>one feature at a time</strong>. But drift often hides in the <em>combination</em> of features: each feature's own histogram looks unchanged, yet their joint pattern has shifted. For that you need a detector that sees all features together, and there is a beautifully simple one.</p>
+
+<p><strong>The trick.</strong> Pool the reference rows and the current rows into one table and give them a throwaway label: 0 if a row came from the reference, 1 if it came from the current window. Now train any classifier to predict that label, and score it on held-out rows with AUC.</p>
+
+<ul>
+
+<li>If the two samples are drawn from the <strong>same</strong> distribution, no feature or combination separates them, so the best any classifier can do is guess. AUC sits at about <strong>0.5</strong>.</li>
+
+<li>If they <strong>differ</strong>, the classifier finds the tell and scores rows from the current window higher. AUC climbs <strong>above 0.5</strong>, and how far above measures how strong the drift is.</li>
+
+</ul>
+
+<p>That is the <strong>classifier two-sample test (C2ST)</strong>, and its score is exactly the AUC you already know: the probability the model ranks a random current-window row above a random reference row. Slide the threshold below to feel how AUC summarizes separability into one number, then read what the same idea does to Nadia's <code>amount</code>.</p>
+
+<p>In R, it is a <code>glm</code>, a held-out split, and the AUC computed by hand (the Mann-Whitney form, no extra package).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auc &lt;- function(score, label) {                 # AUC = P(current row scores above reference row)
+  r  &lt;- rank(score)
+  n1 &lt;- sum(label == 1); n0 &lt;- sum(label == 0)
+  (sum(r[label == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0)
+}
+c2st &lt;- function(reference, current) {
+  d   &lt;- data.frame(x = c(reference, current),
+                    cur = c(rep(0, length(reference)), rep(1, length(current))))
+  i   &lt;- sample(nrow(d), floor(0.7 * nrow(d)))   # 70% train, 30% held out
+  fit &lt;- glm(cur ~ x, data = d[i, ], family = binomial)
+  p   &lt;- predict(fit, d[-i, ], type = &quot;response&quot;)
+  auc(p, d[-i, &quot;cur&quot;])
+}
+set.seed(7)
+round(c(stable = c2st(ref, stable), drifted = c2st(ref, drifted)), 3)
+#&gt;  stable drifted
+#&gt;   0.526   0.656</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On <code>stable</code> the classifier manages <strong>0.526</strong>, a hair above 0.5 by luck, as good as guessing. On <code>drifted</code> it reaches <strong>0.656</strong>: it genuinely learned to tell the two weeks apart, which is only possible because they differ. With one feature, C2ST just echoes KS. Its power shows with many features, where it is the only one of the three that catches drift living in the joint distribution.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Because the "no drift" AUC is about 0.5 rather than exactly 0.5, judge the score against a baseline, not the raw 0.5 line. Reshuffle the pooled labels a few times, recompute AUC, and treat anything above that noise band as real drift.</div></div>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which detector catches it?</h2>
+
+<p>A recommender monitors two features: <code>session_length</code> and <code>items_viewed</code>. Each feature's own histogram this month matches last month's almost exactly (PSI ~0.02, KS p ~0.6 on each). Yet users who view many items now have very short sessions, the opposite of before. Which detector flags this, and why?</p>
+<section class="exercise" data-exercise-id="Detecting-Distribution-Shift-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Per-feature PSI, because a large enough shift always shows up in at least one feature's bins</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing can catch it without labels, so you must wait for the engagement labels to confirm the drop</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The classifier two-sample test, because it uses both features at once and can learn their changed joint pattern</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. C2ST trains on all features together, so it detects a changed relationship between them even when each one's marginal histogram is untouched. PSI and KS, being one feature at a time, miss joint drift.</div><div class="lesson-qfb lesson-qfb-no">You can absolutely catch joint drift without labels; that is what the classifier two-sample test is for. Waiting for labels is the delay this whole lesson exists to avoid.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing well</div>
+<h2>Three detectors, three blind spots</h2>
+
+<p>None of these is "the" drift test; they answer slightly different questions, and a real monitor uses more than one.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Detector</th>
+<th>Works on</th>
+<th>Catches</th>
+<th>Misses / gotcha</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>PSI</strong></td>
+<td>one feature, binned</td>
+<td>shifts in a single feature's distribution</td>
+<td>needs a bin choice; joint drift; no built-in p-value (uses fixed 0.1 / 0.2 cutoffs)</td>
+</tr>
+<tr>
+<td><strong>KS test</strong></td>
+<td>one continuous feature</td>
+<td>any change in one feature's shape, with a p-value</td>
+<td>continuous only (not categorical); over-sensitive at large n; joint drift</td>
+</tr>
+<tr>
+<td><strong>Classifier two-sample test</strong></td>
+<td>all features at once</td>
+<td>joint / multivariate drift, categorical or continuous</td>
+<td>needs a held-out AUC and a ~0.5 baseline; says <em>that</em> it drifted, not <em>where</em></td>
+</tr>
+</tbody>
+</table>
+
+<p>Three habits keep a monitor honest:</p>
+
+<ul>
+
+<li><strong>Watch effect size, not just p-values.</strong> With big samples, KS will reject almost anything. A large \(D\) or a PSI past 0.2 is what should move you, not a small p alone.</li>
+
+<li><strong>Correct for many features.</strong> Running KS on 200 features means ~10 false alarms at the 0.05 level by chance. Adjust the threshold (a Bonferroni or false-discovery correction) or lean on the single C2ST.</li>
+
+<li><strong>A drift alarm is not a performance alarm.</strong> These detectors prove the <strong>inputs</strong> moved, not that accuracy fell. As Lesson 1 showed, harmless covariate shift can trip them while the model is fine. Drift detection tells you <em>where to look</em>; whether to act is a judgment about which shift you are facing.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://arxiv.org/abs/1810.11953">Rabanser, Gunnemann and Lipton (2019), Failing Loudly: An Empirical Study of Methods for Detecting Dataset Shift</a> - a careful benchmark of drift detectors, including the classifier two-sample test, and what actually works.</li>
+
+<li><a href="https://arxiv.org/abs/1610.06545">Lopez-Paz and Oquab (2017), Revisiting Classifier Two-Sample Tests</a> - the paper that formalized using a trained classifier's accuracy as a two-sample test.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/ks.test.html">ks.test: the two-sample Kolmogorov-Smirnov test in R (stats package docs)</a> - the function you used, with its assumptions and the tie warning.</li>
+
+<li><a href="https://doi.org/10.1145/2523813">Gama, Zliobaite, Bifet, Pechenizkiy and Bouchachia (2014), A Survey on Concept Drift Adaptation, ACM Computing Surveys</a> - the broad reference on detecting and adapting to drift.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now catch distribution shift with no labels in hand: the Population Stability Index reading a feature's binned histogram against the 0.1 / 0.2 lines, the Kolmogorov-Smirnov test measuring the largest gap between two cumulative curves with a p-value, and the classifier two-sample test turning "did the data move?" into "can a model tell the two samples apart?" You also saw where each one is blind, and why a drift alarm flags the inputs, not the accuracy.</p>
+
+<p>Detecting drift is only half the job. Next, Lesson 3: Adapting to drift. You will correct covariate shift by importance-weighting the training data with a density ratio, and set principled retraining triggers, a monitored metric crossing a control limit, instead of retraining blindly on a schedule.</p>
+</section>
+
+{% endraw %}
