@@ -1,0 +1,359 @@
+---
+title: "Causal Inference for Decisions Lesson 4: Staggered DiD and the Negative-Weights Problem"
+description: "Staggered rollouts break simple difference-in-differences: two-way fixed effects can put negative weights on comparisons and understate the effect. See why, and the fix, in R."
+keywords: "staggered difference-in-differences, negative weights problem, two-way fixed effects, TWFE bias, Goodman-Bacon decomposition, group-time ATT, event study, dynamic treatment effects, causal inference, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.4"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "4"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Regression-Discontinuity.html"
+course_prev: "Difference-in-Differences-and-Parallel-Trends.html"
+lesson_access: "pro"
+catalog_blurb: "When a policy rolls out in waves, the usual estimator can mislead."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 11</div>
+<h2>Staggered DiD and the Negative-Weights Problem</h2>
+
+<p>In Lesson 3 the world was tidy: one policy, one date, two groups. New Jersey raised its wage in April 1992, Pennsylvania did not, and one line of <code>lm(y ~ treat*post)</code> recovered the effect. Real policies are almost never that clean. States legalise something in different years, a company rolls a feature out region by region, a hospital chain adopts a protocol ward by ward. Treatment arrives in <strong>waves</strong>.</p>
+
+<p>For twenty years the standard response was to throw all the waves into one regression with unit and time fixed effects and read off a single coefficient. Around 2018 the field discovered that this move can quietly break, so badly that it can report a <strong>negative</strong> effect when every unit was helped. This lesson shows you exactly how, on a rollout you can run yourself, and what to do instead.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Set up a staggered-adoption panel and see why one <code>treat*post</code> no longer fits</li>
+
+<li>Fit two-way fixed effects (TWFE) and catch it understating an effect you planted yourself</li>
+
+<li>Explain the forbidden comparison: already-treated units used as controls, and why a growing effect turns it negative</li>
+
+<li>Build a clean group-time estimate with a never-treated control, and read the event study it gives you</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> <a href="Difference-in-Differences-and-Parallel-Trends.html">Lesson 3</a> (the 2x2 DiD, <code>lm(y ~ treat*post)</code>, and parallel trends). You can fit <code>lm</code>, read its coefficients, and subset a data frame in base R.</p>
+<div class="lesson-widget" data-widget-type="did-parallel" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>When treatment comes in waves</h2>
+
+<p>Here is our running example for the whole lesson. <strong>Northwind</strong>, a grocery chain, launches a customer loyalty program, but not everywhere at once. It pilots in one set of regions first, expands to a second set two years later, and holds a third set back as a comparison. Call them the <strong>early</strong> cohort (60 regions, program on in year 3), the <strong>late</strong> cohort (60 regions, year 5), and the <strong>never</strong> cohort (60 regions, no program in our window). The outcome is average weekly revenue per store.</p>
+
+<p>We build the panel here so the numbers are ours to check. Each region gets its own baseline revenue level, revenue drifts up 1 unit a year for everyone, and the loyalty program adds a lift that <strong>grows</strong> the longer it has been running: +2 in its launch year, +4 the next year, +6 the year after. That growth is the detail that will matter most.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+years      &lt;- 1:6
+per_cohort &lt;- 60
+adopt_of   &lt;- c(early = 3, late = 5, never = Inf)   # year each cohort switches the program on
+
+region &lt;- data.frame(
+  region = 1:(3 * per_cohort),
+  cohort = rep(c(&quot;early&quot;, &quot;late&quot;, &quot;never&quot;), each = per_cohort)
+)
+region$adopt &lt;- adopt_of[region$cohort]
+region$base  &lt;- rnorm(nrow(region), mean = 50, sd = 4)   # each region's own revenue level
+
+panel &lt;- expand.grid(region = region$region, year = years)
+panel &lt;- merge(panel, region, by = &quot;region&quot;)
+panel$treated &lt;- as.integer(panel$year &gt;= panel$adopt)                          # program live this year?
+panel$evt     &lt;- ifelse(is.finite(panel$adopt), panel$year - panel$adopt, NA)   # years since launch
+panel$effect  &lt;- ifelse(panel$treated == 1, 2 * (panel$evt + 1), 0)             # +2 at launch, growing +2/yr
+panel$y       &lt;- panel$base + 1 * (panel$year - 1) + panel$effect + rnorm(nrow(panel), 0, 2)
+
+table(cohort = region$cohort, adopts_in_year = region$adopt)
+#&gt;        adopts_in_year
+#&gt; cohort   3  5 Inf
+#&gt;   early 60  0   0
+#&gt;   late   0 60   0
+#&gt;   never  0  0  60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plotting each cohort's average revenue over time makes the staggered shape obvious. Watch where each line bends upward.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+traj &lt;- aggregate(y ~ year + cohort, panel, mean)   # average revenue per cohort per year
+p &lt;- ggplot(traj, aes(year, y, colour = cohort)) +
+  geom_vline(xintercept = c(3, 5), linetype = &quot;dashed&quot;) +
+  geom_line(linewidth = 1) + geom_point(size = 2) +
+  labs(x = &quot;year&quot;, y = &quot;avg weekly revenue per store ($000s)&quot;,
+       colour = &quot;cohort&quot;, title = &quot;Three cohorts, two adoption dates&quot;)
+print(p)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The early line (dashed marker at year 3) breaks upward first and keeps accelerating as its lift compounds. The late line lifts off at year 5. The never line just drifts along the shared trend. Three groups, two switch-on dates: that is staggered adoption, and a single before/after split cannot describe it.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The natural generalization</div>
+<h2>Two-way fixed effects, and a nasty surprise</h2>
+
+<p>With many units and many periods, you cannot write one <code>post</code> indicator. The standard extension is <strong>two-way fixed effects</strong>: give every region its own intercept, give every year its own intercept, and let one coefficient carry the treatment.</p>
+
+<p>\[ Y_{it} = \alpha_i + \lambda_t + \beta\, D_{it} + \varepsilon_{it} \]</p>
+
+<p>Reading each symbol in plain words: \(Y_{it}\) is revenue for region \(i\) in year \(t\); \(\alpha_i\) is the <strong>region fixed effect</strong>, that region's own baseline (the <code>factor(region)</code> term); \(\lambda_t\) is the <strong>year fixed effect</strong>, whatever moved every region that year (the <code>factor(year)</code> term); \(D_{it}\) is 1 when region \(i\) has the program running in year \(t\) and 0 otherwise (our <code>treated</code> column); \(\beta\) is the single number everyone reads as "the effect"; and \(\varepsilon_{it}\) is noise. It looks like an honest generalization of <code>treat*post</code>, and for decades it was the default. Let us fit it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">twfe &lt;- lm(y ~ factor(region) + factor(year) + treated, data = panel)
+round(coef(twfe)[&quot;treated&quot;], 2)
+#&gt; treated
+#&gt;    2.89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>TWFE says the loyalty program is worth about <strong>+2.89</strong> in weekly revenue. Now the advantage of building the data ourselves: we know the true answer. The real average effect across every region-year that actually had the program running is just the mean of the lift we planted.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">true_att &lt;- mean(panel$effect[panel$treated == 1])   # we know the truth: we built it
+round(true_att, 2)
+#&gt; [1] 4.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The truth is <strong>+4.33</strong>. TWFE reported <strong>+2.89</strong>, understating the real effect by a third. Nothing is wrong with the data, the sample is large, and parallel trends hold by construction (every cohort shares the same year trend). The estimator itself is biased.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">This is not sampling noise you can average away with more regions. It is a structural bias in TWFE that appears specifically when units adopt at different times and the treatment effect changes over time. Find out why before you ever trust a staggered <code>treated</code> coefficient.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Where did the third go?</h2>
+
+<p>TWFE returned +2.89 when the true average effect was +4.33, on clean, large, parallel-trending data. What is the most likely source of the gap?</p>
+<section class="exercise" data-exercise-id="Staggered-DiD-and-the-Negative-Weights-Problem-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The cohorts started at different baseline revenue levels, so parallel trends is violated and the estimate is biased</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">With only 60 regions per cohort the sample is too small; thousands of regions would close the gap</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">To estimate the late cohort's effect, TWFE ends up using the already-treated early cohort as a control, and that "control" is still rising</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. TWFE has no never-treated-only rule. When the late cohort switches on, the machinery compares it to whatever else is changing, including the early cohort, whose effect is still growing. That contaminated comparison is what drags the estimate down.</div><div class="lesson-qfb lesson-qfb-no">This is bias, not variance. More regions would tighten the estimate around +2.89, not move it toward +4.33. You cannot average away a systematic error.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">Why it happens</div>
+<h2>TWFE is an average of every 2x2 you can build</h2>
+
+<p>Andrew Goodman-Bacon proved the exact anatomy in 2021. The single TWFE coefficient is a weighted average of all the simple two-group, two-period DiDs you can form between your timing cohorts. With early, late and never cohorts, four kinds of 2x2 go into the blend:</p>
+
+<p>The first three are fine. The fourth is the troublemaker. When the late cohort finally switches on, one of the comparisons TWFE forms uses the <strong>early cohort as the control</strong>, even though the early cohort is already treated and its effect is still climbing.</p>
+
+<p>De Chaisemartin and D'Haultfoeuille wrote the same failure a different way. TWFE is a weighted sum of the individual treatment effects,</p>
+
+<p>\[ \hat\beta_{\text{TWFE}} = \sum_{i,t} w_{it}\, \tau_{it}, \qquad \sum_{i,t} w_{it} = 1, \]</p>
+
+<p>where \(\tau_{it}\) is region \(i\)'s true effect in year \(t\) and \(w_{it}\) is the weight TWFE puts on it. The catch: some of those weights \(w_{it}\) are <strong>negative</strong>. That is the negative-weights problem. When weights go negative, a program that helped every single region can still produce a small, or even negative, \(\hat\beta\).</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Early vs never","sub":"clean: the never-adopting regions are a valid, always-untreated control"},{"title":"Late vs never","sub":"clean: never-treated is untreated the whole window"},{"title":"Early vs late, before the late cohort adopts","sub":"clean: while it waits, the late cohort is a not-yet-treated control"},{"title":"Late vs early, after the early cohort adopts","sub":"forbidden: the early cohort is already treated, so its still-changing outcome is not a clean control"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The crux</div>
+<h2>The forbidden comparison, computed</h2>
+
+<p>Talk is cheap; let us actually build the fourth 2x2 and watch it go negative. Take the two years framing the late cohort's adoption. <strong>Before</strong> is years 3 and 4, when the early cohort is already treated but the late cohort is not yet. <strong>After</strong> is years 5 and 6, when both are treated. Treat the late cohort as the "treated" group and the early cohort as the "control", exactly the forbidden comparison.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">before &lt;- panel$year %in% c(3, 4)   # early already treated, late NOT yet
+after  &lt;- panel$year %in% c(5, 6)   # both treated now
+avg &lt;- function(coh, when) mean(panel$y[panel$cohort == coh &amp; when])
+
+late_change  &lt;- avg(&quot;late&quot;,  after) - avg(&quot;late&quot;,  before)
+early_change &lt;- avg(&quot;early&quot;, after) - avg(&quot;early&quot;, before)
+round(c(late_change  = late_change,
+        early_change = early_change,
+        forbidden_did = late_change - early_change), 2)
+#&gt;   late_change  early_change forbidden_did
+#&gt;          4.94          5.91         -0.97</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the double difference: <strong>-0.97</strong>. This 2x2 says the loyalty program <em>reduced</em> revenue, when in truth it raised it for the late cohort too. The arithmetic explains itself. The late cohort's change (+4.94) is its real launch lift plus the shared trend. But the early cohort's change (+5.91) is even larger, because over those same two years its effect grew from the +2/+4 range into the +6/+8 range. Subtracting a control that is itself accelerating overshoots, and the difference flips negative.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The forbidden 2x2 is biased only because the effect is <strong>dynamic</strong>. If the loyalty lift were a flat +2 forever, the early cohort's change would carry no extra treatment growth, it would cancel cleanly, and even this comparison would return the truth. Staggered timing alone is survivable. Staggered timing plus a changing effect is what poisons TWFE.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Build a comparison that is not forbidden</h2>
+
+<p>The fix is a discipline: never let an already-treated unit serve as a control. Compare each treated cohort only against units that are clean, the <strong>never-treated</strong> regions. Build the honest 2x2 for the late cohort's first treated year (it adopts in year 5, so year 4 is its last untreated year). Fill in the control cohort.</p>
+<section class="exercise" data-exercise-id="Staggered-DiD-and-the-Negative-Weights-Problem-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="never"><textarea class="lesson-tryit-input" spellcheck="false">cell &lt;- function(coh, yr) mean(panel$y[panel$cohort == coh &amp; panel$year == yr])
+att_5_5 &lt;- (cell(&quot;late&quot;, 5) - cell(&quot;late&quot;, 4)) -
+           (cell(&quot;____&quot;,  5) - cell(&quot;____&quot;,  4))    # the clean control cohort
+round(att_5_5, 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the honest comparison. Against the never-treated regions the late cohort's first-year lift comes out near +2.78, close to the +2 we planted, with no already-treated control to contaminate it.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the never cohort. Only the never-treated regions are untreated in BOTH year 4 and year 5, so their change is a clean stand-in for what the late cohort would have done without the program.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">cell &lt;- function(coh, yr) mean(panel$y[panel$cohort == coh &amp; panel$year == yr])
+att_5_5 &lt;- (cell(&quot;late&quot;, 5) - cell(&quot;late&quot;, 4)) -
+           (cell(&quot;never&quot;, 5) - cell(&quot;never&quot;, 4))
+round(att_5_5, 2)
+#&gt; [1] 2.78</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Estimate each group-time effect, then aggregate</h2>
+
+<p>That clean 2x2 is one <strong>group-time average treatment effect</strong>, written \(\widehat{\text{ATT}}(g, t)\): the effect for the cohort that adopted in year \(g\), measured in year \(t\), using its own pre-adoption baseline (year \(g-1\)) and a never-treated control.</p>
+
+<p>\[ \widehat{\text{ATT}}(g, t) = \big[\bar Y_{g,t} - \bar Y_{g,g-1}\big] - \big[\bar Y_{C,t} - \bar Y_{C,g-1}\big] \]</p>
+
+<p>Here \(\bar Y_{g,t}\) is the mean outcome of cohort \(g\) in year \(t\), \(g-1\) is that cohort's last untreated year, and \(C\) is the never-treated control. This is the estimator of Callaway and Sant'Anna: compute one honest ATT for every cohort in every year it was treated, never reusing a treated unit as a control, then average them into an overall effect.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gt &lt;- function(g, t) {                        # ATT for cohort g at year t, never-treated control
+  who &lt;- if (g == 3) &quot;early&quot; else &quot;late&quot;
+  m &lt;- function(coh, yr) mean(panel$y[panel$cohort == coh &amp; panel$year == yr])
+  (m(who, t) - m(who, g - 1)) - (m(&quot;never&quot;, t) - m(&quot;never&quot;, g - 1))
+}
+cells &lt;- rbind(data.frame(g = 3, t = 3:6),    # early: treated in years 3, 4, 5, 6
+               data.frame(g = 5, t = 5:6))    # late:  treated in years 5, 6
+cells$att &lt;- mapply(gt, cells$g, cells$t)
+round(mean(cells$att), 2)                     # aggregate: average over all treated group-time cells
+#&gt; [1] 4.54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The clean estimate is <strong>+4.54</strong>, right on the true +4.33 and worlds away from TWFE's +2.89. Same data, same parallel trends, one rule changed: controls must be genuinely untreated. That single discipline is the whole difference between a biased answer and an honest one.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Read the dynamics</div>
+<h2>The event study TWFE hid</h2>
+
+<p>Because every ATT is tagged with a cohort and a year, you can line them up by <strong>event time</strong>, the number of years since a cohort adopted, and see how the effect evolves. This is the event study, and it recovers the exact growth pattern we planted.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cells$e &lt;- cells$t - cells$g                  # event time: years since this cohort adopted
+es &lt;- aggregate(att ~ e, cells, mean)         # average clean ATT at each event time
+print(round(es, 2))
+#&gt;   e  att
+#&gt; 1 0 2.26
+#&gt; 2 1 4.26
+#&gt; 3 2 6.22
+#&gt; 4 3 7.96
+
+p_es &lt;- ggplot(es, aes(e, att)) +
+  geom_hline(yintercept = 0, colour = &quot;grey70&quot;) +
+  geom_line(linewidth = 1) + geom_point(size = 2.5) +
+  labs(x = &quot;years since adoption&quot;, y = &quot;estimated effect (ATT)&quot;,
+       title = &quot;The dynamic effect TWFE averaged away&quot;)
+print(p_es)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A clean, rising staircase: about +2.3 in the launch year, +4.3, +6.2, +8.0. The loyalty program did not just help; it helped <strong>more every year</strong>. That is exactly the growth TWFE could not see, because the single coefficient crushes a whole trajectory into one biased number. Reporting one figure for a dynamic effect is a mistake even when it is not biased; the event study is what a decision-maker actually needs.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When is plain TWFE actually safe?</h2>
+
+<p>You will still meet two-way fixed effects everywhere, and it is not always wrong. In which situation does a single staggered TWFE coefficient recover the true average effect without this bias?</p>
+<section class="exercise" data-exercise-id="Staggered-DiD-and-the-Negative-Weights-Problem-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Whenever the panel contains a never-treated group, since TWFE can then use it as a control</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">When either all units adopt at the same time, or the treatment effect is constant over time</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">As long as parallel trends holds for the untreated potential outcomes</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A single adoption date is just the Lesson 3 2x2, with no already-treated controls to misuse. And if the effect never changes, an already-treated control has a flat, cancelable effect, so even the forbidden 2x2 returns the truth. Staggered timing plus a changing effect is the specific danger.</div><div class="lesson-qfb lesson-qfb-no">This is the trap of the lesson. Parallel trends held perfectly in our data, and TWFE was still biased. Parallel trends licenses the honest group-time estimator; it does not rescue TWFE from negative weights under staggered timing.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take staggered DiD further:</p>
+
+<ul>
+
+<li><a href="https://www.nber.org/papers/w25018">Goodman-Bacon (2021), Difference-in-Differences with Variation in Treatment Timing (NBER)</a> - the decomposition behind the forbidden 2x2 you computed, in full.</li>
+
+<li><a href="https://www.aeaweb.org/articles?id=10.1257/aer.20181169">de Chaisemartin and D'Haultfoeuille (2020), Two-Way Fixed Effects with Heterogeneous Effects (AER)</a> - the theorem that TWFE is a weighted sum of effects with possibly-negative weights.</li>
+
+<li>[Callaway and Sant'Anna, the <code>did</code> R package](https://bcallaway11.github.io/did/) - the group-time ATT estimator you built by hand, production-ready with standard errors and event studies.</li>
+
+<li><a href="https://arxiv.org/abs/2201.01194">Roth, Sant'Anna, Bilinski and Poet (2023), What's Trending in Difference-in-Differences? (arXiv)</a> - the modern synthesis of the problem and the competing fixes.</li>
+
+<li><a href="https://mixtape.scunning.com/09-difference_in_differences">Cunningham, Causal Inference: The Mixtape, DiD chapter</a> - a from-scratch walk-through of the Bacon decomposition with runnable R.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You watched a trusted estimator lie. Two-way fixed effects returned +2.89 for a program whose true average effect was +4.33, not from noise but from structure: under staggered adoption it quietly uses already-treated units as controls, and when the effect is still growing, that forbidden comparison (you computed it: -0.97) drags the answer down through negative weights. The repair was a single discipline. Compare each cohort only to genuinely untreated units, estimate one honest ATT per group and year, and aggregate; that recovered +4.54 and, as an event study, the full rising path +2.3, +4.3, +6.2, +8.0 that the single coefficient had crushed flat.</p>
+
+<p>Next, Lesson 5: Regression Discontinuity. When no group is left untreated at all, but treatment is switched by a sharp cutoff on some running variable, a passing grade, an income threshold, a vote share just over 50%, you can still read a causal effect from the jump right at the line. You will fit it, and learn how far from the cutoff you are allowed to look.</p>
+</section>
+
+{% endraw %}
