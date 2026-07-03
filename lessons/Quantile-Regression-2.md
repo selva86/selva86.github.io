@@ -10,11 +10,11 @@ mathjax: true
 lesson_access: "free"
 course_id: "ds-reg-glm-expert"
 course_title: "Advanced Regression and GLMs"
-course_lesson: "3"
-course_total: "13"
+course_lesson: "1"
+course_total: "1"
 course_landing: "R-Advanced-Regression-Course.html"
-course_next: "Ridge-Regression-and-Shrinkage.html"
-course_prev: "Robust-Regression-MM-and-Breakdown.html"
+course_next: ""
+course_prev: ""
 ---
 
 === step === cover
