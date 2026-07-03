@@ -1,0 +1,385 @@
+---
+title: "Robustness and Drift Lesson 4: Out-of-Distribution and Novelty Detection"
+description: "A model answers even for inputs unlike anything it trained on. Flag them with a Mahalanobis novelty score, a chi-square cutoff, and the false-alarm tradeoff."
+keywords: "out-of-distribution detection, novelty detection, Mahalanobis distance, anomaly detection, chi-square threshold, OOD, false positive rate, model monitoring, R"
+mathjax: true
+webr: true
+curriculum_id: "6.190.4"
+post_type: "LESSON"
+course_id: "ds-robustness-drift"
+course_title: "Robustness, Drift and Distribution Shift"
+course_lesson: "4"
+course_total: "7"
+course_landing: "R-Robustness-and-Drift-Course.html"
+course_next: "Group-Robustness-and-DRO.html"
+course_prev: "Adapting-to-Drift-Reweighting-and-Retraining.html"
+lesson_access: "pro"
+catalog_blurb: "Flag inputs unlike anything the model trained on, before you trust its score."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 7</div>
+<h2>Out-of-Distribution and Novelty Detection</h2>
+
+<p>Lessons 2 and 3 watched the whole stream of transactions. The Population Stability Index and the KS test asked "has the population moved?", and when it had, you reweighted or retrained. Those tools answer a question about the crowd.</p>
+
+<p>This lesson asks a sharper question about a single face in that crowd: is <em>this one</em> transaction unlike anything Nadia's fraud model ever trained on? A drift alarm can stay silent while one genuinely strange input slips through, and the model will score it anyway, with a confidence it has not earned.</p>
+
+<p>Drag the cutoff in the panel below. Two piles of novelty scores sit side by side, ordinary transactions and genuinely strange ones, and a single line decides which get flagged. Move it and watch two numbers fight each other: false alarms on the left, catches on the right.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Score how unusual a single input is with the <strong>Mahalanobis distance</strong>, and say why it beats plain straight-line distance</li>
+
+<li>Turn that score into a flag with a <strong>chi-square threshold</strong>, and read the false-positive rate a cutoff buys</li>
+
+<li>Navigate the <strong>false-positive vs detection-rate tradeoff</strong> the threshold controls</li>
+
+<li>Know when the method <strong>breaks</strong>, and why a flag means "do not trust the model here", not "this is fraud"</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you finished <a href="Adapting-to-Drift-Reweighting-and-Retraining.html">Lesson 3</a>, you can fit and read a classifier, and you know roughly what a covariance and a normal distribution are.</p>
+<div class="lesson-widget" data-widget-type="ood-detect" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>A model will answer anything you ask it</h2>
+
+<p>Here is the uncomfortable truth about Nadia's fraud model, or any trained classifier: it never says "I have never seen anything like this." Hand it any row of numbers and it returns a crisp probability, whether that row looks like its training data or like nothing on Earth.</p>
+
+<p>Let us watch it happen. We rebuild Nadia's world from scratch (each lesson runs in its own R session). Legitimate customers show a pattern: the longer an account has existed, the more it tends to spend, because trust and spending grow together. So <code>account_age</code> and <code>amount</code> move together, a correlation of about 0.8.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 2000
+account_age &lt;- pmax(round(rnorm(n, 500, 150)), 1)                        # days since the account signed up
+amount      &lt;- pmax(round(90 + 0.34 * account_age + rnorm(n, 0, 40)), 5) # dollars on this order
+train &lt;- data.frame(account_age = account_age, amount = amount)
+train$fraud &lt;- rbinom(n, 1, plogis(-3.2 - 0.004 * (account_age - 500) + 0.006 * (amount - 260)))
+round(c(cor = cor(train$account_age, train$amount), fraud_rate = mean(train$fraud)), 2)
+#&gt;        cor fraud_rate
+#&gt;       0.80       0.04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now train the fraud model and ask it about a transaction it has never seen the likes of: a brand-new account (120 days old) placing a large order ($360). Old accounts spend $360 all the time, and new accounts exist all the time, but a new account spending $360 almost never happens in the training data.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fraud_model &lt;- glm(fraud ~ account_age + amount, data = train, family = binomial)
+new_big &lt;- data.frame(account_age = 120, amount = 360)   # young account, large order
+round(predict(fraud_model, new_big, type = &quot;response&quot;), 3)
+#&gt;     1
+#&gt; 0.476</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model reports <strong>47.6% fraud</strong> for this transaction, twelve times its 4% base rate, and delivers that number with a completely straight face. But it is extrapolating a straight-line rule far outside anything it was fit on. Nothing in that <code>0.476</code> tells Nadia the model is guessing.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A classifier always outputs a score; it has no built-in sense of "this input is unlike my training." Novelty detection is the missing signal: a separate check that asks whether an input is close enough to the training data for the prediction to be trusted at all.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The score</div>
+<h2>How far from normal? The Mahalanobis distance</h2>
+
+<p>To flag the strange transaction, put a number on <em>how unusual</em> it is. The natural idea: measure how far the new point sits from the cloud of training points. But "far" needs care, because straight-line (Euclidean) distance to the center is wrong twice over.</p>
+
+<p>First, the features live on different scales: account age runs into the hundreds of days, order amounts into the hundreds of dollars, so a raw distance is dominated by whichever number happens to be bigger. Second, and more subtly, the features are <strong>correlated</strong>. Points hug a diagonal ridge (old-and-big, young-and-small). A point can sit close to the center yet fall far off that ridge, and it is exactly those off-the-ridge points that are novel.</p>
+
+<p>The <strong>Mahalanobis distance</strong> fixes both at once. Write \(x\) for the new point (a vector of its feature values), \(\mu\) for the mean of the training data (the center of the cloud), and \(\Sigma\) for its covariance matrix (a small table holding each feature's variance and the covariance between them). The squared Mahalanobis distance is</p>
+
+<p>\[ D^2(x) = (x - \mu)^{\top}\, \Sigma^{-1}\, (x - \mu). \]</p>
+
+<p>The inverse covariance \(\Sigma^{-1}\) is the whole trick. It rescales every direction by how much the training data actually spreads that way and rotates the axes onto the cloud's own diagonal, so \(D^2\) measures distance in "standard deviations along the cloud's natural shape." A point one ridge-step out scores small; a point that breaks the correlation scores large. (Plain Euclidean distance is the special case \(\Sigma = I\): all features independent and unit-scaled.)</p>
+
+<p>In R, <code>mahalanobis()</code> does the algebra. First estimate the center and shape:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">feats &lt;- c(&quot;account_age&quot;, &quot;amount&quot;)
+mu &lt;- colMeans(train[, feats])   # the centre of the training cloud
+S  &lt;- cov(train[, feats])        # variances on the diagonal, the covariance off it
+round(S)
+#&gt;             account_age amount
+#&gt; account_age       24203   8436
+#&gt; amount             8436   4651</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That off-diagonal <code>8436</code> is the positive covariance: age and amount rise together. Now score two transactions, a routine one and our young-account-big-order one:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mahal &lt;- function(df) mahalanobis(df[, feats], center = mu, cov = S)   # squared Mahalanobis distance
+probe &lt;- data.frame(account_age = c(550, 120), amount = c(280, 360),
+                    row.names = c(&quot;routine&quot;, &quot;young+big&quot;))
+round(cbind(probe, D2 = mahal(probe)), 2)
+#&gt;           account_age amount    D2
+#&gt; routine           550    280  0.11
+#&gt; young+big         120    360 37.30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The routine transaction scores <code>0.11</code>; the young-account-big-order one scores <code>37.30</code>, hundreds of times larger. Compare that to what a scale-corrected but correlation-blind straight-line distance would have said:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sds &lt;- sqrt(diag(S))
+zsq &lt;- sweep(sweep(probe[, feats], 2, mu), 2, sds, &quot;/&quot;)^2   # standardized coordinates, squared
+round(cbind(scaled_euclidean = sqrt(rowSums(zsq)), mahalanobis = sqrt(mahal(probe))), 2)
+#&gt;           scaled_euclidean mahalanobis
+#&gt; routine               0.45        0.34
+#&gt; young+big             2.84        6.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Straight-line distance rates the strange point a mild <code>2.84</code> standard deviations out, a shrug. Mahalanobis, which knows age and amount should move together, rates it <code>6.11</code>, a genuine alarm. The picture shows why: the point lands inside each axis' range but well outside the joint ellipse.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+probe$label &lt;- c(&quot;routine&quot;, &quot;young + big&quot;)
+ggplot(train, aes(account_age, amount)) +
+  geom_point(colour = &quot;grey72&quot;, alpha = 0.5, size = 0.9) +
+  stat_ellipse(type = &quot;norm&quot;, level = 0.99, colour = &quot;steelblue&quot;, linewidth = 1) +
+  geom_point(data = probe, aes(account_age, amount), colour = &quot;firebrick&quot;, size = 3) +
+  geom_text(data = probe, aes(label = label), colour = &quot;firebrick&quot;, vjust = -1, size = 3.4) +
+  labs(title = &quot;The training cloud and its 99% ellipse&quot;,
+       subtitle = &quot;the young+big point sits inside each axis range but outside the joint ellipse&quot;,
+       x = &quot;account age (days)&quot;, y = &quot;order amount ($)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why is it flagged?</h2>
+
+<p>The <code>young+big</code> transaction is a 120-day-old account (on the young side, but real accounts that age exist) placing a $360 order (an amount older accounts spend every day). Neither value is off the charts on its own. So why does the Mahalanobis detector score it a glaring <code>37.30</code>?</p>
+<section class="exercise" data-exercise-id="Out-of-Distribution-and-Novelty-Detection-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because Mahalanobis judges the pair against the training correlation: new accounts almost never spend that much, so the combination is far out even though each value alone is common</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because $360 is an unusually large order that any outlier check would catch</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because a 120-day-old account is inherently suspicious</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The inverse covariance encodes "age and amount rise together." Given how young this account is, $360 is astronomically more than such accounts ever spend, so the joint point breaks the ridge and scores high, though a per-feature range check waves both values through.</div><div class="lesson-qfb lesson-qfb-no">Account age alone is not the flag. The same young account placing a small, ridge-consistent order would score low. Mahalanobis reacts to the joint pattern, not to either feature by itself.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The cutoff</div>
+<h2>From a distance to a flag: the chi-square line</h2>
+
+<p>A score of <code>37.30</code> is clearly high and <code>0.11</code> is clearly low, but production needs a rule, not a judgment call: flag the transaction when \(D^2\) exceeds some threshold. How far is too far?</p>
+
+<p>Here a clean fact rescues you. If the training data is roughly multivariate normal (one elliptical Gaussian blob), then the squared Mahalanobis distance of a genuine inlier follows a <strong>chi-square distribution</strong> with degrees of freedom equal to the number of features:</p>
+
+<p>\[ D^2 \;\sim\; \chi^2_{p}, \qquad p = \text{number of features}. \]</p>
+
+<p>That gives you a principled cutoff for free. Pick a percentile of \(\chi^2_p\), and the fraction of genuine inliers that land beyond it is exactly one minus that percentile, which is your <strong>false-positive rate</strong>: the share of ordinary transactions you will wrongly flag. <code>qchisq()</code> returns the cutoff.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">thr &lt;- qchisq(0.99, df = 2)                      # 99th percentile of chi-square, p = 2 features
+round(c(threshold = thr, false_positive_rate = mean(mahal(train) &gt; thr)), 3)
+#&gt;           threshold false_positive_rate
+#&gt;               9.210               0.007</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 99th-percentile cutoff is <code>9.21</code>, and it wrongly flags <code>0.007</code> of the real training data, about the 1% the percentile promised. (A touch under, because account age is not perfectly Gaussian, so the chi-square approximation is close but not exact. The cutoff is a principled starting point, not a guarantee.)</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The degrees of freedom is the feature count \(p\), not the sample size. With two features here, <code>df = 2</code>; with ten features you would use <code>df = 10</code>. Get that wrong and every threshold is off.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Set the cutoff for a false-alarm budget</h2>
+
+<p>Nadia can tolerate wrongly flagging at most about <strong>1%</strong> of genuine transactions for review. Fill in the chi-square percentile that delivers that false-positive rate, then read the realized rate off the training data.</p>
+<section class="exercise" data-exercise-id="Out-of-Distribution-and-Novelty-Detection-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="0\.99"><textarea class="lesson-tryit-input" spellcheck="false">thr &lt;- qchisq(____, df = 2)
+mean(mahal(train) &gt; thr)      # should land near 0.01</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: the 99th percentile leaves about 1% of genuine inliers above the line, so qchisq(0.99, df = 2) is the cutoff for a 1% false-positive budget. The realized rate here is 0.007, a hair under, because the data is not perfectly Gaussian.</span><span class="lesson-tryit-fb lesson-tryit-no">A 1% false-positive rate means you keep the lowest 99% of genuine scores below the line: use the 99th percentile, qchisq(0.99, df = 2). The 0.95 cutoff would flag about 5%.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">thr &lt;- qchisq(0.99, df = 2)   # 99th percentile -&gt; about 1% of inliers exceed it
+mean(mahal(train) &gt; thr)
+#&gt; [1] 0.007</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">The tradeoff</div>
+<h2>Strict misses, loose cries wolf</h2>
+
+<p>The threshold is a single dial, and turning it trades two things that pull against each other. Tighten it (a high percentile) and you almost never bother an analyst with a false alarm, but you also let subtle novelties slip through unflagged. Loosen it and you catch everything odd, at the cost of drowning the team in false positives on perfectly ordinary transactions.</p>
+
+<p>There is no "correct" setting, only the balance that fits the cost of a missed novelty against the cost of a wasted review. Drag the cutoff below between loose, medium and strict, and read both rates at once: the false-positive rate on genuine inliers, and the detection rate on true out-of-distribution points.</p>
+<div class="lesson-widget" data-widget-type="ood-detect" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The tradeoff, measured</div>
+<h2>What the dial costs, on Nadia's data</h2>
+
+<p>Feel is good; numbers are better. Take a batch of genuinely novel transactions, newer accounts spending well above what their age predicts, and sweep the same three cutoffs across them. For each, record how many real inliers we wrongly flag (false positives) and how many true novelties we catch (detection).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+novel &lt;- data.frame(account_age = rnorm(500, 260, 55),   # newer accounts...
+                    amount      = rnorm(500, 310, 45))    # ...spending well above their ridge
+sapply(c(loose = 0.95, medium = 0.99, strict = 0.999), function(p) {
+  cut &lt;- qchisq(p, df = 2)
+  c(false_positive = mean(mahal(train) &gt; cut),
+    detection      = mean(mahal(novel) &gt; cut))
+})
+#&gt;                loose medium strict
+#&gt; false_positive 0.052  0.007  0.001
+#&gt; detection      0.830  0.674  0.424</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two rows together. Going from loose to strict, false positives fall from 5.2% to 0.1%, a real win for the analysts' inbox. But detection falls with it, from 83% down to 42%: the strict cutoff quietly lets more than half the true novelties through. Every step tighter buys fewer false alarms by paying in missed catches. That is the whole decision, and it belongs to whoever owns the cost of each error, not to a default.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know the edges</div>
+<h2>Where this breaks, and what a flag really means</h2>
+
+<p>Mahalanobis novelty detection rests on one strong assumption: the training data is a single elliptical Gaussian blob. When that holds it is fast, needs no labels, and comes with a principled chi-square cutoff. When it does not, it fails quietly, so know the edges.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Failure mode</th>
+<th>What goes wrong</th>
+<th>Reach for instead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Several clusters (multimodal)</td>
+<td>the mean sits between clusters, in a gap where no real data lives, so genuine points look "far"</td>
+<td><strong>kNN distance</strong> to training points, or a per-cluster / mixture model</td>
+</tr>
+<tr>
+<td>Non-elliptical shape</td>
+<td>curved or heavy-tailed data breaks the single-ellipse picture</td>
+<td><strong>isolation forest</strong>, kernel density, or a deep reconstruction score</td>
+</tr>
+<tr>
+<td>Many features (high-dim)</td>
+<td>the covariance is hard to estimate and everything looks equidistant</td>
+<td>dimensionality reduction first, or a tree-based detector</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A flag is not a fraud verdict. Out-of-distribution means only that the model has no basis for its prediction here, not that the input is malicious. Our <code>young+big</code> transaction may be a real customer behaving in a new way. Auto-declining every flagged transaction as fraud punishes exactly your most novel, and sometimes best, customers.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Treat a novelty flag as an <strong>abstain signal</strong>: the model should decline to decide, and the input should route to a human, a fallback rule, or a request for more information. The value of OOD detection is knowing <em>when not to trust the score</em>, which is precisely what a bare classifier can never tell you.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The "no false alarms" mandate</h2>
+
+<p>Nadia's manager issues an order: "Set the novelty cutoff so strict we never raise a false alarm, and auto-decline anything it does flag as fraud." Nadia pushes back on both halves. What is the strongest correction?</p>
+<section class="exercise" data-exercise-id="Out-of-Distribution-and-Novelty-Detection-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The plan is fine: the strictest cutoff wastes the least analyst time, and a flagged input is by definition anomalous, so auto-declining it is safe</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Only the auto-decline is wrong; a near-zero false-positive cutoff is otherwise the right default because false alarms are the main cost</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Both halves are wrong: a near-zero-false-alarm cutoff also collapses the detection rate, and an OOD flag means "the model has no basis here, so escalate", not "this is fraud, auto-decline"</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The threshold trades false positives against detection, so demanding zero false alarms guarantees you miss most novelties. And a flag is an abstain signal, so route it to a human or a fallback rather than auto-rejecting a possibly legitimate new customer.</div><div class="lesson-qfb lesson-qfb-no">The cutoff half is also wrong: pushing false positives toward zero pushes detection down with it, so real novelties sail through unflagged. There is no free lunch on that dial.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1145/1541880.1541882">Chandola, Banerjee and Kumar (2009), Anomaly Detection: A Survey, ACM Computing Surveys</a> - the field map: how distance, density and model-based novelty methods relate.</li>
+
+<li><a href="https://arxiv.org/abs/1807.03888">Lee, Lee, Lee and Shin (2018), A Simple Unified Framework for Detecting Out-of-Distribution Samples and Adversarial Attacks</a> - the exact idea you built (Mahalanobis distance as a novelty score) applied inside deep networks.</li>
+
+<li><a href="https://arxiv.org/abs/1610.02136">Hendrycks and Gimpel (2017), A Baseline for Detecting Misclassified and Out-of-Distribution Examples in Neural Networks</a> - shows why a classifier's own confidence is not enough, motivating a separate detector.</li>
+
+<li><a href="https://doi.org/10.1109/ICDM.2008.17">Liu, Ting and Zhou (2008), Isolation Forest, IEEE ICDM</a> - the go-to alternative when your training data is not one Gaussian blob.</li>
+
+<li>[R <code>mahalanobis</code> (stats package docs)](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/mahalanobis.html) - the function used here, with its exact arguments.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You can now ask the sharp, single-input question the drift monitors could not. Score how unusual a transaction is with the <strong>Mahalanobis distance</strong>, which measures distance in the training cloud's own shape so it catches points that break the correlation even when each feature looks ordinary. Turn that score into a flag with a <strong>chi-square cutoff</strong>, whose percentile sets your false-positive rate directly. Tune the <strong>false-positive vs detection-rate tradeoff</strong> to the real cost of each error. And treat a flag as an <strong>abstain signal</strong>, not a fraud verdict, while remembering the method assumes one Gaussian blob and breaks on multimodal or high-dimensional data.</p>
+
+<p>So far every failure has been about the data moving or an input being strange. Next, Lesson 5: Group Robustness and DRO. A model can post excellent <em>average</em> accuracy while quietly failing an entire subgroup, and a spurious feature that helps most users can reverse for a minority. You will measure worst-group accuracy and meet distributionally robust optimization, which trades a little average accuracy to lift the group the average was hiding.</p>
+</section>
+
+{% endraw %}
