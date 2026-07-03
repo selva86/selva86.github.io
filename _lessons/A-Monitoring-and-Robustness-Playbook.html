@@ -1,0 +1,424 @@
+---
+title: "Robustness and Drift Lesson 7: A Monitoring and Robustness Playbook"
+description: "A deployment playbook for a live model: what to log, which drift, out-of-distribution, worst-group and adversarial alarms to wire, and when to roll back."
+keywords: "model monitoring, ML in production, data drift, distribution shift, worst-group accuracy, retraining trigger, automatic rollback, adversarial robustness, PSI, R"
+mathjax: true
+webr: true
+curriculum_id: "6.190.7"
+post_type: "LESSON"
+course_id: "ds-robustness-drift"
+course_title: "Robustness, Drift and Distribution Shift"
+course_lesson: "7"
+course_total: "7"
+course_landing: "R-Robustness-and-Drift-Course.html"
+course_next: ""
+course_prev: "Adversarial-Robustness.html"
+lesson_access: "pro"
+catalog_blurb: "What to log, which alarms to wire, and when to roll back."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 7</div>
+<h2>A Monitoring and Robustness Playbook</h2>
+
+<p>Six lessons, six ways a deployed model quietly fails: the inputs drift, a strange request arrives, a subgroup is sacrificed to the average, an adversary aims at the boundary. You now know how to <em>detect</em> each one. This final lesson turns that pile of detectors into a single thing you can actually run in production: a <strong>playbook</strong>.</p>
+
+<p>Meet Nadia one last time. Her fraud model, <code>fraud-v3</code>, is live, scoring every transaction the moment it happens. But "live" is not "done." The true fraud labels for today's transactions will not arrive for weeks, an adversary is probing the filter right now, and a new customer segment is behaving in ways the model never saw in training. Nadia needs a plan for what to watch, and, when something trips, a rule for who or what responds. The monitor below is where that plan begins: slide it forward and watch a single number climb until it trips an alarm.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Specify <strong>what a live model must log</strong> so every downstream check is even possible</li>
+
+<li>Assemble the section's detectors into a <strong>layered alarm stack</strong>, and know each layer's cadence and blind spot</li>
+
+<li>Write a <strong>severity-to-response policy</strong>, and state precisely when an alarm should <strong>page a human</strong> versus <strong>roll back automatically</strong></li>
+
+<li>Run a <strong>pre-deploy gate</strong> that pairs a worst-group accuracy floor with an adversarial evasion ceiling before any model ships</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you finished Lessons 1 to 6 of this course, covering <a href="Kinds-of-Distribution-Shift.html">drift kinds</a>, <a href="Detecting-Distribution-Shift.html">detecting drift</a> (PSI), <a href="Adapting-to-Drift-Reweighting-and-Retraining.html">reweighting and retraining triggers</a>, <a href="Out-of-Distribution-and-Novelty-Detection.html">out-of-distribution detection</a>, <a href="Group-Robustness-and-DRO.html">group robustness</a>, and <a href="Adversarial-Robustness.html">adversarial robustness</a>. You can fit and read a logistic regression and read a control chart.</p>
+<div class="lesson-widget" data-widget-type="drift-monitor" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The foundation</div>
+<h2>What to log</h2>
+
+<p>Every check in this playbook reads from one place: the <strong>prediction log</strong>. If a field is not logged when a transaction is scored, it is gone, and no monitor can ever recover it. So the playbook starts before any alarm, with the humble question of what to write down for each scored request.</p>
+
+<p>Four things, and each earns its place:</p>
+
+<ol>
+
+<li><strong>The inputs</strong> the model actually saw (<code>amount</code>, <code>mrisk</code>). Drift and out-of-distribution checks compare these against training.</li>
+
+<li><strong>The prediction and its score</strong> (<code>pred</code>, <code>score</code>). The 0-to-1 score, not just the yes/no call, is what lets you watch confidence and calibration.</li>
+
+<li><strong>The model version and batch</strong> (<code>model</code>, <code>batch</code>). When you run two models or roll back, you must be able to say <em>which</em> model made a call and <em>when</em>.</li>
+
+<li><strong>A slot for the label</strong> (<code>label</code>), left empty now. The ground truth, was this transaction really fraud, arrives weeks later and is joined back on. Every performance metric waits on this join.</li>
+
+</ol>
+
+<p>Each lesson runs in its own R session, so we build Nadia's world from scratch: her training data, the deployed <code>fraud-v3</code> model fit on it, and one live week of scored, logged transactions. Notice the new-market segment sends larger baskets, and today's labels are all <code>NA</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+rule  &lt;- function(a, m) plogis(-1.6 + 1.4 * a + 1.3 * m)   # true fraud risk, fixed
+ntr   &lt;- 5000
+train &lt;- data.frame(amount = rnorm(ntr), mrisk = rnorm(ntr))   # standardized features
+train$fraud &lt;- rbinom(ntr, 1, rule(train$amount, train$mrisk))
+model &lt;- glm(fraud ~ amount + mrisk, family = binomial, data = train)   # deployed fraud-v3
+
+set.seed(40)
+n      &lt;- 4000
+region &lt;- sample(c(&quot;core&quot;, &quot;new_market&quot;), n, TRUE, c(0.8, 0.2))
+amount &lt;- rnorm(n, mean = ifelse(region == &quot;new_market&quot;, 1.7, 0.6))   # this week's live inputs
+mrisk  &lt;- rnorm(n, mean = 0.1)
+live   &lt;- data.frame(amount, mrisk, region)
+live$score &lt;- predict(model, live, type = &quot;response&quot;)
+log_week &lt;- data.frame(
+  batch = &quot;2026-W40&quot;, model = &quot;fraud-v3&quot;,
+  amount = round(live$amount, 2), mrisk = round(live$mrisk, 2), region = live$region,
+  pred  = as.integer(live$score &gt; 0.5),
+  score = round(live$score, 3),
+  label = NA_integer_)                       # true outcome confirmed weeks later
+head(log_week, 3)
+#&gt;      batch    model amount mrisk     region pred score label
+#&gt; 1 2026-W40 fraud-v3   1.95 -0.77       core    1 0.543    NA
+#&gt; 2 2026-W40 fraud-v3   1.95  1.46 new_market    1 0.952    NA
+#&gt; 3 2026-W40 fraud-v3   1.17  0.64       core    1 0.701    NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Logging is not paperwork, it is the whole game. A field you did not log is a check you cannot run. Log the inputs, the score, the model version, and reserve the slot for the late label, and every alarm below becomes possible.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Assembling the detectors</div>
+<h2>The layered alarm stack</h2>
+
+<p>A production monitor is not one test, it is a <strong>stack of layers</strong>, ordered by how fast they can speak. The fastest layers need no labels and fire within the hour; the sharpest layer needs labels and speaks weeks late. A real playbook runs all of them, because each catches what the others miss. Here is the whole section, arranged as a stack:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Layer</th>
+<th>Runs</th>
+<th>Needs labels?</th>
+<th>Catches</th>
+<th>From</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Out-of-distribution score</td>
+<td>per request</td>
+<td>no</td>
+<td>a single input unlike anything in training</td>
+<td>Lesson 4</td>
+</tr>
+<tr>
+<td>Input drift (PSI, KS)</td>
+<td>hourly / daily</td>
+<td>no</td>
+<td>the feature distribution moving</td>
+<td>Lesson 2</td>
+</tr>
+<tr>
+<td>Performance</td>
+<td>when labels arrive</td>
+<td><strong>yes</strong></td>
+<td>accuracy or log-loss actually falling</td>
+<td>Lesson 1</td>
+</tr>
+<tr>
+<td>Worst-group</td>
+<td>when labels arrive</td>
+<td><strong>yes</strong></td>
+<td>a subgroup failing under a healthy average</td>
+<td>Lesson 5</td>
+</tr>
+<tr>
+<td>Adversarial / threat</td>
+<td>pre-deploy + spot checks</td>
+<td>no</td>
+<td>evasion within a stated threat model</td>
+<td>Lesson 6</td>
+</tr>
+</tbody>
+</table>
+
+<p>The two top layers cost nothing but compute and speak immediately, so they run first and constantly. Each is compared against a <strong>control limit</strong>: for a metric \(M_t\) in window \(t\), you alarm when</p>
+
+<p>\[ M_t \;>\; \mathrm{UCL} \;=\; \mu_0 + k\,\sigma_0, \]</p>
+
+<p>where \(\mu_0\) and \(\sigma_0\) are the metric's mean and standard deviation during a calm baseline and \(k\) is typically 3. PSI hands you the limit directly from convention (\(\mathrm{UCL} = 0.2\)). Let us read the two label-free layers on Nadia's live week: the PSI on <code>amount</code>, and the out-of-distribution rate as the share of transactions past the 99% shell of the training distribution (the Mahalanobis distance from Lesson 4).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">psi &lt;- function(ref, cur, bins = 10) {
+  cuts &lt;- as.numeric(quantile(ref, seq(0, 1, length.out = bins + 1)))
+  cuts[1] &lt;- -Inf; cuts[length(cuts)] &lt;- Inf
+  e &lt;- as.numeric(table(cut(ref, cuts))) / length(ref)
+  o &lt;- as.numeric(table(cut(cur, cuts))) / length(cur)
+  sum((pmax(o, 1e-4) - pmax(e, 1e-4)) * log(pmax(o, 1e-4) / pmax(e, 1e-4)))
+}
+psi_amount &lt;- psi(train$amount, live$amount)                 # input drift, no labels
+mu &lt;- colMeans(train[, c(&quot;amount&quot;, &quot;mrisk&quot;)])
+S  &lt;- cov(train[, c(&quot;amount&quot;, &quot;mrisk&quot;)])
+d2 &lt;- mahalanobis(live[, c(&quot;amount&quot;, &quot;mrisk&quot;)], mu, S)        # squared distance from training centre
+ood_rate &lt;- mean(d2 &gt; qchisq(0.99, df = 2))                  # share past the 99% shell
+round(c(psi_amount = psi_amount, ood_rate = ood_rate), 3)
+#&gt; psi_amount   ood_rate
+#&gt;      0.545      0.051</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The PSI reads <strong>0.545</strong>, far past its 0.2 line: the inputs have clearly moved. The out-of-distribution rate is <strong>5.1%</strong>, up from the ~1% you would expect if nothing shifted. Both label-free layers are lit, and not one fraud label was needed to see it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Order the stack by latency, not by importance. The label-free layers are the least conclusive (they flag the inputs, not the damage) but they are all you have for weeks, so they run first and buy you time. The performance layer is the most conclusive and the slowest, so it confirms rather than warns.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What did the drift alarm prove?</h2>
+
+<p>Nadia's stack lights up: PSI on <code>amount</code> is <strong>0.545</strong>, well past 0.2. The fraud labels for this week will not land for a month. A teammate says: "PSI is above the line, so accuracy has already dropped. Roll <code>fraud-v3</code> back right now." What is the right read?</p>
+<section class="exercise" data-exercise-id="A-Monitoring-and-Robustness-Playbook-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">PSI above 0.2 is a direct measurement that accuracy fell, so an immediate rollback is the right call</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The inputs have clearly moved, but that is a proxy, not proof of harm: it warrants a look (page a human), not an automatic rollback, until a label-based metric confirms real damage</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Ignore it: without labels the PSI number is meaningless and tells you nothing actionable</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. PSI is a fast, label-free early warning. It says "the world changed, investigate," which could be a benign covariate shift or the first sign of real trouble. You escalate to a human; you do not auto-revert on a proxy alone.</div><div class="lesson-qfb lesson-qfb-no">Too far the other way. PSI is genuinely informative about the inputs and is exactly the early warning you want weeks before labels. It just is not, by itself, a verdict on accuracy.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The slow, sharp layer</div>
+<h2>Performance and worst-group</h2>
+
+<p>Weeks pass and last month's labels finally arrive, so the two label-based layers can speak. This is where the average lies. Compute overall accuracy and it may look fine; break it out by segment and a group can be quietly drowning. We saw exactly this in Lesson 5, and now we wire it into the stack.</p>
+
+<p>We build the most recent <strong>labeled</strong> week, <code>back</code>, whose true outcomes are known. The catch: for the new-market segment the real fraud pattern shifted (a subgroup concept shift the model never trained on), so <code>fraud-v3</code> is out of step there.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(30)
+nb   &lt;- 4000
+regb &lt;- sample(c(&quot;core&quot;, &quot;new_market&quot;), nb, TRUE, c(0.8, 0.2))
+amtb &lt;- rnorm(nb, mean = ifelse(regb == &quot;new_market&quot;, 1.7, 0.6))
+mrkb &lt;- rnorm(nb, mean = 0.1)
+lin  &lt;- -1.6 + 1.4 * amtb + 1.3 * mrkb + ifelse(regb == &quot;new_market&quot;, -1.9, 0)   # rule shifted for new market
+back &lt;- data.frame(amount = amtb, mrisk = mrkb, region = regb,
+                   label = rbinom(nb, 1, plogis(lin)))
+back$pred &lt;- as.integer(predict(model, back, type = &quot;response&quot;) &gt; 0.5)   # last labeled week
+acc    &lt;- function(d) mean(d$pred == d$label)
+by_grp &lt;- tapply(seq_len(nrow(back)), back$region, function(i) acc(back[i, ]))
+round(by_grp, 3)                          # accuracy per group
+#&gt;       core new_market
+#&gt;      0.779      0.638
+worst &lt;- min(by_grp)
+round(c(overall = acc(back), worst = worst), 3)
+#&gt; overall   worst
+#&gt;   0.751   0.638</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Overall accuracy is a passable <strong>0.751</strong>. But the core segment runs at <strong>0.779</strong> while new-market sits at <strong>0.638</strong>, more than fourteen points worse. A single headline number would have hidden a segment the model is actively failing. The worst-group layer exists precisely to refuse that comfort.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Never let a single average metric be your only performance alarm. A model can hold a healthy overall accuracy while a growing subgroup collapses beneath it. Always monitor the <em>worst</em> group, not just the mean.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The heart of the playbook</div>
+<h2>From alarm to action</h2>
+
+<p>An alarm that nobody acts on is worse than no alarm, it just trains everyone to ignore the dashboard. The playbook's core is not the detectors, it is the <strong>response policy</strong>: a rule that maps each alarm to exactly one of three outcomes, <code>ok</code>, <code>page a human</code>, or <code>auto-rollback</code>.</p>
+
+<p>The dividing line is <strong>precision</strong>: how often an alarm, when it fires, reflects real harm. A label-free drift alarm is <em>low precision</em>, because benign covariate shift trips it too (Lesson 1); a confirmed, label-based worst-group breach is <em>high precision</em>, because it is a direct measurement of the model failing. Make that formal. Let \(p = \Pr(\text{real degradation} \mid \text{alarm})\) be the alarm's precision, \(C_{\text{stay}}\) the cost of leaving a degraded model serving, and \(C_{\text{roll}}\) the cost and risk of reverting to the previous model. Automatic rollback is justified only when the expected cost of staying beats the cost of reverting:</p>
+
+<p>\[ p \cdot C_{\text{stay}} \;>\; C_{\text{roll}}. \]</p>
+
+<p>A high-precision labeled breach (\(p\) near 1) with a known-good previous model on the shelf clears this easily, so it can revert without waking anyone. A low-precision proxy (\(p\) small) does not clear it: reverting on every drift blip is expensive and often wrong, so it pages a human to judge. That reasoning becomes a tiny function:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">UCL_PSI &lt;- 0.2; OOD_MAX &lt;- 0.03; WG_FLOOR &lt;- 0.80
+decide &lt;- function(psi, ood, worst_group_acc, perf_confirmed) {
+  if (perf_confirmed &amp;&amp; worst_group_acc &lt; WG_FLOOR) return(&quot;auto-rollback&quot;)   # high precision, labeled
+  if (psi &gt; UCL_PSI || ood &gt; OOD_MAX)               return(&quot;page a human&quot;)    # low precision, proxy
+  &quot;ok&quot;
+}
+c(drift_only = decide(psi_amount, ood_rate, worst, perf_confirmed = FALSE),
+  labels_in  = decide(psi_amount, ood_rate, worst, perf_confirmed = TRUE))
+#&gt;     drift_only       labels_in
+#&gt; &quot;page a human&quot; &quot;auto-rollback&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same model, same day, two different answers depending on what you know. While only the label-free layers have spoken, the drift trips a <strong>page a human</strong>. Weeks later, once labels confirm the worst-group collapse, the same situation escalates to <strong>auto-rollback</strong>. The policy encodes the whole lesson of this course: act in proportion to how sure you are.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Wire the auto-rollback rule</h2>
+
+<p>The auto-rollback branch is the sharpest tool in the playbook, so its condition must be exact: revert automatically only when a <strong>confirmed</strong> worst-group accuracy falls <strong>below the floor</strong> <code>WG_FLOOR</code>. Fill in the blank with that condition, then run the policy on the labeled reading.</p>
+<section class="exercise" data-exercise-id="A-Monitoring-and-Robustness-Playbook-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="worst_group_acc\s*&lt;\s*WG_FLOOR"><textarea class="lesson-tryit-input" spellcheck="false">decide &lt;- function(psi, ood, worst_group_acc, perf_confirmed) {
+  if (perf_confirmed &amp;&amp; ____) return(&quot;auto-rollback&quot;)
+  if (psi &gt; UCL_PSI || ood &gt; OOD_MAX) return(&quot;page a human&quot;)
+  &quot;ok&quot;
+}
+decide(psi_amount, ood_rate, worst, perf_confirmed = TRUE)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the rule: a confirmed worst-group accuracy below the floor is a high-precision, label-based verdict, so it earns an automatic rollback. With the new-market group at 0.638 against a 0.80 floor, the policy returns auto-rollback.</span><span class="lesson-tryit-fb lesson-tryit-no">Auto-rollback fires when the confirmed worst-group accuracy is under the floor: worst_group_acc < WG_FLOOR. It must read the worst group against WG_FLOOR, not the overall average.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">decide &lt;- function(psi, ood, worst_group_acc, perf_confirmed) {
+  if (perf_confirmed &amp;&amp; worst_group_acc &lt; WG_FLOOR) return(&quot;auto-rollback&quot;)
+  if (psi &gt; UCL_PSI || ood &gt; OOD_MAX) return(&quot;page a human&quot;)
+  &quot;ok&quot;
+}
+decide(psi_amount, ood_rate, worst, perf_confirmed = TRUE)
+#&gt; [1] &quot;auto-rollback&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Human or automatic?</h2>
+
+<p>Your policy sends some alarms to a person and lets others revert on their own. Which alarm is the right one to trust with an <strong>automatic</strong> rollback, no human in the loop?</p>
+<section class="exercise" data-exercise-id="A-Monitoring-and-Robustness-Playbook-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A PSI breach on one input feature, labels not yet in</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A single out-of-distribution request scoring past the 99% shell</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A confirmed, label-based worst-group accuracy below the floor, with a known-good previous model available to revert to</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Any alarm at all, since automating every response removes slow humans from the loop</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. This is high precision (a direct measurement of failure, not a proxy) and reversible (a good previous model exists), so the expected-cost rule clears and it can revert without waking anyone. Automatic rollback belongs to conclusive, label-based, reversible alarms only.</div><div class="lesson-qfb lesson-qfb-no">Automating a low-precision alarm just automates false alarms and needless reverts. The whole point of the policy is to match the response to the alarm's precision, not to automate everything.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Before it ever ships</div>
+<h2>The pre-deploy gate</h2>
+
+<p>Monitoring watches a model after it is live. A <strong>pre-deploy gate</strong> decides whether it should go live at all, and it is where two lessons that are not about drift earn their place in the playbook. Before any model, the first release or a retrained replacement, is promoted, it must clear two bars this course taught you to check:</p>
+
+<ul>
+
+<li>A <strong>worst-group floor</strong>: the weakest segment must reach at least <code>WG_FLOOR</code> accuracy (Lesson 5), so you never ship a model that works only on average.</li>
+
+<li>An <strong>adversarial ceiling</strong>: under a stated <strong>threat model</strong>, the evasion rate must stay under <code>EVADE_MAX</code> (Lesson 6). Nadia's threat model is precise: a fraudster controls the reported <code>amount</code> but cannot fake the merchant-side <code>mrisk</code>, so the attack lowers <code>amount</code> by a budget of one to slip under the boundary.</li>
+
+</ul>
+
+<p>Run the gate on <code>fraud-v3</code> as it stands today.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">EVADE_MAX  &lt;- 0.40
+fraud_rows &lt;- back[back$label == 1, c(&quot;amount&quot;, &quot;mrisk&quot;)]        # real fraud we must still catch
+eps &lt;- 1.0
+dir &lt;- sign(coef(model)[&quot;amount&quot;])                              # attacker lowers reported amount
+attacked   &lt;- transform(fraud_rows, amount = amount - eps * dir)
+evade_rate &lt;- mean(predict(model, attacked, type = &quot;response&quot;) &lt; 0.5)
+ready_to_ship &lt;- function(worst_group_acc, evade_rate)
+  worst_group_acc &gt;= WG_FLOOR &amp;&amp; evade_rate &lt;= EVADE_MAX
+round(c(worst_group = worst, evade_rate = evade_rate), 3)
+#&gt; worst_group  evade_rate
+#&gt;       0.638       0.605
+ready_to_ship(worst, evade_rate)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>fraud-v3</code> fails both bars: the worst group sits at <strong>0.638</strong> (under the 0.80 floor) and <strong>60.5%</strong> of real fraud slips through under a budget-one nudge (over the 0.40 ceiling). The adversarial weakness was there at launch and a real gate would have blocked it; the worst-group gap opened up in production. Together they say the same thing: this model is not fit to be live, and its replacement does not ship until it clears both.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>The playbook, assembled</h2>
+
+<p>Every piece now snaps into one loop. <strong>Log</strong> every request. <strong>Detect</strong> with the layered stack, fast label-free layers now, the sharp label-based layers when the join lands. <strong>Confirm</strong> a breach across two windows before acting, so a single noisy batch cannot trigger a rollback. <strong>Decide</strong> with the precision policy: a proxy pages a human, a confirmed reversible breach rolls back. <strong>Act</strong>, then reset the reference and keep watching.</p>
+
+<p>A playbook is honest about its own limits, so hold four in view:</p>
+
+<ul>
+
+<li><strong>Alert fatigue.</strong> Every threshold trades false alarms against missed harm. Set limits too low and the team drowns in pages and learns to ignore them; the two-window confirmation and the precision policy exist to keep the signal worth reading.</li>
+
+<li><strong>Feedback loops.</strong> A fraud model that blocks a transaction never learns whether it was really fraud, and its own actions reshape tomorrow's data. Your monitoring changes the very distribution you are monitoring.</li>
+
+<li><strong>Label lag.</strong> The label-free layers are proxies precisely because the truth arrives late. Pair a fast input-drift trigger with a slow performance trigger; never mistake the fast one for a verdict.</li>
+
+<li><strong>A decaying rollback target.</strong> Automatic rollback assumes a known-good previous model still exists and still works. That safety net drifts too, so the model you would revert to must be re-validated, not trusted forever.</li>
+
+</ul>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Log","sub":"every request: inputs, score, model version, a slot for the late label"},{"title":"Detect","sub":"per-request OOD and label-free drift now; performance and worst-group when labels land"},{"title":"Confirm","sub":"a breach two windows running, not one noisy batch"},{"title":"Decide","sub":"a proxy alarm pages a human; a confirmed reversible breach rolls back"},{"title":"Act","sub":"reweight, retrain on the trigger, or roll back; then reset the reference"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://proceedings.neurips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html">Sculley et al. (2015), Hidden Technical Debt in Machine Learning Systems (NeurIPS)</a> - the classic argument that the model is the small part and monitoring, feedback loops, and configuration are where the real cost lives.</li>
+
+<li><a href="https://developers.google.com/machine-learning/guides/rules-of-ml">Zinkevich, Rules of Machine Learning: Best Practices for ML Engineering (Google)</a> - battle-tested rules for launching and monitoring a model, from a team that has shipped many.</li>
+
+<li><a href="https://arxiv.org/abs/2007.06299">Klaise et al. (2020), Monitoring and Explainability of Models in Production</a> - drift detectors and outlier detection wired into a real serving stack, the practical version of this lesson's stack.</li>
+
+<li><a href="https://www.microsoft.com/en-us/research/publication/software-engineering-for-machine-learning-a-case-study/">Amershi et al. (2019), Software Engineering for Machine Learning: A Case Study</a> - the nine-stage ML lifecycle and the operational realities of keeping deployed models healthy.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 7 complete</h2>
+
+<p>You have turned six detectors into one playbook. You know <strong>what to log</strong> (inputs, score, model version, and a slot for the late label), because a field you did not log is a check you cannot run. You built the <strong>layered alarm stack</strong>, ordered by latency: per-request out-of-distribution and label-free drift speaking first, performance and worst-group confirming weeks later. You wrote a <strong>response policy</strong> that acts in proportion to certainty, a low-precision proxy pages a human, a confirmed reversible breach rolls back, made precise by the expected-cost rule \(p \cdot C_{\text{stay}} > C_{\text{roll}}\). And you ran a <strong>pre-deploy gate</strong> that refuses to ship a model until its worst group clears a floor and its evasion rate stays under a ceiling within a stated threat model.</p>
+
+<p>That completes <strong>Robustness, Drift and Distribution Shift</strong>. You began by naming the ways a deployed model breaks and end holding the plan that keeps it honest in the wild: log everything, watch in layers, and match every response to how sure you are.</p>
+</section>
+
+{% endraw %}
