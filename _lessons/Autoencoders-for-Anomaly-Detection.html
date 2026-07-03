@@ -1,0 +1,273 @@
+---
+title: "Anomaly Detection Lesson 4: Autoencoders for Anomaly Detection"
+description: "Use reconstruction error to flag anomalies: an autoencoder rebuilds normal data well but off-pattern points badly. The linear case is PCA, built from scratch in R."
+keywords: "autoencoder, anomaly detection, reconstruction error, PCA, novelty detection, unsupervised, outlier detection, prcomp, R"
+mathjax: true
+webr: true
+curriculum_id: "6.200.4"
+post_type: "LESSON"
+course_id: "ds-anomaly"
+course_title: "Anomaly and Outlier Detection"
+course_lesson: "4"
+course_total: "7"
+course_landing: "R-Anomaly-Detection-Course.html"
+course_next: "Time-Series-Anomaly-Detection.html"
+course_prev: "Local-Outlier-Factor-and-One-Class-SVM.html"
+lesson_access: "pro"
+catalog_blurb: "Catch fraud that looks normal on every feature but breaks the usual pattern."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 7</div>
+<h2>Autoencoders for Anomaly Detection</h2>
+
+<p>Every detector so far scored a point by asking a version of the same question: where does this point sit? The isolation forest asked how few cuts fence it off; LOF asked how sparse its neighbourhood is; the one-class SVM asked which side of a boundary it lands on. This lesson asks something genuinely different. Not "where is the point?" but "can a model that has only ever seen normal data even rebuild it?"</p>
+
+<p>That is the idea behind an <strong>autoencoder</strong>: squeeze each point through a narrow bottleneck and rebuild it. Trained on normal charges, it rebuilds normal charges almost perfectly, but it cannot rebuild a point that does not fit the pattern. The size of the rebuilding mistake, the <strong>reconstruction error</strong>, becomes the anomaly score. All lesson we follow one card, belonging to a shopper named Maya, whose charges track a simple rule of about \$8.50 per item. A \$78 charge for just 5 items looks ordinary on each number alone, yet it is impossible for her, and reconstruction error is exactly what catches it. And in the simplest (linear) case this turns out to be exactly PCA, so you can build a working detector in a few lines of base R.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Describe the autoencoder pipeline: encode to a bottleneck, decode, and score by reconstruction error</li>
+
+<li>Explain why reconstruction error catches a charge that is normal on every single feature but breaks the relationship between features</li>
+
+<li>Use the linear-autoencoder = PCA fact: reconstruction error is the distance to the subspace normal data lives on</li>
+
+<li>Compute reconstruction error in R with <code>prcomp</code> and turn it into an anomaly flag</li>
+
+<li>Name the assumptions that make it work: clean-ish training data, a bottleneck narrower than the input, and feature scaling</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read base R (<code>scale</code>, <code>prcomp</code>, <code>rowSums</code>, indexing), and you have done <a href="What-is-an-Anomaly.html">Lesson 1: What Is an Anomaly?</a> (global vs local outliers, the base-rate trap) and <a href="Local-Outlier-Factor-and-One-Class-SVM.html">Lesson 3: LOF and One-Class SVM</a> (novelty detection: learn normal once, judge new points). No PCA background is needed; the one fact we use is built up here.</p>
+<div class="lesson-widget" data-widget-type="autoencoder-recon" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>A compressor that only knows normal</h2>
+
+<p>Picture Maya's normal spending as a habit. Her charges follow a pattern: a bigger basket costs more, roughly a fixed price per item. Because of that pattern, you barely need two numbers to describe a normal charge. Tell me the basket size and I can guess the amount; the pattern fills in the rest. A normal charge is almost one number of real information dressed up as two.</p>
+
+<p>An <strong>autoencoder</strong> turns that observation into a machine, in three parts:</p>
+
+<ol>
+
+<li>The <strong>encoder</strong> squeezes each charge down to a tiny summary, its <strong>bottleneck code</strong> (here, a single number).</li>
+
+<li>The <strong>bottleneck</strong> is deliberately too narrow to store everything. It can only keep the dominant pattern, not the fine detail or the noise.</li>
+
+<li>The <strong>decoder</strong> rebuilds the full charge from that summary alone.</li>
+
+</ol>
+
+<p>You train the whole thing on normal charges only, tuning the encoder and decoder so the rebuilt charge comes back as close to the original as possible. Because the bottleneck is a squeeze, the network is forced to spend its tiny budget on the pattern that normal charges share. The gap between the original charge and its rebuild is the <strong>reconstruction error</strong>, and that gap is the whole game.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Encode","sub":"squeeze the charge into one summary number"},{"title":"Bottleneck","sub":"too narrow to hold noise, only the main pattern fits"},{"title":"Decode","sub":"rebuild the full charge from that one number"},{"title":"Score","sub":"reconstruction error = gap between original and rebuild"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The key idea</div>
+<h2>Reconstruction error is the anomaly score</h2>
+
+<p>Here is why the squeeze does the work. Normal charges all lie close to the same pattern, so the bottleneck code captures them and the decoder rebuilds them with almost no error. An anomaly is a charge that does not fit the pattern. The encoder is forced to describe it with the same tiny code built for normal charges, and the decoder rebuilds a normal-looking charge that does not match. The mistake is large. So you do not need labels at all: you just flag the charges the model rebuilds badly.</p>
+
+<p>Geometrically, the pattern the model learns is a low-dimensional shape the normal data lives on, its <strong>manifold</strong>. In our two-feature card, that manifold is a line: amount rising with basket size. Reconstruction snaps each charge onto that line, and the reconstruction error is simply how far the charge sits off it. Toggle the widget between a normal point and the anomaly and watch the red residual, the reconstruction error, stay tiny on the line and blow up off it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Train on normal, then score by rebuilding: a small reconstruction error means the point sits on the manifold the model learned (normal), a large one means it sits off the manifold (anomaly). The bottleneck is what makes this possible, because a model that could copy every input perfectly would rebuild anomalies perfectly too, and tell you nothing.</div></div>
+<div class="lesson-widget" data-widget-type="autoencoder-recon" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why bother</div>
+<h2>The fraud that hides in plain sight</h2>
+
+<p>This is where reconstruction error earns its keep. A per-feature rule (flag any charge with an extreme amount, or an extreme item count) can only see one column at a time. Reconstruction error sees the two columns together. Let us build Maya's card and plant a fraud that is designed to slip past every single-feature check: a \$78 charge rung up as only 5 items.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 120
+items  &lt;- rpois(n, 5) + 2                          # basket size: how many items
+amount &lt;- round(8.5 * items + rnorm(n, 0, 4), 2)   # dollars, tracking basket size
+maya   &lt;- data.frame(items, amount, kind = &quot;normal&quot;)
+maya   &lt;- rbind(maya, data.frame(items = 5, amount = 78, kind = &quot;FRAUD&quot;))  # $78 for 5 items
+tail(maya, 2)
+#&gt;     items amount   kind
+#&gt; 120     8  72.83 normal
+#&gt; 121     5  78.00  FRAUD
+
+# would a per-feature outlier rule catch it? z-score each feature of the fraud:
+nm &lt;- maya$kind == &quot;normal&quot;
+round(c(z_amount = (78 - mean(maya$amount[nm])) / sd(maya$amount[nm]),
+        z_items  = ( 5 - mean(maya$items[nm]))  / sd(maya$items[nm])), 2)
+#&gt; z_amount  z_items
+#&gt;     0.99    -1.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at those z-scores. The fraud's amount is 0.99 standard deviations above the mean, its item count is 1.02 below. Neither is remotely an outlier; both sit well inside the normal band, inside any sensible IQR or z-score fence. A rule that watches <code>amount</code> alone waves it through. A rule that watches <code>items</code> alone waves it through.</p>
+
+<p>But \$78 for 5 items is impossible for Maya. Five items should cost about \$42; \$78 is nearly double. The two values are each ordinary, yet their <strong>combination</strong> is off the pattern. That is a broken feature relationship, and it is invisible to any one-column rule. Reconstruction error is built to see exactly this.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The formal picture</div>
+<h2>Reconstruction error, and why the linear case is PCA</h2>
+
+<p>Now the precise version. Write a data point as a vector \(x \in \mathbb{R}^p\) ( \(p = 2\) here: items and amount ). The <strong>encoder</strong> is a function \(f\) that maps \(x\) to a shorter code \(z = f(x) \in \mathbb{R}^k\) with \(k < p\) (our bottleneck, \(k = 1\) ). The <strong>decoder</strong> is a function \(g\) that maps the code back to a full-size rebuild \(\hat{x} = g(z)\). The <strong>reconstruction error</strong> of the point is the squared distance between the original and its rebuild:</p>
+
+<p>\( e(x) = \lVert x - \hat{x} \rVert^2 = \lVert x - g(f(x)) \rVert^2 \)</p>
+
+<p>Training picks \(f\) and \(g\) to make the average error small on the normal data \(x_1, \dots, x_n\):</p>
+
+<p>\( \min_{f,\,g}\ \dfrac{1}{n} \sum_{i=1}^{n} \lVert x_i - g(f(x_i)) \rVert^2 \)</p>
+
+<p>Now make the encoder and decoder <strong>linear</strong>. Let \(\mu\) be the mean of the normal data and let \(W\) be a \(p \times k\) matrix whose columns are orthonormal directions. Encode by projecting onto those directions, \(z = W^{\top}(x - \mu)\), and decode by mapping back, \(\hat{x} = \mu + W z\). Substituting gives</p>
+
+<p>\( \hat{x} = \mu + W W^{\top} (x - \mu) \)</p>
+
+<p>which is the <strong>orthogonal projection</strong> of \(x\) onto the \(k\)-dimensional subspace through \(\mu\) spanned by the columns of \(W\). The error \(e(x) = \lVert (x - \mu) - W W^{\top}(x - \mu) \rVert^2\) is then just the squared distance from \(x\) to that subspace. Minimizing the average of that error over the normal data is precisely what <strong>PCA</strong> does: the best \(W\) is the top \(k\) principal directions. So a linear autoencoder IS PCA, the bottleneck is the top principal components, and the reconstruction error is the distance to the subspace normal data varies along. That is why you can build the detector with <code>prcomp</code>.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Build the detector in R</h2>
+
+<p>Let us score Maya's card. Standardize the two features (they are on different scales, dollars versus a count), fit the 1-component bottleneck with <code>prcomp</code>, decode, and measure the error. The one decision that matters is <code>rank.</code>, how many principal directions the bottleneck keeps. Fill in the blank so the bottleneck is an actual squeeze.</p>
+<section class="exercise" data-exercise-id="Autoencoders-for-Anomaly-Detection-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="rank\.\s*=\s*1"><textarea class="lesson-tryit-input" spellcheck="false">X     &lt;- scale(maya[, c(&quot;items&quot;, &quot;amount&quot;)])   # standardize (items vs dollars)
+pca   &lt;- prcomp(X, rank. = ____)               # bottleneck: keep how many of the 2 directions?
+recon &lt;- sweep(pca$x %*% t(pca$rotation), 2, pca$center, &quot;+&quot;)   # decode from the code
+maya$recon_error &lt;- rowSums((X - recon)^2)     # reconstruction error per charge
+head(maya[order(-maya$recon_error), c(&quot;kind&quot;, &quot;items&quot;, &quot;amount&quot;, &quot;recon_error&quot;)], 4)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: rank. = 1 keeps one of the two directions, so the bottleneck actually squeezes. The fraud reconstructs with error about 1.99, more than ten times the typical normal error near 0.12.</span><span class="lesson-tryit-fb lesson-tryit-no">The bottleneck has to be NARROWER than the input. With 2 features, keep 1 direction: rank. = 1. Keep both (rank. = 2) and nothing is squeezed out, so every charge rebuilds perfectly, every error is 0, and no anomaly can ever stand out.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">X     &lt;- scale(maya[, c(&quot;items&quot;, &quot;amount&quot;)])
+pca   &lt;- prcomp(X, rank. = 1)
+recon &lt;- sweep(pca$x %*% t(pca$rotation), 2, pca$center, &quot;+&quot;)
+maya$recon_error &lt;- rowSums((X - recon)^2)
+head(maya[order(-maya$recon_error), c(&quot;kind&quot;, &quot;items&quot;, &quot;amount&quot;, &quot;recon_error&quot;)], 4)
+#&gt;       kind items amount recon_error
+#&gt; 121  FRAUD     5  78.00   1.9928170
+#&gt; 1   normal     6  60.61   0.1382046
+#&gt; 106 normal     5  51.32   0.1182792
+#&gt; 10  normal     4  42.69   0.1172992</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did the fraud reconstruct so badly?</h2>
+
+<p>The fraud (\$78 for 5 items) scored a reconstruction error of about 1.99, more than ten times any normal charge, even though its amount and item count were each unremarkable (z-scores of 0.99 and -1.02). Which statement best explains why?</p>
+<section class="exercise" data-exercise-id="Autoencoders-for-Anomaly-Detection-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because \$78 is the largest, most extreme charge on the card, so it is furthest from everything</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because \$78 for 5 items breaks Maya's normal amount-per-item relationship, so the point sits off the 1-D line the bottleneck learned and cannot be rebuilt from a single number</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It would have been flagged even more strongly if the bottleneck had kept both components instead of one</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The bottleneck code carries only the shared pattern (amount tracks basket size). A charge off that line gets rebuilt as an on-line charge, and the leftover gap, the distance to the line, is the large error. That is the broken feature relationship no single-column rule could see.</div><div class="lesson-qfb lesson-qfb-no">The opposite. Keep both of the two directions and the "bottleneck" reconstructs every point perfectly, so every error is zero and nothing can be flagged. The squeeze is what creates the signal; a model that can copy any input tells you nothing.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">From a score to a decision</div>
+<h2>Turn the error into a flag, and mind the limits</h2>
+
+<p>A score is not yet a decision. To act, pick a threshold: learn what a typical normal error looks like and flag any charge whose error runs well past it. A sensible choice is a high quantile of the errors on data you trust is normal.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">thr &lt;- quantile(maya$recon_error[maya$kind == &quot;normal&quot;], 0.99)   # a high normal-error cutoff
+maya$flag &lt;- maya$recon_error &gt; thr
+table(flag = maya$flag, kind = maya$kind)
+#&gt;        kind
+#&gt; flag    FRAUD normal
+#&gt;   FALSE     0    118
+#&gt;   TRUE      1      2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fraud is caught. So are 2 of the 120 normal charges: false alarms, and not a bug but the honest cost of a 99th-percentile cutoff (about 1% of 120 is roughly 1 to 2). Tighten the threshold and fewer normal charges spill over, but a borderline fraud can slip through. That trade is the tuning, and Lesson 1's base-rate warning still holds: at a 1-in-a-thousand fraud rate, judge the flag by precision and recall, never accuracy.</p>
+
+<p>Three more honest limits are worth stating plainly:</p>
+
+<ul>
+
+<li><strong>The training data must be (mostly) normal.</strong> The model learns "normal" from what you feed it. Train on a set salted with fraud and the bottleneck learns to rebuild that fraud too, so it stops flagging it.</li>
+
+<li><strong>The bottleneck must be narrower than the input.</strong> You saw this in the try-it: keep every dimension and reconstruction is perfect for everyone, so there is no signal. The squeeze is the method.</li>
+
+<li><strong>Scale your features first.</strong> Reconstruction error is a squared distance, so without <code>scale</code> the feature with the larger raw range (dollars) would dominate and drown out the other.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The linear autoencoder here is PCA, which can only bend its manifold into a flat subspace (a line, a plane). Real data often lives on a curved manifold. That is when you reach for a <strong>nonlinear</strong> autoencoder, a small neural network with the same encode-bottleneck-decode shape but nonlinear layers, so the manifold can curve. Same score (reconstruction error), richer shape. It needs a deep-learning toolkit and does not run in the browser, so here it is for reference only:</div></div>
+
+<pre><code class="language-r"># A NONLINEAR autoencoder (Keras): same encode -&gt; bottleneck -&gt; decode idea, but the
+# layers are nonlinear, so the learned manifold can curve. Run this locally, not here.
+library(keras3)
+input  &lt;- layer_input(shape = ncol(X))
+code   &lt;- input |&gt; layer_dense(8, &quot;relu&quot;) |&gt; layer_dense(2, &quot;relu&quot;)   # narrow bottleneck
+output &lt;- code  |&gt; layer_dense(8, &quot;relu&quot;) |&gt; layer_dense(ncol(X))     # decode back to p
+ae &lt;- keras_model(input, output) |&gt; compile(optimizer = &quot;adam&quot;, loss = &quot;mse&quot;)
+ae |&gt; fit(X_normal, X_normal, epochs = 50, verbose = 0)               # train on NORMAL rows only
+recon_error &lt;- rowSums((X - predict(ae, X))^2)                        # same score, curved manifold</code></pre>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The retraining trap</h2>
+
+<p>Maya's bank wants the detector to stay current, so an engineer sets it to retrain every night on <strong>all</strong> of the previous day's transactions, including any fraud that slipped through undetected. Over the weeks, what happens to its ability to catch that recurring kind of fraud?</p>
+<section class="exercise" data-exercise-id="Autoencoders-for-Anomaly-Detection-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It gets worse: the bottleneck starts treating the recurring fraud as part of the normal pattern, so those charges reconstruct well and stop being flagged</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It gets better: more data always sharpens the reconstruction, so the anomaly score only improves</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It stays the same: reconstruction error depends only on the charge being scored, not on the training data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. An autoencoder defines "normal" entirely from its training data. Feed the fraud back in night after night and the model learns to rebuild it, its reconstruction error drops, and the flag goes silent. This is why the training set must be curated to be clean-ish, not just "all recent data."</div><div class="lesson-qfb lesson-qfb-no">The error depends entirely on the manifold learned from the training data. Change what the model trains on and you move the manifold, which changes every point's error. That is exactly why contamination is dangerous.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1145/2689746.2689747">Sakurada and Yairi (2014), Anomaly Detection Using Autoencoders with Nonlinear Dimensionality Reduction (MLSDA)</a> - the canonical paper that uses reconstruction error as the anomaly score and compares linear (PCA) against nonlinear autoencoders.</li>
+
+<li><a href="https://doi.org/10.1016/0893-6080(89">Baldi and Hornik (1989), Neural Networks and Principal Component Analysis, Neural Networks 2(1)</a>90014-2) - the original proof that a linear autoencoder with squared loss recovers the PCA subspace, the fact this lesson leans on.</li>
+
+<li><a href="https://www.deeplearningbook.org/contents/autoencoders.html">Goodfellow, Bengio and Courville (2016), Deep Learning, ch. 14: Autoencoders (free online)</a> - the modern treatment of encoders, bottlenecks and undercomplete autoencoders.</li>
+
+<li><a href="https://doi.org/10.1145/1541880.1541882">Chandola, Banerjee and Kumar (2009), Anomaly Detection: A Survey, ACM Computing Surveys 41(3)</a> - where reconstruction-based detection sits among the alternatives you have met.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 12 (free PDF)</a> - the gentle companion on PCA, the method the linear case reduces to.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You now have a fourth detector with a genuinely different mechanism. Instead of asking where a point sits, an autoencoder asks whether a model that only knows normal can rebuild it. Trained on normal data, it rebuilds normal points cheaply and off-manifold points badly, and that <strong>reconstruction error</strong> is the anomaly score, sharp enough to catch a fraud that is normal on every single feature but breaks the relationship between them. You saw that the linear case is exactly PCA (the error is the distance to the subspace normal data lives on), built it in a few lines with <code>prcomp</code>, turned the score into a flag, and named the assumptions that keep it honest: clean-ish training data, a real bottleneck, and scaled features.</p>
+
+<p>Four detectors down: isolation (global), density (local), boundary (novelty), and reconstruction (off-manifold). Every one so far has treated each point on its own. Next, Lesson 5: <strong>Time-Series Anomaly Detection</strong>, where order and time matter, a value can be perfectly normal on its own yet anomalous for a Tuesday afternoon, and you will strip out trend and seasonality before you can even see the anomaly.</p>
+</section>
+
+{% endraw %}
