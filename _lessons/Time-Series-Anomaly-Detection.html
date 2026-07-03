@@ -1,0 +1,349 @@
+---
+title: "Anomaly Detection Lesson 5: Time-Series Anomaly Detection"
+description: "Detect anomalies in a time series in R: point, contextual and collective outliers, a robust rolling median and MAD control band, and STL residual detection."
+keywords: "time series anomaly detection, contextual outlier, collective anomaly, STL decomposition, rolling median, MAD, control band, seasonality, R"
+mathjax: true
+webr: true
+curriculum_id: "6.200.5"
+post_type: "LESSON"
+course_id: "ds-anomaly"
+course_title: "Anomaly and Outlier Detection"
+course_lesson: "5"
+course_total: "7"
+course_landing: "R-Anomaly-Detection-Course.html"
+course_next: "Kernel-PCA-Sparse-PCA-and-NMF.html"
+course_prev: "Autoencoders-for-Anomaly-Detection.html"
+lesson_access: "pro"
+catalog_blurb: "Spot the day that breaks a series once its rhythm is accounted for."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 7</div>
+<h2>Time-Series Anomaly Detection</h2>
+
+<p>The four detectors you have built so far all judged a point on its own: how few cuts isolate it, how sparse its neighbourhood is, which side of a boundary it lands on, how badly a model rebuilds it. None of them cared about ORDER. But some of the most important anomalies only exist in order.</p>
+
+<p>Meet Rosa. She runs a coffee cart outside an office block and sells about 160 cups on a busy weekday, about 55 on a quiet weekend. One Thursday she sells 60. On any earlier detector, 60 cups is a perfectly ordinary number: it is a normal Saturday. In its slot on the calendar, a Thursday, it is alarming: a public holiday she forgot, or a fault in the till. A value that is fine on its own but wrong for its moment in time is a <strong>contextual anomaly</strong>, and you cannot see it without the clock.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Tell point, contextual, and collective anomalies apart in a series</li>
+
+<li>See why a single fixed fence fails once a series has trend and seasonality</li>
+
+<li>Build a robust rolling control band, and watch a weekly rhythm defeat it</li>
+
+<li>Strip out trend and season with STL, then flag the leftover residuals, the move that catches the contextual Thursday</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read base R (indexing, <code>which</code>), and you have done <a href="What-is-an-Anomaly.html">Lesson 1: What Is an Anomaly?</a> (contextual outliers, the base-rate trap) and <a href="Autoencoders-for-Anomaly-Detection.html">Lesson 4: Autoencoders</a> (scoring a point by how badly it fits the learned normal). No time-series background is assumed; trend, seasonality and decomposition are built up here.</p>
+
+<p>Here is the shape of where we are headed: a live monitor that stays quiet while a stream looks normal, then raises an alert once the signal drifts out of its band. By the end you will have built the detector behind an alarm like this.</p>
+<div class="lesson-widget" data-widget-type="drift-monitor" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The new ingredient</div>
+<h2>In a series, the neighbours are the clock</h2>
+
+<p>Every detector in this course so far treated your data as a bag of points with no order: shuffle the rows and nothing changes. A time series is different. Each reading has a POSITION, and the readings around it (yesterday, last Tuesday, this time last month) are its context. That one fact creates three distinct kinds of anomaly, and they need different tools.</p>
+
+<ul>
+
+<li>A <strong>point anomaly</strong> is a single reading extreme on its own, no context required. Rosa sells 335 cups the day a conference books catering. Any of your earlier detectors would catch it.</li>
+
+<li>A <strong>contextual anomaly</strong> is a reading ordinary in general but wrong for its position. The Thursday at 60 cups. The number is common; its slot is not.</li>
+
+<li>A <strong>collective anomaly</strong> is a run of readings, each individually plausible, that is wrong as a group. A road closure drops Rosa to about 135 cups for five straight weekdays. No single day is shocking; five in a row is.</li>
+
+</ul>
+
+<p>Let us build Rosa's 13 weeks and plant one of each. This is the only data the whole lesson uses, so run it first. Interactive R runs right here in your browser; press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n      &lt;- 91
+date   &lt;- as.Date(&quot;2024-01-01&quot;) + 0:(n - 1)         # 91 days; 2024-01-01 is a Monday
+day    &lt;- weekdays(date)
+dow    &lt;- (0:(n - 1)) %% 7                           # 0 = Mon ... 6 = Sun
+season &lt;- c(38, 44, 46, 42, 30, -64, -72)[dow + 1]   # weekly rhythm: busy weekdays, quiet weekends
+trend  &lt;- 118 + 0.45 * (1:n)                         # a slow climb as the cart gets known
+cups   &lt;- round(trend + season + rnorm(n, 0, 7))
+
+cups[17]    &lt;- 335                # POINT: a one-off catering order (a Wednesday)
+cups[46]    &lt;- 60                 # CONTEXTUAL: a holiday on a busy Thursday
+cups[64:68] &lt;- cups[64:68] - 52   # COLLECTIVE: a 5-day road-closure slump
+
+coffee &lt;- data.frame(date, day, cups)
+plot(coffee$date, coffee$cups, type = &quot;o&quot;, pch = 20, cex = 0.6, col = &quot;grey45&quot;,
+     xlab = &quot;&quot;, ylab = &quot;cups sold&quot;, main = &quot;Rosa's coffee cart: 13 weeks&quot;)
+points(coffee$date[c(17, 46)], coffee$cups[c(17, 46)], col = &quot;firebrick&quot;, pch = 19, cex = 1.3)
+head(coffee)
+#&gt;         date       day cups
+#&gt; 1 2024-01-01    Monday  166
+#&gt; 2 2024-01-02   Tuesday  159
+#&gt; 3 2024-01-03 Wednesday  168
+#&gt; 4 2024-01-04  Thursday  166
+#&gt; 5 2024-01-05    Friday  153
+#&gt; 6 2024-01-06  Saturday   56</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The zig-zag is the weekly rhythm: five busy weekdays, then the weekend floor. The tall red spike is the catering day; the lone red dot near the middle is the 60-cup Thursday; and if you look around day 64 you can see a shallow, five-day dip. Those are the three anomalies. Now we hunt them.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What kind of anomaly is the Thursday?</h2>
+
+<p>On that Thursday the cart sold 60 cups. Across the whole 13 weeks, 60 is an unremarkable number: most Saturdays and Sundays sit right around there. Yet a Thursday is normally a 160-cup day. Which kind of anomaly is this?</p>
+<section class="exercise" data-exercise-id="Time-Series-Anomaly-Detection-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A point anomaly, because 60 is far from the typical day</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A contextual anomaly, because 60 is normal in general but wrong for a Thursday</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A collective anomaly, because it is part of the weekly pattern</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The value is ordinary; its context (a busy weekday) is what makes it an anomaly. A detector that ignores the day of week waves it straight through.</div><div class="lesson-qfb lesson-qfb-no">A collective anomaly is a RUN of points wrong as a group. This is a single day, and it breaks the weekly pattern rather than belonging to it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first attempt</div>
+<h2>One fence for the whole series, and why it slips</h2>
+
+<p>The simplest anomaly rule is a fixed fence: take the mean and standard deviation of every reading, and flag anything more than three standard deviations away. The standard score of day \(t\) is</p>
+
+<p>\( z_t = \dfrac{x_t - \bar{x}}{s} \)</p>
+
+<p>where \(x_t\) is that day's cups, \(\bar{x}\) the average over all days, and \(s\) the standard deviation. Flag the day when \(|z_t| > 3\). Let us run it on Rosa's cart.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">z       &lt;- (cups - mean(cups)) / sd(cups)     # standard score of every day
+flagged &lt;- which(abs(z) &gt; 3)                  # the classic 3-sigma fence
+coffee[flagged, c(&quot;date&quot;, &quot;day&quot;, &quot;cups&quot;)]
+#&gt;         date       day cups
+#&gt; 17 2024-01-17 Wednesday  335
+round(c(sd = sd(cups), lo = mean(cups) - 3 * sd(cups), hi = mean(cups) + 3 * sd(cups)), 1)
+#&gt;    sd    lo    hi
+#&gt;  53.2 -13.9 305.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fence catches exactly one day: the 335-cup catering spike. It misses the Thursday holiday and the five-day slump completely. Look at why. The standard deviation is a huge 53.2 cups, because busy weekdays and quiet weekends are heaped into one pile. That stretches the fence all the way from -13.9 to 305.6 cups, and a band running from "negative coffee" to 306 cups will never flag a 60-cup Thursday.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A single global fence fails a real series in two ways at once. It ignores STRUCTURE: trend and seasonality inflate the spread, so the band grows too wide to catch anything but the most blatant spike. And the mean and standard deviation are NOT ROBUST: the 335-cup spike drags the mean up and the deviation out, loosening the very fence meant to catch it. Two problems, so we fix them one at a time.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fix one: robust and local</div>
+<h2>A band that moves with the series</h2>
+
+<p>Start with the two flaws from the last step. Replace the mean and standard deviation with their <strong>robust</strong> cousins, the median and the <strong>MAD</strong> (median absolute deviation), which barely move when a few wild points are present. And make the band <strong>local</strong>: instead of one fence for all 91 days, compare each day only to its recent neighbours, so the band rides up and down with the trend.</p>
+
+<p>The median absolute deviation is the median of the distances from the median:</p>
+
+<p>\( \text{MAD} = 1.4826 \cdot \text{median}_i \lvert x_i - \tilde{m} \rvert \)</p>
+
+<p>where \(\tilde{m}\) is the median. The constant 1.4826 rescales MAD so that, for well-behaved data, it matches the standard deviation, which lets us keep the familiar "more than 3 away" cutoff. For each day we take a rolling median \(\tilde{m}_t\) and a local MAD over a one-week window, then score</p>
+
+<p>\( z_t = \dfrac{\lvert x_t - \tilde{m}_t \rvert}{\text{MAD}_t} \)</p>
+
+<p>and flag \(z_t > 3\). This is the Hampel filter. In R, <code>runmed</code> gives the rolling median and <code>mad</code> the robust spread.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w        &lt;- 7                                   # a one-week window
+roll_med &lt;- runmed(cups, w, endrule = &quot;median&quot;) # robust local centre
+roll_mad &lt;- sapply(seq_len(n), function(i) mad(cups[max(1, i - 3):min(n, i + 3)]))
+robust_z &lt;- abs(cups - roll_med) / roll_mad
+hits     &lt;- which(robust_z &gt; 3)
+length(hits)                                    # how many days does it flag?
+#&gt; [1] 19
+sort(table(coffee$day[hits]), decreasing = TRUE)  # on which weekdays?
+#&gt;    Sunday  Saturday  Thursday Wednesday
+#&gt;         9         8         1         1
+
+plot(coffee$date, cups, type = &quot;l&quot;, col = &quot;grey65&quot;, xlab = &quot;&quot;, ylab = &quot;cups sold&quot;,
+     main = &quot;Rolling median with a 3-MAD band&quot;)
+lines(coffee$date, roll_med, col = &quot;steelblue&quot;, lwd = 2)
+lines(coffee$date, roll_med + 3 * roll_mad, col = &quot;steelblue&quot;, lty = 2)
+lines(coffee$date, roll_med - 3 * roll_mad, col = &quot;steelblue&quot;, lty = 2)
+points(coffee$date[hits], cups[hits], col = &quot;firebrick&quot;, pch = 19)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The band now breathes with the series, and the spike no longer wrecks it: the median and MAD shrug it off. But look at what it flagged. Nineteen days, and seventeen of them are Saturdays and Sundays. The filter is shouting "anomaly!" at nearly every ordinary weekend. Only 2 of the 19 flags are real. A detector that cries wolf 17 times to catch 2 events is worse than useless.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A rolling window assumes the series is LOCALLY SMOOTH: today should look like the last few days. Rosa's series is not locally smooth; it swings by 100 cups every single week, on schedule. The window straddles busy and quiet days, its median lands in the middle, so every weekend reads "too low" and every weekday "too high." A rolling band handles TREND (a slow drift the local median tracks) but not SEASONALITY (a fast, repeating swing it cannot tell from an anomaly). The weekly rhythm is not noise to smooth over; it is signal to MODEL.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did the rolling band flag every weekend?</h2>
+
+<p>The rolling median and MAD band flagged 19 days, of which 17 were perfectly normal Saturdays and Sundays. What is the root cause?</p>
+<section class="exercise" data-exercise-id="Time-Series-Anomaly-Detection-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The MAD is not robust enough, so the weekend points inflate it</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The window is too short; a longer window would smooth the weekends away</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A rolling window assumes the series is locally smooth, and a strong weekly cycle is not, so every weekend reads as "too low"</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The band compares each day to a local centre that averages busy and quiet days together. The weekly seasonality is a real, repeating pattern the band has no way to model, so it mistakes normal weekends for anomalies.</div><div class="lesson-qfb lesson-qfb-no">A longer window makes it worse: it blends even more weekdays and weekends together, so the median sits further from both. No window length fixes a swing the method cannot represent.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fix two: model the rhythm</div>
+<h2>Split the series into trend, season, and what is left</h2>
+
+<p>If the weekly swing is signal, then model it and subtract it. <strong>Decomposition</strong> splits a series into three added-up parts:</p>
+
+<p>\( x_t = T_t + S_t + R_t \)</p>
+
+<p>the <strong>trend</strong> \(T_t\) (the slow climb as the cart gets known), the <strong>seasonal</strong> part \(S_t\) (the repeating weekly shape: weekdays up, weekends down), and the <strong>remainder</strong> \(R_t\), everything the first two cannot explain. The remainder is the whole point: once the expected trend and the expected weekly shape are stripped out, a normal day leaves almost nothing behind, and an anomaly leaves a big leftover.</p>
+
+<p><strong>STL</strong> (Seasonal-Trend decomposition using Loess) is a robust, widely used way to compute that split. It estimates the seasonal shape by smoothing across same-weekday values, the trend by smoothing across the deseasonalised series, and calls the rest the remainder. In R it is one function; you only tell it the period, 7 days for a weekly cycle.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y   &lt;- ts(cups, frequency = 7)                  # tell R the season repeats every 7 days
+fit &lt;- stl(y, s.window = &quot;periodic&quot;, robust = TRUE)
+plot(fit)                                        # four panels: data, seasonal, trend, remainder
+round(fit$time.series[1:7, &quot;seasonal&quot;], 1)       # the learned weekly shape, Mon to Sun
+#&gt; [1]  28.8  35.1  33.3  33.1  20.6 -71.7 -79.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four panels tell the story: a gently rising trend, a clean repeating weekly wave, and a remainder that is mostly flat except for a few sharp spikes. The learned weekly shape confirms it: about +30 cups on weekdays, about -75 on Saturdays and Sundays. STL discovered Rosa's rhythm on its own, and "normal for a Thursday" now lives in \(S_t\) instead of being mistaken for an anomaly. The anomalies have nowhere left to hide but the remainder, where a robust fence finally works.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Flag the leftover residuals</h2>
+
+<p>The remainder is what trend and season could not explain, so a normal day sits near zero and an anomaly sticks out. Score each remainder with the same robust z you built earlier, distance from the median in MADs, and flag anything past 3. Fill in the cutoff.</p>
+<section class="exercise" data-exercise-id="Time-Series-Anomaly-Detection-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="&gt;\s*3"><textarea class="lesson-tryit-input" spellcheck="false">resid    &lt;- as.numeric(fit$time.series[, &quot;remainder&quot;])  # the leftover, per day
+robust_z &lt;- abs(resid - median(resid)) / mad(resid)     # robust score on the remainder
+flagged  &lt;- which(robust_z &gt; ____)                      # a 3-MAD robust fence
+coffee[flagged, c(&quot;date&quot;, &quot;day&quot;, &quot;cups&quot;)]</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the payoff. The Thursday holiday now scores a robust z of 17 and the catering spike 24.5, both far past 3. Point and contextual anomalies pop straight out of the remainder.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the same 3-sigma-style cutoff as before: flag where robust_z is greater than 3.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">resid    &lt;- as.numeric(fit$time.series[, &quot;remainder&quot;])
+robust_z &lt;- abs(resid - median(resid)) / mad(resid)
+flagged  &lt;- which(robust_z &gt; 3)
+coffee[flagged, c(&quot;date&quot;, &quot;day&quot;, &quot;cups&quot;)]
+#&gt;         date       day cups
+#&gt; 17 2024-01-17 Wednesday  335
+#&gt; 46 2024-02-15  Thursday   60
+#&gt; 65 2024-03-05   Tuesday  134
+#&gt; 69 2024-03-09  Saturday   91
+#&gt; 70 2024-03-10    Sunday   83
+round(robust_z[c(17, 46)], 1)   # the point spike and the contextual holiday
+#&gt; [1] 24.5 17.0</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did STL catch the Thursday the global fence missed?</h2>
+
+<p>The global mean plus-or-minus 3sd fence scored the 60-cup Thursday as ordinary. After STL, that same day scored a robust z of 17 on its remainder. What changed?</p>
+<section class="exercise" data-exercise-id="Time-Series-Anomaly-Detection-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The seasonal component encodes the expected weekday level, so a busy-weekday slot filled with a weekend-sized number leaves a huge remainder</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">STL uses a lower threshold than 3, so it flags more days</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">STL is robust and the global fence was not, and robustness alone catches contextual anomalies</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. STL subtracts the roughly +33 cups a Thursday should carry: expected near 160, actual 60, so the remainder is about -120, enormous next to the tiny remainders of normal days. Context that was invisible to a global fence is now measured explicitly.</div><div class="lesson-qfb lesson-qfb-no">Robustness helps with the point spike, but it is not the reason here. Even a robust global fence would still heap weekdays and weekends together and miss the Thursday. Removing the seasonal expectation is what exposes it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">When it breaks</div>
+<h2>The hard cases, and turning a score into a monitor</h2>
+
+<p>STL residual detection nails point and contextual anomalies. Three honest limits are worth stating plainly.</p>
+
+<p><strong>Collective anomalies are the hard case.</strong> Look at the residual scores across the five-day road-closure slump:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(robust_z[64:68], 1)   # the five slump days, Mon to Fri
+#&gt; [1] 2.9 4.1 0.7 1.3 1.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only one of the five clears the fence. A sustained shift is partly absorbed by the decomposition itself: the trend component bends down to follow the slump, so most of the drop is explained away as a temporary trend change rather than left in the remainder. Worse, that bent trend throws off the days around the closure (65, 69, 70 in the last step): one slump day (65) pokes through the softened band, and the recovery days just after it ends (69, 70) read as anomalies while the trend climbs back. For runs like this a residual fence is the wrong tool. You want a <strong>change-point</strong> method that tests whether the whole level shifted, not whether one point stuck out.</p>
+
+<p><strong>STL is batch, not live.</strong> It needs the whole series (at least two full cycles) to estimate the season, so it reports on yesterday, not this second. To watch a stream in real time you re-fit on a rolling history, or forecast the next value and flag a large forecast error, the same residual idea one step ahead.</p>
+
+<p><strong>A score is not a decision.</strong> As in Lesson 1, at a low anomaly rate a fence that fires often is mostly false alarms. Judge it by precision and recall on labelled days, and set the cutoff to the alarm budget you can actually action, not to a round number like 3.</p>
+
+<p>That last idea, watch a running signal, stay quiet until it leaves its normal band, then raise an alert, is exactly what a production monitor does. Slide the one below to feel it: a stream drifts, a stability score climbs, and past a line it alarms. Watching a whole distribution drift, rather than a single series, is the closely related subject of the drift course.</p>
+<div class="lesson-widget" data-widget-type="drift-monitor" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/stl.html">Hyndman and Athanasopoulos, Forecasting: Principles and Practice, 3.6 STL decomposition (free)</a> - the clearest hands-on treatment of the decomposition you used.</li>
+
+<li><a href="https://otexts.com/fpp3/decomposition.html">The same book, Chapter 3: Time series decomposition (free)</a> - trend, seasonality and remainder from the ground up.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html">R documentation: stl(), seasonal decomposition of time series by loess</a> - the exact function and every argument.</li>
+
+<li><a href="https://doi.org/10.1016/j.jesp.2013.03.013">Leys et al. (2013), Detecting outliers: use the median absolute deviation (J. Exp. Soc. Psych.)</a> - why the robust MAD fence beats a mean-and-sd fence.</li>
+
+<li><a href="https://doi.org/10.1145/1541880.1541882">Chandola, Banerjee and Kumar (2009), Anomaly Detection: A Survey (ACM Computing Surveys)</a> - the point, contextual and collective taxonomy this lesson is built around.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>Time changed the game. When each reading's context is its position in a series, anomalies split into three kinds: point (extreme on its own), contextual (an ordinary value in the wrong moment), and collective (a run that is wrong as a group). You watched a single global fence catch only the blatant spike, a robust rolling band drown in false alarms because a weekly rhythm is not locally smooth, and finally the move that works: decompose the series with STL into trend, season and remainder, then run a robust MAD fence on the remainder. That caught the contextual Thursday a global rule called ordinary; it scored a robust z of 17 once its expected weekday level was subtracted out. You also met the honest edges: collective slumps get absorbed by the decomposition, STL is batch not live, and a score still has to earn its threshold.</p>
+
+<p>Five detectors down, and every one has treated the features it was handed as fixed. Next, Lesson 6: <strong>Kernel PCA, Sparse PCA and NMF</strong>, where you go under the hood of the linear subspace from Lesson 4, bending it into curves with a kernel, forcing it to name only a few features at a time, and decomposing data into the additive parts it is really built from.</p>
+</section>
+
+{% endraw %}
