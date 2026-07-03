@@ -210,11 +210,11 @@ Feel is good; numbers are better. Take a batch of genuinely novel transactions, 
 set.seed(7)
 novel <- data.frame(account_age = rnorm(500, 260, 55),   # newer accounts...
                     amount      = rnorm(500, 310, 45))    # ...spending well above their ridge
-sapply(c(loose = 0.95, medium = 0.99, strict = 0.999), function(p) {
+round(sapply(c(loose = 0.95, medium = 0.99, strict = 0.999), function(p) {
   cut <- qchisq(p, df = 2)
   c(false_positive = mean(mahal(train) > cut),
     detection      = mean(mahal(novel) > cut))
-})
+}), 3)
 #>                loose medium strict
 #> false_positive 0.052  0.007  0.001
 #> detection      0.830  0.674  0.424

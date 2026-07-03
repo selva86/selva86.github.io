@@ -1,0 +1,285 @@
+---
+title: "Robustness and Drift Lesson 5: Group Robustness and DRO"
+description: "A model can score 88% on average while failing a subgroup. Measure worst-group accuracy, see a spurious feature reverse for a minority, and fix it with DRO."
+keywords: "group robustness, distributionally robust optimization, DRO, worst-group accuracy, spurious correlation, subgroup failure, group reweighting, ERM, R"
+mathjax: true
+webr: true
+curriculum_id: "6.190.5"
+post_type: "LESSON"
+course_id: "ds-robustness-drift"
+course_title: "Robustness, Drift and Distribution Shift"
+course_lesson: "5"
+course_total: "7"
+course_landing: "R-Robustness-and-Drift-Course.html"
+course_next: "Adversarial-Robustness.html"
+course_prev: "Out-of-Distribution-and-Novelty-Detection.html"
+lesson_access: "pro"
+catalog_blurb: "Why average accuracy can hide a failing subgroup, and how to lift it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 7</div>
+<h2>Group Robustness and DRO</h2>
+
+<p>Lesson 4 asked whether a single input was too strange to trust. This lesson asks something the last four never did: what if the model is failing an entire group of ordinary, in-distribution customers, and its headline accuracy looks great anyway?</p>
+
+<p>Nadia's fraud model serves two kinds of shopper. Nine in ten orders are <strong>domestic</strong>; one in ten come from <strong>international</strong> customers living half a world away. On the last quarter's data the model posts <strong>88% accuracy</strong>, and everyone signs off. Then the complaints start, and every one of them is from an international customer whose perfectly normal order was blocked as fraud.</p>
+
+<p>The 88% was never a lie. It was an average, and the average belongs to the majority. Toggle the panel below between the model everyone shipped (ERM) and the fix you will build (DRO), and watch the shortest bar, the worst-off group, rise.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Measure <strong>worst-group accuracy</strong> and explain why it can crater while the <strong>average</strong> stays high</li>
+
+<li>Trace the failure to a <strong>spurious feature</strong> that helps the majority but reverses sign for a minority</li>
+
+<li>Train a group-reweighted (<strong>DRO</strong>) model in R and read the deliberate average-vs-worst tradeoff</li>
+
+<li>Judge when protecting the worst group is worth the cost, and where DRO itself breaks</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you finished <a href="Out-of-Distribution-and-Novelty-Detection.html">Lesson 4</a>, you can fit and read a logistic regression, and you know what accuracy means.</p>
+<div class="lesson-widget" data-widget-type="worst-group" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>The average is a majority vote</h2>
+
+<p>An accuracy number printed over a whole dataset answers a question you did not ask. It tells you how the model does on a <em>typical</em> row, and typical means whatever the crowd is made of. When 90% of Nadia's orders are domestic, "overall accuracy" is, to a very close approximation, "domestic accuracy" wearing a disguise.</p>
+
+<p>Make that precise. Split the customers into groups \(g\) (here domestic and international). Write \(n_g\) for the number of rows in group \(g\), \(n\) for the total, and \(\mathrm{acc}_g\) for the accuracy computed <em>within</em> group \(g\) (the fraction of that group's rows the model gets right). The overall average accuracy is just a size-weighted blend of the per-group accuracies:</p>
+
+<p>\[ \mathrm{acc}_{\text{avg}} \;=\; \sum_{g} \frac{n_g}{n}\,\mathrm{acc}_g. \]</p>
+
+<p>The <strong>worst-group accuracy</strong> is the honest, adversarial summary, the minimum across groups:</p>
+
+<p>\[ \mathrm{acc}_{\text{worst}} \;=\; \min_{g}\,\mathrm{acc}_g. \]</p>
+
+<p>Now see the trap. International is only \(n_g/n = 0.1\) of the rows, so its accuracy enters the average multiplied by a tiny \(0.1\). If domestic sits at \(0.96\) and international collapses from \(0.9\) all the way to \(0.11\), the average barely twitches (it falls by about \(0.1 \times 0.8 \approx 0.08\), from \(0.96\) to \(0.88\)), while \(\mathrm{acc}_{\text{worst}}\) tells the true story: \(0.11\).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Average accuracy is a headline the majority writes. Worst-group accuracy is the number a failing minority feels. When groups differ in size, only the second one can tell you a subgroup is in freefall.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where it comes from</div>
+<h2>A shortcut that reverses for the minority</h2>
+
+<p>A model does not fail a group out of spite. It fails because it grabbed a <strong>shortcut</strong>, also called a <strong>spurious feature</strong>: a feature that predicts the label cheaply in most of the data, so minimizing overall error rewards leaning on it, even when that feature means the <em>opposite</em> thing for a smaller group.</p>
+
+<p>Here is Nadia's shortcut, made concrete. For every order we record how deep into the server's overnight window (12am to 4am) it landed, as one number, <code>night_score</code>: high means placed in the dead of the server's night. For <strong>domestic</strong> customers, awake during the server's daytime, a dead-of-night order is a classic fraud tell, so their fraud clusters at high <code>night_score</code>. But <strong>international</strong> customers live twelve hours ahead: the server's 2am is their 2pm lunch break. Their perfectly ordinary orders land at high <code>night_score</code>, and their rare fraud, committed in <em>their</em> night, lands low. The very same feature points one way for the majority and the exact opposite way for the minority.</p>
+
+<p>Each lesson runs in its own R session, so we rebuild Nadia's world from scratch. <code>risk</code> is a genuine signal both groups share; <code>night_score</code> is the reversing shortcut.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(4)
+n &lt;- 3000
+segment     &lt;- ifelse(runif(n) &lt; 0.9, &quot;domestic&quot;, &quot;international&quot;)   # 90% vs 10%
+risk        &lt;- rnorm(n)                                             # a genuine shared signal
+fraud       &lt;- rbinom(n, 1, plogis(1.2 * risk))                    # the TRUE label
+# night_score: high = ordered in the server's dead-of-night window.
+# For domestic, high co-occurs with fraud; for international it reverses.
+night_score &lt;- ifelse(segment == &quot;domestic&quot;, 2 * fraud - 1, 1 - 2 * fraud) + rnorm(n, 0, 0.5)
+orders &lt;- data.frame(fraud, risk, night_score, segment)
+
+round(prop.table(table(orders$segment)), 2)   # the 90/10 split
+#&gt;      domestic international
+#&gt;           0.9           0.1
+round(mean(orders$fraud), 2)                   # base fraud rate, both groups
+#&gt; [1] 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The measurement</div>
+<h2>The headline hides the crash</h2>
+
+<p>Now fit the model everyone shipped: an ordinary logistic regression that minimizes error over <em>all</em> the rows. Then measure it the honest way, one accuracy per group, not one number for everyone. The helper <code>gacc</code> returns domestic accuracy, international accuracy, their worst, and the overall average, so you can see the headline and the truth side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gacc &lt;- function(fit) {
+  p   &lt;- as.integer(predict(fit, orders, type = &quot;response&quot;) &gt; 0.5)
+  dom &lt;- orders$segment == &quot;domestic&quot;
+  c(domestic     = mean(p[dom]  == fraud[dom]),
+    international = mean(p[!dom] == fraud[!dom]),
+    worst        = min(mean(p[dom] == fraud[dom]), mean(p[!dom] == fraud[!dom])),
+    average      = mean(p == fraud))
+}
+
+erm &lt;- glm(fraud ~ risk + night_score, family = binomial, data = orders)
+round(gacc(erm), 2)
+#&gt;      domestic international         worst       average
+#&gt;          0.96          0.11          0.11          0.88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is. The model is right <strong>96%</strong> of the time on domestic customers and a catastrophic <strong>11%</strong> of the time on international ones, worse than a coin flip on a problem that is roughly 50/50. The <code>average</code> reads a comfortable <strong>0.88</strong>, exactly the number that got the model approved. The disaster is invisible until you condition on the group.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">This gap is not a train-test artifact. We are measuring on the very data the model was fit on, and the split is still 0.96 versus 0.11. It is a <em>between-group</em> failure baked into what the model learned, not the usual memorize-the-training-set overfitting.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the split</h2>
+
+<p>Nadia's model scores <strong>0.88 average</strong> but only <strong>0.11 on international customers</strong>, a group that is 10% of orders and has the same 50/50 fraud rate as everyone else. What is the most accurate reading?</p>
+<section class="exercise" data-exercise-id="Group-Robustness-and-DRO-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The 90% domestic majority carries the average, so it stays high while the model actively fails international, because it leaned on a feature that reverses for that group</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The international group is simply too small for the model to learn, so collecting more international orders will lift the average</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">This is ordinary overfitting: the 0.88-vs-0.11 gap is a train-test gap that a held-out set would close</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The average is a size-weighted blend dominated by the majority, so a minority can crater without moving it. And 0.11 is not mere ignorance of the group; it is worse than a coin flip, the signature of a feature the model reads backwards for these customers.</div><div class="lesson-qfb lesson-qfb-no">It is measured on the training data itself, and it is a gap between GROUPS, not between train and test. A model that never saw the spurious feature still splits about 0.69/0.67 here, so the failure is structural, not memorization.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The objective</div>
+<h2>From ERM to DRO: change what you minimize</h2>
+
+<p>Why did a competent training procedure walk straight into this? Because of exactly <em>what</em> it was told to minimize. Standard training does <strong>empirical risk minimization</strong> (ERM): it picks the parameters \(\theta\) that make the average loss over all \(n\) examples as small as possible,</p>
+
+<p>\[ \hat{\theta}_{\text{ERM}} \;=\; \arg\min_{\theta}\ \frac{1}{n}\sum_{i=1}^{n} \ell\!\left(\theta;\, x_i, y_i\right), \]</p>
+
+<p>where \(\ell\) is the per-example loss and \((x_i, y_i)\) is one order's features and label. Averaging over everyone means the 10% minority can contribute at most a tenth of the objective, so the optimizer happily reads <code>night_score</code> backwards for them if that sharpens the other 90%. The average has no idea a group is being sacrificed.</p>
+
+<p><strong>Distributionally robust optimization</strong> (DRO) changes the target. Instead of the average loss, minimize the loss of the <em>worst</em> group, a min-max objective:</p>
+
+<p>\[ \hat{\theta}_{\text{DRO}} \;=\; \arg\min_{\theta}\ \max_{g \in \mathcal{G}}\ \frac{1}{n_g}\sum_{i:\,g_i = g} \ell\!\left(\theta;\, x_i, y_i\right), \]</p>
+
+<p>where \(\mathcal{G}\) is the set of groups. A practical and surprisingly effective surrogate is simply to <strong>reweight</strong> the training loss so each group counts equally, giving group \(g\) a weight \(w_g \propto 1/n_g\):</p>
+
+<p>\[ \min_{\theta}\ \sum_{i} w_{g_i}\,\ell\!\left(\theta;\, x_i, y_i\right), \qquad w_g \propto \frac{1}{n_g}. \]</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">With a 90/10 split, equal group weight means the international rows each count \(0.9/0.1 = 9\) times a domestic row. You are not adding data; you are telling the loss that failing the small group hurts just as much as failing the big one.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Set the upweight and fit it</h2>
+
+<p>Turn the reweighting idea into a model. Fill in the weight that makes the international segment (about 10% of rows) pull the same total weight as the domestic segment (about 90%), then fit the DRO model and compare it to ERM group by group.</p>
+<section class="exercise" data-exercise-id="Group-Robustness-and-DRO-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="9\s*,\s*1"><textarea class="lesson-tryit-input" spellcheck="false">w   &lt;- ifelse(orders$segment == &quot;international&quot;, ____, 1)
+dro &lt;- glm(fraud ~ risk + night_score, family = binomial,
+           data = orders, weights = w)
+round(rbind(ERM = gacc(erm), DRO = gacc(dro)), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: international is about 1/9 of the rows, so a weight of 9 makes the two segments contribute equal total weight to the loss. Worst-group accuracy jumps from 0.11 to 0.66.</span><span class="lesson-tryit-fb lesson-tryit-no">Make both segments count equally. International is ~10% of rows and domestic ~90%, so multiply the international rows by about 9 (9 x 10% = 90%). Put 9 in the blank.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">w   &lt;- ifelse(orders$segment == &quot;international&quot;, 9, 1)   # 10% minority x 9 balances the 90% majority
+dro &lt;- glm(fraud ~ risk + night_score, family = binomial,
+           data = orders, weights = w)
+round(rbind(ERM = gacc(erm), DRO = gacc(dro)), 2)
+#&gt;     domestic international worst average
+#&gt; ERM     0.96          0.11  0.11    0.88
+#&gt; DRO     0.71          0.66  0.66    0.70</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why it works</div>
+<h2>The shortcut dies on its own</h2>
+
+<p>Look at what reweighting bought and what it cost. Worst-group accuracy leapt from <strong>0.11 to 0.66</strong>; domestic accuracy slipped from <strong>0.96 to 0.71</strong>; the average fell from <strong>0.88 to 0.70</strong>. That drop is not a bug, it is the price, paid on purpose, to stop failing a whole group of real customers.</p>
+
+<p>The most revealing part is the coefficients. You never told the model which feature was the villain, yet reweighting the rows made it disarm the shortcut by itself:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(rbind(ERM = coef(erm), DRO = coef(dro)), 2)
+#&gt;     (Intercept) risk night_score
+#&gt; ERM        0.00 1.05        1.99
+#&gt; DRO       -0.04 1.08        0.05
+
+# What if we had simply deleted the spurious feature instead?
+core_only &lt;- glm(fraud ~ risk, family = binomial, data = orders)
+round(gacc(core_only), 2)
+#&gt;      domestic international         worst       average
+#&gt;          0.69          0.67          0.67          0.69</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Under ERM, <code>night_score</code> carries a hefty weight of <strong>1.99</strong>, the model trusts the shortcut. Under DRO it falls to <strong>0.05</strong>, effectively switched off, because a feature that helps one group and hurts the other equally can no longer earn its keep once both groups count the same. And notice the <code>core_only</code> model, the one we would get by <em>manually</em> dropping <code>night_score</code>, lands at <strong>0.69/0.67</strong>, almost exactly where DRO lands. Reweighting rediscovered "ignore the reversing feature" without anyone knowing in advance which feature to drop.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The average accuracy genuinely fell. DRO buys worst-group performance with majority performance; there is no setting where every group improves at once. Ship it only when a failing subgroup is a real cost you have decided to pay down.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">DRO needs the <strong>group labels</strong> at training time, which you must have and be allowed to use. And with a tiny, noisy worst group it can chase that group's quirks and overfit it, so keep an eye on the worst group's own validation accuracy, not just its training accuracy.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What reweighting did</h2>
+
+<p>After DRO, international rose to 0.66, domestic fell from 0.96 to 0.71, and the <code>night_score</code> coefficient dropped from 1.99 to about 0.05. Which statement is correct?</p>
+<section class="exercise" data-exercise-id="Group-Robustness-and-DRO-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It stopped the model relying on a shortcut that only worked for the majority, trading some majority accuracy for a large gain on the minority; the near-zero coefficient shows the reversing feature was effectively switched off</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It found a strictly better model that lifts every group at once</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It deleted the night_score column from the data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Once both groups count equally in the loss, a feature that helps one and hurts the other cannot pay its way, so its coefficient collapses to about zero, and the model leans on the genuine <code>risk</code> signal that works for everyone, at a deliberate cost to majority accuracy.</div><div class="lesson-qfb lesson-qfb-no">The column is untouched. Reweighting the ROWS made the fit choose a coefficient near zero on its own, without you ever telling it which feature was spurious, which is the whole point.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<div class="lesson-step-eyebrow">A wider lens</div>
+<h2>Worst-group accuracy is one metric among several</h2>
+
+<p>Worst-group accuracy is the right alarm for "is any group being failed?", but it is a single number, and group fairness has more than one definition, which usually pull against each other. Compare the same model across two groups on three common yardsticks: the <strong>selection rate</strong> (how often it predicts the positive class), the <strong>true-positive rate</strong> (how often it catches the truly positive), and the <strong>false-positive rate</strong> (how often it wrongly flags the negative). Toggle the definitions below and watch a model satisfy one notion of fairness while violating another.</p>
+
+<p>The lesson generalizes past accuracy: robustness is about equalizing <em>whatever performance measure matters</em> across the groups you care about, and part of the engineering is choosing which measure that is. You usually cannot satisfy every definition at once, so pick the one tied to the real-world harm you are trying to prevent.</p>
+<div class="lesson-widget" data-widget-type="fairness-metrics" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://arxiv.org/abs/1911.08731">Sagawa, Koh, Hashimoto and Liang (2020), Distributionally Robust Neural Networks for Group Shifts</a> - the Group-DRO paper: worst-group accuracy, group reweighting, and why regularization matters for it.</li>
+
+<li><a href="https://arxiv.org/abs/2004.07780">Geirhos et al. (2020), Shortcut Learning in Deep Neural Networks</a> - the mechanism behind the whole lesson: models latching onto features that work in-sample but generalize wrong.</li>
+
+<li><a href="https://arxiv.org/abs/1810.08750">Duchi and Namkoong (2021), Learning Models with Uniform Performance via Distributionally Robust Optimization</a> - the theory under the min-max objective you wrote.</li>
+
+<li><a href="https://proceedings.mlr.press/v81/buolamwini18a.html">Buolamwini and Gebru (2018), Gender Shades</a> - a real, deployed system with strong average accuracy that failed badly on a subgroup.</li>
+
+<li><a href="https://arxiv.org/abs/1610.02413">Hardt, Price and Srebro (2016), Equality of Opportunity in Supervised Learning</a> - the fairness metrics behind the wider-lens widget, and why they conflict.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You can now catch a failure that a headline number is built to hide. Measure <strong>worst-group accuracy</strong> as the minimum across groups, and know why the size-weighted <strong>average</strong> stays high while a minority sinks. Trace the failure to a <strong>spurious feature</strong> that reverses sign for a group, and see it in the coefficients. Train a group-reweighted <strong>DRO</strong> model, read the deliberate average-vs-worst tradeoff, and recognize that reweighting disarms the shortcut on its own, without you naming it. And weigh the costs: DRO needs group labels, spends majority accuracy, and can overfit a tiny worst group.</p>
+
+<p>Every failure so far, drifting data, a strange input, a sacrificed group, has been unintentional. Next, Lesson 6: Adversarial Robustness. You will meet an adversary who perturbs an input too little for a human to notice, yet enough to flip a confident prediction, and see why a model can be accurate and brittle at the same time.</p>
+</section>
+
+{% endraw %}

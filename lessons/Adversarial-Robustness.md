@@ -77,7 +77,7 @@ Accuracy and robustness are different properties, not two ends of one scale. Leo
 ::eyebrow The mechanism
 ## Why a small nudge is enough
 
-To see how 0.81 becomes 0.32 under a tiny push, look at what the model actually computes. A logistic regression turns an input \(\mathbf{x}\) (here the two features) into a **score**, a single number that is a weighted sum,
+To see how 0.81 becomes 0.34 under a tiny push, look at what the model actually computes. A logistic regression turns an input \(\mathbf{x}\) (here the two features) into a **score**, a single number that is a weighted sum,
 
 \[ s(\mathbf{x}) \;=\; \mathbf{w}^\top \mathbf{x} + b \;=\; w_1\,\text{link\_ratio} + w_2\,\text{sender\_risk} + b, \]
 
