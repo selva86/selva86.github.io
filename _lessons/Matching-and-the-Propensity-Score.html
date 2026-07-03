@@ -1,0 +1,315 @@
+---
+title: "Causal Inference for Decisions Lesson 1: Matching and the Propensity Score"
+description: "When people choose their own treatment, a naive group comparison is confounded. Estimate a propensity score, match on it, and recover the real effect in R."
+keywords: "propensity score, matching, causal inference, confounding, potential outcomes, standardized mean difference, observational study, ATT, glm, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.1"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "1"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Inverse-Probability-Weighting-and-Doubly-Robust.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Fairly compare treated and untreated groups when you could not randomize."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 11</div>
+<h2>Matching and the Propensity Score</h2>
+
+<p>A hospital offers an optional cardiac-rehab program to patients recovering from a heart attack. Three months later, the patients who enrolled walk <strong>52 metres</strong> further in six minutes than the patients who did not. A press release writes itself: rehab adds 52 metres. Except it did not. The patients who signed up were fitter and more motivated to begin with, so they would have recovered better even with no program at all. Part of that 52-metre gap is the rehab; part is just who chose to enroll.</p>
+
+<p>This is the central problem of learning from data you did not get to randomize. When people pick their own treatment, the treated and untreated groups differ for reasons that have nothing to do with the treatment. This lesson gives you the first and most intuitive tool for fixing it: estimate how likely each person was to be treated (their <strong>propensity score</strong>), pair each treated person with an untreated look-alike, and compare only fair matches. Toggle the panel below to feel the whole idea in miniature: two groups that start out mismatched, snapped into alignment.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a naive difference between a treated and an untreated group is biased when people self-select</li>
+
+<li>State what a causal effect actually is, using potential outcomes, and split the naive gap into a real effect plus selection bias</li>
+
+<li>Estimate a propensity score with <code>glm</code>, match on it, and recover an effect a raw comparison gets badly wrong</li>
+
+<li>Read the standardized mean difference to check that matching worked, and name what matching still cannot fix</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit a logistic regression with <code>glm(..., family = binomial)</code> and read its predicted probabilities, and you know why a randomized experiment removes confounding.</p>
+<div class="lesson-widget" data-widget-type="matching-overlap" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>You cannot just compare the two groups</h2>
+
+<p>Let us build the hospital's data so the trap is impossible to wave away. Four hundred patients; each has a <strong>baseline</strong> fitness at discharge (metres walked in six minutes) and either enrolled in rehab or did not. We plant a <strong>true</strong> rehab effect of exactly <strong>25 metres</strong>, so we know the honest answer and can watch the naive comparison miss it. Crucially, fitter patients (higher baseline) are both more likely to enroll AND recover more on their own, which is the confounding.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 400
+baseline &lt;- round(rnorm(n, 350, 70))                                 # 6-min walk at discharge, metres
+rehab    &lt;- rbinom(n, 1, plogis(0.15 + 1.1 * (baseline - 350) / 70)) # 1 = enrolled in rehab
+improve  &lt;- round(40 + 25 * rehab + 0.45 * (baseline - 350) + rnorm(n, 0, 25))  # 3-month gain, metres
+study    &lt;- data.frame(baseline, rehab, improve)
+
+table(study$rehab)                                    # how many enrolled
+#&gt;
+#&gt;   0   1
+#&gt; 189 211
+round(tapply(study$improve, study$rehab, mean), 1)    # mean gain in each group
+#&gt;    0    1
+#&gt; 26.4 78.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The enrolled group gained <strong>78.5 m</strong> on average, the others <strong>26.4 m</strong>. Subtract, and you get the headline.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">naive &lt;- mean(study$improve[study$rehab == 1]) - mean(study$improve[study$rehab == 0])
+round(naive, 1)
+#&gt; [1] 52.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 52.1-metre gap, more than double the 25 metres we actually built in. Why is it so inflated? Because we are not comparing rehab against no-rehab. We are comparing <em>the kind of patient who enrolls</em> against <em>the kind who does not</em>, and those two kinds of patient were different before rehab entered the picture. The next step draws exactly why that ruins the comparison.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<div class="lesson-step-eyebrow">The mechanism</div>
+<h2>Confounding, drawn</h2>
+
+<p>A picture makes the problem precise. Call the treatment <strong>X</strong> (enrolled in rehab), the outcome <strong>Y</strong> (three-month gain), and baseline fitness <strong>Z</strong>. In our study, baseline fitness is a <strong>confounder</strong>: it points an arrow at X (fitter patients enroll more) and an arrow at Y (fitter patients recover more), while X also affects Y (rehab genuinely helps). Because Z feeds both X and Y, some of the X-to-Y association you observe is really Z leaking through a side route, the <strong>backdoor path</strong> X ← Z → Y.</p>
+
+<p>Switch the widget to <strong>confounder</strong> and read the verdict: when a variable causes both the treatment and the outcome, you must <strong>control for it</strong>, or the effect you read off is wrong. (The other two shapes, collider and mediator, are traps in the opposite direction, and later lessons return to them. For now, baseline fitness is a clean confounder.)</p>
+
+<p>Matching is one way to "control for Z": instead of comparing all treated to all controls, we will compare treated and control patients who have the <em>same</em> baseline fitness, closing the backdoor.</p>
+<div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">What we are really after</div>
+<h2>The comparison you wish you had</h2>
+
+<p>To say the naive gap is "wrong" we need to say what "right" would be. The clean way is <strong>potential outcomes</strong>. For each patient \(i\), imagine two parallel worlds: \(Y_i(1)\) is the gain they would record if they enrolled in rehab, and \(Y_i(0)\) is the gain the <em>same</em> patient would record if they did not. That patient's true rehab effect is the difference between their own two worlds,</p>
+
+<p>\[ \tau_i = Y_i(1) - Y_i(0). \]</p>
+
+<p>Here is the catch that defines the whole field, the <strong>fundamental problem of causal inference</strong>: a patient either enrolls or does not, so you only ever observe <em>one</em> of \(Y_i(1)\) and \(Y_i(0)\). The other is a counterfactual you can never measure.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Patient</th>
+<th>Enrolled?</th>
+<th>Gain if enrolled, \(Y(1)\)</th>
+<th>Gain if not, \(Y(0)\)</th>
+<th>Effect \(\tau_i\)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anaya</td>
+<td>yes</td>
+<td><strong>74 m</strong> (observed)</td>
+<td>? never seen</td>
+<td>?</td>
+</tr>
+<tr>
+<td>Ben</td>
+<td>no</td>
+<td>? never seen</td>
+<td><strong>22 m</strong> (observed)</td>
+<td>?</td>
+</tr>
+</tbody>
+</table>
+
+<p>Since we cannot get an individual's two worlds, we aim for an average. The <strong>average treatment effect on the treated</strong> (ATT) is what rehab did, on average, for the patients who actually took it, with \(T = 1\) meaning treated:</p>
+
+<p>\[ \mathrm{ATT} = E\big[\,Y(1) - Y(0) \mid T = 1\,\big]. \]</p>
+
+<p>Now watch what the naive difference of observed group means actually equals. Adding and subtracting the term \(E[Y(0)\mid T=1]\) (how the treated <em>would</em> have done untreated) splits it cleanly:</p>
+
+<p>\[ \underbrace{E[Y \mid T{=}1] - E[Y \mid T{=}0]}_{\text{naive 52.1 m}} = \underbrace{E[Y(1){-}Y(0)\mid T{=}1]}_{\text{ATT, the real effect}} + \underbrace{E[Y(0)\mid T{=}1] - E[Y(0)\mid T{=}0]}_{\text{selection bias}}. \]</p>
+
+<p>The second term is the whole trouble: it asks whether the treated and control groups would have differed <em>even with no treatment</em>. In our study they would, because the treated started fitter, so \(E[Y(0)\mid T{=}1] > E[Y(0)\mid T{=}0]\) and the bias is positive. That extra 27 metres of "bias" is exactly what pushed 25 up to 52. Kill the selection bias and the naive number collapses back onto the ATT.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why the 52 metres is not the effect</h2>
+
+<p>In our data the enrolled patients had a mean baseline of <strong>381 m</strong> versus <strong>322 m</strong> for the others, and the raw outcome gap was <strong>52.1 m</strong> against a true effect of <strong>25 m</strong>. Which statement correctly explains the gap?</p>
+<section class="exercise" data-exercise-id="Matching-and-the-Propensity-Score-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The 52.1 m gap is rehab's causal effect; the program simply works very well</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The enrolled patients started fitter and would have improved more even without rehab, so part of the 52 m is that baseline head start, not the program</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The gap would shrink to 25 m if we simply collected more patients</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The naive difference equals the real effect plus a selection-bias term. Here the treated group's higher baseline makes E[Y(0)|T=1] larger than E[Y(0)|T=0], inflating 25 up to 52.</div><div class="lesson-qfb lesson-qfb-no">More data shrinks variance, not bias. Confounding is systematic: a bigger sample estimates the same biased 52 m more precisely. You need to adjust for baseline, not collect more of it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The key idea</div>
+<h2>The propensity score</h2>
+
+<p>Matching patient to patient on baseline fitness works when you have one confounder. Real studies have dozens (age, prior surgeries, medication, distance from the clinic), and you cannot find an exact twin across all of them. Rosenbaum and Rubin's insight was to collapse every confounder into a single number: the <strong>propensity score</strong>, the probability that a patient with covariates \(x\) ends up treated,</p>
+
+<p>\[ e(x) = P(T = 1 \mid X = x). \]</p>
+
+<p>You already know how to estimate a probability from predictors: a logistic regression. Fit the treatment (not the outcome) on the confounders, and read off each patient's fitted probability of enrolling.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ps_model &lt;- glm(rehab ~ baseline, family = binomial, data = study)
+study$ps &lt;- predict(ps_model, type = &quot;response&quot;)   # each patient's chance of enrolling
+head(round(study[, c(&quot;baseline&quot;, &quot;rehab&quot;, &quot;ps&quot;)], 3))
+#&gt;   baseline rehab    ps
+#&gt; 1      419     0 0.757
+#&gt; 2      383     1 0.642
+#&gt; 3      342     0 0.489
+#&gt; 4      335     0 0.462
+#&gt; 5      431     1 0.789
+#&gt; 6      440     1 0.812</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read row 1: a very fit patient (419 m) had a 0.76 chance of enrolling but happened not to, an unusually good control to compare a treated patient against. The magic is the <strong>balancing property</strong>: among patients who share the same propensity score, the treated and the untreated have, on average, the same distribution of the original confounders. So comparing a treated and a control patient with equal scores is like comparing two people plucked from the same mini-randomized experiment. One number stands in for the whole tangle of confounders.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting it to work</div>
+<h2>Match on the score, and the imbalance collapses</h2>
+
+<p>The simplest recipe is <strong>nearest-neighbour matching</strong>: walk through each treated patient, and pair them with the control whose propensity score is closest. That throws away nothing about the treated group (so the estimate targets the ATT) and reuses the controls that actually resemble treated patients. It only works where the two groups <strong>overlap</strong>, the region of "common support" where both treated and control patients exist; a treated patient so extreme that no control comes close cannot be matched honestly, and you should not pretend otherwise.</p>
+
+<p>How do you <em>check</em> that matching balanced a confounder? Compare its group means on a scale that ignores units, the <strong>standardized mean difference</strong> (SMD). For a covariate with treated mean \(\bar{X}_t\), control mean \(\bar{X}_c\), and group variances \(s_t^2, s_c^2\),</p>
+
+<p>\[ d = \frac{\bar{X}_t - \bar{X}_c}{\sqrt{\tfrac{1}{2}\left(s_t^2 + s_c^2\right)}}. \]</p>
+
+<p>It is the gap in means measured in standard deviations. A common rule of thumb: \(|d| < 0.1\) is good balance, meaning the groups are close enough on that covariate to compare fairly. Toggle the widget between <strong>before</strong> and <strong>after</strong> matching: the mismatched treated and control piles slide into alignment, and the SMD printed underneath drops from badly imbalanced toward zero.</p>
+<div class="lesson-widget" data-widget-type="matching-overlap" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Recover the real effect</h2>
+
+<p>Now do it on our study. The propensity score <code>study$ps</code> already exists from two steps ago. Pair each treated patient with the nearest-propensity control by filling in the function that returns the index of the smallest distance, then average the paired differences to estimate the ATT.</p>
+<section class="exercise" data-exercise-id="Matching-and-the-Propensity-Score-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="which\.min"><textarea class="lesson-tryit-input" spellcheck="false">trt  &lt;- which(study$rehab == 1)
+ctrl &lt;- which(study$rehab == 0)
+# pair each treated patient with the control closest in propensity score
+match_id &lt;- sapply(trt, function(i) ctrl[which.____(abs(study$ps[ctrl] - study$ps[i]))])
+att &lt;- mean(study$improve[trt] - study$improve[match_id])
+round(att, 1)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. which.min returns the index of the nearest control, and the matched difference lands near the true 25 m, not the naive 52 m.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the index of the SMALLEST distance: which.min(abs(...)). which.max would pick the worst possible match.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">trt  &lt;- which(study$rehab == 1)
+ctrl &lt;- which(study$rehab == 0)
+match_id &lt;- sapply(trt, function(i) ctrl[which.min(abs(study$ps[ctrl] - study$ps[i]))])
+
+att   &lt;- mean(study$improve[trt] - study$improve[match_id])
+naive &lt;- mean(study$improve[trt]) - mean(study$improve[ctrl])
+round(c(true = 25, naive = naive, matched = att), 1)
+#&gt;    true   naive matched
+#&gt;    25.0    52.1    27.0
+
+# did matching actually balance baseline fitness?
+smd &lt;- function(a, b) (mean(a) - mean(b)) / sqrt((var(a) + var(b)) / 2)
+round(c(before = smd(study$baseline[trt], study$baseline[ctrl]),
+        after  = smd(study$baseline[trt], study$baseline[match_id])), 2)
+#&gt; before  after
+#&gt;   0.93   0.04</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the balance number</h2>
+
+<p>After matching, the standardized mean difference on baseline fitness fell from 0.93 to 0.04. What can you legitimately conclude?</p>
+<section class="exercise" data-exercise-id="Matching-and-the-Propensity-Score-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The matched estimate is now guaranteed to be unbiased</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Baseline fitness is now well balanced between the groups, so it can no longer explain the outcome gap, though only for the covariates you actually measured</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Balance near zero means the two groups are identical, so rehab must have no effect</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. SMD 0.04 means the groups are matched on baseline, so it is no longer confounding the comparison. But matching can only balance what you measured; unmeasured confounders are untouched.</div><div class="lesson-qfb lesson-qfb-no">Balance is on the <em>confounders</em>, not the <em>outcome</em>. The groups being comparable is exactly what lets the remaining outcome difference (27 m) be read as rehab's effect, not evidence of no effect.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The honest limits</div>
+<h2>What matching cannot do</h2>
+
+<p>Matching bought us a fair comparison on baseline fitness. It is not a truth machine, and two assumptions do the heavy lifting.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Matching only balances confounders you <strong>measured</strong>. It leans on <strong>no unmeasured confounding</strong> (also called ignorability): the assumption that, once you match on the recorded covariates, treated and control patients are comparable. If motivated patients enroll for reasons you never wrote down, that imbalance survives matching and quietly biases the result. There is no statistical test for it; it is an argument you must make from domain knowledge.</div></div>
+
+<p>The second assumption is <strong>overlap</strong> (positivity): every kind of patient must have some real chance of being in either group. A treated patient whose propensity score is 0.99, with no control anywhere near, has no honest match, and forcing one invents a comparison the data cannot support. Always inspect the score distributions before trusting the estimate.</p>
+
+<p>In practice you would not hand-roll the loop above. The <strong>MatchIt</strong> package does the propensity model, the matching, and the balance diagnostics in a couple of lines (this needs a full R install, so read it, do not run it here):</p>
+
+<pre><code class="language-r">library(MatchIt)
+m &lt;- matchit(rehab ~ baseline, data = study, method = &quot;nearest&quot;)
+summary(m)                       # standardized mean differences, before and after
+matched_data &lt;- match.data(m)    # the paired sample, ready for an outcome model</code></pre>
+
+<p>One more sanity check worth knowing: matching is not the only adjustment. Regressing the outcome on treatment <em>and</em> the confounder, <code>lm(improve ~ rehab + baseline)</code>, recovers a rehab coefficient of <strong>25.6 m</strong> here, agreeing with matching. When two different adjustments land in the same place, you can trust the answer more. When they disagree, something (often overlap or an unmeasured confounder) deserves a closer look.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3144483/">Austin (2011), An Introduction to Propensity Score Methods (PMC)</a> - the clearest applied primer; walks through matching, weighting, stratification, and adjustment.</li>
+
+<li><a href="https://doi.org/10.1214/09-STS313">Stuart (2010), Matching Methods for Causal Inference: A Review</a> - the authoritative survey of where nearest-neighbour matching sits among the alternatives.</li>
+
+<li><a href="https://kosukeimai.github.io/MatchIt/">MatchIt: Getting Started (Ho, Imai, King and Stuart)</a> - the R package that runs everything in this lesson, plus balance diagnostics, in a few lines.</li>
+
+<li><a href="https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/">Hernan and Robins, Causal Inference: What If (free PDF)</a> - the rigorous treatment of confounding, exchangeability, and positivity, the assumptions matching leans on.</li>
+
+<li><a href="https://mixtape.scunning.com/05-matching_and_subclassification">Cunningham, Causal Inference: The Mixtape - Matching and Subclassification</a> - a friendly, worked companion with code.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You saw a 52-metre headline dissolve into 25 metres of real effect once you stopped comparing the kind of patient who enrolls with the kind who does not. You defined a causal effect with potential outcomes, split the naive gap into the ATT plus selection bias, estimated a propensity score with <code>glm</code>, matched treated patients to their control look-alikes, and confirmed with the standardized mean difference that baseline fitness was finally balanced.</p>
+
+<p>Next, Lesson 2: Inverse-Probability Weighting and Doubly-Robust estimation. Instead of discarding unmatched controls, you will <em>reweight</em> every patient by their propensity to rebuild a pseudo-randomized sample, meet the overlap requirement in a sharper form, and learn the doubly-robust estimator that still works if either the propensity model or the outcome model is right, a genuine second chance at an unbiased answer.</p>
+</section>
+
+{% endraw %}
