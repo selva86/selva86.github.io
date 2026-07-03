@@ -56,6 +56,7 @@ COURSE_ROADMAP = {
     'ds-causal-decisions': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 18, 'sectionLabel': 'Causal inference for decisions'},
     'ds-robustness-drift': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 19, 'sectionLabel': 'Robustness, drift and distribution shift'},
     'ds-anomaly': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 20, 'sectionLabel': 'Anomaly detection and advanced unsupervised'},
+    'ds-uncertainty': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 21, 'sectionLabel': 'Uncertainty: conformal, calibration, probabilistic'},
     # Data Analyst track (level 2, all free) - one course per roadmap section.
     'nr-basics': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 1, 'sectionLabel': 'Syntax, types and vectors'},
     'nr-structures': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 2, 'sectionLabel': 'Lists, data frames and tibbles'},
