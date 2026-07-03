@@ -1,0 +1,325 @@
+---
+title: "Uncertainty Quantification Lesson 1: Prediction Intervals You Can Trust"
+description: "Why a single point prediction is not enough, what a prediction interval and its coverage really promise, and why lm's textbook interval quietly under-covers."
+keywords: "prediction interval, confidence interval, coverage, prediction interval in R, predict lm interval, heteroskedasticity, uncertainty quantification, conformal prediction, R"
+mathjax: true
+webr: true
+curriculum_id: "6.210.1"
+post_type: "LESSON"
+course_id: "ds-uncertainty"
+course_title: "Uncertainty Quantification in R"
+course_lesson: "1"
+course_total: "7"
+course_landing: "R-Uncertainty-Course.html"
+course_next: "Split-Conformal-Prediction.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Why a point prediction needs an honest range you can actually trust."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 7</div>
+<h2>Prediction Intervals You Can Trust</h2>
+
+<p>Rohan is a real-estate agent. A client walks in with a 1,500 square foot flat and asks the only question that matters: "What will it sell for?" Rohan's model gives him one number, $329,000. He could say that out loud. He would also be wrong, because almost no flat sells for exactly its predicted price. What the client actually needs is a <em>range</em> Rohan can stand behind.</p>
+
+<p>This whole course is about turning a single guess into an honest range: an interval you can promise will contain the truth a stated fraction of the time. It starts here, with the interval your regression already knows how to build, and the quiet way that interval can betray you.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Tell a confidence interval (about the average) apart from a prediction interval (about one new outcome), and say which one a client needs</li>
+
+<li>Read a 90% prediction interval out of an <code>lm</code> model in R, and say exactly what "90%" promises</li>
+
+<li>Test whether an interval keeps that promise, and see why the textbook interval under-covers exactly when it matters most</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit a line with <code>lm()</code> and you know a residual is actual minus predicted (<a href="OLS-Regression-from-Scratch.html">OLS regression</a>, <a href="Regression-Assumptions-and-Residuals.html">regression assumptions</a>), plus basic R (vectors, <code>data.frame</code>). Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trouble with one number</div>
+<h2>A point prediction is a promise you cannot keep</h2>
+
+<p>Let us build Rohan's market and watch the problem appear. Each lesson runs in a fresh R session, so we create the data right here (run this once). Price climbs with size at about $180 a square foot, but look closely at the noise: its spread GROWS with size, because big homes vary far more than small ones (renovations, location, a bidding war).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 160
+sqft  &lt;- round(runif(n, 600, 2600))
+price &lt;- round(60000 + 180 * sqft + rnorm(n, 0, 28 * sqft))   # spread grows with sqft
+homes &lt;- data.frame(sqft, price)
+head(homes, 4)
+#&gt;   sqft  price
+#&gt; 1 1131 245571
+#&gt; 2 1344 296833
+#&gt; 3 1746 431874
+#&gt; 4 2416 391814</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now fit the line and ask it about the client's 1,500 square foot flat:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit  &lt;- lm(price ~ sqft, data = homes)
+flat &lt;- data.frame(sqft = 1500)
+round(predict(fit, flat))     # the single-number point prediction
+#&gt;      1 
+#&gt; 329113 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is: $329,113. That is the model's best single guess, and it is the model's <em>average</em> home at 1,500 square feet. But the client is not selling the average flat. They are selling <em>one</em> flat, and one flat lands somewhere in a wide cloud around that average. Quote the single number and Rohan is wrong almost every time. The honest move is to quote a range.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The honest answer</div>
+<h2>A prediction interval comes with a coverage promise</h2>
+
+<p>A <strong>prediction interval</strong> is a range built around the prediction so that a genuinely new outcome falls inside it a stated fraction of the time. Write its lower and upper bounds as \([L, U]\). A 90% prediction interval is built to satisfy</p>
+
+<p>\[ P\big(L \le Y_{\text{new}} \le U\big) = 0.90 \]</p>
+
+<p>read out loud: the probability that a brand-new home's actual sale price \(Y_{\text{new}}\) lands between \(L\) and \(U\) is 90%. That "90%" is the interval's <strong>coverage</strong>, and it is a promise: run this on many new homes and about nine in ten should fall inside. You do not derive it by hand, <code>lm</code> builds it for you when you ask:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(predict(fit, flat, interval = &quot;prediction&quot;, level = 0.90))
+#&gt;      fit    lwr    upr
+#&gt; 1 329113 250360 407866</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So instead of "$329,000", Rohan can say "very likely between $250,000 and $408,000." That range is honest. It is also uncomfortably wide, and the width is not a bug: it is the real spread of what one flat can fetch. A number that hides that spread is not more accurate, only more confident.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A point prediction answers "what is the average outcome here?" A prediction interval answers "where will THIS single outcome actually land, and how sure are we?" Only the second is a promise you can keep.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">Two intervals people mix up</div>
+<h2>The mean is not the home</h2>
+
+<p>There are TWO intervals you can put around a regression prediction, and confusing them is the most common mistake in this whole topic.</p>
+
+<p>A <strong>confidence interval</strong> captures the uncertainty in the <em>line itself</em>, the average price of ALL 1,500 square foot flats. Ask R for it and it is narrow:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(predict(fit, flat, interval = &quot;confidence&quot;, level = 0.90))
+#&gt;      fit    lwr    upr
+#&gt; 1 329113 322785 335441</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only about $6,000 either side. With 160 sales we have pinned the average flat down tightly. A <strong>prediction interval</strong> captures where ONE new home lands, so on top of that it must carry the home-to-home scatter around the average. That is why it was ten times wider ($250k to $408k).</p>
+
+<p>Slide the sample size below. Watch the green <strong>confidence</strong> band collapse onto the line as data piles up (we learn the average ever more precisely), while the orange <strong>prediction</strong> band barely narrows: a single new home always carries its own irreducible noise, no matter how much data you gather.</p>
+
+<p>The formula makes the split explicit. The normal-theory prediction interval for a new home at size \(x_0\) is</p>
+
+<p>\[ \hat y_0 \;\pm\; t_{1-\alpha/2,\,n-2}\; s\sqrt{\,1 + \tfrac{1}{n} + \tfrac{(x_0-\bar x)^2}{S_{xx}}\,} \]</p>
+
+<p>where \(\hat y_0\) is the point prediction, \(s\) is the residual standard deviation (the typical miss), \(t\) is a multiplier from the t-distribution that sets the level, \(n\) is the sample size, \(\bar x\) the mean size, and \(S_{xx}=\sum_i(x_i-\bar x)^2\) the spread of the sizes. The confidence interval is the SAME formula but <em>without</em> the \(1\) under the root. That lone \(1\) is the scatter of an individual home, the piece that never shrinks with more data, and the whole reason a prediction interval stays wide.</p>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which range do you quote the client?</h2>
+
+<p>Rohan's client wants to know what THEIR specific 1,500 square foot flat will sell for. Rohan has both intervals in front of him: a confidence interval of $322,785 to $335,441, and a prediction interval of $250,360 to $407,866. Which should he quote, and why?</p>
+<section class="exercise" data-exercise-id="Prediction-Intervals-You-Can-Trust-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The confidence interval, $323k to $335k, because it is tighter and more precise</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The prediction interval, $250k to $408k, because it is about a single new home and includes the home-to-home scatter</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Either one; at n = 160 they are essentially the same</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The client is selling one flat, not the average of all flats. Only the prediction interval accounts for the irreducible spread of individual homes, so only it can keep a coverage promise about this sale.</div><div class="lesson-qfb lesson-qfb-no">They are not close: $13k wide versus $158k wide. More data shrinks the confidence interval toward the line but barely touches the prediction interval, because a new home's own scatter never goes away.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The catch</div>
+<h2>That formula trusts a bell curve</h2>
+
+<p>Look back at the prediction-interval formula. It leans on a single number \(s\), one typical miss for the whole dataset. That is only fair if every home scatters around the line by roughly the same amount, the <strong>equal-variance</strong> (homoskedasticity) assumption behind every regression. Rohan's market breaks it on purpose: we built the noise to grow with size. Let us catch it red-handed by comparing the average miss for small versus large homes.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">homes$fitted &lt;- predict(fit)
+homes$resid  &lt;- homes$price - homes$fitted
+aggregate(abs(resid) ~ I(sqft &gt; 1600), data = homes,
+          FUN = function(z) round(mean(z)))
+#&gt;   I(sqft &gt; 1600) abs(resid)
+#&gt; 1          FALSE      27960
+#&gt; 2           TRUE      43765</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A typical small home misses the line by about $28,000; a typical big home misses by about $44,000, over half again as much. The single pooled \(s\) that <code>lm</code> plugs into the interval is just an average of the two. So the interval it builds is too WIDE for small homes and too NARROW for big ones. You can see the fan in the residuals themselves:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(homes$sqft, homes$resid, pch = 19, col = &quot;gray50&quot;,
+     xlab = &quot;sqft&quot;, ylab = &quot;residual ($)&quot;)
+abline(h = 0, lty = 2)      # the scatter widens to the right: a funnel</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The band that looked so reasonable is quietly the wrong width almost everywhere. The only way to know how badly is to test it.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">The honest test</div>
+<h2>Does a 90% interval really cover 90%?</h2>
+
+<p>There is exactly one honest way to check an interval: take a pile of fresh homes whose true prices you know, and count how many land inside their own intervals. That fraction is the <strong>empirical coverage</strong>. If the interval is honest, it should come out near 0.90.</p>
+
+<p>Let us run exactly that recipe on 5,000 brand-new homes drawn from the same market:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+m &lt;- 5000
+new_sqft  &lt;- round(runif(m, 600, 2600))
+new_price &lt;- round(60000 + 180 * new_sqft + rnorm(m, 0, 28 * new_sqft))
+
+band   &lt;- predict(fit, data.frame(sqft = new_sqft),
+                  interval = &quot;prediction&quot;, level = 0.90)
+inside &lt;- new_price &gt;= band[, &quot;lwr&quot;] &amp; new_price &lt;= band[, &quot;upr&quot;]
+mean(inside)                       # overall coverage: we wanted 0.90
+#&gt; [1] 0.897</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.897. The interval looks like it kept its promise. But an average across all homes can hide a lot. Rohan's clients with the priciest listings are exactly the big homes, so let us mark those out and look at them separately in a moment.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">big &lt;- new_sqft &gt; 1600     # TRUE for the larger, pricier homes
+sum(big)                   # how many big homes we are about to scrutinise
+#&gt; [1] 2530</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Fit","sub":"fit the model on your training homes"},{"title":"Predict","sub":"build the 90% interval for many fresh homes"},{"title":"Check","sub":"mark each fresh home inside or outside its interval"},{"title":"Average","sub":"the fraction inside is the empirical coverage"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Uncover the failure</h2>
+
+<p><code>inside</code> is TRUE for every fresh home whose real price fell within its 90% interval, and <code>big</code> is TRUE for the larger homes. Rohan sold every client the same "90% confident" range. Compute the coverage among the BIG homes alone, the expensive listings where a miss costs the most. Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Prediction-Intervals-You-Can-Trust-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mean\(\s*inside\s*\[\s*big\s*\]\s*\)"><textarea class="lesson-tryit-input" spellcheck="false"># coverage = fraction inside, but computed only over the big homes
+big_coverage &lt;- ____
+big_coverage</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">About 0.82. Only 82% of the pricey homes landed in the interval Rohan sold as 90% confident. For small homes it runs 97% (too wide). One pooled width cannot be right for both.</span><span class="lesson-tryit-fb lesson-tryit-no">Coverage is mean() of a TRUE/FALSE vector. You want it only over the big homes: subset inside with the big flag, mean(inside[big]).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">big_coverage &lt;- mean(inside[big])
+big_coverage
+#&gt; [1] 0.821</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What went wrong, and what fixes it?</h2>
+
+<p>Rohan's 90% interval covered 97% of small homes but only 82% of the big ones, even though it averaged out near 90% overall. What is the cause, and the right fix?</p>
+<section class="exercise" data-exercise-id="Prediction-Intervals-You-Can-Trust-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The regression is underfit; adding more predictors would fix the coverage</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The equal-variance assumption is broken, so one pooled width is too narrow for high-scatter homes; the fix is a method that does not assume a constant, bell-shaped error</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Just raise the level to 95%; a wider interval will cover everyone</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Heteroskedastic errors mean no single width fits everyone. You need an interval whose width can adapt, or a distribution-free guarantee that holds whatever the errors look like. That is where the rest of this course goes.</div><div class="lesson-qfb lesson-qfb-no">That widens BOTH groups, pushing small homes past 99% (even more wasteful) while big homes may still fall short. The issue is one-width-fits-all, not the level you picked.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take prediction intervals further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 3 (free PDF)</a> - its "prediction intervals versus confidence intervals" discussion is the exact distinction this lesson turns on.</li>
+
+<li><a href="https://online.stat.psu.edu/stat501/">Penn State STAT 501: Regression Methods</a> - free lessons that derive the interval you asked <code>lm</code> for, with the formula and its assumptions spelled out.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/predict.lm.html">R documentation: predict.lm</a> - the <code>interval = &quot;confidence&quot;</code> versus <code>&quot;prediction&quot;</code> argument you used, straight from the source.</li>
+
+<li><a href="https://arxiv.org/abs/2107.07511">Angelopoulos and Bates (2023), A Gentle Introduction to Conformal Prediction</a> - where this course heads next: distribution-free intervals whose coverage holds even when the bell curve does not.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now turn a point prediction into an honest range. A <strong>confidence interval</strong> is about the average outcome, narrow and shrinking with data; a <strong>prediction interval</strong> is about one new outcome, wide because it carries the irreducible scatter that never shrinks. You know what its "90%" promises, how to ask <code>lm</code> for it, and how to test whether it delivers by measuring empirical coverage on fresh data.</p>
+
+<p>And you saw the crack: when the errors are not the tidy, equal-variance bell the formula assumes, that single interval is the wrong width, under-covering exactly the high-stakes cases. The comfortable overall 90% was an average hiding an 82%.</p>
+
+<p>Next, Lesson 2: Split Conformal Prediction. Instead of trusting a formula's assumptions, you will build an interval whose coverage is guaranteed by the data itself, holding at or above your target no matter what the errors look like, using only a held-out calibration set and a single quantile.</p>
+</section>
+
+{% endraw %}
