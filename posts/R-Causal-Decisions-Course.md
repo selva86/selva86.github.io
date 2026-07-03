@@ -89,6 +89,12 @@ Split a total effect into the direct path and the indirect path that runs throug
 
 [Start Lesson 11: Mediation Analysis](Mediation-Analysis.html)
 
+### Section quiz: check what stuck
+
+Twelve graded questions across the whole section, matching and propensity scores, IPW and doubly-robust, difference-in-differences and its staggered-rollout trap, regression discontinuity, instrumental variables, synthetic control, uplift, double machine learning, sensitivity analysis, and mediation, plus two live R snippets you can run. A quick way to find the ideas worth a second pass before you move on.
+
+[Take the Causal Inference for Decisions quiz](Causal-Inference-for-Decisions-Quiz.html)
+
 ## Who this is for
 
 You can run R and read its output, and you are comfortable with a linear model and a logistic regression. You have met the basic causal ideas (potential outcomes, confounding, a DAG) or are willing to pick them up in the introductory Causal Inference course first. Analysts, data scientists, and researchers who have to turn observational data into a decision, and defend it, will get the most out of this. If you have ever been asked "but would it have happened anyway?", this course hands you the methods to answer.
