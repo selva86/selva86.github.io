@@ -1,0 +1,290 @@
+---
+title: "Anomaly Detection Lesson 3: Local Outlier Factor and One-Class SVM"
+description: "Local Outlier Factor scores each point against its own neighbours to catch locally sparse outliers a global cutoff misses, plus a one-class SVM boundary in R."
+keywords: "local outlier factor, LOF, one-class SVM, novelty detection, density-based anomaly detection, outlier detection, e1071, R"
+mathjax: true
+webr: true
+curriculum_id: "6.200.3"
+post_type: "LESSON"
+course_id: "ds-anomaly"
+course_title: "Anomaly and Outlier Detection"
+course_lesson: "3"
+course_total: "7"
+course_landing: "R-Anomaly-Detection-Course.html"
+course_next: "Autoencoders-for-Anomaly-Detection.html"
+course_prev: "Isolation-Forest-and-Extended-Isolation-Forest.html"
+lesson_access: "pro"
+catalog_blurb: "Find outliers hiding in sparse local pockets, and wrap the normal region."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 7</div>
+<h2>Local Outlier Factor and One-Class SVM</h2>
+
+<p>In Lesson 2, the isolation forest scored every charge on one global question: how few random cuts fence this point off from the whole dataset? That works beautifully for a point sitting far out on its own. But some outliers are not far from everything, they are only far from their own neighbourhood, and a global score walks right past them. That is exactly how a fraudulent $130 charge on Maya's card slips through: it is a touch bigger than her everyday $22 coffees but nowhere near her hundreds-of-dollars big purchases, so nothing global flags it.</p>
+
+<p>This lesson catches those. First the <strong>Local Outlier Factor (LOF)</strong>, which scores each point against the density of its own neighbours. Then the <strong>one-class SVM</strong>, which learns a boundary around the normal region so you can wave any new point at it and ask, inside or out?</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a single global cutoff both misses a locally-sparse outlier and false-alarms on legitimate spread-out points</li>
+
+<li>Define LOF as a local density ratio (k-distance, reachability distance, local density, the LOF ratio) and read LOF near 1 versus LOF well above 1</li>
+
+<li>Compute LOF from scratch in R and interpret the scores</li>
+
+<li>Fit a one-class SVM on normal data, tune its two knobs, and flag new points that fall outside the learned boundary</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read base R (<code>matrix</code>, <code>data.frame</code>, <code>scale</code>, <code>dist</code>, <code>sapply</code>, small functions), and you have done <a href="What-is-an-Anomaly.html">Lesson 1: What Is an Anomaly?</a> (global vs local outliers, distance vs density) and <a href="Isolation-Forest-and-Extended-Isolation-Forest.html">Lesson 2: Isolation Forest</a> (a global detector). No SVM background is needed; the margin idea is built up here.</p>
+<div class="lesson-widget" data-widget-type="lof-density" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>A global cutoff misses a local outlier</h2>
+
+<p>Let us keep working with Maya's card, but look at the shape of her spending more carefully. It has two natural clusters. A big, tight crowd of everyday charges: coffee, groceries, a few dollars, a few miles from home. And a small, loose scatter of legitimate big purchases: a laptop, a flight, hundreds of dollars, sometimes far away. Now a fraudulent $130 charge lands, 9 miles out. It is a bit bigger than her everyday spend, but nowhere near her big-purchase range.</p>
+
+<p>Watch what a global rule does with it. First build the card (each lesson runs in a fresh R session, so we create the data here, run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+everyday &lt;- data.frame(amount = round(rnorm(60, 22, 5), 2),     # 60 small local charges
+                       miles  = round(abs(rnorm(60, 3, 1)), 1))
+biglegit &lt;- data.frame(amount = round(rnorm(12, 520, 70), 2),   # 12 big, sometimes-far purchases
+                       miles  = round(abs(rnorm(12, 18, 4)), 1))
+fraud    &lt;- data.frame(amount = 130, miles = 9)                 # the charge we want to catch
+card &lt;- rbind(everyday, biglegit, fraud)
+card$kind &lt;- c(rep(&quot;everyday&quot;, 60), rep(&quot;big legit&quot;, 12), &quot;FRAUD&quot;)
+Z &lt;- scale(card[, c(&quot;amount&quot;, &quot;miles&quot;)])   # put amount and miles on one common scale
+nrow(card)
+#&gt; [1] 73</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The obvious global rule (and the natural next step from Lesson 1's z-score) is: how far does each charge sit from the center of Maya's spending? Rank by that distance and look at the top of the list.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">card$global_dist &lt;- sqrt(rowSums(Z^2))   # distance from the center, in 2-D (Lesson 1's z-score idea)
+
+head(card[order(-card$global_dist), c(&quot;kind&quot;, &quot;amount&quot;, &quot;miles&quot;)], 5)   # the &quot;most unusual&quot; charges
+#&gt;         kind amount miles
+#&gt; 70 big legit 497.30  22.7
+#&gt; 61 big legit 484.58  20.1
+#&gt; 63 big legit 504.98  19.2
+#&gt; 68 big legit 517.37  17.8
+#&gt; 66 big legit 569.89  15.9
+
+rank(-card$global_dist)[card$kind == &quot;FRAUD&quot;]   # where the fraud ranks (1 = most extreme)
+#&gt; [1] 22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 12 charges a global cutoff screams about are all 12 of Maya's legitimate big purchases, pure false alarms. And the actual fraud? It ranks <strong>22nd of 73</strong>, buried in the crowd of ordinary charges. By distance-from-center, the fraud looks completely normal.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The fraud is not a global outlier. It is a <strong>local</strong> one: it sits in a sparse pocket right beside Maya's dense everyday cluster. To catch it we must stop asking "how far from everyone?" and start asking "how does this point's crowding compare to the crowding of the points around it?"</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea, made exact</div>
+<h2>LOF is a local density ratio</h2>
+
+<p>The Local Outlier Factor turns "compare a point's crowding to its neighbours' crowding" into one number. It is built in four small steps, each one plain once you see it. Let \(A\) be the point we are scoring and fix a neighbourhood size \(k\) (say \(k = 8\)).</p>
+
+<p><strong>1. k-distance.</strong> \( d_k(A) \) is the distance from \(A\) to its \(k\)-th nearest neighbour. Small when \(A\) is crowded, large when \(A\) is off on its own. Call the set of those \(k\) nearest neighbours \( N_k(A) \).</p>
+
+<p><strong>2. Reachability distance.</strong> How far \(A\) is from a neighbour \(B\), but never counted as closer than \(B\)'s own k-distance:</p>
+
+<p>\( \text{reach-dist}_k(A, B) = \max\{\, d_k(B),\ d(A, B) \,\} \)</p>
+
+<p>where \( d(A,B) \) is the plain distance between them. That floor is just smoothing: it stops one freakishly close neighbour from making the density estimate jumpy.</p>
+
+<p><strong>3. Local reachability density.</strong> \(A\)'s own density is one divided by its average reachability distance to its neighbours:</p>
+
+<p>\( \text{lrd}_k(A) = \left( \dfrac{1}{k} \displaystyle\sum_{B \in N_k(A)} \text{reach-dist}_k(A, B) \right)^{-1} \)</p>
+
+<p>High when \(A\)'s neighbours sit close (a dense pocket), low when they sit far (a sparse pocket).</p>
+
+<p><strong>4. The LOF ratio.</strong> Finally, compare \(A\)'s density to the density of its neighbours:</p>
+
+<p>\( \text{LOF}_k(A) = \dfrac{\dfrac{1}{k} \displaystyle\sum_{B \in N_k(A)} \text{lrd}_k(B)}{\text{lrd}_k(A)} \)</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Read the LOF ratio like this. \( \text{LOF} \approx 1 \): \(A\) is as dense as its neighbours, so it belongs (a normal point). \( \text{LOF} \gg 1 \): \(A\) is in a far sparser pocket than the points around it, an outlier. \( \text{LOF} < 1 \): \(A\) is even denser than its neighbours, deep inside a cluster. Because the score is always relative to the local neighbourhood, a sparse-but-self-consistent cluster (Maya's big purchases) scores near 1, while a lone point wedged against a dense cluster (the fraud) scores high.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">Feel it</div>
+<h2>Slide k and watch LOF light up</h2>
+
+<p>Here is LOF computed live on two clusters of different density plus one point stranded in a sparse pocket between them, exactly the shape of Maya's card. Each dot is coloured and sized by its LOF. Slide \(k\), the neighbourhood size, and watch the stranded point flare red (LOF well above 1) while the ordinary cluster points stay near 1. The panel also shows the from-scratch LOF in base R, the same few lines you will complete next.</p>
+
+<p>Notice the stranded point is not the farthest from the overall center, it is simply much sparser than its immediate neighbours. That local comparison is the whole idea, and it is what the global distance in the previous step could not see.</p>
+<div class="lesson-widget" data-widget-type="lof-density" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute LOF on Maya's card</h2>
+
+<p>Let us score Maya's real charges. First build the pieces from the formula: all pairwise distances, each point's \(k\) neighbours, its k-distance, the reachability distance, and its local density <code>lrd</code>. Run this to see how sparse the fraud is compared to its neighbours:</p>
+<section class="exercise" data-exercise-id="Local-Outlier-Factor-and-One-Class-SVM-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="lrd\s*\(\s*i\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">k &lt;- 8                                   # judge each charge against its 8 nearest neighbours
+D &lt;- as.matrix(dist(Z))                  # all pairwise distances on the scaled features
+knn   &lt;- function(i) order(D[i, ])[2:(k + 1)]        # the k nearest neighbours of point i (drop self)
+kdist &lt;- function(i) D[i, knn(i)[k]]                 # k-distance: distance to the k-th neighbour
+rd    &lt;- function(i, o) max(D[i, o], kdist(o))       # reachability distance of i from neighbour o
+lrd   &lt;- function(i) 1 / mean(sapply(knn(i), function(o) rd(i, o)))   # local reachability density
+
+lrd(73)                                  # the fraud (row 73): its own density is low
+#&gt; [1] 0.97
+mean(sapply(knn(73), lrd))               # but its neighbours' density is high
+#&gt; [1] 8.7</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: LOF = mean(neighbours' lrd) / lrd(i). The fraud scores about 9, every legitimate charge sits near 1.</span><span class="lesson-tryit-fb lesson-tryit-no">Divide by the point's OWN density: lrd(i). The ratio is neighbours' density over the point's own density.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">lof &lt;- function(i) mean(sapply(knn(i), lrd)) / lrd(i)   # neighbours' density / my own
+card$lof &lt;- sapply(seq_len(nrow(card)), lof)
+aggregate(lof ~ kind, card, function(x) round(mean(x), 2))
+#&gt;        kind  lof
+#&gt; 1 big legit 1.02
+#&gt; 2  everyday 1.17
+#&gt; 3     FRAUD 8.98</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did LOF catch what distance missed?</h2>
+
+<p>A global distance-from-center score ranked the fraud 22nd of 73, but its LOF was about 9, the highest on the card. Which statement best explains why LOF flags it and distance does not?</p>
+<section class="exercise" data-exercise-id="Local-Outlier-Factor-and-One-Class-SVM-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">LOF measures distance from the overall mean more accurately, so it simply found a point the global rule mis-ranked</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The fraud sits in a much sparser pocket than the dense everyday points right beside it, so its density-to-neighbour-density ratio is high, even though it is not far from the center</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The fraud has the largest amount and miles values, so any density method would rank it first</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. LOF is relative: a point wedged against a dense cluster but far sparser than it scores high, while a point in a genuinely sparse cluster scores near 1. Distance-from-center cannot make that local comparison.</div><div class="lesson-qfb lesson-qfb-no">It does not. Maya's legitimate big purchases have far larger values, yet their LOF is near 1 because they are normal relative to their own sparse cluster. LOF ranks by local density contrast, not by raw magnitude.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">From a score to a boundary</div>
+<h2>One-class SVM: wrap the normal region</h2>
+
+<p>LOF hands you a number per point, recomputed over the whole dataset each time. Often you want something different: a reusable model, learned once from data you trust is normal, that can judge any future charge on its own. That framing is called <strong>novelty detection</strong>, and the classic tool for it is the <strong>one-class SVM</strong>.</p>
+
+<p>The idea: train on normal data only, and learn a boundary that wraps it. Anything landing inside is normal; anything outside is a novelty, an anomaly. The trick is that Maya's normal spending is not a simple blob a straight line can fence off, it is two separate clusters. This is where kernels earn their keep.</p>
+
+<p>The widget below shows the kernel trick on a two-class problem: no straight line can separate an inner group from a ring around it, but switch to an RBF kernel and the boundary bends into a closed curve that wraps the inner group exactly. Toggle the kernels and watch the training error fall to zero.</p>
+
+<p>A one-class SVM uses this same closed-boundary machinery, with just one class. Instead of separating group A from group B, it separates your normal data from everything else (formally, from the origin in the kernel's feature space), drawing a boundary that hugs the shape of normal, however many clusters that shape has.</p>
+<div class="lesson-widget" data-widget-type="kernel-svm" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The two knobs</div>
+<h2>nu and gamma</h2>
+
+<p>A one-class SVM has two dials worth understanding. Its decision function scores a new point \(x\) as</p>
+
+<p>\( f(x) = \operatorname{sign}\!\Big( \textstyle\sum_i \alpha_i\, K(x, x_i) - \rho \Big) \)</p>
+
+<p>where \(K\) is the kernel, the \(\alpha_i\) are weights on the training points, and \(\rho\) is an offset. When \(f(x) < 0\) the point falls outside the boundary: flag it. With the RBF (radial) kernel,</p>
+
+<p>\( K(x, x') = \exp\!\big( -\gamma\, \lVert x - x' \rVert^2 \big) \)</p>
+
+<p>the two knobs are:</p>
+
+<ul>
+
+<li><strong>nu</strong> \((\nu \in (0, 1])\): an upper bound on the fraction of training points allowed to fall outside the boundary, and a lower bound on the fraction that become support vectors. Set \(\nu = 0.05\) and you are telling the model "expect about 5% of my normal data to look like noise." Raise it to loosen how much slack you allow.</li>
+
+<li><strong>gamma</strong> \((\gamma)\): the width of the RBF kernel. Large \(\gamma\) makes a tight, wiggly boundary that hugs each point (and risks memorizing noise); small \(\gamma\) makes a smooth, loose boundary that can swallow real anomalies.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A one-class SVM is only as good as these two settings and your input scaling. It has no free lunch: too tight and it flags your own spread-out normal points, too loose and it lets anomalies in. Always scale features first (an RBF kernel is dominated by whichever feature has the larger range otherwise), and tune \(\nu\) and \(\gamma\) against data you trust. It also assumes the training set really is (mostly) normal; a contaminated training set moves the boundary.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit a one-class SVM in R</h2>
+
+<p>The <code>e1071</code> package fits a one-class SVM through its <code>svm()</code> function. The key is the <code>type</code> argument, which switches it from ordinary two-class classification into one-class "learn the normal region" mode. Train it on Maya's legitimate charges only, then score every charge. Fill in the blank with the one-class type.</p>
+<section class="exercise" data-exercise-id="Local-Outlier-Factor-and-One-Class-SVM-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="one-classification"><textarea class="lesson-tryit-input" spellcheck="false">library(e1071)
+train_normal &lt;- Z[card$kind != &quot;FRAUD&quot;, ]        # learn the shape of NORMAL spending only
+oc &lt;- svm(train_normal, type = &quot;____&quot;,           # one-class: wrap the normal region
+          nu = 0.05, kernel = &quot;radial&quot;, gamma = 0.35)
+card$outside &lt;- !predict(oc, Z)                   # TRUE = falls OUTSIDE the learned boundary
+table(outside = card$outside, kind = card$kind)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the one-class mode. The fraud lands outside the boundary; about 5% of the normal charges do too, which is exactly what nu = 0.05 allows.</span><span class="lesson-tryit-fb lesson-tryit-no">The one-class type in e1071 is "one-classification" (hyphenated). It tells svm() to wrap a single class rather than separate two.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(e1071)
+train_normal &lt;- Z[card$kind != &quot;FRAUD&quot;, ]
+oc &lt;- svm(train_normal, type = &quot;one-classification&quot;,
+          nu = 0.05, kernel = &quot;radial&quot;, gamma = 0.35)
+card$outside &lt;- !predict(oc, Z)
+table(outside = card$outside, kind = card$kind)
+#&gt;        kind
+#&gt; outside big legit everyday FRAUD
+#&gt;   FALSE       11       58     0
+#&gt;   TRUE         1        2     1</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Pick the right detector</h2>
+
+<p>You now have three unsupervised detectors: the isolation forest (Lesson 2, a fast global score), LOF (a local density ratio), and the one-class SVM (a learned boundary around normal). A payments team wants to score each <strong>incoming</strong> transaction in real time against a fixed set of known-good historical transactions, without recomputing over the whole dataset every time. Which detector fits best, and why?</p>
+<section class="exercise" data-exercise-id="Local-Outlier-Factor-and-One-Class-SVM-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">LOF, because it gives the most accurate anomaly score of the three</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The isolation forest, because it is the fastest to score</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The one-class SVM, because it learns a boundary from the known-good data once and then judges any new point on its own as inside or outside</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">None; only a supervised classifier can score new transactions</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. That is novelty detection: fit once on trusted-normal data, then score each incoming point against the saved boundary in constant time. LOF and the isolation forest are computed relative to the dataset, so they fit a batch sweep better than streaming against a frozen reference.</div><div class="lesson-qfb lesson-qfb-no">All three are unsupervised and need no anomaly labels. The one-class SVM in particular is designed exactly for "train on normal, judge new points," which is what this team needs.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1145/342009.335388">Breunig, Kriegel, Ng and Sander (2000), LOF: Identifying Density-Based Local Outliers, ACM SIGMOD</a> - the original paper that defined LOF and the local-density-ratio score you built here.</li>
+
+<li><a href="https://doi.org/10.1162/089976601750264965">Schölkopf, Platt, Shawe-Taylor, Smola and Williamson (2001), Estimating the Support of a High-Dimensional Distribution, Neural Computation</a> - the one-class SVM, the meaning of nu, and the origin-separating boundary.</li>
+
+<li><a href="https://cran.r-project.org/package=e1071">e1071 (CRAN)</a> - the R package whose svm(type = "one-classification") you used; the docs cover nu, gamma and kernels.</li>
+
+<li><a href="https://cran.r-project.org/package=dbscan">dbscan (CRAN)</a> - a fast, tested lof() (and other density methods) to reach for instead of hand-rolling LOF on real data.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You now have two detectors that see what a global score cannot. <strong>LOF</strong> scores each point by how its local density compares to its neighbours', catching an outlier wedged against a dense cluster that distance-from-center ranked as ordinary. The <strong>one-class SVM</strong> learns a boundary around normal data once, then judges any new point as inside or out, the novelty-detection framing you want for scoring incoming data in real time. And you saw the honest cost of each: LOF's dependence on <code>k</code> and \(O(n^2)\) distances, the one-class SVM's sensitivity to <code>nu</code>, <code>gamma</code> and scaling.</p>
+
+<p>Three detectors down: isolation (global), density (local), and boundary (novelty). Next, Lesson 4: <strong>Autoencoders for Anomaly Detection</strong>. Instead of distance, density or a boundary, you will score a point by how badly a compressed model rebuilds it, the reconstruction error, and see why for a linear model that turns out to be exactly PCA.</p>
+</section>
+
+{% endraw %}
