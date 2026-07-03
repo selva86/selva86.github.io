@@ -70,10 +70,10 @@ tx$kind <- c(rep("normal", n), rep("anomaly", 3))
 M <- as.matrix(tx[, c("amount", "miles")])   # the 2 numeric features the forest splits on
 tail(tx, 4)
 #>     amount miles    kind
-#> 120  18.63   3.0  normal
-#> 121 2400.00 300.0 anomaly
-#> 122 1800.00 210.0 anomaly
-#> 123   55.00 260.0 anomaly
+#> 120   18.63     3  normal
+#> 121 2400.00   300 anomaly
+#> 122 1800.00   210 anomaly
+#> 123   55.00   260 anomaly
 ```
 
 Now write one isolation tree as a short recursion. Starting from all the rows, it picks a random feature, picks a random split inside that feature's range, keeps only the side holding our point `x`, and repeats. The **path length** is the number of cuts `e` it takes until `x` is alone (one row left). We add `cn(m)`, a small correction for the few points that would still be together if we stopped early; the next step explains it.
@@ -183,7 +183,7 @@ data.frame(angle = angle, standard = round(std, 3))
 #> 6   225    0.797
 #> 7   270    0.737
 #> 8   315    0.794
-sd(std)   # by symmetry this should be ~0; it is not
+round(sd(std), 3)   # by symmetry this should be ~0; it is not
 #> [1] 0.025
 ```
 

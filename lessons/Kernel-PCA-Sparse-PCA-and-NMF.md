@@ -195,10 +195,10 @@ baskets   <- rbind(c(espresso = 3,   croissant = 2.5, tea = 0.2, cake = 0.1, coo
                    c(espresso = 0.2, croissant = 0.3, tea = 3,   cake = 2.5, cookie = 2))
 V <- round(cbind(morning, afternoon) %*% baskets + matrix(runif(cust * 5, 0, 0.6), cust, 5))
 head(V, 3)
-#>   espresso croissant tea cake cookie
-#> 1        2         2   7    5      5
-#> 2        8         7   8    7      6
-#> 3        4         4   8    7      6
+#>      espresso croissant tea cake cookie
+#> [1,]        2         2   7    5      5
+#> [2,]        8         7   8    7      6
+#> [3,]        4         4   8    7      6
 ```
 
 Here is what one part NMF recovers looks like: mostly tea, cake and cookie, with almost no espresso or croissant. NMF found the "afternoon treat" basket on its own, purely from the counts. You will compute it yourself in the next step.

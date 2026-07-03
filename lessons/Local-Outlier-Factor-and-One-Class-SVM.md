@@ -152,9 +152,9 @@ lof <- function(i) mean(sapply(knn(i), lrd)) / lrd(i)   # neighbours' density / 
 card$lof <- sapply(seq_len(nrow(card)), lof)
 aggregate(lof ~ kind, card, function(x) round(mean(x), 2))
 #>        kind  lof
-#> 1 big legit 1.02
-#> 2  everyday 1.17
-#> 3     FRAUD 8.98
+#> 1     FRAUD 8.98
+#> 2 big legit 1.02
+#> 3  everyday 1.17
 ```
 
 The fraud scores **8.98**, while both the everyday charges and the legitimate big purchases average near **1**, exactly the local outlier a global cutoff ranked 22nd.
@@ -231,9 +231,9 @@ oc <- svm(train_normal, type = "one-classification",
 card$outside <- !predict(oc, Z)
 table(outside = card$outside, kind = card$kind)
 #>        kind
-#> outside big legit everyday FRAUD
-#>   FALSE       11       58     0
-#>   TRUE         1        2     1
+#> outside FRAUD big legit everyday
+#>   FALSE     0        11       58
+#>   TRUE      1         1        2
 ```
 
 The fraud (never in training) lands **outside** the boundary: caught. So do 3 of the 72 normal charges, which is not a bug, it is `nu = 0.05` doing its job (about 5% of 72 is roughly 3 or 4). Tighten `nu` and fewer normal points spill out but a borderline anomaly might sneak in; that trade is the tuning.

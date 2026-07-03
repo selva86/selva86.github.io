@@ -65,6 +65,12 @@ Learn useful features without a single label. Meet pretext tasks and the contras
 
 [Start Lesson 7: Self-Supervised and Contrastive Learning](Self-Supervised-and-Contrastive-Learning.html)
 
+### Section quiz: check what stuck
+
+Ten graded questions across the whole section, the base-rate trap, isolation forests, LOF and the one-class SVM, autoencoders, time-series decomposition, kernel and sparse PCA and NMF, and contrastive collapse, plus two live R snippets you can run. A quick way to find the ideas worth a second pass before you move on.
+
+[Take the Anomaly Detection quiz](Anomaly-Detection-Quiz.html)
+
 ## Who this is for
 
 You can run R and read its output, and you are comfortable with the basics of statistics: means, standard deviations, a covariance matrix, and reading a scatter of points. No prior anomaly-detection background is assumed, and because every method is built from scratch in base R, you see exactly what each score is measuring rather than trusting a package default. Data scientists, analysts and ML engineers who need to flag fraud, faults, novel inputs or bad records will get the most out of this, as will anyone who has been burned by a detector that cried wolf and wants to understand why.
