@@ -1,0 +1,342 @@
+---
+title: "Anomaly Detection Lesson 1: What Is an Anomaly?"
+description: "What counts as an anomaly in R: global vs local vs contextual outliers, distance vs density, and why a 99%-accurate fraud flag can still be mostly false alarms."
+keywords: "anomaly detection, outlier detection, local outlier factor, contextual anomaly, base rate, precision and recall, imbalanced classification, R"
+mathjax: true
+webr: true
+curriculum_id: "6.200.1"
+post_type: "LESSON"
+course_id: "ds-anomaly"
+course_title: "Anomaly and Outlier Detection"
+course_lesson: "1"
+course_total: "7"
+course_landing: "R-Anomaly-Detection-Course.html"
+course_next: "Isolation-Forest-and-Extended-Isolation-Forest.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "What makes a data point anomalous, and why accuracy is the wrong score."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 7</div>
+<h2>What Is an Anomaly?</h2>
+
+<p>One of the dots below is not like the others. Not because someone labelled it, but because it sits alone in a sparse pocket while the rest crowd together. That "does not fit" feeling is the whole job of anomaly detection, and this course teaches you to turn it into a number.</p>
+
+<p>Before we can catch anomalies with isolation forests, density scores or autoencoders, we need to pin down what an anomaly actually is, and why it is so easy to fool yourself into thinking you have caught them.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say what makes a data point an anomaly (and why unusual is not the same as bad)</li>
+
+<li>Score "unusual" two ways, by distance and by density, and see why distance alone misses some outliers</li>
+
+<li>Tell global, local and contextual outliers apart</li>
+
+<li>Explain the base-rate trap: why a 99%-accurate detector of rare events can still be almost useless, and what to measure instead</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read base R (vectors, <code>data.frame</code>, <code>table</code>, <code>mean</code>, <code>sd</code>). No prior anomaly-detection knowledge is assumed.</p>
+<div class="lesson-widget" data-widget-type="lof-density" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>An anomaly is a point that breaks the pattern</h2>
+
+<p>Meet Maya. Her debit card tells a steady story: most days she spends $3 to $60 at cafes and the grocery store a few miles from home. Then one Tuesday a $2,400 charge appears from an electronics store 300 miles away. You did not need a model to feel that something is off. That feeling has a definition.</p>
+
+<p>An <strong>anomaly</strong> (or <strong>outlier</strong>) is a data point that does not fit the pattern of the rest of the data. Formally, you build a model of what "normal" looks like, then an anomaly is any point that model assigns a low probability or a high "distance from normal" score. Everything in this course is a different way to build that model of normal.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Anomalous means unusual, not wrong. Maya's $2,400 charge might be a laptop she genuinely bought, or a thief testing her card. Anomaly detection finds the points worth a second look; deciding what they mean is a separate step. Confusing "rare" with "fraud" is the first mistake to avoid.</div></div>
+
+<p>So the question becomes concrete: how do we measure "does not fit the pattern"? There are two classic answers, and the difference between them matters.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Answer 1</div>
+<h2>Distance: how far from the middle?</h2>
+
+<p>The simplest measure of "unusual" is distance from the center. For a single number like a charge amount, the <strong>z-score</strong> tells you how many standard deviations a value sits from the mean:</p>
+
+<p>\( z = \dfrac{x - \mu}{\sigma} \)</p>
+
+<p>where \(x\) is one charge, \(\mu\) is the mean of Maya's charges, and \(\sigma\) is their standard deviation (the typical spread). A common rule of thumb flags anything with \(|z| > 3\), meaning more than three standard deviations from the middle.</p>
+
+<p>Let us build Maya's card as a small labelled dataset and try it. Each lesson runs in a fresh R session, so we create the data right here (run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+# 60 everyday charges (~$22), then 3 larger ones to scrutinise
+amount &lt;- round(c(rlnorm(60, meanlog = log(22), sdlog = 0.45), 2400, 950, 380), 2)
+label  &lt;- c(rep(&quot;normal&quot;, 60), &quot;review&quot;, &quot;review&quot;, &quot;review&quot;)
+card   &lt;- data.frame(amount, label)
+nrow(card)
+#&gt; [1] 63</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now score every charge by its z, and look at the most extreme:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mu &lt;- mean(card$amount); sigma &lt;- sd(card$amount)
+card$z &lt;- round((card$amount - mu) / sigma, 2)
+card[order(-abs(card$z))[1:4], ]
+#&gt;     amount  label     z
+#&gt; 61 2400.00 review  7.20
+#&gt; 62  950.00 review  2.70
+#&gt; 63  380.00 review  0.92
+#&gt; 14    8.12 normal -0.23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The $2,400 charge screams (z = 7.2). But watch what a strict global cutoff actually catches:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">subset(card, abs(z) &gt; 3)
+#&gt;    amount  label   z
+#&gt; 61   2400 review 7.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only the $2,400 charge clears \(|z| > 3\). The $950 and $380 charges are odd for Maya, yet a single global threshold lets them straight through.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A z-score assumes the data forms one bell-shaped cluster, and the outliers themselves inflate \(\mu\) and \(\sigma\), hiding smaller ones. Robust versions swap in the median and MAD (the median absolute deviation, a spread measure the outliers cannot inflate), and the multivariate version is the Mahalanobis distance. But all of them share the same blind spot, which the next idea fixes.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">Answer 2</div>
+<h2>Density: how alone is the point?</h2>
+
+<p>A global distance cutoff asks "how far from the overall center?" Density asks a smarter question: "how crowded is this point compared to its own neighbours?" A point deep inside a cluster is as crowded as everyone around it. A point in a sparse pocket, whose few neighbours are themselves packed tight, is far lonelier than its surroundings, even if it is not the farthest from the center.</p>
+
+<p>Slide <strong>k</strong> below (the number of neighbours each point looks at) and read the Local Outlier Factor off each dot's colour. The highlighted point never has the largest distance from the middle, yet it lights up, because it is locally sparse. That is exactly the outlier a global cutoff misses.</p>
+
+<p>This is why "distance from the middle" and "density in the neighbourhood" are two genuinely different lenses. Maya's $380 charge is unremarkable in size, but it is sparse among her dozens of $20 coffees, so density flags it while distance shrugs.</p>
+<div class="lesson-widget" data-widget-type="lof-density" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Three flavours</div>
+<h2>Global, local and contextual outliers</h2>
+
+<p>Those two lenses map onto the three kinds of outlier you will meet again and again. Grounding each on Maya's card:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Kind</th>
+<th>What makes it odd</th>
+<th>On Maya's card</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Global</strong></td>
+<td>far from every normal point</td>
+<td>a $2,400 laptop charge, 300 miles from home</td>
+</tr>
+<tr>
+<td><strong>Local</strong></td>
+<td>ordinary overall, but sparse for its own neighbourhood</td>
+<td>a $380 charge sitting among dozens of $20 coffees</td>
+</tr>
+<tr>
+<td><strong>Contextual</strong></td>
+<td>normal in one setting, odd in another</td>
+<td>$300 is routine in December, but odd in mid-July</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Global outliers fall to distance methods; local outliers need density (the widget you just used). Contextual outliers need a <strong>context variable</strong> (here, the month) because the same value flips from normal to suspicious when the context changes. Lesson 5 handles the contextual case for time series.</div></div>
+
+<p>The takeaway: "anomaly" is not one thing. Which method you reach for depends on which kind you expect.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What makes an outlier <em>local</em>?</h2>
+
+<p>A point can be an anomaly even when it is <strong>not</strong> the farthest from the center of the data. What makes it a <em>local</em> outlier?</p>
+<section class="exercise" data-exercise-id="What-is-an-Anomaly-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It sits in a sparser pocket than the points immediately around it, even if other points are farther from the center</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It has the largest distance from the overall mean</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It always belongs to the smallest cluster</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Local outliers are defined by comparing a point's density to its neighbours' density, so a point can be a local outlier without being an extreme global value. That is the gap density methods fill.</div><div class="lesson-qfb lesson-qfb-no">Cluster size is not the test. A point in a big cluster can still be a local outlier if it sits in a thin patch of it, and a small dense cluster of normal points is not anomalous.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why this is hard</div>
+<h2>The base-rate trap</h2>
+
+<p>Here is the trap that catches almost everyone. Anomalies are, by definition, <strong>rare</strong>. Suppose 0.5% of a bank's transactions are truly fraud. Screen 10,000 of them:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+N &lt;- 10000
+actual &lt;- rbinom(N, 1, 0.005)   # each charge is fraud with probability 0.5%
+sum(actual)                     # how many are actually fraud
+#&gt; [1] 51
+mean(actual == 0)               # accuracy of a model that flags NOTHING
+#&gt; [1] 0.9949</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that second number again. A lazy model that flags <strong>nothing</strong> is already 99.49% accurate, because almost nothing is fraud. So "99% accurate" can mean "did literally no work." Now run a genuinely useful detector, one that catches 90% of fraud but false-alarms on 5% of clean charges:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flag &lt;- ifelse(actual == 1, rbinom(N, 1, 0.90), rbinom(N, 1, 0.05))
+cm &lt;- table(actual = factor(actual, 0:1), flagged = factor(flag, 0:1))
+cm
+#&gt;       flagged
+#&gt; actual    0    1
+#&gt;      0 9460  489
+#&gt;      1    4   47</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The detector caught 47 of 51 frauds (great), but it also raised 489 false alarms. Score it three ways, where \(TP\) is true positives (fraud caught), \(FP\) false positives (false alarms), \(FN\) false negatives (fraud missed), and \(TN\) true negatives:</p>
+
+<p>\( \text{accuracy} = \dfrac{TP+TN}{TP+TN+FP+FN}, \quad \text{precision} = \dfrac{TP}{TP+FP}, \quad \text{recall} = \dfrac{TP}{TP+FN} \)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tp &lt;- cm[&quot;1&quot;,&quot;1&quot;]; fp &lt;- cm[&quot;0&quot;,&quot;1&quot;]; fn &lt;- cm[&quot;1&quot;,&quot;0&quot;]; tn &lt;- cm[&quot;0&quot;,&quot;0&quot;]
+round(c(accuracy = (tp + tn) / N, precision = tp / (tp + fp), recall = tp / (tp + fn)), 3)
+#&gt;  accuracy precision    recall
+#&gt;     0.951     0.088     0.922</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The useful detector scores <strong>95.1% accuracy</strong>, which is <em>lower</em> than the do-nothing model's 99.5%. By accuracy, doing nothing wins. Yet only about 9% of its alerts are real (precision 0.088) while it still catches 92% of fraud (recall 0.922). Accuracy is the wrong score for rare events; precision and recall tell the truth.</div></div>
+
+<p>The reason is Bayes' rule. The chance a flagged charge is really fraud is</p>
+
+<p>\( P(\text{fraud} \mid \text{flag}) = \dfrac{P(\text{flag} \mid \text{fraud})\,P(\text{fraud})}{P(\text{flag})} \)</p>
+
+<p>and when the base rate \(P(\text{fraud})\) is tiny, the denominator is swamped by false alarms from the huge clean majority. No amount of recall rescues precision if the base rate is low enough.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<div class="lesson-step-eyebrow">The dial you control</div>
+<h2>Precision and recall trade off</h2>
+
+<p>Precision and recall are not fixed; they slide against each other as you move the <strong>threshold</strong>, the score above which you raise an alert. Lower the threshold to catch more fraud (recall up) and you also flag more clean charges (precision down). There is no free lunch, only a choice.</p>
+
+<p>Drag the threshold below. Watch the confusion matrix re-count, the precision and recall numbers move, and the operating point slide along the ROC curve, which shows every threshold at once. Accuracy would collapse this whole picture into one misleading number.</p>
+
+<p>Where you set the dial depends on the cost of a miss versus the cost of a false alarm. Blocking a real customer is expensive; so is letting fraud through. That trade-off is a business decision the single "accuracy" number hides completely.</p>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>"99% accurate, so it is great?"</h2>
+
+<p>A vendor demos a fraud detector: <strong>99% accurate</strong> on 10,000 transactions where 0.5% are fraud. Your manager is thrilled. Why might it still be nearly useless?</p>
+<section class="exercise" data-exercise-id="What-is-an-Anomaly-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">99% accuracy is excellent for any problem, so the manager is right</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">At a 0.5% base rate a detector can hit 99% accuracy while almost every alert it raises is a false alarm, so its precision can be tiny</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The detector must be broken, because a real one would score 100%</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Accuracy is dominated by the huge normal class. You must see precision (are the alerts real?) and recall (is fraud being caught?) before trusting it.</div><div class="lesson-qfb lesson-qfb-no">No detector scores 100% on overlapping data. The issue is not a bug; it is that accuracy is the wrong yardstick when the positive class is rare.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Measure precision yourself</h2>
+
+<p>Precision answers the question that matters to an analyst drowning in alerts: <strong>of the transactions we flagged, what fraction were actually fraud?</strong> Here is one week of alerts, each later confirmed by a human. Fill in the blank so <code>precision</code> is the share of alerts that were truly fraud.</p>
+<section class="exercise" data-exercise-id="What-is-an-Anomaly-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="sum\(\s*confirmed\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">confirmed &lt;- c(1, 0, 0, 1, 0, 0, 0, 1, 0, 0)   # 1 = confirmed fraud, 0 = false alarm
+# precision = (alerts that were real fraud) / (all alerts)
+precision &lt;- ____ / length(confirmed)
+precision</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Correct. sum(confirmed) counts the true frauds among the alerts, so precision here is 3/10 = 0.3: seven of every ten alerts were false alarms.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the COUNT of real frauds among the alerts, over the total alerts. The count of 1s is sum(confirmed).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">confirmed &lt;- c(1, 0, 0, 1, 0, 0, 0, 1, 0, 0)
+precision &lt;- sum(confirmed) / length(confirmed)
+precision
+#&gt; [1] 0.3</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1145/1541880.1541882">Chandola, Banerjee and Kumar (2009), Anomaly Detection: A Survey, ACM Computing Surveys</a> - the map of the whole field: definitions, outlier types, and method families.</li>
+
+<li><a href="https://doi.org/10.1145/342009.335388">Breunig, Kriegel, Ng and Sander (2000), LOF: Identifying Density-Based Local Outliers, SIGMOD</a> - the paper behind the density lens you used, and the idea of a local outlier.</li>
+
+<li><a href="https://doi.org/10.1109/ICDM.2008.17">Liu, Ting and Zhou (2008), Isolation Forest, IEEE ICDM</a> - the method Lesson 2 builds, isolating anomalies instead of modelling normal.</li>
+
+<li><a href="https://doi.org/10.1007/978-3-319-47578-3">Aggarwal (2017), Outlier Analysis, 2nd ed. (Springer)</a> - the standard book-length treatment, from distances to high-dimensional detection.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You now have the two things every anomaly method needs: a clear idea of what "does not fit" means (distance versus density, global versus local versus contextual), and an honest way to score a detector (precision and recall, never accuracy alone, when anomalies are rare).</p>
+
+<p>Next, Lesson 2: Isolation Forests. Instead of modelling what normal looks like, you will isolate the odd points directly, with random splits that fence off an anomaly in far fewer cuts than a crowded point, and turn that path length into an anomaly score.</p>
+</section>
+
+{% endraw %}
