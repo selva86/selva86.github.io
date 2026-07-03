@@ -198,7 +198,7 @@ big_coverage
 ```r
 big_coverage <- mean(inside[big])
 big_coverage
-#> [1] 0.821
+#> [1] 0.8213439
 ```
 
 === step === quiz
