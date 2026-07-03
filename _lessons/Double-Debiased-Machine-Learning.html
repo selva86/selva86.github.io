@@ -1,0 +1,370 @@
+---
+title: "Causal Inference for Decisions Lesson 9: Double-Debiased Machine Learning"
+description: "Use flexible machine learning for the nuisance models in a causal study, then cross-fit and residualise so the treatment effect stays unbiased and root-n, in R."
+keywords: "double machine learning, debiased machine learning, DML, cross-fitting, Neyman orthogonality, partialling out, doubly robust, treatment effect, causal inference, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.9"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "9"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Sensitivity-Analysis-and-Placebo-Tests.html"
+course_prev: "Uplift-and-Heterogeneous-Effects.html"
+lesson_access: "pro"
+catalog_blurb: "Use machine learning for a causal study's messy parts without biasing the effect."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 9 of 11</div>
+<h2>Double-Debiased Machine Learning</h2>
+
+<p>In Lesson 8 you split one average effect into a per-customer one. Look back across the whole course and every method leaned on a model of the messy background: a propensity score, an outcome regression. So far those models were tidy straight lines. But real confounding is rarely a straight line, and the honest fix is to let a flexible machine-learning model soak it up.</p>
+
+<p>Here is the catch this lesson exists to solve: drop a random forest into the estimator naively and it quietly <strong>poisons your effect</strong>. Double-debiased machine learning is the recipe that lets you use any flexible learner for the background and still recover a treatment effect that is unbiased and comes with an honest confidence interval.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a flexible ML model, plugged in naively, biases a causal-effect estimate</li>
+
+<li>Write the orthogonal "partialling-out" score: residualise the outcome AND the treatment, then regress one residual on the other</li>
+
+<li>Apply cross-fitting to strip out the bias a model creates by scoring the very rows it trained on</li>
+
+<li>Run a full double-machine-learning estimate in R and read its confidence interval, recovering an effect that naive methods miss</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> <a href="Inverse-Probability-Weighting-and-Doubly-Robust.html">Lesson 2</a> (the propensity score, the doubly-robust idea, the average treatment effect) and <a href="Matching-and-the-Propensity-Score.html">Lesson 1</a> (confounding, the no-unmeasured-confounding assumption, overlap). You can fit a <code>glm</code>, an <code>lm</code>, and a <code>randomForest</code>, read a <code>predict</code> output, and subset with base R.</p>
+<div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>One perk, a smart targeting system, and hidden confounding</h2>
+
+<p>Meet <strong>Priya</strong>, a data scientist at <strong>FreshCart</strong>, an online grocer. Last quarter FreshCart handed some customers a <strong>free-delivery perk</strong> and Priya wants the honest answer to one question: how many extra dollars of monthly spend did the perk actually cause?</p>
+
+<p>She cannot just compare perk-holders to everyone else, because the perk was not handed out at random. An automated targeting system decided who got it, reading a stack of customer signals: app <strong>engagement</strong>, order <strong>recency</strong>, typical <strong>basket</strong> size, and more. Those same signals also drive spend. So the customers who got the perk were already the bigger spenders. That is textbook confounding, the exact <code>Z -&gt; X</code>, <code>Z -&gt; Y</code> picture on the cover, and it is what makes a raw comparison lie.</p>
+
+<p>We can write this as a <strong>partially linear model</strong>. Let \(Y\) be a customer's monthly spend, \(D\) the perk (1 if they got it, 0 if not), and \(X\) the bundle of customer signals:</p>
+
+<p>\[ Y = \theta D + g(X) + \varepsilon, \qquad D = m(X) + \nu. \]</p>
+
+<p>Read it in plain words. \(\theta\) (theta) is the one number Priya wants: the dollars of spend the perk causes, assumed the same for everyone. \(g(X)\), the <strong>outcome nuisance</strong>, is the baseline spend a customer would have anyway given their signals. \(m(X) = \mathbb{E}[D \mid X]\), the <strong>propensity nuisance</strong>, is their chance of being targeted. The two \(g\) and \(m\) are "nuisances" because Priya does not care about them for their own sake, but she cannot get \(\theta\) right without dealing with them. The last two symbols, \(\varepsilon\) (epsilon) and \(\nu\) (nu), are plain random noise: the leftover wiggle in spend, and in who got targeted, that nothing systematic explains. Here is the data, built to have a true effect of exactly <strong>$12</strong>, with \(g\) and \(m\) both bent into genuinely nonlinear shapes.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 1500
+engagement &lt;- runif(n)                       # app engagement score, 0 to 1
+recency    &lt;- runif(n)                        # how recently they ordered, 0 to 1
+basket     &lt;- runif(n)                        # typical basket-size score, 0 to 1
+noise_feat &lt;- runif(n)                        # an irrelevant signal, along for the ride
+value &lt;- sin(2 * pi * engagement) + 4 * (recency - 0.5)^2 + 1.5 * engagement * basket
+perk  &lt;- rbinom(n, 1, plogis(2 * value - 1))              # who the system targeted
+spend &lt;- 12 * perk + 34 + 20 * value + rnorm(n, 0, 8)     # TRUE perk effect = $12
+fresh &lt;- data.frame(engagement, recency, basket, noise_feat, perk, spend)
+head(round(fresh[, c(&quot;engagement&quot;, &quot;recency&quot;, &quot;perk&quot;, &quot;spend&quot;)], 2), 4)
+#&gt;   engagement recency perk spend
+#&gt; 1       0.84    0.41    0 49.52
+#&gt; 2       0.32    0.16    1 77.86
+#&gt; 3       0.68    0.74    0 26.24
+#&gt; 4       0.70    0.49    0 34.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the naive comparison Priya must not trust: the raw gap between perk-holders and everyone else.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(control   = round(mean(spend[perk == 0]), 1),
+  treated   = round(mean(spend[perk == 1]), 1),
+  naive_gap = round(mean(spend[perk == 1]) - mean(spend[perk == 0]), 1))
+#&gt;   control   treated naive_gap
+#&gt;      39.8      65.9      26.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>$26.1</strong>, more than double the truth. The targeting system stacked the high-value customers into the perk group, and that stack, not the perk, is most of the gap.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix, and its trap</div>
+<h2>Partial out the background, but do it right</h2>
+
+<p>Priya knows the Lesson 1 move: adjust for the confounders. So she regresses spend on the perk plus all four signals, letting the line "hold the signals fixed."</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(lm(spend ~ perk + engagement + recency + basket + noise_feat, data = fresh))[&quot;perk&quot;], 1)
+#&gt; perk
+#&gt; 21.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Better, <strong>$21.4</strong> instead of $26.1, but still nowhere near $12. The problem is the straight line. Our \(g(X)\) has a <code>sin</code> wave and a squared bend in it, and a linear term cannot follow those curves, so a chunk of the confounding survives the adjustment and leaks into the perk coefficient. This is exactly where a flexible learner earns its place: a random forest can bend to whatever shape \(g\) and \(m\) really are.</p>
+
+<p>The clean way to use that flexibility is <strong>partialling out</strong>, an old idea (Frisch-Waugh-Lovell, Robinson 1988) with a modern engine. Predict the background out of both sides and keep only what it cannot explain:</p>
+
+<p>\[ \tilde{Y} = Y - g(X), \qquad \tilde{D} = D - m(X). \]</p>
+
+<p>\(\tilde{Y}\) (Y-tilde) is the part of spend the signals do not account for. \(\tilde{D}\) (D-tilde) is the part of "who got the perk" the signals do not account for, the as-good-as-random leftover after the targeting rule is subtracted off. Substitute into the model and the whole nonlinear \(g(X)\) cancels, leaving a plain line through the origin:</p>
+
+<p>\[ \tilde{Y} = \theta \, \tilde{D} + \varepsilon. \]</p>
+
+<p>So \(\theta\) is just the slope of the outcome residual on the treatment residual. That regression is the <strong>orthogonal score</strong>: its estimating equation, \(\mathbb{E}\!\left[(\tilde{Y} - \theta \tilde{D})\,\tilde{D}\right] = 0\), has a property called <strong>Neyman orthogonality</strong>, meaning it is flat, to first order, with respect to small errors in \(g\) and \(m\). A slightly-off forest barely moves \(\theta\). That flatness is what makes it safe to plug a regularised ML model into the background.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Residualising the treatment too, not just the outcome, is the whole trick. It removes the confounding channel (the part of \(D\) that \(X\) explains) and buys the estimate its insensitivity to nuisance error. Regress the outcome residual on the raw perk instead and you throw that protection away.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Model the outcome","sub":"predict spend from the signals X: that is g(X)"},{"title":"Model the treatment","sub":"predict who got the perk from the same X: that is m(X)"},{"title":"Take residuals","sub":"strip X out of both: Y minus g(X), and D minus m(X)"},{"title":"Regress residual on residual","sub":"the slope of Y-tilde on D-tilde is the effect theta"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why residualise the treatment?</h2>
+
+<p>Priya subtracts the outcome model \(g(X)\) from spend, giving \(\tilde{Y}\). Why does she ALSO subtract the propensity model \(m(X)\) from the 0/1 perk indicator, instead of just regressing \(\tilde{Y}\) on the raw perk?</p>
+<section class="exercise" data-exercise-id="Double-Debiased-Machine-Learning-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because a random forest cannot use a 0/1 variable as a predictor, so the perk has to be turned into a continuous residual first</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because \(\tilde{D}\) strips the part of "who got the perk" that the signals explain, leaving an as-good-as-random remnant; that is what makes the estimate insensitive to small errors in the outcome model (Neyman orthogonality)</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It makes no real difference: it only rescales the coefficient into tidier units, and the estimate would be identical either way</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Partialling X out of the treatment removes the confounding channel and makes the score orthogonal, so a slightly-wrong g(X) no longer biases theta. Residualising only the outcome loses that guarantee.</div><div class="lesson-qfb lesson-qfb-no">It is not a rescaling. Regressing on the raw perk leaves the confounding that X explains inside the treatment variable, so the estimate stays biased and loses its orthogonality protection.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second trap</div>
+<h2>The overfitting trap: never score the rows you trained on</h2>
+
+<p>Orthogonality handles a slightly-wrong model. It does not handle a model that has <strong>memorised its own training data</strong>. If Priya fits the forests on all 1,500 customers and then asks those same forests to predict those same customers, the forest has already seen each answer. Its residuals come out artificially tiny and tangled up with each row's own noise, and that tangle sneaks straight into \(\theta\). Watch it happen: fit both forests on the full data, residualise in-sample, and read the slope.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+set.seed(1)
+g_all &lt;- randomForest(spend ~ engagement + recency + basket + noise_feat, data = fresh, ntree = 200)
+m_all &lt;- randomForest(factor(perk) ~ engagement + recency + basket + noise_feat, data = fresh, ntree = 200)
+y_res &lt;- fresh$spend - predict(g_all, fresh)             # in-sample: the forest has SEEN these rows
+d_res &lt;- fresh$perk  - predict(m_all, fresh, type = &quot;prob&quot;)[, 2]
+round(coef(lm(y_res ~ d_res))[&quot;d_res&quot;], 1)
+#&gt; d_res
+#&gt;  14.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>$14.5.</strong> Much closer than the linear $21.4, but it has overshot the true $12 and sailed past it, and worse, we have no honest way to know by how much. This is the same overfitting you have met all course: a flexible model fits the training rows too well and pays for it out of sample. Slide the widget to feel it, training error keeps falling while genuine, held-out error bottoms out and then climbs.</p>
+<div class="lesson-widget" data-widget-type="bias-variance" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The cure for the second trap</div>
+<h2>Cross-fitting: fit on other rows, predict on these</h2>
+
+<p>The escape is simple and strict: <strong>never let a model predict a row it was trained on.</strong> Split the data into \(K\) folds. To residualise the customers in fold 1, train the forests on folds 2 through 5 and predict into fold 1. Then rotate: fold 2 gets its residuals from a model trained on the others, and so on, until every customer has an out-of-fold residual from a model that never saw them. This is <strong>cross-fitting</strong>, the twin of the cross-validation you already know, and it is the "double" in double machine learning: once for orthogonality, once for cross-fitting. Step through the folds below.</p>
+
+<p>Each customer is scored exactly once, always by a model blind to them, so the memorisation that inflated the in-sample estimate has nowhere to hide.</p>
+<div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":5}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Residualise a held-out half</h2>
+
+<p>Before the full five-fold loop, feel the core move with a single split: train on one random half, residualise the OTHER half with models that never saw it. The treatment residual line is done for you. Fill in the blank so the outcome residual <code>yr2</code> is predicted on <code>held</code>, the half kept back from training.</p>
+<section class="exercise" data-exercise-id="Double-Debiased-Machine-Learning-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="gA,\s*held"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(3)
+half  &lt;- sample(c(TRUE, FALSE), nrow(fresh), replace = TRUE)   # two random halves
+train &lt;- fresh[half, ]                                          # models learn here
+held  &lt;- fresh[!half, ]                                         # and are judged here
+gA &lt;- randomForest(spend ~ engagement + recency + basket + noise_feat, data = train, ntree = 200)
+mA &lt;- randomForest(factor(perk) ~ engagement + recency + basket + noise_feat, data = train, ntree = 200)
+yr2 &lt;- held$spend - predict(gA, ____)                           # residualise the held-out spend
+dr2 &lt;- held$perk  - predict(mA, held, type = &quot;prob&quot;)[, 2]
+round(coef(lm(yr2 ~ dr2))[&quot;dr2&quot;], 1)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the whole idea: gA was trained on <code>train</code> and now predicts the untouched <code>held</code> rows, so the residual carries no memorisation. The single-split effect lands at $11.5, already close to the true $12.</span><span class="lesson-tryit-fb lesson-tryit-no">Predict on the held-out half, the rows the model never trained on: predict(gA, held). Using <code>train</code> here would score the rows the forest already memorised, the exact trap we are avoiding.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(3)
+half  &lt;- sample(c(TRUE, FALSE), nrow(fresh), replace = TRUE)
+train &lt;- fresh[half, ]
+held  &lt;- fresh[!half, ]
+gA &lt;- randomForest(spend ~ engagement + recency + basket + noise_feat, data = train, ntree = 200)
+mA &lt;- randomForest(factor(perk) ~ engagement + recency + basket + noise_feat, data = train, ntree = 200)
+yr2 &lt;- held$spend - predict(gA, held)
+dr2 &lt;- held$perk  - predict(mA, held, type = &quot;prob&quot;)[, 2]
+round(coef(lm(yr2 ~ dr2))[&quot;dr2&quot;], 1)
+#&gt; dr2
+#&gt; 11.5</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>Double-debiased, end to end</h2>
+
+<p>Now the full recipe: five folds, forests fit out-of-fold, residuals pooled, one final residual-on-residual line. Because the score is orthogonal AND every residual is out-of-fold, the estimate is <strong>root-n</strong>: its error shrinks at the same honest \(1/\sqrt{n}\) rate a textbook estimator enjoys, so the standard error and 95% interval that <code>lm</code> prints are trustworthy.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+K &lt;- 5
+fold &lt;- sample(rep(1:K, length.out = nrow(fresh)))       # random fold labels
+yr &lt;- dr &lt;- numeric(nrow(fresh))
+for (k in 1:K) {
+  tr &lt;- fold != k; te &lt;- fold == k                       # fit OUT of fold k, predict INTO it
+  gk &lt;- randomForest(spend ~ engagement + recency + basket + noise_feat, data = fresh[tr, ], ntree = 200)
+  mk &lt;- randomForest(factor(perk) ~ engagement + recency + basket + noise_feat, data = fresh[tr, ], ntree = 200)
+  yr[te] &lt;- fresh$spend[te] - predict(gk, fresh[te, ])   # out-of-fold outcome residual
+  dr[te] &lt;- fresh$perk[te]  - predict(mk, fresh[te, ], type = &quot;prob&quot;)[, 2]
+}
+fit &lt;- lm(yr ~ dr)                                        # the orthogonal score: residual on residual
+round(summary(fit)$coefficients[&quot;dr&quot;, ], 2)
+#&gt;   Estimate Std. Error    t value   Pr(&gt;|t|)
+#&gt;      11.64       0.54      21.76       0.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is: <strong>$11.64</strong>, within pennies of the planted $12, with a real standard error. Turn it into a confidence interval.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">theta &lt;- coef(fit)[&quot;dr&quot;]; se &lt;- summary(fit)$coefficients[&quot;dr&quot;, 2]
+round(c(effect = unname(theta), lo = unname(theta) - 1.96 * se, hi = unname(theta) + 1.96 * se), 1)
+#&gt; effect     lo     hi
+#&gt;   11.6   10.6   12.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 95% interval runs <strong>$10.6 to $12.7</strong>, and it covers the truth. Line the estimates up and the story is complete: naive <strong>$26.1</strong>, linear adjustment <strong>$21.4</strong>, naive ML <strong>$14.5</strong>, and double-debiased ML <strong>$11.6</strong> with an honest interval. Only the last one is both close and trustworthy.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Estimate</th>
+<th>Perk effect</th>
+<th>Trustworthy?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Naive difference</td>
+<td>$26.1</td>
+<td>No, fully confounded</td>
+</tr>
+<tr>
+<td>Linear adjustment</td>
+<td>$21.4</td>
+<td>No, cannot fit nonlinear \(g\)</td>
+</tr>
+<tr>
+<td>Naive ML plug-in</td>
+<td>$14.5</td>
+<td>No, overfit, no valid interval</td>
+</tr>
+<tr>
+<td><strong>Double-debiased ML</strong></td>
+<td><strong>$11.6</strong></td>
+<td><strong>Yes, root-n, CI [10.6, 12.7]</strong></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">DML fixes the bias that ML <em>creates</em> (regularisation error and overfitting). It does NOT relax the causal assumptions from Lesson 1. You still need <strong>no unmeasured confounding</strong> (every signal that drove both the perk and spend must be inside \(X\)) and <strong>overlap</strong> (every kind of customer had some real chance of either arm). A confounder missing from \(X\) sinks DML exactly as it sinks every method in this course.</div></div>
+
+<p>In practice you would reach for the <code>DoubleML</code> package rather than hand-roll the loop. It wires the folds, learners, and orthogonal score together and reports the same effect with proper inference (it needs a full R install, so read it, do not run it here):</p>
+
+<pre><code class="language-r">library(DoubleML); library(mlr3); library(mlr3learners)
+dml_data &lt;- double_ml_data_from_data_frame(fresh, y_col = &quot;spend&quot;, d_cols = &quot;perk&quot;,
+              x_cols = c(&quot;engagement&quot;, &quot;recency&quot;, &quot;basket&quot;, &quot;noise_feat&quot;))
+dml_plr &lt;- DoubleMLPLR$new(dml_data,
+             ml_l = lrn(&quot;regr.ranger&quot;), ml_m = lrn(&quot;classif.ranger&quot;), n_folds = 5)
+dml_plr$fit()
+dml_plr$summary()          # the same partialling-out effect, with a standard error and CI</code></pre>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split into K folds","sub":"random folds, so every row is held out exactly once"},{"title":"Fit nuisances out of fold","sub":"train g(X) and m(X) on the other folds only"},{"title":"Residualise held-out rows","sub":"predict into the fold the models never saw, then subtract"},{"title":"Pool and regress","sub":"stack all out-of-fold residuals, regress Y-tilde on D-tilde"},{"title":"Read the effect and CI","sub":"the slope is root-n; its interval is honest"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What DML does and does not buy you</h2>
+
+<p>Cross-fitted DML recovered $12 where the naive and linear estimates failed. A teammate wants to use it on a new study. Which threat does DML give you <strong>no</strong> protection against?</p>
+<section class="exercise" data-exercise-id="Double-Debiased-Machine-Learning-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A baseline outcome \(g(X)\) that is a wild nonlinear shape</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The nuisance forests overfitting the data they are scored on</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">An unmeasured confounder, a signal that drove both the treatment and the outcome but is not in \(X\)</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. DML fixes the bias that machine learning introduces, not the bias from a confounder you never measured. No-unmeasured-confounding and overlap are assumptions DML inherits, not ones it repairs.</div><div class="lesson-qfb lesson-qfb-no">Cross-fitting handles that one directly: every residual is computed by a model that never saw that row, so overfitting cannot leak into the estimate.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1111/ectj.12097">Chernozhukov et al. (2018), Double/Debiased Machine Learning for Treatment and Structural Parameters (The Econometrics Journal)</a> - the paper that defined DML: orthogonal scores plus cross-fitting, with the root-n theory.</li>
+
+<li><a href="https://doi.org/10.2307/1912705">Robinson (1988), Root-N-Consistent Semiparametric Regression (Econometrica)</a> - the partially-linear-model partialling-out this lesson is built on.</li>
+
+<li><a href="https://docs.doubleml.org/stable/">DoubleML for R: user guide and docs</a> - the production package that automates the folds, learners, and score you hand-rolled here.</li>
+
+<li><a href="https://causalml-book.org/">Applied Causal Inference Powered by ML and AI (free online book)</a> - Chernozhukov, Hansen, Kallus, Spindler and Syrgkanis on DML and modern causal ML, with worked code.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 9 complete</h2>
+
+<p>You saw why flexible machine learning, dropped naively into a causal estimate, biases it in two distinct ways, and you fixed both: <strong>orthogonality</strong> (residualise the treatment as well as the outcome, so small nuisance errors cannot move the effect) and <strong>cross-fitting</strong> (score every row with a model blind to it, so overfitting cannot leak in). Together they turned a confounded $26 and an overfit $14.5 into a root-n <strong>$11.6</strong> with an interval that actually covers the truth. And you kept the honesty: DML cleans up ML's bias, not the assumptions every causal claim rests on.</p>
+
+<p>Next, Lesson 10: Sensitivity Analysis and Placebo Tests. No observational estimate is assumption-free, so the mature move is to ask how strong an unmeasured confounder would have to be to overturn your result, and to run placebo checks that should come back null if your design is sound.</p>
+</section>
+
+{% endraw %}
