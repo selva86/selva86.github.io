@@ -67,6 +67,12 @@ The best arm often depends on who is looking. Add features so the policy chooses
 
 [Start Lesson 7: Contextual Bandits and Off-Policy Evaluation](Contextual-Bandits-and-Off-Policy-Evaluation.html)
 
+### Section quiz: check what stuck
+
+Ten graded questions across the whole section, statistical power and the 1-over-d-squared trap, CUPED, peeking and sample-ratio mismatch, interference and the design effect, multi-armed bandits, Thompson sampling, and off-policy evaluation with IPS and doubly-robust scoring, plus two live R snippets you can run. A quick way to find the ideas worth a second pass before you move on.
+
+[Take the Experimentation quiz](Experimentation-Quiz.html)
+
 ## Who this is for
 
 You have met the A/B test and the p-value, and you can write a short function in base R. That is the whole prerequisite. Every idea past that, power, CUPED, regret, posterior sampling, is built from scratch the moment it arrives, usually by simulating it before naming it. The course follows naturally from the inference material on the Data Scientist path.
