@@ -1,0 +1,308 @@
+---
+title: "Advanced Regression Lesson 5: Lasso and Elastic Net"
+description: "The lasso adds an L1 penalty that shrinks weak predictors to exactly zero, selecting features for free. Elastic net blends it with ridge for correlated data."
+keywords: "lasso regression, L1 penalty, elastic net, feature selection, glmnet, regularization, coefficient path, correlated predictors, cross-validation, R"
+mathjax: true
+webr: true
+curriculum_id: "6.130.5"
+post_type: "LESSON"
+course_id: "ds-reg-glm-expert"
+course_title: "Advanced Regression and GLMs"
+course_lesson: "5"
+course_total: "13"
+course_landing: "R-Advanced-Regression-Course.html"
+course_next: "GAMs-Splines-and-Smooths.html"
+course_prev: "Ridge-Regression-and-Shrinkage.html"
+lesson_access: "pro"
+catalog_blurb: "How the lasso drops weak predictors to zero, keeping only what matters."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 13</div>
+<h2>Lasso and Elastic Net</h2>
+
+<p>Lesson 4 rescued Maya's marketing model. Her six ad channels, search, social, display, video, email and affiliate, were so correlated that ordinary least squares returned nonsense; ridge shrank the coefficients into a calm, stable band and predicted better. But ridge kept all six. It never told Maya the one thing she needs at budget time: which channels truly drive signups, and which she can stop paying for.</p>
+
+<p>That is the job of the lasso. With one change to the penalty, it shrinks the useless coefficients all the way to exactly zero, handing Maya a short list instead of a full slate. And when predictors travel in correlated groups, elastic net blends lasso with ridge so you can select without throwing the group away.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why ridge keeps every predictor while the lasso can drop them entirely</li>
+
+<li>Define the lasso's L1 penalty and see why it produces exact zeros, not just small numbers</li>
+
+<li>Fit lasso in R, choose the penalty by cross-validation, and read which predictors survive</li>
+
+<li>Use elastic net to shrink AND select when predictors are correlated</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 4, <a href="Ridge-Regression-and-Shrinkage.html">Ridge Regression and Shrinkage</a> (the L2 penalty, glmnet's <code>alpha</code>, <code>cv.glmnet</code>). If <code>lm()</code> is rusty, see <a href="Linear-Regression.html">linear regression</a>; ridge's <a href="The-Bias-Variance-Tradeoff.html">bias-variance tradeoff</a> returns here too.</p>
+
+<p>Drag the penalty slider on the lasso path below. Watch the coefficients slide toward zero and, one by one, snap to exactly zero. That snap is the whole lesson.</p>
+<div class="lesson-widget" data-widget-type="coef-path" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The question ridge left open</div>
+<h2>Ridge keeps everything; Maya needs a short list</h2>
+
+<p>At budget time Maya does not want a full slate of coefficients. She wants a decision: fund these channels, cut those. Ridge cannot give it, because ridge shrinks every coefficient toward zero but never <em>to</em> zero. Every predictor you feed it comes back, just smaller. To get a short list you need a method that can set a coefficient to exactly zero and remove the predictor outright. That is called <strong>feature selection</strong>.</p>
+
+<p>Let us make the problem concrete. Here is Maya's data from Lesson 4, the six correlated ad channels, plus three more columns she happens to log each week that have nothing to do with signups: the local weather, the count of support tickets, and her team headcount. Nine predictors in all, and only search and social truly move signups. (We build it inline, since each lesson runs in a fresh R session.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 60
+budget &lt;- rnorm(n)                                    # one weekly ad-budget dial
+spend  &lt;- sapply(1:6, function(j) budget + rnorm(n, sd = 0.15))
+colnames(spend) &lt;- c(&quot;search&quot;, &quot;social&quot;, &quot;display&quot;, &quot;video&quot;, &quot;email&quot;, &quot;affiliate&quot;)
+signups &lt;- 40 + 5 * spend[, &quot;search&quot;] + 3 * spend[, &quot;social&quot;] + rnorm(n, sd = 2)
+# three more things Maya logs weekly, all unrelated to signups
+extra &lt;- data.frame(weather = rnorm(n), tickets = rnorm(n), headcount = rnorm(n))
+ads &lt;- data.frame(signups, spend, extra)
+round(coef(lm(signups ~ ., data = ads)), 2)
+#&gt; (Intercept)      search      social     display       video       email
+#&gt;       39.76        5.25        5.27       -0.52       -1.40       -1.29
+#&gt;   affiliate     weather     tickets   headcount
+#&gt;        0.65        0.61       -0.37       -0.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ordinary least squares hands back all nine, and several are pure noise dressed up as findings: display, video and email get <em>negative</em> coefficients, as if running those ads pushed signups down. There is no threshold here, no zero, no short list. Every predictor gets a number, and Maya is left to guess which ones to believe.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>The lasso: price coefficients by absolute size</h2>
+
+<p>Ridge and lasso are the same recipe with one ingredient swapped. Both ask least squares to fit the data while paying a penalty for large coefficients. Ridge's penalty is the sum of the <em>squared</em> coefficients; the lasso's is the sum of their <em>absolute values</em>. That single change is what lets the lasso reach zero.</p>
+
+<p>Ordinary least squares minimizes only the squared error. The lasso adds the <strong>L1 penalty</strong>:</p>
+
+<p>\[ \hat{\beta}^{\text{lasso}} = \arg\min_{\beta} \underbrace{\sum_{i=1}^{n}\bigl(y_i - x_i^\top\beta\bigr)^2}_{\text{fit the data}} \;+\; \underbrace{\lambda \sum_{j=1}^{p} \lvert\beta_j\rvert}_{\text{L1 penalty}}. \]</p>
+
+<p>Here \(\beta_j\) is the coefficient on predictor \(j\), \(p\) is the number of predictors, and \(\lambda\) (lambda) is the penalty strength you choose. The sum \(\sum_j \lvert\beta_j\rvert\) is the <strong>L1 norm</strong>, the total absolute size of the coefficients, versus ridge's <strong>L2 norm</strong> \(\sum_j \beta_j^2\).</p>
+
+<p>Why does the absolute value reach zero when squaring does not? Look at how each penalty treats a coefficient that is already small. Squaring a small number makes it tiny (0.1 squared is 0.01), so near zero the ridge penalty almost stops pushing, and the coefficient coasts to a small non-zero rest. The absolute-value penalty keeps pushing with the <em>same</em> force all the way in (its slope never flattens), so it can shove a weak coefficient the last step to exactly zero and pin it there.</p>
+
+<p>For a single predictor this has a clean closed form called <strong>soft-thresholding</strong>: \(\hat{\beta}^{\text{lasso}} = \operatorname{sign}(\hat{\beta}^{\text{OLS}})\,\max\!\bigl(0,\ \lvert\hat{\beta}^{\text{OLS}}\rvert - \lambda\bigr)\). Read it plainly: shave \(\lambda\) off the size of the least-squares coefficient, and if that would go negative, set it to zero. Ridge instead only scales: \(\hat{\beta}^{\text{ridge}} = \hat{\beta}^{\text{OLS}} / (1 + \lambda)\), which shrinks but never vanishes.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Geometrically, the L1 penalty's budget region is a diamond with sharp corners sitting on the axes; the fit tends to first touch it at a corner, where some coefficients are exactly zero. Ridge's region is a smooth ball with no corners, so it never lands on an axis. Corners select; curves only shrink.</div></div>
+
+<p>Toggle the widget between Lasso (L1) and Ridge (L2) and drag lambda. Under lasso the lines hit zero and stop; under ridge they only bend toward it.</p>
+<div class="lesson-widget" data-widget-type="coef-path" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Watch the useless coefficients die</h2>
+
+<p>Enough theory; let us set Maya's penalty and read the survivors. As with ridge, <code>glmnet</code> fits the whole lasso path and <code>cv.glmnet</code> uses cross-validation to pick lambda the honest way, no eyeballing. The argument <code>alpha = 1</code> selects the lasso.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glmnet)
+X &lt;- as.matrix(ads[, -1])   # the 9 predictors, as a matrix
+y &lt;- ads$signups
+set.seed(1)
+cv_lasso &lt;- cv.glmnet(X, y, alpha = 1)             # alpha = 1 = lasso; 10-fold CV picks lambda
+round(coef(cv_lasso, s = &quot;lambda.1se&quot;)[, 1], 2)    # coefficients at the CV-chosen penalty
+#&gt; (Intercept)      search      social     display       video       email
+#&gt;       39.91        2.39        4.33        0.00        0.00        0.00
+#&gt;   affiliate     weather     tickets   headcount
+#&gt;        0.00        0.00        0.00        0.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Seven of the nine coefficients are exactly <code>0.00</code>. The lasso kept only search and social, the two channels that genuinely drive signups, and deleted everything else: the four redundant ad channels and all three of Maya's unrelated logs. Nine murky numbers became a two-item shortlist she can act on.</p>
+
+<p>(<code>lambda.1se</code> is the slightly stronger penalty within one standard error of the best cross-validated value, the same conservative default you met with ridge. It favors a simpler model, which is exactly what selection is for.)</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">This is the lasso's headline gift: it fits the model and picks the predictors in a single step. No separate hunt for which variables to include; the penalty does it, and hands you a sparse, readable model.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Ridge shrinks, lasso...?</h2>
+
+<p>Maya's affiliate channel carries almost no independent signal. She fits both a ridge model and a lasso model with a healthy penalty. What happens to the affiliate coefficient in each?</p>
+<section class="exercise" data-exercise-id="Lasso-and-Elastic-Net-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both set it to exactly zero, since both penalties shrink</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Ridge sets it to exactly zero; lasso keeps it small but non-zero</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Ridge shrinks it close to zero but keeps it; lasso can set it exactly to zero and drop the channel</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. L2 shrinks smoothly and keeps every predictor; L1 can zero a weak coefficient out entirely. That exact-zero is what turns the lasso into a feature selector.</div><div class="lesson-qfb lesson-qfb-no">It is the other way round. The squared (L2) ridge penalty never reaches zero; the absolute-value (L1) lasso penalty does.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the lasso yourself</h2>
+
+<p>Your turn to run it. In <code>glmnet</code>, the <code>alpha</code> argument sets the penalty type: <code>alpha = 0</code> was ridge last lesson, and the lasso is the other end of the dial. Fill in the value that gives you the lasso, then check.</p>
+<section class="exercise" data-exercise-id="Lasso-and-Elastic-Net-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="alpha\s*=\s*1\b"><textarea class="lesson-tryit-input" spellcheck="false">library(glmnet)
+X &lt;- as.matrix(ads[, -1])
+y &lt;- ads$signups
+# alpha picks the penalty type: you set 0 = ridge (shrink only) last lesson
+lasso &lt;- glmnet(X, y, alpha = ____)
+round(coef(lasso, s = 1)[, 1], 2)      # coefficients at penalty lambda = 1</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the lasso. Look at the output: search and social survive, the other seven are exactly zero.</span><span class="lesson-tryit-fb lesson-tryit-no">The lasso is the absolute-value (L1) penalty: set alpha = 1. (alpha = 0 would be ridge.)</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(glmnet)
+X &lt;- as.matrix(ads[, -1])
+y &lt;- ads$signups
+lasso &lt;- glmnet(X, y, alpha = 1)
+round(coef(lasso, s = 1)[, 1], 2)
+#&gt; (Intercept)      search      social     display       video       email
+#&gt;       39.92        2.35        4.29        0.00        0.00        0.00
+#&gt;   affiliate     weather     tickets   headcount
+#&gt;        0.00        0.00        0.00        0.00</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The catch</div>
+<h2>Correlated predictors trip the lasso up</h2>
+
+<p>The lasso's decisiveness has a cost, and it shows up exactly when predictors are correlated, the situation that sent Maya to regularization in the first place.</p>
+
+<p>Remember that her six ad channels are near-identical, every pair correlated around 0.97, because they all scale from one weekly budget. When several predictors carry the same information, the lasso does not know they are a team. It grabs whichever one happens to fit the training weeks a hair better, loads the signal onto it, and zeros the rest. Feed it a slightly different stretch of weeks and it may crown a different channel. The set of survivors is real, but <em>which</em> members of a correlated group make the cut is unstable.</p>
+
+<p>That near-solid block of dark green is the problem. To the lasso, these six columns are almost interchangeable, so its choice among them is close to a coin flip. If the correlated predictors are genuinely redundant, dropping all but one is fine, even ideal. But if each carries a little unique signal, you would rather not discard a whole group on the strength of one noisy sample. For that, you want to shrink AND select at the same time.</p>
+<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["search","social","display","video","email","affiliate"],"matrix":[[1,0.97,0.97,0.98,0.98,0.97],[0.97,1,0.97,0.97,0.97,0.97],[0.97,0.97,1,0.96,0.97,0.97],[0.98,0.97,0.96,1,0.98,0.97],[0.98,0.97,0.97,0.98,1,0.97],[0.97,0.97,0.97,0.97,0.97,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Elastic net: blend the two penalties</h2>
+
+<p>Elastic net stops making you choose between ridge and lasso by using both penalties at once. It adds the L1 term (which selects) and the L2 term (which shares credit smoothly across correlated predictors), mixed by a dial \(\alpha\) between 0 and 1:</p>
+
+<p>\[ \hat{\beta}^{\text{enet}} = \arg\min_{\beta} \sum_{i=1}^{n}\bigl(y_i - x_i^\top\beta\bigr)^2 \;+\; \lambda\Bigl[\,\alpha\underbrace{\textstyle\sum_j \lvert\beta_j\rvert}_{\text{L1: select}} \;+\; (1-\alpha)\underbrace{\textstyle\sum_j \beta_j^2}_{\text{L2: group}}\Bigr]. \]</p>
+
+<p>The mixing weight \(\alpha\) (alpha) is the same <code>alpha</code> argument from <code>glmnet</code>: \(\alpha = 1\) is pure lasso, \(\alpha = 0\) is pure ridge, and anything between is elastic net. A common middle choice is \(\alpha = 0.5\), half and half.</p>
+
+<p>The L2 part is what fixes the correlated-group problem. Because squaring punishes one big coefficient far more than two medium ones, the L2 term prefers to spread signal <em>evenly</em> across correlated predictors rather than pile it on one. So correlated predictors tend to enter or leave the model together, as a group. This is the elastic net's <strong>grouping effect</strong>. Fit it on Maya's data and watch:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+cv_enet &lt;- cv.glmnet(X, y, alpha = 0.5)            # alpha = 0.5 = half lasso, half ridge
+round(coef(cv_enet, s = &quot;lambda.1se&quot;)[, 1], 2)
+#&gt; (Intercept)      search      social     display       video       email
+#&gt;       39.88        1.56        2.10        0.81        0.80        0.71
+#&gt;   affiliate     weather     tickets   headcount
+#&gt;        0.91        0.00        0.00        0.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare that to the lasso's answer. The lasso kept 2 predictors; elastic net keeps 6, all six ad channels, each with a modest coefficient, because it treats the correlated block as a group instead of picking a lone champion. And it still zeros the three predictors that are truly unrelated, weather, tickets and headcount. Elastic net selected (the noise is gone) <em>and</em> grouped (the correlated channels stayed together).</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does the ridge half add?</h2>
+
+<p>You switch Maya's model from pure lasso (\(\alpha = 1\)) to elastic net (\(\alpha = 0.5\)), and the six correlated ad channels now all survive together, where lasso had kept just two. What did adding the L2 (ridge) part do?</p>
+<section class="exercise" data-exercise-id="Lasso-and-Elastic-Net-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It made the model less accurate by keeping useless predictors</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It shares credit across correlated predictors, so a correlated group tends to stay in or drop out together (the grouping effect)</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It turned off selection, so nothing can be set to zero anymore</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The squared L2 penalty prefers to spread signal evenly rather than dump it on one member, so correlated predictors move as a group instead of the lasso arbitrarily keeping one.</div><div class="lesson-qfb lesson-qfb-no">Selection is still on: the L1 part remains (alpha is 0.5, not 0), and weather, tickets and headcount were still zeroed. Only pure ridge (alpha = 0) stops zeroing.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>Ridge, lasso, or elastic net?</h2>
+
+<p>Three penalties, one decision. Pick by what you need from the model, not by habit.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>You want...</th>
+<th>Reach for</th>
+<th>What it does to the coefficients</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keep every predictor, just tame the wobble (correlated data, prediction)</td>
+<td><strong>Ridge</strong> (\(\alpha = 0\))</td>
+<td>Shrinks all toward zero; none reach zero</td>
+</tr>
+<tr>
+<td>A short, interpretable list of what matters</td>
+<td><strong>Lasso</strong> (\(\alpha = 1\))</td>
+<td>Zeros out the weak ones; keeps a sparse set</td>
+</tr>
+<tr>
+<td>Selection when predictors come in correlated groups</td>
+<td><strong>Elastic net</strong> (\(0 < \alpha < 1\))</td>
+<td>Zeros the noise, keeps correlated groups together</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two honest caveats before you go.</p>
+
+<p>First, sparser is not automatically more accurate. On Maya's data, all three landed close when predicting weeks they had never seen; the lasso's edge was not the last decimal of error, it was the answer to her question, search and social are the drivers, fund those. When the correlated channels genuinely carry no unique signal, the lasso's two-variable model is not just simpler, it is closer to the truth.</p>
+
+<p>Second, the lasso has a hard ceiling: when you have more predictors than rows (\(p > n\)), it can select at most \(n\) of them before it runs out. Elastic net does not share that limit, one more reason to reach for it on wide data.</p>
+
+<p>And a rule from ridge carries straight over: because the penalties depend on each coefficient's scale, <code>glmnet</code> standardizes the predictors for you and reports the coefficients back on the original scale. Tune \(\lambda\), and for elastic net also \(\alpha\), by cross-validation, never by a fixed rule of thumb.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://tibshirani.su.domains/ftp/lasso-retro.pdf">Tibshirani, the lasso, a retrospective (PDF)</a> - the lasso from the person who invented it, revisiting how and why it works.</li>
+
+<li><a href="https://hastie.su.domains/Papers/elasticnet.pdf">Zou and Hastie (2005), Regularization and Variable Selection via the Elastic Net (PDF)</a> - the paper that introduced elastic net and named the grouping effect.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 6.2 (free PDF)</a> - the gentle, visual treatment of ridge, lasso and elastic net.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 3.4 (free PDF)</a> - the full math, including the soft-thresholding rule behind the exact zeros.</li>
+
+<li><a href="https://glmnet.stanford.edu/articles/glmnet.html">glmnet vignette</a> - the documentation for the package used here: alpha, cv.glmnet and the coefficient path.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You gave Maya the short list ridge could not. The lasso swaps ridge's squared penalty for the absolute-value (L1) penalty, and that one change lets it shrink weak coefficients to exactly zero, doing feature selection in the same step it fits the model, nine murky predictors down to search and social. When predictors travel in correlated groups, elastic net blends lasso's selection with ridge's grouping, so you can zero the noise without arbitrarily discarding a correlated team. You fit both with glmnet, alpha = 1 for lasso and a value in between for elastic net, and let cross-validation choose the penalty.</p>
+
+<p>Next, Lesson 6: GAMs, splines and smooths. Every model so far has fit straight lines. What happens when the true relationship bends? You will let the data choose its own smooth curve with penalized splines, and meet the wiggliness penalty that keeps that curve from overfitting.</p>
+</section>
+
+{% endraw %}

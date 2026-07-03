@@ -48,6 +48,13 @@ COURSE_ROADMAP = {
     'ds-causal': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 10, 'sectionLabel': 'Experiment and causal basics'},
     'ds-interpretability': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 11, 'sectionLabel': 'Interpretability and responsible AI (essentials)'},
     'ds-production': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 12, 'sectionLabel': 'Shipping your first model (production essentials)'},
+    'ds-reg-glm-expert': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 13, 'sectionLabel': 'Regression and GLMs - the expert cut'},
+    'ds-advanced-supervised': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 14, 'sectionLabel': 'Advanced supervised learning'},
+    'ds-survival': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 15, 'sectionLabel': 'Survival and time-to-event'},
+    'ds-bayesian': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16, 'sectionLabel': 'Bayesian and hierarchical modeling'},
+    'ds-experimentation': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 17, 'sectionLabel': 'Experimentation and online learning'},
+    'ds-causal-decisions': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 18, 'sectionLabel': 'Causal inference for decisions'},
+    'ds-robustness-drift': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 19, 'sectionLabel': 'Robustness, drift and distribution shift'},
     # Data Analyst track (level 2, all free) - one course per roadmap section.
     'nr-basics': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 1, 'sectionLabel': 'Syntax, types and vectors'},
     'nr-structures': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 2, 'sectionLabel': 'Lists, data frames and tibbles'},

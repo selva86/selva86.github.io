@@ -1,0 +1,322 @@
+---
+title: "Advanced Regression Lesson 8: Poisson and Negative Binomial Regression"
+description: "Model count outcomes with Poisson regression in R: fit the log link, read coefficients as rate ratios, spot overdispersion, and switch to a negative binomial."
+keywords: "Poisson regression, negative binomial, count data, overdispersion, glm, glm.nb, rate ratio, log link, dispersion parameter, MASS, R"
+mathjax: true
+webr: true
+curriculum_id: "6.130.8"
+post_type: "LESSON"
+course_id: "ds-reg-glm-expert"
+course_title: "Advanced Regression and GLMs"
+course_lesson: "8"
+course_total: "13"
+course_landing: "R-Advanced-Regression-Course.html"
+course_next: "Zero-Inflated-and-Hurdle-Models.html"
+course_prev: "GAMs-Choosing-Smoothness.html"
+lesson_access: "pro"
+catalog_blurb: "How to model counts and stay honest when they vary more than expected."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 8 of 13</div>
+<h2>Poisson and Negative Binomial Regression</h2>
+
+<p>In the last lessons you let a smooth curve bend through your data and learned to check that it was flexible enough. Every one of those models still described a continuous measurement. Now the thing we predict changes shape entirely: it becomes a count.</p>
+
+<p>Meet Amara, who runs a neighbourhood bike-repair co-op. Every evening she writes down a single number: how many bikes came in for repair that day. On a slow Tuesday it is 0. Most days it is 2 or 3. But when the roads are wet, or a weekend race rolls through town, the number jumps, 8, 13, once a frantic 21.</p>
+
+<p>That daily tally is a count, and counts do not behave like the heights and temperatures you have been modelling. They are whole numbers, never negative, bunched near zero with a long tail to the right. Fit an ordinary straight line to them and it will cheerfully predict "-1.4 repairs on a cold Monday" and assume every day is equally noisy, both nonsense here.</p>
+
+<p>This lesson gives counts the model they deserve. The bars below show the shape count data takes, the same lopsided pile-up Amara sees each month: a stack of low days, extra zeros, a thin tail of busy ones. The line is a model trying to trace it. By the end you will know why that first model misses at both ends, and the small change that fixes it.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say why ordinary linear regression is the wrong tool for a count</li>
+
+<li>Fit a Poisson regression in R and read its coefficients as rate ratios</li>
+
+<li>Spot overdispersion, and switch to a negative binomial model when a Poisson is too confident</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit and read <a href="OLS-Regression-from-Scratch.html">a linear model</a>, and you have met the GLM idea and a link function (the logit) in the <a href="GAMs-Choosing-Smoothness.html">earlier regression lessons</a>. Comfortable with logs and exponents (exp is always positive).</p>
+<div class="lesson-widget" data-widget-type="count-dist" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why the straight line fails</div>
+<h2>A count is not a measurement</h2>
+
+<p>The outcome here, <code>repairs</code>, is a count: 0, 1, 2, 3, and so on. It has three habits that a straight line cannot respect:</p>
+
+<ul>
+
+<li><strong>It is never negative.</strong> You cannot repair minus two bikes, yet a regression line happily runs below zero.</li>
+
+<li><strong>It moves in whole steps.</strong> There is no such thing as 3.7 repairs.</li>
+
+<li><strong>Its spread grows with its average.</strong> Quiet days (a mean near 2) barely wobble; busy rainy days (a mean near 5) swing far more. Ordinary regression assumes the noise is the same size everywhere.</li>
+
+</ul>
+
+<p>Here is Amara's actual record, two months of daily counts, built right here so you can run everything on this page in interactive R:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 150
+rain &lt;- rbinom(n, 1, 0.4)                    # 0 = dry day, 1 = rainy day
+mu   &lt;- exp(1.0 + 0.55 * rain)               # the true average repairs per day
+repairs &lt;- rnbinom(n, mu = mu, size = 2.0)   # each day's actual count
+bikes &lt;- data.frame(rain = factor(rain, labels = c(&quot;dry&quot;, &quot;rainy&quot;)),
+                    repairs = repairs)
+c(days = n, zeros = sum(bikes$repairs == 0), busiest = max(bikes$repairs))
+#&gt;    days   zeros busiest 
+#&gt;     150      27      21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The histogram below is those 150 numbers. Notice the pile-up at zero (27 of the 150 days), the peak at 2 to 3, and the thin tail stretching out to 21. That shape, floored at zero and skewed hard to the right, is the fingerprint of count data, and it is exactly what a straight line gets wrong.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2},{"x":2},{"x":1},{"x":3},{"x":3},{"x":4},{"x":3},{"x":3},{"x":4},{"x":2},{"x":0},{"x":1},{"x":1},{"x":0},{"x":0},{"x":5},{"x":5},{"x":2},{"x":2},{"x":3},{"x":3},{"x":2},{"x":3},{"x":4},{"x":1},{"x":9},{"x":0},{"x":3},{"x":2},{"x":2},{"x":0},{"x":0},{"x":0},{"x":2},{"x":3},{"x":0},{"x":5},{"x":0},{"x":1},{"x":0},{"x":16},{"x":5},{"x":5},{"x":0},{"x":2},{"x":21},{"x":5},{"x":7},{"x":6},{"x":7},{"x":8},{"x":2},{"x":1},{"x":2},{"x":3},{"x":3},{"x":0},{"x":3},{"x":2},{"x":2},{"x":1},{"x":1},{"x":0},{"x":4},{"x":6},{"x":1},{"x":2},{"x":10},{"x":4},{"x":16},{"x":3},{"x":2},{"x":1},{"x":3},{"x":7},{"x":0},{"x":3},{"x":1},{"x":2},{"x":1},{"x":0},{"x":1},{"x":4},{"x":2},{"x":3},{"x":0},{"x":2},{"x":4},{"x":0},{"x":1},{"x":3},{"x":2},{"x":7},{"x":6},{"x":5},{"x":9},{"x":3},{"x":0},{"x":6},{"x":5},{"x":11},{"x":3},{"x":0},{"x":3},{"x":2},{"x":0},{"x":4},{"x":4},{"x":3},{"x":0},{"x":2},{"x":6},{"x":1},{"x":1},{"x":4},{"x":6},{"x":5},{"x":4},{"x":2},{"x":8},{"x":5},{"x":4},{"x":3},{"x":0},{"x":9},{"x":2},{"x":0},{"x":4},{"x":0},{"x":5},{"x":3},{"x":3},{"x":1},{"x":13},{"x":0},{"x":8},{"x":2},{"x":0},{"x":7},{"x":2},{"x":1},{"x":3},{"x":4},{"x":1},{"x":1},{"x":2},{"x":3},{"x":1},{"x":0},{"x":15}],"geoms":["histogram"],"x":"repairs","y":"count","code":{"histogram":"ggplot(daily, aes(repairs)) +\n  geom_histogram(bins = 10)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why not just fit a straight line?</h2>
+
+<p>Amara's assistant suggests <code>lm(repairs ~ rain)</code>, ordinary least squares. On this count outcome, what is the single most serious problem?</p>
+<section class="exercise" data-exercise-id="Count-Models-Poisson-and-Negative-Binomial-step3" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It can predict impossible values (negative or fractional repairs) and assumes constant spread, when the count is floored at 0 and gets noisier as it grows</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Least squares cannot handle a two-level predictor like dry versus rainy</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">You must always standardize a count before modelling it</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The response is discrete, bounded below, and heteroskedastic by nature. That is a mismatch a straight line cannot fix; it needs a model built for counts.</div><div class="lesson-qfb lesson-qfb-no">Standardizing changes the scale but not the nature of the outcome: it is still discrete and floored at zero, and the line can still predict negatives. Rescaling does not fix the mismatch.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The right model</div>
+<h2>Model the rate, on the log scale</h2>
+
+<p>Instead of predicting the count directly, Poisson regression predicts the <em>average</em> count, the rate, which we call \(\lambda\) ("lambda"). \(\lambda\) is the expected number of repairs on a day with given conditions: maybe 2.2 on a dry day, closer to 5 on a rainy one.</p>
+
+<p>A <strong>Poisson distribution</strong> describes how a count scatters around that mean. The probability of seeing exactly \(k\) repairs is</p>
+
+<p>\[ P(Y = k) = \frac{\lambda^{k}\, e^{-\lambda}}{k!}, \qquad k = 0, 1, 2, \dots \]</p>
+
+<p>where \(Y\) is the count outcome, \(k\) is a specific value it might take, and \(e \approx 2.718\). This only ever places weight on whole numbers from zero up, exactly the values a count can be. Its single most important property is that its mean and variance are the <em>same</em> number:</p>
+
+<p>\[ \mathrm{E}[Y] = \mathrm{Var}[Y] = \lambda. \]</p>
+
+<p>Hold on to that, it is the promise we will later have to break.</p>
+
+<p>Now we connect \(\lambda\) to the predictor. We do not model \(\lambda\) directly, because a straight line can go negative and a rate cannot. Instead we model its logarithm:</p>
+
+<p>\[ \log(\lambda) = \beta_0 + \beta_1 x \quad\Longleftrightarrow\quad \lambda = e^{\beta_0 + \beta_1 x}. \]</p>
+
+<p>Here \(x\) is the predictor (1 for a rainy day, 0 for dry), \(\beta_0\) is the intercept and \(\beta_1\) the slope, both on the log scale. This is the <strong>log link</strong>: whatever the line on the right computes, \(e^{(\cdot)}\) maps it to a positive number, so the predicted rate is always above zero. It is the same link-function idea you met in logistic regression, just a log instead of a logit.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Linear predictor","sub":"b0 + b1*x, any real number"},{"title":"exp() link","sub":"maps it to a positive rate"},{"title":"Rate lambda","sub":"the expected count, always positive"},{"title":"Poisson counts","sub":"the day scatters around lambda"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the Poisson model</h2>
+
+<p><code>glm()</code> fits it in one line. The only new part versus <code>lm()</code> is telling it the response is a Poisson count. Fill in the family and run it.</p>
+<section class="exercise" data-exercise-id="Count-Models-Poisson-and-Negative-Binomial-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="poisson"><textarea class="lesson-tryit-input" spellcheck="false">pois_fit &lt;- glm(repairs ~ rain, data = bikes, family = ____)
+summary(pois_fit)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the whole change from lm(): family = poisson tells glm to use the log link and the Poisson likelihood.</span><span class="lesson-tryit-fb lesson-tryit-no">The family for counts is poisson. Write family = poisson.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">pois_fit &lt;- glm(repairs ~ rain, data = bikes, family = poisson)
+summary(pois_fit)
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  0.80467    0.07089  11.351  &lt; 2e-16 ***
+#&gt; rainrainy    0.75088    0.09212   8.152 3.59e-16 ***</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the model</div>
+<h2>Coefficients are rate ratios</h2>
+
+<p>On the log scale the coefficients are hard to feel. Exponentiate them and they turn into something concrete: a multiplier on the rate.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pois_fit &lt;- glm(repairs ~ rain, data = bikes, family = poisson)
+round(exp(coef(pois_fit)), 2)
+#&gt; (Intercept)   rainrainy 
+#&gt;        2.24        2.12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read them like this:</p>
+
+<ul>
+
+<li>\(e^{\beta_0} = 2.24\) is the <strong>baseline rate</strong>: about 2.2 repairs on a dry day (when \(x = 0\)).</li>
+
+<li>\(e^{\beta_1} = 2.12\) is the <strong>rate ratio</strong> for rain: a rainy day brings about 2.1 <em>times</em> as many repairs as a dry one. Not "2.1 more", 2.1 times as many.</li>
+
+</ul>
+
+<p>The log link is why effects multiply instead of add. Because \(\lambda = e^{\beta_0} \cdot e^{\beta_1 x}\), flipping rain from 0 to 1 multiplies the whole rate by \(e^{\beta_1}\). A coefficient of 0 gives \(e^{0} = 1\), no effect; a positive coefficient gives a multiplier above 1 (more repairs), a negative one a multiplier below 1 (fewer).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">In a Poisson model you almost never report the raw coefficients. You report <code>exp(coef())</code>: each one is the factor by which the expected count changes when that predictor rises by one unit.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does 2.12 mean?</h2>
+
+<p>The rainy-day coefficient exponentiates to \(e^{\beta_1} = 2.12\). A local reporter asks Amara to say what that means in one plain sentence. Which is correct?</p>
+<section class="exercise" data-exercise-id="Count-Models-Poisson-and-Negative-Binomial-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">On a rainy day she can expect about 2.1 times as many repairs as on a dry day</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">On a rainy day she gets about 2.1 more repairs than on a dry day</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">About 2.1 percent more repairs happen on rainy days</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The exponentiated Poisson coefficient is a multiplicative rate ratio: rainy days run at roughly 2.1 times the dry-day rate.</div><div class="lesson-qfb lesson-qfb-no">A rate ratio of 2.12 means 2.1 times as many, a 112 percent increase, not 2.1 percent. Read exp(coef) as "times as many".</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The catch</div>
+<h2>When the Poisson gets overconfident</h2>
+
+<p>Remember the Poisson's defining promise: variance equals mean. That is a strong claim, and real counts break it constantly. Amara's busy days are not just higher on average, they are wildly more variable, one race weekend can triple a quiet Tuesday. When the actual variance runs bigger than the mean, we call it <strong>overdispersion</strong>.</p>
+
+<p>You can measure it. The Pearson dispersion statistic compares the squared residuals to what a Poisson expects:</p>
+
+<p>\[ \hat{\phi} = \frac{1}{\,n - p\,} \sum_{i} \frac{(y_i - \hat{\mu}_i)^2}{\hat{\mu}_i}, \]</p>
+
+<p>where \(y_i\) is the observed count for day \(i\), \(\hat{\mu}_i\) is its fitted rate, \(n\) the number of days and \(p\) the number of estimated coefficients. If the Poisson fits, \(\hat{\phi} \approx 1\). Well above 1 means overdispersion.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># dispersion: the average squared Pearson residual (a Poisson expects about 1)
+disp &lt;- sum(residuals(pois_fit, type = &quot;pearson&quot;)^2) / pois_fit$df.residual
+round(disp, 2)
+#&gt; [1] 2.76</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>2.76, nearly three times what a Poisson allows. The counts carry far more spread than the model believes. Why does that matter? Because the Poisson uses that too-small variance to compute its standard errors. Understated variance means understated standard errors, means p-values that look far more significant than they really are. The point estimates are fine; the confidence around them is a fantasy. Toggle the model below: the Poisson line cannot reach the long tail, and the negative binomial stretches to cover it. (The tall zero bar is a separate problem, the one the next lesson tackles.)</p>
+<div class="lesson-widget" data-widget-type="count-dist" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Negative binomial: let the variance off the leash</h2>
+
+<p>The negative binomial keeps the log link and the same mean structure, so your coefficients still read as rate ratios. It just adds one extra parameter, \(\theta\) ("theta"), that lets the variance grow beyond the mean:</p>
+
+<p>\[ \mathrm{Var}[Y] = \mu + \frac{\mu^2}{\theta}. \]</p>
+
+<p>Here \(\mu\) is the mean (the same rate \(\lambda\) as before). When \(\theta\) is small, the \(\mu^2/\theta\) term is large and the counts are heavily overdispersed; as \(\theta\) grows toward infinity that term vanishes and the negative binomial collapses back into a Poisson. So the Poisson is just the negative binomial's calm special case.</p>
+
+<p><code>glm.nb()</code> from the MASS package fits it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+nb_fit &lt;- glm.nb(repairs ~ rain, data = bikes)
+summary(nb_fit)
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)   0.8047     0.1033   7.791 6.64e-15 ***
+#&gt; rainrainy     0.7509     0.1495   5.022 5.12e-07 ***
+#&gt;               Theta:  1.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what changed and what did not. The estimates are essentially identical, 0.75 for rain, which still exponentiates to the same 2.12 rate ratio. But the standard error for rain jumped from 0.092 to 0.150, more than 60 percent wider. That extra width is the honesty the Poisson was hiding. Rain is still clearly significant here, but its true uncertainty is much larger than the Poisson claimed, and on a borderline effect that difference is exactly what flips a "significant" result to "not". A single number confirms the negative binomial is the better description:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">AIC(pois_fit, nb_fit)
+#&gt;          df      AIC
+#&gt; pois_fit  2 769.7
+#&gt; nb_fit    3 673.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lower AIC is better, and the negative binomial wins by nearly 100.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>Which model should Amara report?</h2>
+
+<p>Her dispersion check came back at 2.76, and the AIC preferred the negative binomial by almost 100 (770 versus 673). What should she report, and why?</p>
+<section class="exercise" data-exercise-id="Count-Models-Poisson-and-Negative-Binomial-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The negative binomial: the counts are overdispersed (dispersion well above 1), so the Poisson's standard errors are too small, and the NB both fixes the uncertainty and fits far better (lower AIC)</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The Poisson, because both models produced the same coefficient estimates</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Either one is fine, since a dispersion of 2.76 is close enough to 1</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A dispersion near 2.76 and a much lower AIC both say the Poisson understates the spread. Report the NB, with its honest standard errors.</div><div class="lesson-qfb lesson-qfb-no">2.76 is nearly three times 1, which is strong overdispersion, not "close enough". The large AIC gap confirms the negative binomial is the better model.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://stats.oarc.ucla.edu/r/dae/poisson-regression/">Poisson Regression | R Data Analysis Examples (UCLA OARC)</a> - a full worked Poisson regression in R, from fitting to interpreting rate ratios.</li>
+
+<li><a href="https://stats.oarc.ucla.edu/r/dae/negative-binomial-regression/">Negative Binomial Regression | R Data Analysis Examples (UCLA OARC)</a> - the <code>glm.nb</code> companion, including how to decide between Poisson and NB.</li>
+
+<li><a href="https://doi.org/10.1890/07-0043.1">Ver Hoef and Boveng (2007), Quasi-Poisson vs. Negative Binomial Regression, Ecology 88(11)</a> - a clear, practical paper on modelling overdispersed counts.</li>
+
+<li><a href="https://doi.org/10.1017/CBO9781139013567">Cameron and Trivedi (2013), Regression Analysis of Count Data, 2nd ed.</a> - the standard reference for count models.</li>
+
+<li><a href="https://cran.r-project.org/package=MASS">MASS package (Venables and Ripley)</a> - documentation for <code>glm.nb</code> and negative binomial GLMs in R.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 8 complete</h2>
+
+<p>You can now model a count the way a count deserves: a Poisson regression on the log scale, coefficients read as rate ratios, a dispersion check to catch the Poisson's overconfidence, and a negative binomial when the spread demands it.</p>
+
+<p>But sometimes the trouble is not just spread, it is the zeros themselves, a pile of days when the event simply could not happen. Next, Lesson 9: Zero-Inflated and Hurdle Models, where a two-part model handles counts with far more zeros than even a negative binomial expects.</p>
+</section>
+
+{% endraw %}

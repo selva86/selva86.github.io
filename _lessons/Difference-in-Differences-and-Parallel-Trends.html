@@ -1,0 +1,315 @@
+---
+title: "Causal Inference for Decisions Lesson 3: Difference-in-Differences and Parallel Trends"
+description: "One group gets a policy, another does not. Compare each group's before-and-after change, difference away unmeasured confounding, and test parallel trends in R."
+keywords: "difference-in-differences, DiD, parallel trends, causal inference, natural experiment, treatment effect, event study, two-way fixed effects, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.3"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "3"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Staggered-DiD-and-the-Negative-Weights-Problem.html"
+course_prev: "Inverse-Probability-Weighting-and-Doubly-Robust.html"
+lesson_access: "pro"
+catalog_blurb: "Measure a policy's effect by comparing the before-and-after change in two groups."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 11</div>
+<h2>Difference-in-Differences and Parallel Trends</h2>
+
+<p>In Lessons 1 and 2 you fought confounding by modelling it: estimate each unit's propensity to be treated, then match or reweight until the groups balance. That works only for confounders you actually measured. But some things you can never put in a model: the local economy, management culture, a hundred quiet differences between one place and another.</p>
+
+<p>Here is a real case where that mattered. On 1 April 1992, <strong>New Jersey</strong> raised its minimum wage from $4.25 to $5.05 an hour. Neighbouring <strong>Pennsylvania</strong> left its wage alone. Standard economics predicted New Jersey would shed fast-food jobs. Economists David Card and Alan Krueger measured full-time-equivalent (FTE) employment at hundreds of restaurants in both states, once in February (before) and once in November (after). If you simply compared the two states afterwards you would be fooled, because New Jersey's restaurants were never quite like Pennsylvania's to begin with.</p>
+
+<p>Difference-in-differences (DiD) is the move that rescues this: instead of comparing the two groups, compare their two <em>changes</em>. By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a naive after-only comparison, and a naive before-after comparison, are each biased</li>
+
+<li>Compute the DiD effect two ways: a 2x2 table of means, and one line of <code>lm(y ~ treat*post)</code></li>
+
+<li>State the parallel-trends assumption, and see why it constrains the groups' trends, not their levels</li>
+
+<li>Probe parallel trends with pre-policy data, and recognise when DiD is not safe to use</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 and 2 (confounding, potential outcomes, the average treatment effect, and why a naive comparison can mislead); you can fit <code>lm</code> and read its coefficients.</p>
+<div class="lesson-widget" data-widget-type="did-parallel" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>Two groups, two periods, one number each</h2>
+
+<p>Every DiD study has the same skeleton, and ours is the fast-food example. There are <strong>two groups</strong>: the <strong>treated</strong> group that got the policy (New Jersey stores) and a <strong>control</strong> group that did not (Pennsylvania stores). There are <strong>two periods</strong>: <strong>before</strong> the policy (February 1992) and <strong>after</strong> it (November 1992). And there is <strong>one outcome</strong> measured in each: average FTE employment per store. That gives four numbers, a 2x2 grid, and DiD is built entirely from those four.</p>
+
+<p>Every lesson runs in a fresh R session, so we build the data here. These are simulated stores patterned on the real study: New Jersey restaurants run a little smaller to start, a mild 1992 slowdown pulls employment down in both states, and we plant a <strong>true policy effect of +2.75 FTE</strong> in New Jersey after the change, so we can later check whether DiD finds it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 400                                     # fast-food stores per state
+state &lt;- rep(c(&quot;PA&quot;, &quot;NJ&quot;), each = n)        # PA = control, NJ = treated
+treat &lt;- as.integer(state == &quot;NJ&quot;)           # 1 = New Jersey, 0 = Pennsylvania
+base  &lt;- ifelse(treat == 1, 20.4, 23.3) + rnorm(2 * n, 0, 7)   # Feb-1992 FTE per store
+trend  &lt;- -2.1                               # economy-wide dip through 1992 (BOTH states)
+effect &lt;- 2.75                               # the TRUE effect of NJ's wage hike (NJ, after)
+
+emp &lt;- data.frame(
+  store = rep(1:(2 * n), 2),
+  state = rep(state, 2),
+  treat = rep(treat, 2),
+  post  = rep(0:1, each = 2 * n)             # 0 = Feb 1992 (before), 1 = Nov 1992 (after)
+)
+emp$fte &lt;- rep(base, 2) + emp$post * trend +
+           emp$post * emp$treat * effect + rnorm(nrow(emp), 0, 2.5)
+
+cell &lt;- tapply(emp$fte, list(state = emp$state, post = emp$post), mean)
+round(cell, 1)
+#&gt;      post
+#&gt; state    0    1
+#&gt;    NJ 20.4 20.9
+#&gt;    PA 23.6 21.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the grid slowly. New Jersey went from 20.4 to 20.9 FTE, a whisker up. Pennsylvania went from 23.6 to 21.5, a clear drop of about two. Those four means are the whole dataset now. Everything that follows is a way of subtracting them.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>Why the obvious comparisons are both wrong</h2>
+
+<p>There are two tempting shortcuts, and each one lies.</p>
+
+<p>The first is the <strong>after-only comparison</strong>: look at the two groups in November and take the difference. The second is the <strong>before-after comparison</strong>: ignore Pennsylvania and just watch New Jersey change over time. Let us compute both.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">after_only  &lt;- cell[&quot;NJ&quot;,&quot;1&quot;] - cell[&quot;PA&quot;,&quot;1&quot;]   # NJ vs PA, AFTER the policy only
+before_after &lt;- cell[&quot;NJ&quot;,&quot;1&quot;] - cell[&quot;NJ&quot;,&quot;0&quot;]  # NJ after vs NJ before, ignoring PA
+round(c(after_only = after_only, before_after = before_after), 2)
+#&gt; after_only before_after
+#&gt;      -0.60         0.56</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The after-only number is <strong>-0.60</strong>: in November, New Jersey stores employed slightly <em>fewer</em> people than Pennsylvania stores. Taken at face value, that says the wage hike cost jobs. But it is contaminated, because New Jersey stores were already smaller in February (20.4 vs 23.6). You are measuring a pre-existing gap, not the policy.</p>
+
+<p>The before-after number is <strong>+0.56</strong>: New Jersey barely moved, so this says the policy did almost nothing. But that ignores the 1992 slowdown. Without the wage hike, New Jersey would probably have fallen too, just like Pennsylvania did. Standing still while everyone else drops is not "nothing"; it is a gain hiding in plain sight.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The after-only comparison is polluted by a <em>level</em> difference between the groups. The before-after comparison is polluted by a <em>time trend</em> that hits everyone. DiD's whole idea is that you can cancel BOTH pollutants at once by taking a difference of differences.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">The core idea</div>
+<h2>The difference of differences</h2>
+
+<p>Here is the move. Take the treated group's change over time, then subtract the control group's change over the same time. New Jersey's change contains the time trend plus the policy effect; Pennsylvania's change contains the time trend alone. Subtract, and the shared trend cancels, leaving the policy effect by itself.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nj_change &lt;- cell[&quot;NJ&quot;,&quot;1&quot;] - cell[&quot;NJ&quot;,&quot;0&quot;]   # treated group's before -&gt; after change
+pa_change &lt;- cell[&quot;PA&quot;,&quot;1&quot;] - cell[&quot;PA&quot;,&quot;0&quot;]   # control group's before -&gt; after change
+round(c(nj_change = nj_change, pa_change = pa_change,
+        did = nj_change - pa_change), 2)
+#&gt; nj_change pa_change       did
+#&gt;      0.56     -2.04      2.60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>New Jersey changed by +0.56. Pennsylvania changed by -2.04. The difference of those differences is <strong>+2.60 FTE</strong>, almost exactly the +2.75 we planted. The naive answers were -0.60 and +0.56; the double difference recovers the truth both of them missed.</p>
+
+<p>Formally, with \(\bar Y_{g,t}\) the mean outcome for group \(g\) in period \(t\), the estimator is</p>
+
+<p>\[ \widehat{\text{DiD}} = \big(\bar Y_{\text{NJ,after}} - \bar Y_{\text{NJ,before}}\big) - \big(\bar Y_{\text{PA,after}} - \bar Y_{\text{PA,before}}\big). \]</p>
+
+<p>The widget below draws exactly this geometry on a clean illustrative example. The solid lines are the two groups; the dashed line is where the treated group <em>would</em> have landed if it had simply followed the control's trend. Toggle between the naive after-only gap and the DiD gap, and watch the number change.</p>
+<div class="lesson-widget" data-widget-type="did-parallel" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The assumption</div>
+<h2>Parallel trends: what makes the subtraction legal</h2>
+
+<p>The dashed line in that widget is the load-bearing idea of the whole method. It is the <strong>counterfactual</strong>: the path New Jersey would have taken with no wage hike. We can never observe it, because New Jersey did get the hike. DiD's trick is to <em>borrow</em> it from the control group: we assume New Jersey would have changed by the same amount Pennsylvania actually did.</p>
+
+<p>That assumption has a name, <strong>parallel trends</strong>. Writing \(Y^{0}_{g,t}\) for the outcome group \(g\) would have had at time \(t\) if untreated (its "no-policy" potential outcome), parallel trends says the two groups would have moved together absent the policy:</p>
+
+<p>\[ E\big[Y^{0}_{\text{NJ,after}} - Y^{0}_{\text{NJ,before}}\big] = E\big[Y^{0}_{\text{PA,after}} - Y^{0}_{\text{PA,before}}\big]. \]</p>
+
+<p>Read it in plain words: <em>without</em> the wage hike, New Jersey's employment change would have equalled Pennsylvania's. If that holds, Pennsylvania's -2.04 is a fair stand-in for New Jersey's missing counterfactual, and the leftover +2.60 is the policy.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Parallel trends is a claim about <em>trends</em>, not <em>levels</em>. The groups are allowed to start at completely different heights (New Jersey at 20.4, Pennsylvania at 23.6). DiD subtracts each group's own starting point away. What must match is the <em>slope</em> they would have followed without treatment, not where they began.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Different levels, same method?</h2>
+
+<p>A reviewer objects: "Your New Jersey stores averaged 20.4 FTE before the policy and your Pennsylvania stores averaged 23.6. The groups are not comparable, so your difference-in-differences estimate is invalid." Is the reviewer right?</p>
+<section class="exercise" data-exercise-id="Difference-in-Differences-and-Parallel-Trends-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes. DiD requires the treated and control groups to have equal outcomes before the policy, so a 20.4 vs 23.6 gap breaks it</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No. DiD allows different starting levels; each group is differenced against its own baseline. What it needs is parallel trends, that the groups would have CHANGED by the same amount without the policy</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, because with 400 stores per group the sample is large enough that any level difference averages out</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The double difference removes each group's fixed level, so a level gap is harmless. The real assumption is about the counterfactual trend, and that is what you must defend.</div><div class="lesson-qfb lesson-qfb-no">Sample size does not cure a level difference, and it does not need curing. Even with a million stores, DiD would still difference each group against its own baseline. The level gap is not a problem to average away; it is simply irrelevant to the method.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>The whole thing in one line</h2>
+
+<p>You computed the double difference by hand from four means. In practice you fit one regression instead, because it hands you a standard error and extends to covariates for free. The model is</p>
+
+<p>\[ Y_{it} = \beta_0 + \beta_1\,\text{treat}_i + \beta_2\,\text{post}_t + \beta_3\,(\text{treat}_i \times \text{post}_t) + \varepsilon_{it}, \]</p>
+
+<p>where \(\text{treat}_i\) is 1 for New Jersey stores and \(\text{post}_t\) is 1 in November. The interaction coefficient \(\beta_3\) is the difference-in-differences. Complete the formula: regress <code>fte</code> on the two indicators <strong>and their interaction</strong>.</p>
+<section class="exercise" data-exercise-id="Difference-in-Differences-and-Parallel-Trends-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="treat\s*\*\s*post|post\s*\*\s*treat"><textarea class="lesson-tryit-input" spellcheck="false">model &lt;- lm(fte ~ ____, data = emp)   # the two indicators AND their interaction
+round(coef(model), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. In R, treat * post expands to treat + post + treat:post, so one term gives you all three coefficients. The treat:post interaction is 2.60, the same double difference you found by hand.</span><span class="lesson-tryit-fb lesson-tryit-no">Use treat * post. The star is R shorthand that adds both main effects AND the interaction term treat:post, which is the DiD estimate.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">model &lt;- lm(fte ~ treat * post, data = emp)
+round(coef(model), 2)
+#&gt; (Intercept)       treat        post  treat:post
+#&gt;       23.58       -3.19       -2.04        2.60</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Kicking the tyres</div>
+<h2>Probing parallel trends before you trust it</h2>
+
+<p>Parallel trends is an assumption about a counterfactual, so you can never prove it. But you can <em>interrogate</em> it. The standard check: if you have several periods of data <em>before</em> the policy, look at whether the two groups were already moving in parallel back then. If they tracked each other for months and only split apart when the policy landed, the assumption is credible. If they were already diverging before anything happened, it is not.</p>
+
+<p>Suppose we had monthly employment for a few months on either side of the April change. Plotting each group's average over time turns the assumption into something you can see. This is called an <strong>event study</strong>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+set.seed(7)
+periods &lt;- -3:2                          # months relative to the April-1992 hike
+stores  &lt;- 300
+grid &lt;- expand.grid(period = periods, store = 1:stores, state = c(&quot;PA&quot;, &quot;NJ&quot;))
+grid$treat &lt;- as.integer(grid$state == &quot;NJ&quot;)
+grid$post  &lt;- as.integer(grid$period &gt;= 0)
+grid$fte &lt;- with(grid,
+  ifelse(treat == 1, 20.4, 23.3) - 0.5 * period +   # a shared, parallel downward drift
+  post * treat * 2.75 +                             # NJ breaks upward AT the policy
+  rnorm(nrow(grid), 0, 3))
+ev &lt;- aggregate(fte ~ period + state, grid, mean)   # group means per month
+
+p &lt;- ggplot(ev, aes(period, fte, colour = state)) +
+  geom_vline(xintercept = -0.5, linetype = &quot;dashed&quot;) +
+  geom_line(linewidth = 1) + geom_point(size = 2) +
+  annotate(&quot;text&quot;, x = -0.5, y = 25, label = &quot;wage hike&quot;, hjust = 1.1, size = 3.5) +
+  labs(x = &quot;months relative to the policy&quot;, y = &quot;FTE employment per store&quot;,
+       colour = &quot;state&quot;, title = &quot;Parallel before, divergent after&quot;)
+print(p)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Before the dashed line, the two lines slope downward together, roughly parallel, both caught in the same slowdown. Then at the policy, New Jersey breaks upward while Pennsylvania keeps drifting down. That is the pattern that makes a DiD believable: shared history, then a split that lines up with the treatment. A failed check looks the opposite: the gap between the lines already widening or shrinking before the policy, which means something other than the policy is moving the groups apart.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading a broken pre-trend</h2>
+
+<p>You run the event-study plot and find that, in the two years <em>before</em> the wage hike, New Jersey's fast-food employment was already climbing steadily while Pennsylvania's was flat. The gap between them was widening month after month, before any policy. What should you conclude about your DiD estimate?</p>
+<section class="exercise" data-exercise-id="Difference-in-Differences-and-Parallel-Trends-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Parallel trends is in doubt: the groups were diverging before treatment, so Pennsylvania's change is not a fair counterfactual, and the DiD will attribute pre-existing divergence to the policy</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No problem: pre-trends do not matter because DiD only uses the before and after periods, not the trend between them</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It strengthens the result: a rising pre-trend in New Jersey shows the treated group was already healthy, which makes the positive effect more believable</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. If the lines were separating before anything happened, they would likely have kept separating anyway, and DiD would credit that ongoing drift to the wage hike. A failed pre-trend is the single most important red flag for a DiD study.</div><div class="lesson-qfb lesson-qfb-no">It does the opposite. A rising New Jersey pre-trend means New Jersey would likely have risen even without the policy, so some of your +2.60 is just that pre-existing climb, not the wage hike. Divergence before treatment inflates the estimate.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fine print</div>
+<h2>When difference-in-differences breaks</h2>
+
+<p>DiD is powerful precisely because it asks for so little: no need to measure every confounder, just a control group and the parallel-trends assumption. But that assumption, and a few cousins, can fail. Run this mental checklist before trusting any DiD:</p>
+
+<p>The four ways it goes wrong:</p>
+
+<ul>
+
+<li><strong>Non-parallel trends.</strong> The whole method rests on the control's change standing in for the treated's counterfactual. If they were never on parallel paths, the estimate is biased, and no amount of data fixes it.</li>
+
+<li><strong>Spillovers (interference).</strong> If Pennsylvania stores near the border lose workers to higher-paying New Jersey, the control is contaminated by the treatment, and the two changes are no longer independent.</li>
+
+<li><strong>Compositional change.</strong> If the weakest New Jersey stores closed after the hike, the November sample is a different, hardier set of stores than February's, so part of the "gain" is just survivors being counted.</li>
+
+<li><strong>Staggered timing.</strong> Real policies rarely switch on for everyone at one instant. When units adopt at different times, a single <code>treat*post</code> is not enough, and the popular two-way fixed-effects fix can even put <em>negative</em> weights on some comparisons.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">That last one is subtle and important enough to be its own lesson. When treatment rolls out in waves, already-treated units get used as controls for later-treated ones, and the math can silently flip signs. That is exactly where we go next.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Find a clean control","sub":"a group left untreated but otherwise moving like the treated one"},{"title":"Check pre-trends","sub":"plot several pre-policy periods and confirm the groups moved in parallel"},{"title":"Estimate the double difference","sub":"fit lm(y ~ treat*post) and read the treat:post interaction"},{"title":"Stress-test the assumptions","sub":"spillovers, changing store composition, and staggered timing"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five solid places to take difference-in-differences further:</p>
+
+<ul>
+
+<li><a href="https://www.nber.org/papers/w4509">Card and Krueger (1994), Minimum Wages and Employment (NBER working paper)</a> - the natural experiment this lesson is built on, and the paper that made DiD famous.</li>
+
+<li><a href="https://mixtape.scunning.com/09-difference_in_differences">Cunningham, Causal Inference: The Mixtape, DiD chapter (free online)</a> - the clearest from-scratch walk-through, with R and Stata code.</li>
+
+<li><a href="https://www.masteringmetrics.com/">Angrist and Pischke, Mastering 'Metrics (chapter 5)</a> - the intuition for DiD and fixed effects, gently and rigorously.</li>
+
+<li><a href="https://arxiv.org/abs/2201.01194">Roth, Sant'Anna, Bilinski and Poe (2023), What's Trending in Difference-in-Differences? (arXiv)</a> - the modern synthesis on parallel-trends testing and the staggered-timing problems.</li>
+
+<li><a href="https://www.nber.org/papers/w25018">Goodman-Bacon (2021), DiD with Variation in Treatment Timing (NBER working paper)</a> - the decomposition behind the negative-weights problem, your bridge to Lesson 4.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You turned a policy puzzle into a clean effect by refusing to compare groups directly. Instead you compared their <em>changes</em>: New Jersey's +0.56 against Pennsylvania's -2.04, a double difference of +2.60 that both naive shortcuts missed. You saw that <code>lm(y ~ treat*post)</code> computes it in one line, with the <code>treat:post</code> interaction as the estimate. And you learned the one assumption the whole method leans on, parallel trends, why it constrains slopes and not levels, and how to interrogate it with pre-policy data before you trust it.</p>
+
+<p>Next, Lesson 4: Staggered DiD and the Negative-Weights Problem. When units adopt a policy at different times, the tidy two-group, two-period picture falls apart, and the standard two-way fixed-effects estimator can quietly put negative weights on some comparisons, biasing the answer in a way that took the field years to notice. You will see how it happens, and what to use instead.</p>
+</section>
+
+{% endraw %}

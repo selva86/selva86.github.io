@@ -1,0 +1,470 @@
+---
+title: "Causal Inference for Decisions Lesson 8: Uplift and Heterogeneous Effects"
+description: "A flat average effect hides who a treatment helps and who it hurts. Build a T-learner in R to score per-customer uplift, validate it, and target with a Qini curve."
+keywords: "uplift modeling, heterogeneous treatment effects, T-learner, Qini curve, CATE, conditional average treatment effect, causal forest, targeting, sleeping dogs, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.8"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "8"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Double-Debiased-Machine-Learning.html"
+course_prev: "Synthetic-Control.html"
+lesson_access: "pro"
+catalog_blurb: "Find which customers a treatment helps and which it hurts, then target accordingly."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 8 of 11</div>
+<h2>Uplift and Heterogeneous Effects</h2>
+
+<p>In Lesson 7 you measured the effect of a policy on a single treated city, one honest average number. Look back at every method in this course and they all share that goal: matching, weighting, difference-in-differences, instruments, synthetic control, each one hands you <strong>one</strong> number, the average effect across everybody.</p>
+
+<p>But an average can lie by telling the truth. A retention email that lifts renewal by 15 points <strong>on average</strong> can still be helping some customers a lot, doing nothing for others, and actively <strong>pushing a third group out the door</strong>. Send it to everyone and you pay to annoy the very people it hurts. This lesson is about opening up that average: predicting the effect for each customer separately, so you treat the people a policy actually helps and leave the rest alone.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why one average effect hides who is helped and who is hurt, and name the four customer types</li>
+
+<li>Build a T-learner in R, one model per treatment arm, to score each customer's individual uplift</li>
+
+<li>Validate an uplift model even though you can never see any single customer's true effect</li>
+
+<li>Read a Qini curve to decide how many customers to target, and know why the answer is often not "everyone"</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> <a href="Matching-and-the-Propensity-Score.html">Lesson 1</a> (potential outcomes \(Y(1)\) and \(Y(0)\)) and <a href="Difference-in-Differences-and-Parallel-Trends.html">Lesson 3</a> (why a naive comparison is biased). You can read a <code>glm(y ~ x, binomial)</code> fit as "give me the probability," and you know base R subsetting.</p>
+<div class="lesson-widget" data-widget-type="uplift-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>One email, one average, 4,000 subscribers</h2>
+
+<p>Meet <strong>Nadia</strong>, who runs retention at <strong>Cadence</strong>, a music-streaming service. Every month a batch of subscribers reach their renewal date, and some are wavering. Nadia can send them a "<strong>20% off your next three months, stay with us</strong>" email. She wants one thing: to send it to the customers it helps, and not waste it (or worse) on the rest.</p>
+
+<p>So she ran a clean experiment. She took <strong>4,000</strong> at-risk subscribers and flipped a coin for each one: a random half got the email, the other half got nothing. Then she waited to see who renewed. Because assignment was random, the two halves are comparable, exactly the randomized setup Lesson 1 fought to recover from messy observational data.</p>
+
+<p>Each lesson runs in a fresh R session, so we build Nadia's experiment ourselves. The one feature we track is <strong>engagement</strong>, a standardized score of how much the subscriber used Cadence lately: <code>0</code> is a typical user, <code>+1</code> a heavy listener, <code>-1</code> someone who has barely opened the app. Because the data is simulated, we also know the hidden truth we will spend the lesson recovering: the email's true effect <strong>varies by customer</strong>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+n &lt;- 4000
+engagement &lt;- runif(n, -1, 1)                 # standardized recent-usage score, -1 (cold) .. +1 (hot)
+email      &lt;- rbinom(n, 1, 0.5)               # randomized: 1 = got the retention email, 0 = did not
+tau        &lt;- 0.35 * engagement + 0.15        # the HIDDEN true per-customer uplift (we know it; Nadia does not)
+renewed    &lt;- rbinom(n, 1, pmin(pmax(plogis(-0.2 + 0.5 * engagement) + email * tau, 0), 1))
+
+head(data.frame(engagement = round(engagement, 2), email, renewed))
+#&gt;   engagement email renewed
+#&gt; 1      -0.60     1       0
+#&gt; 2       0.37     0       1
+#&gt; 3       0.83     0       1
+#&gt; 4      -0.43     1       1
+#&gt; 5      -0.79     1       1
+#&gt; 6       0.40     0       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the number Nadia would actually report. Because the email was randomized, the honest average effect is just the renewal rate of the emailed group minus the renewal rate of the not-emailed group.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(treated = mean(renewed[email == 1]),
+        control = mean(renewed[email == 0])), 3)
+#&gt; treated control
+#&gt;   0.600   0.452
+round(mean(renewed[email == 1]) - mean(renewed[email == 0]), 2)   # the average treatment effect
+#&gt; [1] 0.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The email lifts renewal from 45% to 60%, a <strong>+15 point</strong> average effect. A clear win. So send it to everyone?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+rates &lt;- data.frame(group = c(&quot;No email (control)&quot;, &quot;Retention email&quot;),
+                    rate  = c(mean(renewed[email == 0]), mean(renewed[email == 1])))
+ggplot(rates, aes(group, rate, fill = group)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(rate * 100), &quot;%&quot;)), vjust = -0.4) +
+  scale_fill_manual(values = c(&quot;grey72&quot;, &quot;#1c2c4f&quot;)) +
+  labs(x = NULL, y = &quot;renewed&quot;, title = &quot;The email lifts renewal by about 15 points on average&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>The +15 average hides who is hurt</h2>
+
+<p>That single +15 is a blend. To see what it blends, look at the hidden truth we built into the data. We wrote each customer's true uplift as \(\tau_i = 0.35 \times \text{engagement}_i + 0.15\), so the effect of the email is not one number, it is a <strong>line</strong> that slides with engagement.</p>
+
+<p>First, a name for what we are after. For customer \(i\), imagine both futures: \(Y_i(1)\), whether they renew <strong>if emailed</strong>, and \(Y_i(0)\), whether they renew <strong>if not</strong>. The individual effect is the difference,</p>
+
+<p>\[ \tau_i \;=\; Y_i(1) - Y_i(0). \]</p>
+
+<p>The average of that over everybody is the <strong>ATE</strong> (average treatment effect), \(\text{ATE} = \mathbb{E}[\,Y(1) - Y(0)\,]\), the +0.15 Nadia just reported. What we actually want is the effect <strong>for a given kind of customer</strong>, the CATE (conditional average treatment effect),</p>
+
+<p>\[ \tau(x) \;=\; \mathbb{E}[\,Y(1) - Y(0) \mid X = x\,], \]</p>
+
+<p>read as: the average uplift among customers whose features \(X\) equal \(x\). Plot our known \(\tau(x)\) and the blend falls apart:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">truth &lt;- data.frame(engagement, tau)
+cut0  &lt;- -0.15 / 0.35                                   # engagement where true uplift crosses zero
+ggplot(truth, aes(engagement, tau)) +
+  annotate(&quot;rect&quot;, xmin = -1, xmax = cut0, ymin = -Inf, ymax = 0, fill = &quot;#c0392b&quot;, alpha = 0.12) +
+  geom_hline(yintercept = 0, colour = &quot;grey55&quot;) +
+  geom_line(linewidth = 1.2, colour = &quot;#1c2c4f&quot;) +
+  annotate(&quot;text&quot;, x = -0.72, y = 0.06, label = &quot;email HURTS\n(sleeping dogs)&quot;, size = 3, colour = &quot;#c0392b&quot;) +
+  labs(x = &quot;engagement (standardized)&quot;, y = &quot;true uplift  tau(x)&quot;,
+       title = &quot;The +0.15 average hides a line from -0.20 (hurt) to +0.50 (helped)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(min_uplift = min(tau), max_uplift = max(tau), share_hurt = mean(tau &lt; 0)), 2)
+#&gt; min_uplift max_uplift share_hurt
+#&gt;      -0.20       0.50       0.28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The email's real effect runs from <strong>-0.20</strong> for the least engaged to <strong>+0.50</strong> for the most, and a full <strong>28%</strong> of customers have a <strong>negative</strong> uplift, the email makes them <em>less</em> likely to renew. Marketers have names for the four kinds of customer hiding in that average:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Type</th>
+<th>Would renew without email?</th>
+<th>Effect of the email</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Sure things</strong></td>
+<td>Yes</td>
+<td>none, they stay anyway</td>
+<td>don't bother</td>
+</tr>
+<tr>
+<td><strong>Lost causes</strong></td>
+<td>No</td>
+<td>none, they leave anyway</td>
+<td>don't bother</td>
+</tr>
+<tr>
+<td><strong>Persuadables</strong></td>
+<td>No</td>
+<td>positive, the offer tips them to stay</td>
+<td><strong>target these</strong></td>
+</tr>
+<tr>
+<td><strong>Sleeping dogs</strong></td>
+<td>Yes</td>
+<td>negative, the reminder makes them cancel</td>
+<td><strong>never contact</strong></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Here is the catch that makes this hard. For any one customer we only ever see <strong>one</strong> of \(Y_i(1)\) or \(Y_i(0)\), the future that actually happened, never both. So \(\tau_i\) for an individual can <strong>never be measured directly</strong>. This is the fundamental problem of causal inference, and it is why uplift has to be <strong>modelled</strong>, not looked up.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Can you read one customer's effect?</h2>
+
+<p>Customer #4 in the data got the email (<code>email = 1</code>) and renewed (<code>renewed = 1</code>). Nadia asks: "For <em>this</em> customer, how much did the email help?" What is the honest answer?</p>
+<section class="exercise" data-exercise-id="Uplift-and-Heterogeneous-Effects-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The uplift is 1: they got the email and renewed, so the email caused the renewal</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The uplift is 0.15, the average effect applies to everyone</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">You cannot know it: you see only their emailed outcome, never what they would have done unemailed</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The uplift is 0.60, the treated group's renewal rate</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. We observe \(Y_i(1)\) here but never \(Y_i(0)\) for the same person, so \(\tau_i = Y_i(1) - Y_i(0)\) is unknowable at the individual level. The best we can do is estimate the average uplift for customers <strong>like</strong> this one.</div><div class="lesson-qfb lesson-qfb-no">0.60 is the treated group's average renewal, an outcome level, not an effect. An effect is always a difference between two futures, and we only ever see one of them per person.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The method</div>
+<h2>Model each arm, then subtract</h2>
+
+<p>We cannot see any customer's two futures, but we can do the next best thing: learn what each future looks like <strong>on average</strong> for a given engagement, and take the difference. That is the <strong>T-learner</strong> (T for "two models"): fit one outcome model on the emailed customers, another on the not-emailed customers, then ask both models to predict every customer's renewal probability and subtract.</p>
+
+<p>Write \(\hat\mu_1(x)\) for the model trained on the emailed arm and \(\hat\mu_0(x)\) for the model trained on the control arm; each predicts a renewal probability at engagement \(x\). The predicted uplift is their gap,</p>
+
+<p>\[ \hat\tau(x) \;=\; \hat\mu_1(x) - \hat\mu_0(x). \]</p>
+
+<p>Because the arm was assigned at random, \(\hat\mu_1\) is an honest picture of "renewal if emailed" and \(\hat\mu_0\) of "renewal if not," so their difference estimates the causal effect rather than some correlation. Here are the two models, one <code>glm</code> per arm:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m1 &lt;- glm(renewed ~ engagement, binomial, subset = email == 1)   # the emailed arm:   mu1(x)
+m0 &lt;- glm(renewed ~ engagement, binomial, subset = email == 0)   # the control arm:   mu0(x)
+rbind(emailed = coef(m1), control = coef(m0))
+#&gt;         (Intercept) engagement
+#&gt; emailed       0.570      2.611
+#&gt; control      -0.204      0.593</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the <code>engagement</code> slope: <strong>2.611</strong> in the emailed model versus <strong>0.593</strong> in the control model. Engagement matters far more when there is an offer on the table, which is exactly the heterogeneity we are trying to capture.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split by arm","sub":"separate the emailed customers from the not-emailed ones"},{"title":"Model each arm","sub":"fit an outcome model on each group: renewal probability as a function of engagement"},{"title":"Subtract the predictions","sub":"for every customer, predicted renewal if emailed minus if not = predicted uplift"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Turn two models into per-customer uplift</h2>
+
+<p>The models are fit. The last step of the T-learner is the one that matters: ask <strong>both</strong> models for every customer's renewal probability, then subtract to get each customer's predicted uplift \(\hat\tau(x) = \hat\mu_1(x) - \hat\mu_0(x)\). <code>predict(model, newdata, type = &quot;response&quot;)</code> returns a probability for each row. Fill in the blank so <code>uplift</code> is the emailed prediction minus the control prediction.</p>
+<section class="exercise" data-exercise-id="Uplift-and-Heterogeneous-Effects-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="p1\s*-\s*p0"><textarea class="lesson-tryit-input" spellcheck="false">p1 &lt;- predict(m1, data.frame(engagement), type = &quot;response&quot;)   # renewal probability IF emailed
+p0 &lt;- predict(m0, data.frame(engagement), type = &quot;response&quot;)   # renewal probability IF NOT emailed
+uplift &lt;- p1 ____ p0                                            # each customer's predicted uplift
+round(quantile(uplift, c(0, .25, .5, .75, 1)), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. p1 - p0 is the T-learner's payoff: two separate models, subtracted per customer. The quantiles run from about -0.20 to +0.37, so the model has learned that some customers are hurt and others strongly helped.</span><span class="lesson-tryit-fb lesson-tryit-no">Uplift is renewal-if-emailed minus renewal-if-not. Subtract the control prediction from the emailed one: p1 - p0.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">p1 &lt;- predict(m1, data.frame(engagement), type = &quot;response&quot;)
+p0 &lt;- predict(m0, data.frame(engagement), type = &quot;response&quot;)
+uplift &lt;- p1 - p0
+round(quantile(uplift, c(0, .25, .5, .75, 1)), 2)
+#&gt;    0%   25%   50%   75%  100%
+#&gt; -0.20 -0.05  0.20  0.35  0.37</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Does it work?</div>
+<h2>A spread of scores, and proof they are real</h2>
+
+<p>The T-learner hands every customer a number. Plotting all 4,000 predicted uplifts shows a real spread, not a single value: a chunk of customers sit <strong>left of zero</strong>, flagged as hurt.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">uplift &lt;- predict(m1, data.frame(engagement), type = &quot;response&quot;) -
+          predict(m0, data.frame(engagement), type = &quot;response&quot;)
+ggplot(data.frame(uplift), aes(uplift)) +
+  geom_histogram(bins = 30, fill = &quot;#1c2c4f&quot;) +
+  geom_vline(xintercept = 0, colour = &quot;#c0392b&quot;, linetype = &quot;dashed&quot;) +
+  labs(x = &quot;predicted uplift&quot;, y = &quot;customers&quot;,
+       title = &quot;The model spreads customers from hurt (left of 0) to strongly helped&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>But a spread of predictions is worthless if the predictions are wrong, and we just spent a whole step arguing that no customer's true uplift is observable. So how do you check a model whose target you can never see? With a clever move: <strong>group, then compare</strong>. Sort customers into four bins by their <em>predicted</em> uplift. Inside each bin, the email was still randomized, so the treated-minus-control renewal difference is an honest estimate of that bin's <strong>actual</strong> average uplift, no model needed for the check. Formally, within any group \(g\),</p>
+
+<p>\[ \underbrace{\mathbb{E}[Y \mid T = 1, g] - \mathbb{E}[Y \mid T = 0, g]}_{\text{observed, from randomization}} \;=\; \underbrace{\mathbb{E}[\tau \mid g]}_{\text{the group's true uplift}}. \]</p>
+
+<p>If the model ranks customers well, this observed difference should <strong>climb</strong> from the lowest predicted-uplift bin to the highest.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q &lt;- cut(uplift, quantile(uplift, 0:4/4), labels = 1:4, include.lowest = TRUE)   # quartiles of predicted uplift
+val &lt;- sapply(1:4, function(g) mean(renewed[q == g &amp; email == 1]) -
+                                mean(renewed[q == g &amp; email == 0]))              # actual uplift per bin
+round(val, 2)
+#&gt; [1] -0.09  0.02  0.26  0.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(data.frame(quartile = factor(1:4), actual = val), aes(quartile, actual)) +
+  geom_hline(yintercept = 0, colour = &quot;grey55&quot;) +
+  geom_col(width = 0.65, fill = &quot;#1c2c4f&quot;) +
+  geom_text(aes(label = round(actual, 2)), vjust = ifelse(val &lt; 0, 1.3, -0.4)) +
+  labs(x = &quot;predicted-uplift quartile (1 = lowest)&quot;, y = &quot;actual treated - control renewal&quot;,
+       title = &quot;Actual uplift climbs across the quartiles the model predicted&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It works. The bottom quartile's true uplift is <strong>-0.09</strong> (these customers are hurt), and it rises to <strong>+0.39</strong> at the top. The model found the sleeping dogs and the persuadables, using data that never once revealed a single customer's individual effect.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why the quartile check is fair</h2>
+
+<p>In the top quartile, emailed customers renewed 39 points more than un-emailed ones, and we called that an honest estimate of the quartile's true uplift, even though no individual's uplift is observable. What makes that estimate trustworthy?</p>
+<section class="exercise" data-exercise-id="Uplift-and-Heterogeneous-Effects-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The T-learner is accurate, so its predictions can be trusted directly</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The email was randomized, so within the quartile the treated and control customers are comparable, and their renewal gap estimates the group's average effect</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The quartile has 1,000 customers, and any large sample gives the right answer</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Uplift is defined as treated minus control, so the two must agree by definition</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Sorting by predicted uplift does not break randomization <em>within</em> a bin, so treated and control there are still like-for-like. Their observed difference is a clean estimate of that group's true average uplift, no counterfactual needed.</div><div class="lesson-qfb lesson-qfb-no">The predicted uplift (from the models) and the observed group difference are computed in completely different ways. That they line up is evidence the model ranks customers correctly, not a definition.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Target by uplift, and stop before the sleeping dogs</h2>
+
+<p>Now the decision Nadia actually faces: given a score per customer, <strong>who gets the email?</strong> Rank everyone from most-helped to least, treat from the top down, and track the cumulative extra renewals you win. That running total is the <strong>Qini curve</strong>, the uplift cousin of a lift chart. Toggle the widget below between <strong>Uplift model</strong> and <strong>Random targeting</strong>: ordering by predicted uplift bends the curve well above the random diagonal, the same email budget saves far more subscribers.</p>
+
+<p>We can build the Qini in a few lines of base R. At each depth it compares renewals among the treated we have reached to the control renewal rate, scaled to the same headcount:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ord  &lt;- order(uplift, decreasing = TRUE)                 # customers, most-helped first
+o    &lt;- data.frame(email = email[ord], renewed = renewed[ord])
+Nt &lt;- cumsum(o$email); Nc &lt;- cumsum(1 - o$email)                          # treated / control reached so far
+Yt &lt;- cumsum(o$renewed * o$email); Yc &lt;- cumsum(o$renewed * (1 - o$email))
+qini &lt;- Yt - Yc * ifelse(Nc &gt; 0, Nt / Nc, 0)             # extra renewals vs the control rate at each depth
+frac &lt;- (1:n) / n
+round(c(peak_fraction      = frac[which.max(qini)],      # target down to here, then stop
+        peak_incremental   = max(qini),                  # renewals saved at the peak
+        if_target_everyone = qini[n]), 2)                # fewer, because the tail is sleeping dogs
+#&gt; peak_fraction  peak_incremental if_target_everyone
+#&gt;          0.82            348.32             290.76</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curve <strong>peaks at 82%</strong> of the list and then falls. Emailing everyone would save about <strong>291</strong> subscribers; stopping at the top 82% saves <strong>348</strong>. Those last 18% are the sleeping dogs: contacting them costs you renewals. The Qini curve turns "who is helped" into a concrete budget: treat down to the peak, no further.</p>
+
+<p>Now the fine print, because uplift is easy to get wrong:</p>
+
+<ul>
+
+<li><strong>Randomization is the price of entry.</strong> Our clean subtraction worked because the arm was assigned at random. On observational data, uplift inherits every confounding trap from Lessons 1 to 6, you would first need matching, weighting, or an instrument to earn the comparison.</li>
+
+<li><strong>You validate by group, never by individual.</strong> The quartile check is the strongest honesty test available, but it can only confirm the <em>ranking</em>, no method reveals a single customer's \(\tau_i\).</li>
+
+<li><strong>A difference of two models is fragile.</strong> Subtracting \(\hat\mu_1\) and \(\hat\mu_0\) can amplify the noise in each. In production you would reach for a method that targets the uplift directly, like a <strong>causal forest</strong>, which grows trees to split on effect heterogeneity itself.</li>
+
+</ul>
+
+<pre><code class="language-r"># The production tool (run this locally): install.packages(&quot;grf&quot;)
+library(grf)
+X  &lt;- matrix(engagement, ncol = 1)
+cf &lt;- causal_forest(X = X, Y = renewed, W = email)   # honest trees that split on the EFFECT
+tau_hat &lt;- predict(cf)$predictions                   # per-customer uplift, out-of-bag
+average_treatment_effect(cf)                          # the ATE, plus targeting via rank(tau_hat)</code></pre>
+
+<p>Same idea you built by hand, one sturdier estimator. Building the T-learner from scratch is how you know what a causal forest is doing under the hood, and when to trust its scores.</p>
+<div class="lesson-widget" data-widget-type="uplift-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Should Nadia email the whole list?</h2>
+
+<p>The average treatment effect was a healthy <strong>+0.15</strong>, and the offer costs Cadence very little. A colleague argues: "The average is clearly positive, so send the retention email to every at-risk subscriber." Using what the uplift model found, what is the right call?</p>
+<section class="exercise" data-exercise-id="Uplift-and-Heterogeneous-Effects-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">No: the bottom quartile has negative uplift and the Qini curve peaks around 82%, so emailing the whole list destroys value on the sleeping dogs</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Yes: a positive average effect means every customer benefits at least a little</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Yes: the offer is cheap, so any customer who might renew is worth emailing</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It cannot be decided without running a second experiment</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A positive <em>average</em> does not mean a positive effect for <em>everyone</em>. The model located a group the email actively hurts; targeting down to the Qini peak captures more renewals than blasting all 4,000.</div><div class="lesson-qfb lesson-qfb-no">The one randomized experiment already carries the answer. The predicted-uplift quartiles and the Qini curve, both validated on this data, are enough to see that full-list targeting is worse than targeting the top.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five solid places to take uplift and heterogeneous effects further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1073/pnas.1510489113">Athey and Imbens (2016), Recursive Partitioning for Heterogeneous Causal Effects (PNAS)</a> - the "causal tree" idea behind honest splitting on treatment effects.</li>
+
+<li><a href="https://doi.org/10.1080/01621459.2017.1319839">Wager and Athey (2018), Estimation and Inference of Heterogeneous Treatment Effects using Random Forests (JASA)</a> - the causal forest, with confidence intervals for \(\tau(x)\).</li>
+
+<li><a href="https://doi.org/10.1073/pnas.1804597116">Kunzel, Sekhon, Bickel and Yu (2019), Metalearners for estimating heterogeneous treatment effects (PNAS)</a> - the S-, T-, and X-learner framework the T-learner here comes from.</li>
+
+<li><a href="https://cran.r-project.org/package=grf">grf: Generalized Random Forests (CRAN)</a> - the production R package: causal forests, <code>average_treatment_effect</code>, and targeting.</li>
+
+<li><a href="https://proceedings.mlr.press/v67/gutierrez17a.html">Gutierrez and Gerardy (2017), Causal Inference and Uplift Modelling: A Review</a> - a readable survey of uplift methods and the Qini metric.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 8 complete</h2>
+
+<p>You cracked open the average. A retention email with a healthy <strong>+0.15</strong> average effect turned out to help engaged subscribers by up to <strong>+0.50</strong> and <strong>hurt</strong> the least engaged by <strong>-0.20</strong>, with 28% of customers made <em>less</em> likely to renew. Because no single customer's true effect is ever observable, you estimated it with a <strong>T-learner</strong>, one <code>glm</code> per arm, subtracted per customer, and then, cleverly, validated the scores without ever seeing the truth: within randomized predicted-uplift quartiles the actual uplift climbed from <strong>-0.09</strong> to <strong>+0.39</strong>. Finally the <strong>Qini curve</strong> turned those scores into a decision, target the top <strong>82%</strong> and stop before the sleeping dogs, beating a full-list blast. The lesson underneath: one number is a policy for the average person, and the average person may not exist.</p>
+
+<p>Next, Lesson 9: Double/Debiased Machine Learning. The T-learner leaned on a simple <code>glm</code>; what if you want the flexibility of modern machine learning for the nuisance pieces without letting its bias leak into your effect estimate? You will use cross-fitting and orthogonal scores to get the best of both.</p>
+</section>
+
+{% endraw %}

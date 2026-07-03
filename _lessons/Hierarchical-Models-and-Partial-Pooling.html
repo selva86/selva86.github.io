@@ -1,0 +1,427 @@
+---
+title: "Bayesian Modeling Lesson 5: Hierarchical Models and Partial Pooling"
+description: "Hierarchical models in R: why raw group averages mislead, how partial pooling shrinks them toward the mean, and the funnel geometry behind divergences."
+keywords: "hierarchical models in R, partial pooling, shrinkage, multilevel model, varying intercepts, random effects, empirical Bayes, lme4, hyperprior, non-centered parameterization, funnel, bayesian hierarchical model"
+mathjax: true
+webr: true
+curriculum_id: "6.160.5"
+post_type: "LESSON"
+course_id: "ds-bayesian"
+course_title: "Bayesian Modeling"
+course_lesson: "5"
+course_total: "8"
+course_landing: "R-Bayesian-Modeling-Course.html"
+course_next: "Posterior-Predictive-Checks.html"
+course_prev: "HMC-NUTS-and-MCMC-Diagnostics.html"
+lesson_access: "pro"
+catalog_blurb: "Why small groups should borrow strength from large ones, and how much."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 8</div>
+<h2>Hierarchical Models and Partial Pooling</h2>
+
+<p>Lesson 4 left you with a fast engine and a pre-flight dashboard for judging any chain. This lesson points both at the most common situation in applied statistics: many groups, most of them small.</p>
+
+<p>Asha's plant store had a strong second month: 121 orders, each tagged with the plant family it came from. Eight families, and wildly unequal counts: succulents brought 40 orders, carnivorous plants exactly 2. Her question sounds innocent: which family earns the front-page banner next month? The natural answer, rank the families by average order value, is about to crown a family on the strength of two receipts.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say why a league table of raw group averages rewards small samples, and why "trust each group alone" and "lump everyone together" are both extreme prior beliefs in disguise</li>
+
+<li>Write the varying-intercept hierarchical model, name its hyperparameters and hyperpriors, and read the between-group spread as a pooling dial that the data itself turns</li>
+
+<li>Compute each group's pooling weight from the fitted variances, predict which averages move most, and verify against a known answer key that shrinkage beats the raw averages</li>
+
+<li>Recognize the funnel shape hierarchical posteriors produce, connect it to the divergences on Lesson 4's dashboard, and name the reparameterization that fixes it</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 4 of this course (the prior-times-likelihood update, the Normal-Normal posterior, credible intervals from draws, and the trust dashboard: R-hat, effective sample size, divergences), plus base R vectors, factors and <code>tapply</code>.</p>
+
+<p>Below is the whole lesson in one picture. Eight groups, some large and steady, some tiny and jumpy, and a dial that blends "trust each group alone" into "one number for everyone". Drag it and watch who moves. (It is drawn as eight clinics measuring patients; swap in eight plant families and the logic is identical.)</p>
+<div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>Eight families, and a league table that lies</h2>
+
+<p>Here is Asha's second month, built right here so every line on this page runs in interactive R. One extra ingredient makes this lesson special: because we simulate the month, we also get the <strong>answer key</strong>, the true long-run average order value of each family, which real life never shows you. We write it down (<code>true_avg</code>), keep it face down, and use it at the very end to grade every method honestly.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(88)
+fam    &lt;- c(&quot;succulent&quot;, &quot;fern&quot;, &quot;monstera&quot;, &quot;orchid&quot;, &quot;calathea&quot;, &quot;bonsai&quot;, &quot;alocasia&quot;, &quot;carnivorous&quot;)
+n_fam  &lt;- c(40, 30, 25, 12, 5, 4, 3, 2)                 # orders per family
+true_avg &lt;- c(51, 48, 56, 61, 52, 66, 55, 57)           # the answer key: face down for now
+family &lt;- factor(rep(fam, times = n_fam), levels = fam)
+value  &lt;- round(rnorm(121, mean = rep(true_avg, times = n_fam), sd = 18))
+orders &lt;- data.frame(family, value)
+table(orders$family)
+#&gt; 
+#&gt;   succulent        fern    monstera      orchid    calathea      bonsai 
+#&gt;          40          30          25          12           5           4 
+#&gt;    alocasia carnivorous 
+#&gt;           3           2 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each order value scatters around its family's true average with the spread you have known since Lesson 2: about $18 from one order to the next. Now do what any spreadsheet would: average each family and sort. The league table, and underneath it, the wobble each entry carries (one standard error, $18 divided by the square root of that family's order count):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">raw &lt;- tapply(orders$value, orders$family, mean)
+round(sort(raw, decreasing = TRUE), 1)                  # the league table
+#&gt; carnivorous      bonsai      orchid    alocasia    monstera        fern 
+#&gt;        75.0        72.8        58.7        57.3        56.2        50.5 
+#&gt;   succulent    calathea 
+#&gt;        48.0        46.0 
+
+round(18 / sqrt(table(orders$family)), 1)               # the wobble on each average
+#&gt; 
+#&gt;   succulent        fern    monstera      orchid    calathea      bonsai 
+#&gt;         2.8         3.3         3.6         5.2         8.0         9.0 
+#&gt;    alocasia carnivorous 
+#&gt;        10.4        12.7 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Carnivorous plants top the table at $75.00. That number is the average of exactly two orders, and its standard error is $12.7: the raw average of a two-order family routinely misses its own truth by $25 in either direction. Succulents, at the bottom with $48.0, carry a wobble of just $2.8, because 40 orders pin an average down hard. The table is sorted by a mixture of two things: how good each family really is, and how lucky its handful of orders happened to be. The smaller the family, the more the luck dominates, which is why the extremes of any league table of small groups are usually the tiny entries, not the great ones.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Two wrong answers</div>
+<h2>Trust each family alone, or lump them all together</h2>
+
+<p>Faced with eight noisy averages, there are two obvious moves, and each fails in its own way.</p>
+
+<p><strong>Complete pooling</strong> ignores family entirely: one average order value for the whole store, exactly the model you fit in Lesson 4.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mean(orders$value), 1)     # one number for everyone
+#&gt; [1] 52.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Clean, stable, and useless for the banner decision: it answers "how is the store doing?" while erasing the very differences Asha asked about. If bonsai buyers really do spend $15 more per order than fern buyers, this model will never know.</p>
+
+<p><strong>No pooling</strong> swings the other way: analyze each family alone, as if the other seven did not exist. That is the Lesson 2 update run eight separate times with a vague prior, and for the big families it works fine. For carnivorous plants it means staking a real inventory decision on two receipts:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">carn &lt;- orders$value[orders$family == &quot;carnivorous&quot;]
+carn                                                    # the entire evidence base
+#&gt; [1] 81 69
+
+round(mean(carn) + c(-2, 2) * 18 / sqrt(2), 1)          # roughly a 95 percent range
+#&gt; [1]  49.5 100.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The honest range for the carnivorous average runs from $49.5 to $100.5: somewhere between an ordinary fern order and a small wedding. No pooling does not remove the noise from the league table; it enshrines it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Both shortcuts are prior beliefs wearing a disguise. No pooling asserts "the families share nothing: knowing seven of them tells me nothing about the eighth." Complete pooling asserts "the families differ by nothing." Neither is what Asha actually believes: her families surely differ, but they are all plant orders in the same store, so they surely also resemble one another. The model she needs says exactly that, in between the two extremes.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Who gets the banner?</h2>
+
+<p>Asha's league table puts carnivorous plants first at $75.00 (2 orders), bonsai second at $72.75 (4 orders), and succulents near the bottom at $47.98 (40 orders). A colleague says: "The data has spoken. Banner the carnivorous plants." What is the sharpest reading?</p>
+<section class="exercise" data-exercise-id="Hierarchical-Models-and-Partial-Pooling-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The colleague is right: $75.00 is the highest observed average, and the ranking should follow the data</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Succulents should win instead, because with 40 orders their average is by far the most trustworthy</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The table cannot be read at face value: averages built on 2 to 5 orders swing by tens of dollars on luck alone, so the extreme entries are suspect until each family's evidence is weighed against what the other families say</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Small-sample entries dominate the extremes of any league table, so the top slot is more likely a lucky tiny family than a truly great one. The fix, letting families share evidence, is exactly where this lesson goes next.</div><div class="lesson-qfb lesson-qfb-no">Trustworthy is not the same as high. The succulent average of $47.98 is indeed the most precisely measured number in the table, and what it precisely measures is a below-average family.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The hierarchical move</div>
+<h2>A prior you learn from the data</h2>
+
+<p>Think back to Lesson 2. To estimate the store-wide average order value, Asha wrote a prior by hand: normal, centered at $55, standard deviation $10, her honest belief before the data arrived. Now she needs a prior for the <em>carnivorous</em> average. What should it be?</p>
+
+<p>Look at the seven other families. Their averages cluster somewhere around the store's center, a few dollars apart. That IS a prior, and nobody had to invent it: <strong>the other families tell you what a plausible family looks like.</strong> Writing that sentence in math gives the hierarchical model, three levels stacked on top of each other:</p>
+
+<p>\[ \text{value}_i \sim N(\mu_{f[i]},\ \sigma) \]</p>
+
+<p>\[ \mu_f \sim N(\mu_0,\ \tau) \]</p>
+
+<p>\[ \mu_0 \sim N(55,\ 10), \qquad \tau \sim \text{Exponential}(0.1) \]</p>
+
+<p>Read it from the bottom of the store to the top. Level one: order \(i\)'s dollar value scatters around its own family's true average \(\mu_{f[i]}\) (the notation \(f[i]\) just means "the family order \(i\) belongs to") with the within-family spread \(\sigma\) (sigma), the familiar $18-ish. Level two is the new move: the eight family averages \(\mu_f\) are themselves treated as draws from a population, centered at \(\mu_0\) (mu-zero, the store-wide center of the family averages) with spread \(\tau\) (tau), how much families genuinely differ from one another. Level three: \(\mu_0\) and \(\tau\) are unknown too, so they get priors of their own, Asha's $55-give-or-take-$10 belief for the center, and for \(\tau\) an exponential prior with rate 0.1 (mean $10: families likely differ by dollars, not by hundreds).</p>
+
+<p>Because \(\mu_0\) and \(\tau\) are parameters of a prior, they are called <strong>hyperparameters</strong>, and their priors are <strong>hyperpriors</strong>. The names sound grand; the picture is just three floors:</p>
+
+<p>Here is why this one change settles the whole no-pooling-versus-complete-pooling argument. Look at what \(\tau\) does. If \(\tau = 0\), level two forces every family average to equal \(\mu_0\) exactly: complete pooling. If \(\tau\) is enormous, level two says families can be anything, each on its own: no pooling. The two "obvious" answers from the last step are just the two ends of one dial, and \(\tau\) is the dial. The hierarchical model does not make you choose a setting. It puts a posterior on \(\tau\) and lets the 121 orders turn the dial themselves.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A hierarchical model is the Lesson 2 update run once per family, with one twist: the prior each family faces is no longer hand-written, it is estimated from the other families. Small families, whose own data says little, lean on that learned prior heavily. Large families barely need it. That asymmetry is partial pooling, and you will now see exactly how much each family leans.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Orders","sub":"each order value scatters around its family average with spread sigma (about 18 dollars)"},{"title":"Family averages","sub":"the eight family averages scatter around the store center mu0 with spread tau"},{"title":"The store","sub":"mu0 and tau are unknown hyperparameters, learned from all 121 orders at once"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<div class="lesson-step-eyebrow">Feel it</div>
+<h2>Shrinkage: pulled toward the middle, but not equally</h2>
+
+<p>Fix \(\mu_0\), \(\tau\) and \(\sigma\) at known values for a moment. Then each family's update is exactly the Normal-Normal formula from Lesson 2, and its posterior mean lands at a weighted blend of the family's own raw average and the store center:</p>
+
+<p>\[ \hat{\mu}_f = \lambda_f\, \bar{y}_f + (1 - \lambda_f)\, \mu_0, \qquad \lambda_f = \frac{\tau^2}{\tau^2 + \sigma^2 / n_f} \]</p>
+
+<p>Every symbol in words: \(\bar{y}_f\) (y-bar) is family \(f\)'s raw average from the league table; \(n_f\) is its number of orders; \(\hat{\mu}_f\) (mu-hat) is the model's estimate for that family; and \(\lambda_f\) (lambda) is the <strong>pooling weight</strong>, a number between 0 and 1 saying how much of its own raw average the family keeps. The formula is a contest of precisions. The family's own evidence has variance \(\sigma^2 / n_f\) (the standard-error wobble from the league table, squared), and the learned prior has variance \(\tau^2\). Whichever is sharper wins the weight: many orders make \(\sigma^2/n_f\) tiny and push \(\lambda_f\) toward 1 (keep your own average), while a two-order family has a huge \(\sigma^2/n_f\) and gets pushed toward 0 (borrow from the store).</p>
+
+<p>Drag the dial and watch the geometry of that formula: every group slides toward the grand mean, but the tiny, jumpy groups travel furthest while the big ones barely move. The slider is yours to set here; in the model, the posterior for \(\tau\) sets it, one weight per group, automatically. The code under the widget fits this exact behavior with one line of R.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">"Shrinkage" is the standard name for this pull toward the center, and it can sound like something being lost. Watch what it does to accuracy in the next step before deciding how to feel about it.</div></div>
+<div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Grade it</div>
+<h2>Fit the model, then flip the answer key</h2>
+
+<p>Fitting the full three-level Bayesian model needs an MCMC engine, and Stan does not run in a browser session; you will meet that fit (read-only) in the next step. But there is a faithful runnable stand-in that statisticians reach for daily: <code>lmer</code> from the lme4 package. It finds the single best values of \(\mu_0\), \(\tau\) and \(\sigma\), then computes exactly the blend formula you just learned. One line, where <code>(1 | family)</code> reads "give each family its own intercept, drawn from a shared distribution":</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lme4)
+fit &lt;- lmer(value ~ 1 + (1 | family), data = orders)
+vc   &lt;- as.data.frame(VarCorr(fit))
+tau2 &lt;- vc$vcov[vc$grp == &quot;family&quot;]      # tau squared: between-family variance
+sig2 &lt;- vc$vcov[vc$grp == &quot;Residual&quot;]    # sigma squared: within-family variance
+mu0  &lt;- fixef(fit)[[1]]                  # the estimated store center
+round(c(mu0 = mu0, tau = sqrt(tau2), sigma = sqrt(sig2)), 1)
+#&gt;   mu0   tau sigma 
+#&gt;  54.8   5.1  17.6 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the dial setting the data chose. The store center sits at $54.8 (a hair above the raw all-orders mean of $52.8, because it averages <em>families</em>, not orders, so the 40 succulent receipts no longer dominate). Orders scatter $17.6 within a family, right on the $18 you have carried since Lesson 2. And \(\tau\) = 5.1: the families genuinely differ, but only by about five dollars, far less than the league table's $29 spread pretended. Now compute the blend by hand, one weight per family, and set it beside what <code>lmer</code> reports:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lam    &lt;- tau2 / (tau2 + sig2 / n_fam)              # one pooling weight per family
+blend  &lt;- lam * raw + (1 - lam) * mu0               # the hand-built estimates
+shrunk &lt;- setNames(coef(fit)$family[, 1], rownames(coef(fit)$family))
+round(rbind(raw = raw, weight = lam, blend = blend, lmer = shrunk), 2)
+#&gt;        succulent  fern monstera orchid calathea bonsai alocasia carnivorous
+#&gt; raw        47.98 50.47    56.24  58.67    46.00  72.75    57.33       75.00
+#&gt; weight      0.77  0.72     0.68   0.50     0.30   0.25     0.20        0.14
+#&gt; blend      49.53 51.69    55.76  56.72    52.18  59.28    55.28       57.67
+#&gt; lmer       49.53 51.69    55.76  56.72    52.18  59.28    55.28       57.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The last two rows match to the cent: the software's "mixed model" is the blend formula, applied with the fitted variances. And the weight row is the story of this lesson in eight numbers. Succulents keep 77 percent of their own average, because 40 orders speak clearly. Carnivorous plants keep 14 percent: six-sevenths of their estimate now comes from the other families. Sort the new estimates and the league table is transformed:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sort(shrunk, decreasing = TRUE), 1)           # the pooled league table
+#&gt;      bonsai carnivorous      orchid    monstera    alocasia    calathea 
+#&gt;        59.3        57.7        56.7        55.8        55.3        52.2 
+#&gt;        fern   succulent 
+#&gt;        51.7        49.5 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Carnivorous plants fall from $75.0 to $57.7, demoted from champion to runner-up, and bonsai takes the top slot: four orders is still thin, but it is twice the evidence. So which table should Asha trust? This is the moment the simulation pays off: flip the answer key and grade both tables against the truth, using the root-mean-square error (the typical distance between an estimate and its family's true average):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse &lt;- function(est) sqrt(mean((est - true_avg)^2))
+round(c(raw = rmse(raw), shrunk = rmse(shrunk)), 1)
+#&gt;    raw shrunk 
+#&gt;    7.3    3.2 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw league table misses the truth by $7.3 per family on average; the pooled table misses by $3.2, <strong>less than half the error, from the same 121 orders</strong>. Check the answer key family by family and the demotion was justice: the true carnivorous average is $57, and shrinkage carried its estimate from $75.0 to within 70 cents of it. The true best family really is bonsai ($66). No new data arrived. The only thing that changed was letting the families see one another.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Shrinkage is not a cautious compromise that blurs the answer; on average it moves every estimate closer to its truth. This is one of the most celebrated results in statistics (Stein's paradox: the raw group averages are provably beatable whenever there are three or more groups), and partial pooling is how you collect the winnings in practice.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute a pooling weight</h2>
+
+<p>Asha's cousin runs the garden-tools side of the site and wants the same analysis. Before fitting anything, she asks the question this lesson taught you to answer: "with the variances you already have, how much of its own average would a two-order group keep?"</p>
+
+<p>Use <code>tau2</code> and <code>sig2</code>, still in your session from the fit, and the weight formula \(\lambda = \tau^2 / (\tau^2 + \sigma^2 / n)\) with \(n = 2\). Fill in the blank:</p>
+<section class="exercise" data-exercise-id="Hierarchical-Models-and-Partial-Pooling-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="tau2\s*/\s*\(\s*(tau2\s*\+\s*sig2\s*/\s*2|sig2\s*/\s*2\s*\+\s*tau2)\s*\)"><textarea class="lesson-tryit-input" spellcheck="false"># the pooling weight for a family with just 2 orders
+lam_carn &lt;- ____
+round(lam_carn, 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">0.14: a two-order family keeps 14 percent of its own average and borrows the remaining 86 percent from everyone else. Compare the fitted weights: bonsai (4 orders) keeps 25 percent, succulents (40 orders) keep 77 percent. The weight tracks the evidence, order by order.</span><span class="lesson-tryit-fb lesson-tryit-no">Build it straight from the formula: tau squared over (tau squared plus sigma squared divided by n), with n = 2. In code: lam_carn <- tau2 / (tau2 + sig2 / 2).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">lam_carn &lt;- tau2 / (tau2 + sig2 / 2)
+round(lam_carn, 2)
+#&gt; [1] 0.14</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The Bayesian version</div>
+<h2>Hyperprior uncertainty, and the funnel</h2>
+
+<p><code>lmer</code> gave the right blend, but it made one quiet simplification: it committed to single best values, \(\tau\) = 5.1 and \(\mu_0\) = 54.8, and then acted as if they were known facts. But \(\tau\) was learned from just eight families. Eight observations of anything leave real uncertainty, and every family's interval should feel it. The full Bayesian model, the three floors from earlier with their hyperpriors, propagates that honestly. In brms notation (this needs a local R with Stan installed, so read it rather than run it):</p>
+
+<pre><code class="language-r"># The full Bayesian hierarchy: priors on mu0 and tau, fit with NUTS.
+library(brms)
+
+fit_bayes &lt;- brm(
+  value ~ 1 + (1 | family), data = orders,
+  prior = c(prior(normal(55, 10), class = Intercept),   # the hyperprior on mu0
+            prior(exponential(0.1), class = sd)),       # the hyperprior on tau
+  chains = 4, iter = 2000, seed = 88
+)
+summary(fit_bayes)
+# Same blend logic, but now tau gets a full posterior instead of one number,
+# every family interval widens to carry that uncertainty, and the Lesson 4
+# dashboard (Rhat, ESS, divergences) is printed for every quantity.</code></pre>
+
+<p>Run a model like this on few, small groups and something new appears on that dashboard: <strong>divergent transitions</strong>, the check-engine light from Lesson 4. They are not random bad luck. They come from the specific shape of a hierarchical posterior, and you can draw that shape right now. Consider the joint plausibility of \(\tau\) (on the log scale, since it must be positive) and one family's effect, its distance \(\mu_f - \mu_0\) from the center. The model says that effect is \(N(0, \tau)\), so when \(\tau\) is large the effect roams freely, and when \(\tau\) is small the effect is pinned within a whisker of zero:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+log_tau &lt;- rnorm(4000, 0, 1.5)        # plausible values of log(tau)
+z       &lt;- rnorm(4000)                # a standardized effect: N(0, 1), no tau in it
+effect  &lt;- exp(log_tau) * z           # the actual family effect, N(0, tau)
+
+round(c(spread_bottom = sd(effect[log_tau &lt; -1]),
+        spread_top    = sd(effect[log_tau &gt; 1])), 1)
+#&gt; spread_bottom    spread_top 
+#&gt;           0.2          17.5 
+
+par(mfrow = c(1, 2))
+plot(effect, log_tau, pch = 16, cex = 0.3, col = adjustcolor(&quot;navy&quot;, 0.3),
+     xlim = c(-25, 25), xlab = &quot;family effect&quot;, ylab = &quot;log(tau)&quot;,
+     main = &quot;Centered: the funnel&quot;)
+plot(z, log_tau, pch = 16, cex = 0.3, col = adjustcolor(&quot;navy&quot;, 0.3),
+     xlab = &quot;z (standardized effect)&quot;, ylab = &quot;log(tau)&quot;,
+     main = &quot;Non-centered: a round cloud&quot;)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The left picture is the famous <strong>funnel</strong>. At the top (large \(\tau\)) the effects spread across $17.5; at the bottom (small \(\tau\)) they are squeezed into a neck about 90 times narrower. Now remember how Lesson 4's engine moves: a glide with a step size tuned during warmup. One step size cannot serve both regions. Tune it for the wide mouth and the glide overshoots the neck's walls, the leapfrog's energy error explodes, and the engine reports divergences, clustered exactly where \(\tau\) is small. Tune it for the neck and the chain crawls everywhere else. This is why hierarchical models are where most analysts meet their first divergence warning, and the promise Lesson 4 made: now you know what the light is pointing at.</p>
+
+<p>The right picture is the same 4,000 draws in smarter coordinates, and it is the standard fix. Instead of sampling each family effect directly (the <strong>centered</strong> form), sample a standardized effect \(z_f \sim N(0, 1)\) and reconstruct what you need:</p>
+
+<p>\[ \mu_f = \mu_0 + \tau\, z_f \]</p>
+
+<p>This is the <strong>non-centered parameterization</strong>. Nothing about the model changed, only its coordinates: the sampler explores the round, friendly \((z, \log\tau)\) cloud on the right, where one step size works everywhere, and \(\mu_f\) is computed afterwards by multiplication.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The divergence playbook for hierarchical models, in order: reparameterize non-centered first (brms and rstanarm already do this for you; in hand-written Stan it is one line); raise the engine's caution setting second (adapt_delta, smaller steps, slower). "Just run more iterations" is never on the list: Lesson 4 taught you that divergence is geometry, and geometry does not average out.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>38 divergent transitions</h2>
+
+<p>Asha's analyst fits the full Bayesian hierarchy on the eight families. The Lesson 4 dashboard reads: R-hat 1.00 on every parameter, effective sample sizes in the thousands, 38 divergent transitions. What is the right move?</p>
+<section class="exercise" data-exercise-id="Hierarchical-Models-and-Partial-Pooling-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing: R-hat and effective sample size both pass, so the divergences are cosmetic</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Quadruple the iterations: with enough draws the problem washes out</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Switch the family effects to the non-centered parameterization (or raise adapt_delta so the steps shrink), then refit and require zero divergences</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Drop the hierarchy: model each family separately so tau and its funnel disappear</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right, and in that order: non-centering reshapes the funnel into the round cloud where one step size works everywhere, which cures the cause. Raising adapt_delta merely tiptoes, and more iterations never help at all.</div><div class="lesson-qfb lesson-qfb-no">That abandons partial pooling, the very thing that halved the error on the league table, to spare the sampler an inconvenience. Fix the coordinates, not the model.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.jstor.org/stable/24954030">Efron and Morris (1977), Stein's Paradox in Statistics (Scientific American)</a> - the classic, gloriously readable account of why shrunk estimates beat raw group averages, told through baseball batting averages.</li>
+
+<li><a href="https://projecteuclid.org/journals/bayesian-analysis/volume-1/issue-3/Prior-distributions-for-variance-parameters-in-hierarchical-models-comment-on/10.1214/06-BA117A.full">Gelman (2006), Prior distributions for variance parameters in hierarchical models (Bayesian Analysis)</a> - how to choose the hyperprior on tau, and why the choice matters most exactly when groups are few.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v067.i01">Bates, Machler, Bolker and Walker (2015), Fitting Linear Mixed-Effects Models Using lme4 (JSS 67:1)</a> - the paper behind lmer, the runnable stand-in you fit and then reproduced by hand.</li>
+
+<li><a href="https://arxiv.org/abs/1312.0906">Betancourt and Girolami (2015), Hamiltonian Monte Carlo for Hierarchical Models</a> - the definitive treatment of the funnel geometry and why divergences concentrate in the neck.</li>
+
+<li><a href="https://mc-stan.org/docs/stan-users-guide/reparameterization.html">Stan User's Guide: Reparameterization</a> - the working recipe for the non-centered fix, with the exact code transformation.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You caught a league table lying. Eight raw family averages ranked luck as much as quality, crowning a two-order family at $75 while the honest range on that number ran from $49.5 to $100.5. You saw that the two obvious fixes are extreme priors in disguise: no pooling ("families share nothing") and complete pooling ("families differ by nothing"). The hierarchical model replaced both with three stacked levels, orders around family averages, family averages around a store center, and hyperparameters \(\mu_0\) and \(\tau\) learned from all 121 orders, turning \(\tau\) into a pooling dial the data sets itself. The posterior blended each family by its own weight, \(\lambda_f = \tau^2/(\tau^2 + \sigma^2/n_f)\): succulents kept 77 percent of their average, carnivorous plants 14 percent. And when you flipped the answer key, shrinkage had cut the typical error from $7.3 to $3.2 while promoting the genuinely best family, bonsai, to the top. Then you looked at the shape that makes these models hard to sample: the funnel, a mouth $17.5 wide over a neck 90 times narrower, the true source of Lesson 4's divergence warnings, and you learned the fix, sampling standardized effects and reconstructing \(\mu_f = \mu_0 + \tau z_f\).</p>
+
+<p>One thread is still loose. Every model in this course has now produced a posterior, and you can trust the <em>sampling</em>. But should you trust the <em>model</em>? Next, Lesson 6: Posterior Predictive Checks, where the fitted model is made to simulate months of its own, and you compare them against the month Asha actually had. A model that cannot re-create its own data has no business forecasting anyone's future.</p>
+</section>
+
+{% endraw %}

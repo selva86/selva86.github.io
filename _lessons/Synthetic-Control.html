@@ -1,0 +1,454 @@
+---
+title: "Causal Inference for Decisions Lesson 7: Synthetic Control"
+description: "When just one unit gets a policy and no control fits, build a synthetic twin from a weighted blend of donor units, then read the effect as the post-policy gap."
+keywords: "synthetic control, causal inference, donor pool, weighted average, placebo test, RMSPE, treatment effect, policy evaluation, comparative case study, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.7"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "7"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Uplift-and-Heterogeneous-Effects.html"
+course_prev: "Instrumental-Variables-and-2SLS.html"
+lesson_access: "pro"
+catalog_blurb: "Estimate a policy's effect when only one unit was treated and no control fits."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 11</div>
+<h2>Synthetic Control</h2>
+
+<p>Lesson 6 found a hidden lever, a randomized reminder, to pull a clean effect out of confounded data. But look back at every method in this course so far: matching, weighting, difference-in-differences, instruments. Each one needed a comparison <strong>group</strong>, many treated units and many untreated ones. What do you do when exactly <strong>one</strong> unit ever got the policy, one city, one company, one country, and no single other unit is a fair stand-in for it?</p>
+
+<p>The answer is one of the most elegant ideas in causal inference: if no real control fits, <strong>build</strong> one. Blend several untreated units into a synthetic twin that tracks your treated unit before the policy, then read the effect as the gap that opens after.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain the synthetic control setup and why a single control unit or a plain average is not good enough</li>
+
+<li>Build a synthetic control as a weighted blend of donor units, with the weights fit on the pre-policy period only</li>
+
+<li>Read the treatment effect as the post-policy gap, and know why a near-zero pre-policy gap is what makes it believable</li>
+
+<li>Judge the result with a placebo test when you have just one treated unit and no standard error to lean on</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> <a href="Difference-in-Differences-and-Parallel-Trends.html">Lesson 3</a> (why a naive before/after comparison is biased) and <a href="Instrumental-Variables-and-2SLS.html">Lesson 6</a> (recovering an effect when there is no clean control). You can read base R: <code>%*%</code>, <code>optim</code>, and indexing a vector.</p>
+<div class="lesson-widget" data-widget-type="synth-control" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>One city taxes soda; nowhere is a perfect copy</h2>
+
+<p>Meet <strong>Marisol</strong>, a mid-sized city that, on the first day of <strong>month 25</strong>, put a small tax on sugary soda. The city council wants one honest number: how many cans of soda per person, per month, did the tax actually remove? Get it right and other cities will copy the policy; get it wrong and a good idea dies or a useless one spreads.</p>
+
+<p>The trouble is that Marisol is the only city that taxed. We have <strong>ten comparison cities</strong> that never did, but no single one of them is a twin: some are bigger, some drink more soda, some were already cutting back faster. And soda drinking was drifting down everywhere anyway, so we cannot just compare Marisol before and after and blame the whole change on the tax.</p>
+
+<p>Each lesson runs in a fresh R session, so we build the data ourselves. Because we simulated it, we know the true answer to check against: the tax truly removes <strong>5 cans per person per month</strong>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+Tpre &lt;- 24; Tpost &lt;- 12; Tt &lt;- Tpre + Tpost      # 36 months of data; the tax starts at month 25
+pre  &lt;- 1:Tpre                                    # the 24 months BEFORE Marisol's soda tax
+post &lt;- (Tpre + 1):Tt                             # the 12 months AFTER it
+
+# ten comparison cities that never taxed soda: cans of soda sold per person, each month
+donors &lt;- sapply(1:10, function(j) 46 + cumsum(rnorm(Tt, mean = -0.03 * j, sd = 0.7)))
+
+# Marisol moves like a blend of cities 1, 2 and 3 ... until the tax cuts 5 cans a month
+marisol &lt;- as.numeric(donors %*% c(0.5, 0.3, 0.2, rep(0, 7))) + rnorm(Tt, 0, 0.4)
+marisol[post] &lt;- marisol[post] - 5                # the TRUE effect we will spend the lesson recovering
+
+round(head(cbind(month = 1:Tt, marisol = marisol, city1 = donors[, 1], city2 = donors[, 2])), 1)
+#&gt;      month marisol city1 city2
+#&gt; [1,]     1    44.7  45.5  45.7
+#&gt; [2,]     2    46.1  45.6  45.6
+#&gt; [3,]     3    45.1  45.0  46.3
+#&gt; [4,]     4    45.9  46.1  46.7
+#&gt; [5,]     5    45.9  46.3  46.6
+#&gt; [6,]     6    45.8  45.7  46.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plot all eleven cities. Marisol is the dark line; the ten comparison cities are grey. Before the tax they weave through the same band; the question is which combination of them is Marisol's true twin.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+traj &lt;- data.frame(month   = rep(1:Tt, 11),
+                   cans    = c(marisol, as.numeric(donors)),
+                   city    = rep(c(&quot;Marisol&quot;, paste0(&quot;city&quot;, 1:10)), each = Tt),
+                   treated = rep(c(TRUE, rep(FALSE, 10)), each = Tt))
+donors_lines  &lt;- subset(traj, !treated)
+marisol_line  &lt;- subset(traj,  treated)
+ggplot(mapping = aes(month, cans, group = city)) +
+  geom_vline(xintercept = 24.5, linetype = &quot;dotted&quot;) +
+  geom_line(data = donors_lines, colour = &quot;grey78&quot;, linewidth = 0.5) +
+  geom_line(data = marisol_line, colour = &quot;#1c2c4f&quot;, linewidth = 1.2) +
+  annotate(&quot;text&quot;, x = 24.5, y = min(traj$cans), label = &quot;soda tax&quot;, hjust = -0.05, size = 3) +
+  labs(x = &quot;month&quot;, y = &quot;cans of soda per person&quot;,
+       title = &quot;Marisol (dark) among ten comparison cities: which blend is its twin?&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why the easy answers fail</div>
+<h2>Before-after, one twin, or an average: all wrong</h2>
+
+<p>Three tempting shortcuts, three wrong numbers. Watch them miss.</p>
+
+<p><strong>Just compare Marisol before and after.</strong> Soda sales were already drifting, so this credits the tax with whatever the city was doing anyway.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">naive_ba &lt;- mean(marisol[post]) - mean(marisol[pre])   # after minus before, Marisol alone
+round(naive_ba, 2)
+#&gt; [1] -4.23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pick the single city that looks most like Marisol.</strong> Even the closest twin has its own quirks after month 25, so its gap is noisy. And <strong>average all ten cities</strong>, and you get a line that never even matched Marisol to begin with, so its post-tax gap is meaningless. Here is each idea scored two ways: how tightly it tracks Marisol before the tax (<code>pre_RMSE</code>, smaller is better), and the effect it would report.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse_pre &lt;- function(x) sqrt(mean((marisol[pre] - x[pre])^2))     # typical pre-tax gap
+best &lt;- which.min(sapply(1:10, function(j) rmse_pre(donors[, j])))  # the closest single city
+avg  &lt;- rowMeans(donors)                                          # the plain 10-city average
+round(c(single_pre_RMSE  = rmse_pre(donors[, best]),
+        single_effect    = mean(marisol[post] - donors[, best][post]),
+        average_pre_RMSE = rmse_pre(avg),
+        average_effect   = mean(marisol[post] - avg[post])), 2)
+#&gt;  single_pre_RMSE    single_effect average_pre_RMSE   average_effect
+#&gt;             0.76            -7.04             3.01             0.23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The truth is <strong>-5</strong>. The before-after says -4.23, the best single city says <strong>-7.04</strong>, the plain average says <strong>+0.23</strong> (essentially "no effect"). Three shortcuts, three misses, bracketing the truth on both sides. Notice the tell in the numbers: the average tracks Marisol terribly before the tax (<code>pre_RMSE</code> 3.01), so nothing it says afterward can be trusted. That is the whole clue we need.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A control is only believable if it matched the treated unit <strong>before</strong> the policy. No single donor city does that well enough. The fix is not to pick one, but to <strong>mix</strong> several so the blend traces Marisol exactly, up to the day the tax lands.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>A weighted blend that traces the treated unit</h2>
+
+<p>The idea is simple to say. Instead of choosing one comparison city, take a <strong>weighted average</strong> of all of them, and choose the weights so the blend lies right on top of Marisol for every pre-tax month. That blend is the <strong>synthetic control</strong>: a made-to-measure twin, assembled from real untreated cities.</p>
+
+<p>Here is the recipe, then the math.</p>
+
+<p>Write \(Y_{jt}\) for the outcome (cans per person) of city \(j\) in month \(t\). City 1 is Marisol, treated from month \(T_0 + 1\) on (here \(T_0 = 24\)); cities \(2\) through \(11\) are the <strong>donor pool</strong>. The synthetic control is a weighted average of the donors,</p>
+
+<p>\[ \hat Y_{1t} \;=\; \sum_{j=2}^{11} w_j\, Y_{jt}, \]</p>
+
+<p>and the weights live on the <strong>simplex</strong>: every weight is non-negative, \(w_j \ge 0\), and together they sum to one, \(\sum_j w_j = 1\). We choose them to make the synthetic hug Marisol over the pre-tax months <strong>only</strong>:</p>
+
+<p>\[ \mathbf{w}^{\star} \;=\; \arg\min_{\mathbf{w}}\ \sum_{t \le T_0}\Big(Y_{1t} - \sum_{j=2}^{11} w_j\, Y_{jt}\Big)^{2}. \]</p>
+
+<p>Read that in words: find the weights that make the total squared gap between Marisol and its blend, added up across the pre-tax months, as small as possible.</p>
+
+<p>Why force the weights onto the simplex, non-negative and summing to one? Because it makes the synthetic a genuine <strong>interpolation</strong>. A blend of real cities can never sit outside the range of what those cities actually did; it cannot invent a city that sold more soda than every donor or less than all of them. An unconstrained regression would happily extrapolate to such fictions to shave the last bit of pre-period error. The simplex keeps the twin honest.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Match on the pre-period","sub":"choose donor weights so the weighted blend tracks the treated unit through every month BEFORE the policy"},{"title":"Build the synthetic control","sub":"the weighted average of donor units is the synthetic twin of the treated unit"},{"title":"Read the gap","sub":"after the policy, treated minus synthetic is the estimated effect"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the weights on the pre-period</h2>
+
+<p>The one subtle move in the whole method: the weights are fit on the <strong>pre-tax months only</strong>. If you let the fit see the post-tax data, the tax itself would leak into the weights and the twin would chase the drop, hiding the very effect you are trying to measure.</p>
+
+<p>Below, the softmax <code>exp(th) / sum(exp(th))</code> turns any unconstrained numbers <code>th</code> into weights that are automatically non-negative and sum to one, so <code>optim</code> can search freely and still land on the simplex. The <code>local({ ... })</code> wrapper on the next line just runs the optimizer and hands back the finished weights, keeping its scratch variables out of your workspace. Fill in the blank so the tracking error is summed over the pre-tax months.</p>
+<section class="exercise" data-exercise-id="Synthetic-Control-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="donors\[\s*pre\s*,"><textarea class="lesson-tryit-input" spellcheck="false">loss &lt;- function(th) {
+  w &lt;- exp(th) / sum(exp(th))                   # softmax: any theta -&gt; weights &gt;= 0 that sum to 1
+  sum((marisol[pre] - donors[____, ] %*% w)^2)  # squared tracking error, over WHICH months?
+}
+w &lt;- local({ o &lt;- optim(rep(0, 10), loss, control = list(maxit = 3000)); exp(o$par) / sum(exp(o$par)) })
+synth &lt;- as.numeric(donors %*% w)               # the synthetic Marisol
+round(w, 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes. Fitting on donors[pre, ] keeps the tax out of the weights; the blend leans on cities 1, 2 and 3 (about 0.49, 0.32, 0.19) and zeroes the other seven, recovering the true mix.</span><span class="lesson-tryit-fb lesson-tryit-no">The weights must be learned from the pre-tax months so the policy cannot leak in. Subset the donor rows to the pre-period: donors[pre, ].</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">loss &lt;- function(th) {
+  w &lt;- exp(th) / sum(exp(th))
+  sum((marisol[pre] - donors[pre, ] %*% w)^2)
+}
+w &lt;- local({ o &lt;- optim(rep(0, 10), loss, control = list(maxit = 3000)); exp(o$par) / sum(exp(o$par)) })
+synth &lt;- as.numeric(donors %*% w)
+round(w, 2)
+#&gt;  [1] 0.49 0.32 0.19 0.00 0.00 0.00 0.00 0.00 0.00 0.00</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Match before, split after</h2>
+
+<p>The fit put about <strong>half its weight on city 1, a third on city 2, a fifth on city 3</strong>, and essentially nothing on the other seven. Recall we built Marisol as exactly <code>0.5, 0.3, 0.2</code> of those three cities, so the method recovered the true mix on its own, using only the pre-tax data. And it tracks Marisol far tighter than any shortcut: a pre-period gap of about 0.4 cans, versus 0.76 for the best single city and 3.01 for the average.</p>
+
+<p>Now read the effect. For each post-tax month the gap between Marisol and its twin is the estimated effect,</p>
+
+<p>\[ \hat\tau_t \;=\; Y_{1t} - \hat Y_{1t}, \qquad t > T_0, \]</p>
+
+<p>and we report the average post-tax gap. The one guardrail: trust it only if the <strong>pre-tax</strong> gap is near zero. If the twin already failed to match Marisol before the tax, a post-tax gap tells you nothing about the tax.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(true    = -5,
+        effect  = mean(marisol[post] - synth[post]),   # post-tax gap = the estimated effect
+        pre_gap = mean(marisol[pre]  - synth[pre])), 2) # near zero =&gt; the twin is trustworthy
+#&gt;    true  effect pre_gap
+#&gt;   -5.00   -5.09   -0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An estimate of <strong>-5.09</strong> against a true <strong>-5</strong>, with a pre-tax gap of essentially zero. Toggle the widget above between <strong>Trajectories</strong> and <strong>Gap</strong> to see the same story: the two lines sit on top of each other, then peel apart the moment the policy lands. Here is Marisol and its real synthetic twin:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gap_df &lt;- data.frame(month = rep(1:Tt, 2),
+                     cans  = c(marisol, synth),
+                     line  = rep(c(&quot;Marisol (taxed)&quot;, &quot;synthetic Marisol&quot;), each = Tt))
+ggplot(gap_df, aes(month, cans, colour = line, linetype = line)) +
+  geom_vline(xintercept = 24.5, linetype = &quot;dotted&quot;) +
+  geom_line(linewidth = 0.9) +
+  labs(x = &quot;month&quot;, y = &quot;cans of soda per person&quot;, colour = NULL, linetype = NULL,
+       title = &quot;Matched before the tax, split by about 5 cans after&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What a bad pre-period fit means</h2>
+
+<p>Suppose you build a synthetic control for a different city and find that, <strong>before</strong> the policy, the synthetic sits a steady 4 cans above the treated city (a large, non-zero pre-period gap). After the policy the gap is 6 cans. What can you conclude about the policy's effect?</p>
+<section class="exercise" data-exercise-id="Synthetic-Control-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The effect is 6 cans, the full post-period gap</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The effect is 2 cans: subtract the 4-can pre-period gap from the 6-can post-period gap</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">You cannot trust any effect from it: the synthetic never matched the city before the policy, so it is a bad twin</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The large gap proves the effect is large and real</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A near-zero pre-period gap is the license to read the post-period gap as an effect. A large pre-period gap means the donor pool cannot reproduce this city, and the whole comparison is void. Report the poor fit and stop, or find better donors.</div><div class="lesson-qfb lesson-qfb-no">A pre-period gap exists before the policy could have done anything, so it cannot be an effect. It is evidence the twin is wrong, not that the effect is big.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Inference with n = 1</div>
+<h2>Is the gap real, or could any city fake it?</h2>
+
+<p>You have <strong>one</strong> treated city. There is no sample of treated units to compute a standard error from, so the usual p-value machinery does not apply. Synthetic control answers a different, cleverer question: <strong>if the tax did nothing, how unusual is Marisol's gap?</strong></p>
+
+<p>The trick is a <strong>placebo test in space</strong>. Pretend, in turn, that each untreated donor city was the one that got taxed. Build a synthetic control for it from the <em>other</em> donors, and measure its post-period gap. None of these cities was actually taxed, so their gaps show the size of gap you get from noise and imperfect fit alone. If Marisol's real gap towers over this placebo distribution, the tax, not chance, is the likely cause.</p>
+
+<p>We score each city fairly with the ratio of its <strong>post-period</strong> to its <strong>pre-period</strong> typical gap, the RMSPE ratio, where RMSPE (root mean squared prediction error) is just the typical size of the gap over a set of months:</p>
+
+<p>\[ r \;=\; \frac{\mathrm{RMSPE}_{\text{post}}}{\mathrm{RMSPE}_{\text{pre}}}, \qquad \mathrm{RMSPE}(\mathcal{T}) = \sqrt{\frac{1}{|\mathcal{T}|}\sum_{t \in \mathcal{T}} \hat\tau_t^{\,2}}. \]</p>
+
+<p>Dividing by the pre-period fit is the key: a city its donors track badly will post a big gap for a boring reason, and the ratio cancels that out. A large ratio means a city that was fit well and then jumped, exactly the tax signature.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmspe &lt;- function(g, idx) sqrt(mean(g[idx]^2))          # typical gap over a set of months
+fit_gap &lt;- function(y, X) {                             # synthetic twin for series y from donors X
+  lo &lt;- function(th) { w &lt;- exp(th) / sum(exp(th)); sum((y[pre] - X[pre, ] %*% w)^2) }
+  o  &lt;- optim(rep(0, ncol(X)), lo, control = list(maxit = 3000))
+  w  &lt;- exp(o$par) / sum(exp(o$par)); y - as.numeric(X %*% w)   # the gap: actual minus synthetic
+}
+ratio_of &lt;- function(g) rmspe(g, post) / rmspe(g, pre)  # post misfit relative to pre fit
+
+real_ratio    &lt;- ratio_of(marisol - synth)                             # Marisol
+placebo_ratio &lt;- sapply(1:10, function(j) ratio_of(fit_gap(donors[, j], donors[, -j])))
+round(real_ratio, 1)
+#&gt; [1] 13.8
+round(sort(placebo_ratio, decreasing = TRUE), 1)
+#&gt; [1] 8.9 5.3 4.4 3.4 2.8 2.3 1.8 1.5 1.3 1.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Marisol's ratio is <strong>13.8</strong>, above every placebo. A one-line p-value is the fraction of all eleven cities whose ratio is at least as extreme as Marisol's:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_ratios &lt;- c(real_ratio, placebo_ratio)
+round(c(marisol_rank = rank(-all_ratios)[1],
+        n_units      = length(all_ratios),
+        p_value      = mean(all_ratios &gt;= real_ratio)), 3)
+#&gt; marisol_rank      n_units      p_value
+#&gt;        1.000       11.000        0.091</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Marisol ranks <strong>first of eleven</strong>, so the p-value is 1/11, about <strong>0.091</strong>. Plot every city's gap over time. Marisol (red) barely moves before the tax, then plunges; the grey placebos wobble around zero throughout.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gaps &lt;- sapply(1:10, function(j) fit_gap(donors[, j], donors[, -j]))   # a gap path per placebo city
+gap_paths &lt;- data.frame(
+  month = rep(1:Tt, 11),
+  gap   = c(marisol - synth, as.numeric(gaps)),
+  unit  = rep(c(&quot;Marisol&quot;, paste0(&quot;placebo&quot;, 1:10)), each = Tt),
+  taxed = rep(c(TRUE, rep(FALSE, 10)), each = Tt))
+placebo_paths &lt;- subset(gap_paths, !taxed)
+marisol_path  &lt;- subset(gap_paths,  taxed)
+ggplot(mapping = aes(month, gap, group = unit)) +
+  geom_hline(yintercept = 0, colour = &quot;grey70&quot;) +
+  geom_vline(xintercept = 24.5, linetype = &quot;dotted&quot;) +
+  geom_line(data = placebo_paths, colour = &quot;grey75&quot;, linewidth = 0.5) +
+  geom_line(data = marisol_path,  colour = &quot;#c0392b&quot;, linewidth = 1.2) +
+  labs(x = &quot;month&quot;, y = &quot;gap: city minus its synthetic&quot;,
+       title = &quot;Marisol's post-tax drop is the most extreme of eleven cities&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the placebo result</h2>
+
+<p>Marisol's gap was the most extreme of all eleven cities, giving a p-value of 0.091, which is above the usual 0.05 line. A colleague says: "0.091 is not significant, so the tax had no effect." What is the right reading?</p>
+<section class="exercise" data-exercise-id="Synthetic-Control-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">They are right: p above 0.05 means we accept that the effect is zero</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">With only 10 donors the smallest possible p-value is 1/11 = 0.091, so ranking first is the strongest result the test can give; more donor cities would allow a smaller p</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The 0.091 is wrong: we should compute a standard error from the regression and get a real p-value instead</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The result is meaningless because a p-value needs a large sample</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The p-value is a rank among J+1 units, so its floor is 1/(J+1). Marisol hitting that floor means it is the single most extreme of every city tested, which is the most convincing outcome available. A larger, well-matched donor pool is how you would push the p-value lower.</div><div class="lesson-qfb lesson-qfb-no">The placebo test is exact for the design: it asks how Marisol ranks against every city pretending to be treated. It is small-sample by nature, not broken by it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Read the fine print</div>
+<h2>What synthetic control assumes, and when it breaks</h2>
+
+<p>The method is powerful, but like every tool in this course it buys its answer with assumptions. Name them out loud, because a synthetic control that looks clean can still be wrong.</p>
+
+<ul>
+
+<li><strong>A good pre-period fit is mandatory, not optional.</strong> If no blend of donors tracks the treated unit before the policy, stop. There is no honest effect to read, and reporting the poor fit is the correct result, not a failure.</li>
+
+<li><strong>No anticipation.</strong> If Marisol's residents stockpiled soda the month before the tax, the "pre" period is already contaminated. The intervention date must be a clean break.</li>
+
+<li><strong>A clean donor pool.</strong> Donors must be units the policy did not touch, directly or by spillover. A neighbouring city where shoppers cross the border to dodge the tax is a contaminated donor.</li>
+
+<li><strong>Enough pre-periods, and a stable structure.</strong> A handful of pre-policy months cannot pin down weights reliably; the method wants a long, well-behaved history. And a big shock hitting only the donors after the policy (a soda-price war elsewhere) would masquerade as an effect.</li>
+
+</ul>
+
+<p>In practice you would not hand-roll <code>optim</code> every time. The <code>tidysynth</code> package fits the whole method, including the classic Abadie predictor-matching weights and the placebo inference you just built, in a short pipeline.</p>
+
+<pre><code class="language-r"># The production tool (run this locally): install.packages(&quot;tidysynth&quot;)
+library(tidysynth)
+
+soda_out &lt;- soda_panel |&gt;                              # long: one row per city-month
+  synthetic_control(outcome = cans, unit = city, time = month,
+                    i_unit = &quot;Marisol&quot;, i_time = 25,
+                    generate_placebos = TRUE) |&gt;
+  generate_predictor(time_window = 1:24, mean_cans = mean(cans)) |&gt;
+  generate_weights() |&gt;
+  generate_control()
+
+soda_out |&gt; plot_trends()        # treated vs synthetic over time
+soda_out |&gt; plot_placebos()      # the placebo gaps you built by hand
+soda_out |&gt; grab_signif()        # the RMSPE-ratio p-value</code></pre>
+
+<p>Same three ideas you built from scratch, one tested pipeline. Building it by hand once is how you know what that pipeline is doing, and when to distrust it.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take synthetic control further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1257/000282803321455188">Abadie and Gardeazabal (2003), The Economic Costs of Conflict: A Case Study of the Basque Country (AER)</a> - the paper that introduced the synthetic control method.</li>
+
+<li><a href="https://doi.org/10.1198/jasa.2009.ap08746">Abadie, Diamond and Hainmueller (2010), Synthetic Control Methods for Comparative Case Studies (JASA)</a> - the canonical worked example (California's Proposition 99 tobacco tax) and the placebo inference you used here.</li>
+
+<li><a href="https://doi.org/10.1257/jel.20191450">Abadie (2021), Using Synthetic Controls: Feasibility, Data Requirements, and Methodological Aspects (Journal of Economic Literature)</a> - the modern, practical guide to when the method works and how to defend it.</li>
+
+<li><a href="https://cran.r-project.org/package=tidysynth">tidysynth (CRAN)</a> - the production R package: weights, plots, and placebo p-values in one pipeline.</li>
+
+<li><a href="https://mixtape.scunning.com/10-synthetic_control">Cunningham, Causal Inference: The Mixtape, Synthetic Control chapter</a> - a free, from-scratch walk-through with runnable R.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 7 complete</h2>
+
+<p>You measured a policy's effect with a single treated unit and no control group anywhere. When before-after (-4.23), the closest single city (-7.04), and a plain average (+0.23) all missed the true -5, you built a <strong>synthetic Marisol</strong>: a weighted blend of donor cities, with weights fit on the pre-tax months alone, that tracked the real city almost perfectly until the tax landed. The post-tax gap read <strong>-5.09</strong>, and because there was no standard error to lean on, you tested it with a <strong>placebo in space</strong>, ranking Marisol's RMSPE ratio first of eleven cities. The lesson underneath: when you cannot find a fair comparison, you can construct one, as long as it earns its keep by matching the past.</p>
+
+<p>Next, Lesson 8: Uplift and Heterogeneous Effects. Every method so far has chased one average effect. But a policy that helps the average person can still hurt many individuals. You will build a model that predicts the effect for each unit separately, so you can target the people a treatment actually helps.</p>
+</section>
+
+{% endraw %}

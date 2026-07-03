@@ -129,6 +129,99 @@ NEW widgets for sections 6-12 (built before the batch; runnable interactive-R re
 
 ---
 
+# Data Scientist track - ADVANCED tier (roadmap sections 13-22, Pro; first lesson of each section free as a taste)
+
+## ds-reg-glm-expert  (track: scientist; curriculum_id 6.130; landing R-Advanced-Regression-Course.html; access: pro)  [roadmap §13]
+1. Robust-Regression-M-Estimators - why one outlier tilts an OLS line, and how M-estimators (Huber) down-weight it. widgets: NEW:robust-weights, leverage-point
+2. Robust-Regression-MM-and-Breakdown - the breakdown point, MM-estimation, and rlm vs lmrob for real robustness. widgets: NEW:robust-weights, residual-plot
+3. Quantile-Regression - modeling the median and the tails, not just the mean, when spread changes with x. widgets: NEW:quantile-lines
+4. Ridge-Regression-and-Shrinkage - the bias-variance trade of shrinking coefficients, and when ridge helps. widgets: NEW:coef-path
+5. Lasso-and-Elastic-Net - L1 selection, the coefficient path, and elastic net for correlated predictors. widgets: NEW:coef-path
+6. GAMs-Splines-and-Smooths - letting the data choose a smooth curve with penalized splines in mgcv. widgets: NEW:spline-smoother
+7. GAMs-Choosing-Smoothness - the wiggliness penalty, k, concurvity, and reading gam.check. widgets: NEW:spline-smoother, residual-plot
+8. Count-Models-Poisson-and-Negative-Binomial - Poisson regression, overdispersion, and the negative-binomial fix. widgets: NEW:count-dist
+9. Zero-Inflated-and-Hurdle-Models - when a pile of extra zeros needs a two-part model. widgets: NEW:count-dist
+10. Gamma-and-Tweedie-Regression - modeling positive, right-skewed outcomes and insurance-style loss. widgets: NEW:glm-family-shapes
+11. Beta-and-Ordinal-Regression - proportions in [0,1] with beta, and ordered categories with proportional odds. widgets: NEW:ordinal-cumlogit, NEW:glm-family-shapes
+12. Mixed-Models-Random-Intercepts - random intercepts, partial pooling, and the ICC with lme4. widgets: NEW:shrinkage-pool
+13. Mixed-Models-Random-Slopes-and-GLMMs - random slopes, GLMMs, and troubleshooting convergence. widgets: NEW:shrinkage-pool
+
+NEW widgets for section 13 (built + mount-tested + emitted-R WebR-verified before the batch): **robust-weights**, **quantile-lines**, **coef-path**, **spline-smoother**, **count-dist**, **glm-family-shapes**, **ordinal-cumlogit**, **shrinkage-pool**. Everything else reuses the existing library. §14-22 arcs + widgets are appended after the §13 pilot verifies.
+
+## ds-advanced-supervised  (track: scientist; curriculum_id 6.140; landing R-Advanced-Supervised-Learning-Course.html; access: pro)  [roadmap §14]
+1. Support-Vector-Machines-Maximum-Margin - the maximum-margin classifier, the margin, and support vectors, built from the intuition up. widgets: kernel-svm, decision-region
+2. Kernel-SVMs-and-the-Kernel-Trick - poly and RBF kernels bend the boundary; how C and gamma trade fit against smoothness. widgets: kernel-svm
+3. Regularized-Discriminant-Analysis - shrinking the covariance between LDA and QDA when classes are many or data is thin. widgets: decorrelation
+4. Gaussian-Processes-for-Regression - a distribution over functions: posterior mean plus honest uncertainty that widens off the data. widgets: NEW:gp-posterior
+5. Stacking-and-the-Super-Learner - cross-validated base learners blended by a meta-learner that beats each alone. widgets: NEW:stacking-blend
+6. Bayesian-Optimization-for-Hyperparameters - a GP surrogate and an acquisition function find good settings in few evaluations. widgets: NEW:bayesopt-acq, tuning-search
+7. Approximate-Nearest-Neighbors-at-Scale - trading exactness for speed with HNSW-style indexes when brute-force kNN is too slow. widgets: knn-vote
+8. A-Tuned-Stacked-Model-End-to-End - putting SVM, GP and trees together: tune, stack, and evaluate one honest pipeline. widgets: learning-curve
+
+NEW widgets for section 14 (built + mount-tested + emitted-R WebR-verified before the batch): **gp-posterior**, **stacking-blend**, **bayesopt-acq**. Reuses: kernel-svm (from §13), decision-region, decorrelation, tuning-search, knn-vote, learning-curve.
+
+## ds-survival  (track: scientist; curriculum_id 6.150; landing R-Survival-Analysis-Course.html; access: pro)  [roadmap §15]
+1. Survival-Data-and-Censoring - what makes time-to-event data special: right-censoring, the survival function S(t) and the hazard, why ordinary regression cannot handle "still alive at last contact". widgets: km-curve
+2. Kaplan-Meier-and-the-Log-Rank-Test - the product-limit estimator step by step, reading a KM curve and its median, comparing two arms with the log-rank test. pkg survival (survfit, survdiff). widgets: km-curve
+3. Cox-Proportional-Hazards - the semiparametric workhorse: the hazard ratio, partial likelihood, reading coxph output. pkg survival (coxph). widgets: NEW:hazard-ratio
+4. Checking-Proportional-Hazards - testing the PH assumption with Schoenfeld residuals (cox.zph), what a violation looks like, and time-varying covariates. pkg survival. widgets: NEW:hazard-ratio, residual-plot
+5. Parametric-and-AFT-Models - Weibull/exponential survival and the accelerated-failure-time view with survreg; when a parametric fit beats Cox. pkg survival survreg runnable (flexsurv only as r-static, not WebR-verified). widgets: glm-family-shapes
+6. Competing-Risks-and-Cumulative-Incidence - why 1-minus-KM overcounts with competing events, the cumulative incidence function, and the Fine-Gray idea. pkg survival (multi-state survfit). widgets: NEW:competing-risks
+7. Survival-ML-and-Evaluation - random survival forests and how to score a survival model honestly: Harrell's C-index and the time-dependent Brier score. pkg survival (concordance; ranger only as r-static). widgets: calibration-curve
+
+NEW widgets for section 15 (built + mount-tested + emitted-R WebR-verified before the batch): **km-curve**, **hazard-ratio**, **competing-risks**. Reuses: glm-family-shapes (from §13), residual-plot, calibration-curve. Package note: `survival` is WebR-known-good for survfit/survdiff/coxph/survreg/concordance/multi-state CIF; `flexsurv` and `ranger` are NOT verified - show them as `r-static` only.
+
+## ds-bayesian  (track: scientist; curriculum_id 6.160; landing R-Bayesian-Modeling-Course.html; access: pro)  [roadmap §16]
+1. The-Bayesian-Update - prior times likelihood proportional to posterior, built from one concrete example (a coin/conversion rate), reading the three densities. widgets: bayes-update
+2. Conjugacy-and-Choosing-Priors - the Beta-Binomial and Normal-Normal conjugate pairs (closed-form posterior updates in base R), weak vs informative priors, prior sensitivity. widgets: bayes-update
+3. MCMC-and-the-Metropolis-Sampler - why we sample when there is no closed form, the Metropolis algorithm built from scratch, mixing and acceptance. widgets: NEW:mcmc-walk
+4. HMC-NUTS-and-MCMC-Diagnostics - the idea of Hamiltonian Monte Carlo/NUTS, and reading convergence: trace plots, R-hat, effective sample size. widgets: NEW:mcmc-walk, residual-plot
+5. Hierarchical-Models-and-Partial-Pooling - varying intercepts, partial pooling and shrinkage, the multilevel idea (fit with lme4 as a runnable stand-in; the Bayesian version is conceptual). widgets: shrinkage-pool
+6. Posterior-Predictive-Checks - simulate data from the fitted model and compare to the observed, test statistics, the Bayesian workflow. widgets: NEW:ppc-overlay
+7. Bayesian-Model-Comparison-LOO-and-WAIC - out-of-sample predictive accuracy (ELPD), leave-one-out CV and WAIC, computed from a log-likelihood matrix in base R. widgets: calibration-curve
+8. Bayesian-Regression-and-GLMs-End-to-End - a complete Bayesian regression workflow: prior, fit, check, compare, and report a posterior with credible intervals. widgets: ols-fit
+
+NEW widgets for section 16 (built + mount-tested + emitted-R WebR-verified before the batch): **mcmc-walk**, **ppc-overlay**. Reuses: bayes-update (from §13), shrinkage-pool (from §13), residual-plot, calibration-curve, ols-fit. **CRITICAL package note: Stan does NOT run in WebR** (`rstan`, `brms`, `rstanarm`, `cmdstanr` all need C++ compilation and are unavailable). Every runnable ```r block must be BASE R: conjugate updates in closed form (Beta-Binomial, Normal-Normal), the Metropolis sampler hand-coded, hierarchical models via `lme4::lmer` (WebR-known-good) as a runnable stand-in, LOO/WAIC computed from a hand-built log-likelihood matrix. Show any `brms`/`rstanarm`/`rstan` call as `r-static` ONLY, never as runnable `r`.
+
+## ds-experimentation  (track: scientist; curriculum_id 6.170; landing R-Experimentation-Course.html; access: pro)  [roadmap §17]
+1. Designing-Experiments-for-Power - what statistical power is, the effect-size/alpha/n tradeoff, computing the required sample size before you run anything, and reading a power curve. Ground it in one concrete A/B test (a checkout conversion lift). widgets: NEW:power-curve
+2. Variance-Reduction-with-CUPED - use pre-experiment data to shrink the variance of an A/B estimate with zero bias: the CUPED adjustment (regress out a pre-period covariate), the 1 minus rho-squared variance-reduction identity, and stratification as a cousin. widgets: NEW:cuped-variance
+3. Experiment-Pitfalls-Peeking-and-SRM - the three ways online experiments lie: peeking (repeated significance testing inflates false positives), sample-ratio mismatch (a broken randomizer, caught with a chi-square test), and network/interference effects. widgets: null-distribution
+4. Cluster-and-Switchback-Experiments - when units interfere you randomize clusters or alternate treatment over time (switchbacks); the variance cost of clustering (design effect) and how switchbacks handle marketplace spillovers. widgets: process-flow, null-distribution
+5. Multi-Armed-Bandits-Explore-vs-Exploit - the explore/exploit dilemma, regret as the cost of learning, and epsilon-greedy as the simplest adaptive allocation; when a bandit beats a fixed A/B split. widgets: NEW:bandit-explore
+6. Thompson-Sampling-and-Bayesian-Bandits - sampling from each arm's Beta posterior to allocate traffic in proportion to the probability an arm is best; why it explores efficiently and beats epsilon-greedy on regret. widgets: NEW:bandit-explore
+7. Contextual-Bandits-and-Off-Policy-Evaluation - adding features so the best arm depends on context, and scoring a new policy from logged data without deploying it: inverse-propensity scoring and the doubly-robust estimator. widgets: bandit-explore, process-flow
+
+NEW widgets for section 17 (built + mount-tested + emitted-R WebR-verified before the batch): **power-curve**, **cuped-variance**, **bandit-explore**. Reuses: null-distribution, process-flow. **Package note: ALL runnable ```r is BASE R** - power via `power.t.test`/`power.prop.test`, CUPED via `lm`/`cov`/`var`, SRM via `chisq.test`, bandits hand-coded with `rbeta`/`rbinom`, IPS/DR estimators as plain vectorized base R. Show any specialized package (`gsDesign`, `contextual`, `bandit`) as `r-static` ONLY, never as runnable `r`.
+
+## ds-causal-decisions  (track: scientist; curriculum_id 6.180; landing R-Causal-Decisions-Course.html; access: pro)  [roadmap §18]
+1. Matching-and-the-Propensity-Score - confounding and the potential-outcomes gap; estimate a propensity score with `glm`, match treated to control on it, check covariate balance (standardized mean difference), and recover an unbiased effect a naive difference misses. Ground it in one concrete observational study. widgets: NEW:matching-overlap, causal-dag
+2. Inverse-Probability-Weighting-and-Doubly-Robust - weight each unit by 1/propensity to rebuild a pseudo-randomized sample, the positivity/overlap requirement, and the doubly-robust (AIPW) estimator that stays consistent if EITHER the propensity or the outcome model is right. widgets: NEW:matching-overlap
+3. Difference-in-Differences-and-Parallel-Trends - two groups, before and after a policy; the DiD double-difference via `lm(y ~ treat*post)`, the parallel-trends assumption and how to probe it, and why a naive post-comparison is biased. widgets: NEW:did-parallel
+4. Staggered-DiD-and-the-Negative-Weights-Problem - when units adopt at different times, two-way fixed effects can put NEGATIVE weights on some comparisons (already-treated units used as controls); the Goodman-Bacon intuition and modern robust estimators. widgets: did-parallel
+5. Regression-Discontinuity - a cutoff on a running variable assigns treatment; fit a local line each side, read the jump at the threshold as the effect, and choose the bandwidth (bias-variance). widgets: NEW:rdd-cutoff
+6. Instrumental-Variables-and-2SLS - an instrument that moves treatment but not the outcome directly; two-stage least squares by hand, the exclusion restriction, and the weak-instrument (first-stage F) danger. widgets: NEW:iv-2stage
+7. Synthetic-Control - one treated unit, no clean control; build a weighted donor blend that tracks it pre-policy (weights via `optim` on a simplex), then read the post-policy gap as the effect. widgets: NEW:synth-control
+8. Uplift-and-Heterogeneous-Effects - a flat average effect hides who is helped and who is hurt; a T-learner (one model per arm) predicts per-unit uplift, the Qini curve for targeting, and validation by predicted-uplift quantile. widgets: NEW:uplift-curve
+9. Double-Debiased-Machine-Learning - use flexible ML for the nuisance functions (propensity + outcome) with cross-fitting and Neyman-orthogonal scores, so the treatment-effect estimate stays root-n and unbiased despite regularization. widgets: causal-dag, process-flow
+10. Sensitivity-Analysis-and-Placebo-Tests - no observational estimate is assumption-free; quantify how strong an unmeasured confounder would have to be to overturn the result (E-value / Rosenbaum bounds), plus placebo outcomes and placebo timing. widgets: did-parallel
+11. Mediation-Analysis - decompose a total effect into direct and indirect (through a mediator) paths; the base-R product/difference method, and why mediation leans on stronger assumptions than the rest of the course. widgets: causal-dag
+
+NEW widgets for section 18 (built + mount-tested + emitted-R WebR-verified before the batch): **matching-overlap**, **did-parallel**, **rdd-cutoff**, **iv-2stage**, **synth-control**, **uplift-curve**. Reuses: causal-dag, process-flow. **Package note: ALL runnable ```r is BASE R** (+ `randomForest`/`glm` where a flexible learner is wanted, both WebR-known-good) - propensity/IPW via `glm` + manual weighting, matching via nearest-neighbour on the score, DiD/RDD via `lm`, IV via manual two-stage `lm`, synthetic control via `optim` over a softmax simplex, uplift via a two-model T-learner, DML via hand-cross-fit residualization. Show any specialized causal package (`MatchIt`, `WeightIt`, `ivreg`/`AER`, `rdrobust`, `tidysynth`, `grf`, `DoubleML`) as `r-static` ONLY, never as runnable `r`. Same discipline as §16's Stan rule.
+
+## ds-robustness-drift  (track: scientist; curriculum_id 6.190; landing R-Robustness-and-Drift-Course.html; access: pro)  [roadmap §19]
+1. Kinds-of-Distribution-Shift - the three shifts a deployed model faces: covariate shift (P(x) moves), label shift (P(y) moves), concept shift (P(y|x) itself changes), and which of them actually breaks a well-specified model. Ground it in one concrete deployed classifier. widgets: NEW:shift-types
+2. Detecting-Distribution-Shift - spotting drift without labels: the population stability index (PSI) on binned features, the Kolmogorov-Smirnov two-sample test, and the classifier-two-sample test (train a model to tell train from test; AUC above 0.5 means drift). widgets: drift-monitor
+3. Adapting-to-Drift-Reweighting-and-Retraining - what to do once drift is found: importance weighting by a density ratio to correct covariate shift, and principled retraining triggers (a monitored metric crossing a control limit) rather than retraining on a schedule. widgets: drift-monitor
+4. Out-of-Distribution-and-Novelty-Detection - flagging inputs unlike anything seen in training: a novelty score (Mahalanobis distance / density) with a threshold, and the false-positive vs detection-rate tradeoff the threshold controls. widgets: NEW:ood-detect
+5. Group-Robustness-and-DRO - why average accuracy hides a failing subgroup, worst-group accuracy, a spurious feature that reverses for a minority, and distributionally robust optimization (group reweighting) that trades a little average accuracy for the worst group. widgets: fairness-metrics, NEW:worst-group
+6. Adversarial-Robustness - inputs perturbed too little to see that flip a confident prediction; the fast gradient sign method (FGSM), the perturbation budget epsilon, and the idea of adversarial training. widgets: NEW:adversarial-perturb
+7. A-Monitoring-and-Robustness-Playbook - assembling the section into a deployment checklist: what to log, which drift and OOD alarms to wire, worst-group and adversarial checks before shipping, and when an alarm should trigger a human vs an automatic rollback. widgets: drift-monitor, process-flow
+
+NEW widgets for section 19 (built + mount-tested + emitted-R WebR-verified before the batch): **shift-types**, **ood-detect**, **adversarial-perturb**, **worst-group**. Reuses: drift-monitor, fairness-metrics, process-flow. **Package note: ALL runnable ```r is BASE R** (+ `glm`/`randomForest`, both WebR-known-good) - shift demos via `glm` accuracy, PSI as a hand-coded sum, drift via `ks.test` and a classifier-two-sample `glm`/`randomForest`, OOD via `mahalanobis` + `qchisq`, importance weighting via density ratios, DRO via weighted `glm`, FGSM via `sign(coef)` steps on a logistic model. Show any specialized package (`drifter`, `dalex`, `cleanlab`-style tools) as `r-static` ONLY.
+
+---
+
 # Data Analyst track (level 2, all free)
 
 Nine courses, one per roadmap section of the Data Analyst track. All free (the analyst track is part of the free common base). Each course's `section` in `Scripts/build_lessons_tracker.py` COURSE_ROADMAP must match the roadmap section number so the breadcrumb + reverse-link line up. Ground every lesson in ONE concrete, named dataset (a small tibble of real-feeling rows) carried through the lesson; teach from scratch; <=12 steps each.

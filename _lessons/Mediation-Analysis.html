@@ -1,0 +1,371 @@
+---
+title: "Causal Inference for Decisions Lesson 11: Mediation Analysis"
+description: "Decompose a total effect into direct and indirect paths through a mediator with the base-R product method, bootstrap the indirect effect, and see why mediation needs stronger assumptions."
+keywords: "mediation analysis, direct effect, indirect effect, mediator, product of coefficients, Baron Kenny, sequential ignorability, causal inference, bootstrap, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.11"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "11"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: ""
+course_prev: "Sensitivity-Analysis-and-Placebo-Tests.html"
+lesson_access: "pro"
+catalog_blurb: "How much of an effect runs directly versus through a mediator."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 11 of 11</div>
+<h2>Mediation Analysis</h2>
+
+<p>Every method in this course answered one question: <em>does</em> the treatment work, and by how much. This last lesson asks a different one: <em>how</em> does it work? When FreshCart's push notification lifts grocery spend, is it because the notification gets people to open the app more and browse, or because the notification itself reminds them of a sale they buy on the spot? Same total effect, two very different stories, and they call for two very different decisions.</p>
+
+<p>Mediation analysis splits a total effect into the part that travels through a middle variable (a <strong>mediator</strong>) and the part that does not. By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Tell a total, a direct, and an indirect effect apart, and say what each one means</li>
+
+<li>Decompose an effect in R with the product method, and put a confidence interval on the indirect piece</li>
+
+<li>Explain why mediation leans on an assumption even a perfect randomized experiment cannot deliver</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 3 of this course (confounding and potential outcomes, matching, difference-in-differences), and <a href="Causal-Diagrams-with-DAGs.html">Lesson 2</a> where the mediator first appeared as the middle of a chain \(X \to Z \to Y\). You can fit <code>lm()</code> and read a coefficient.</p>
+<div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">From whether to how</div>
+<h2>A total effect hides a mechanism</h2>
+
+<p>FreshCart, the online grocery from Lesson 10, runs a clean A/B test on lapsing shoppers: a random half receive a re-engagement <strong>push notification</strong>, the other half receive nothing. A week later, the shoppers who got the push spent about $10.59 more on average. Randomization did its job, so that $10.59 is a real causal total effect, with no confounding of the push to worry about.</p>
+
+<p>But "the push adds $10.59" does not tell the product team what to build. There are two ways it could happen:</p>
+
+<ul>
+
+<li><strong>The indirect route.</strong> The push nudges shoppers to <strong>open the app</strong> more often. More app opens mean more browsing, and more browsing means more in the basket. Here the effect flows <em>through</em> app opens: push \(\to\) opens \(\to\) spend.</li>
+
+<li><strong>The direct route.</strong> The push itself carries a "20% off today" line, and some shoppers tap straight through and buy, no extra browsing needed. Here the effect skips the mediator entirely: push \(\to\) spend.</li>
+
+</ul>
+
+<p>App opens is the <strong>mediator</strong>, the variable in the middle of the indirect route. In Lesson 2 you met exactly this shape, a chain \(X \to Z \to Y\), and the rule was "leave the mediator alone when you want the total effect." This lesson is the payoff: when the mechanism <em>is</em> the question, you deliberately open up that chain and measure each piece. Switch the diagram below to <strong>mediator</strong> to see the shape we are about to take apart.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The total effect is the sum of two paths: an indirect effect that runs through the mediator, and a direct effect that does not. Mediation analysis is the arithmetic that separates them.</div></div>
+<div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The recipe</div>
+<h2>The two paths, and how to measure them</h2>
+
+<p>The trick is that each path is a coefficient in an ordinary regression. Write \(X\) for the push (1 if sent, 0 if not), \(M\) for app opens, and \(Y\) for spend. You fit <strong>two</strong> linear models.</p>
+
+<p>First the <strong>mediator model</strong>, how the treatment moves the mediator:</p>
+
+<p>\[ M = i_1 + a\,X + e_1. \]</p>
+
+<p>The coefficient \(a\) is how many extra app opens the push causes. Then the <strong>outcome model</strong>, which includes both the treatment and the mediator:</p>
+
+<p>\[ Y = i_2 + c'\,X + b\,M + e_2. \]</p>
+
+<p>Here \(b\) is how many extra dollars each app open brings <em>at a fixed push status</em> (it holds \(X\) constant, so it is the mediator's own pull on spend), and \(c'\) is the <strong>direct effect</strong>: the push's leftover pull on spend once app opens are accounted for.</p>
+
+<p>Now the decomposition. Every extra app open the push creates (\(a\) of them) is worth \(b\) dollars, so the <strong>indirect effect</strong> is their product:</p>
+
+<p>\[ \text{indirect} = a \times b. \]</p>
+
+<p>The <strong>total effect</strong> \(c\) is what you get by regressing spend on the push alone (\(Y = i_0 + c\,X + e_0\)), and for linear models it splits cleanly:</p>
+
+<p>\[ c = \underbrace{c'}_{\text{direct}} + \underbrace{a\,b}_{\text{indirect}}. \]</p>
+
+<p>That identity is why you will see two names for the same thing: the <strong>product method</strong> reads the indirect effect off \(a \times b\); the <strong>difference method</strong> reads it off \(c - c'\). For linear models they are equal. Finally, the <strong>proportion mediated</strong> is the share of the total that runs through the mediator, \(ab / c\). The flow below is the whole procedure.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Fit the mediator model","sub":"regress the mediator on the treatment to get a, the push effect on app opens"},{"title":"Fit the outcome model","sub":"regress the outcome on treatment AND mediator to get b and the direct effect"},{"title":"Multiply for the indirect effect","sub":"a times b is the effect that flows through the mediator"},{"title":"Compare to the total","sub":"direct plus indirect equals the total; their ratio is the proportion mediated"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Fit FreshCart's two models</h2>
+
+<p>Each lesson runs in a fresh R session, so we build FreshCart's experiment right here. The push is randomized; app opens rise with the push; and spend rises with both app opens and the push directly. We know the recipe because we wrote it, but the analyst only ever sees the three columns.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 2000
+# FreshCart's A/B test: half of lapsing shoppers get a re-engagement push.
+push &lt;- rbinom(n, 1, 0.5)                            # X: randomized push notification (1 = sent)
+
+# Mediator: how many times the shopper opened the app that week. The push lifts opens.
+opens &lt;- 2.5 + 1.5 * push + rnorm(n, 0, 1.2)         # push adds app opens
+opens &lt;- round(pmax(opens, 0), 1)                    # opens cannot be negative
+
+# Outcome: the shopper's grocery spend that week, in dollars.
+spend &lt;- 34 + 4 * opens + 5 * push + rnorm(n, 0, 6)  # each open lifts spend; push also nudges it directly
+fresh &lt;- data.frame(push, opens, spend)
+head(fresh, 3)
+#&gt;   push opens spend
+#&gt; 1    1   3.9 54.61
+#&gt; 2    0   1.9 43.32
+#&gt; 3    1   2.9 53.77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the two models from the recipe. Read <code>a</code> off the mediator model and <code>b</code>, <code>c&#x27;</code> off the outcome model.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_model &lt;- lm(opens ~ push, data = fresh)            # mediator model:  push -&gt; opens
+y_model &lt;- lm(spend ~ push + opens, data = fresh)    # outcome model:   push + opens -&gt; spend
+
+a      &lt;- coef(m_model)[&quot;push&quot;]                      # push -&gt; app opens
+b      &lt;- coef(y_model)[&quot;opens&quot;]                     # app opens -&gt; spend, holding push fixed
+cprime &lt;- coef(y_model)[&quot;push&quot;]                      # direct effect of the push
+round(c(a = a, b = b, direct = cprime), 2)
+#&gt;   a.push  b.opens direct.push
+#&gt;     1.39     4.08        4.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So the push buys about <strong>1.39 extra app opens</strong> (\(a\)), each app open is worth about <strong>$4.08</strong> (\(b\)), and the push has a <strong>$4.92 direct</strong> effect on spend beyond app opens (\(c'\)).</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the outcome model right</h2>
+
+<p>The outcome model is the one place mediation goes wrong most often. To read the mediator's own effect \(b\), the model must hold the treatment fixed, so the push has to be in it too. Leave the push out and its effect leaks into <code>opens</code>, inflating \(b\). Fill in the missing predictor so the outcome model adjusts for the treatment.</p>
+<section class="exercise" data-exercise-id="Mediation-Analysis-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="push"><textarea class="lesson-tryit-input" spellcheck="false">y_model &lt;- lm(spend ~ opens + ____, data = fresh)
+coef(y_model)[&quot;opens&quot;]</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: with the push held fixed, b is the mediator's own pull on spend, about $4.08 per app open. Drop push and that number would absorb part of the push's direct effect.</span><span class="lesson-tryit-fb lesson-tryit-no">Add the treatment: lm(spend ~ opens + push). The outcome model must include BOTH the mediator and the treatment.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">y_model &lt;- lm(spend ~ opens + push, data = fresh)
+coef(y_model)[&quot;opens&quot;]
+#&gt;    opens
+#&gt; 4.08</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The decomposition</div>
+<h2>Multiply, and check it adds up</h2>
+
+<p>You have the pieces. The indirect effect is \(a \times b\); the total effect comes from regressing spend on the push alone; and the direct effect \(c'\) you already have. Watch the identity \(c = c' + ab\) hold on the nose.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">indirect &lt;- a * b                                    # product method: push -&gt; opens -&gt; spend
+total    &lt;- coef(lm(spend ~ push, data = fresh))[&quot;push&quot;]   # the push effect, mediator ignored
+round(c(indirect = indirect, direct = cprime, total = total), 2)
+#&gt; indirect.push   direct.push    total.push
+#&gt;          5.67          4.92         10.59</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Difference method (total - direct) equals the product method (a*b), and the share mediated:
+round(c(direct_plus_indirect = cprime + indirect,
+        proportion_mediated  = indirect / total), 2)
+#&gt; direct_plus_indirect.push  proportion_mediated.push
+#&gt;                     10.59                      0.54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The push's $10.59 total splits into <strong>$5.67 that flows through app opens</strong> and <strong>$4.92 that acts directly</strong>. <code>direct_plus_indirect</code> reproduces the total exactly, which is the product-equals-difference identity, not a coincidence. And about <strong>54%</strong> of the push's effect on spend is mediated by getting people back into the app.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What the split means for a decision</h2>
+
+<p>FreshCart's growth team reads the numbers: total $10.59, indirect $5.67 through app opens, direct $4.92. Someone proposes killing the push notification but "keeping whatever makes people open the app." If they remove the push entirely, roughly how much of the $10.59 lift should they expect to keep?</p>
+<section class="exercise" data-exercise-id="Mediation-Analysis-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">About nothing from the push: the $5.67 indirect part was app opens that the push itself created, so removing the push removes those opens too, and the $4.92 direct part goes with it</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">About $5.67, the indirect part, since that piece is tied to app opens rather than the push</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">All $10.59, because app opens drive spend whether or not the push is sent</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The indirect effect is not a free-standing "app opens" effect you can keep; it is spend caused by the push, routed through opens. Cut the push and both routes close. Mediation tells you the mechanism, not a menu of effects you can pick and keep independently.</div><div class="lesson-qfb lesson-qfb-no">App opens drive spend, but the EXTRA opens here were caused by the push. Remove the push and app opens fall back to baseline, taking the indirect effect with them.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">How certain?</div>
+<h2>Bootstrap the indirect effect</h2>
+
+<p>The indirect effect is a <strong>product</strong> of two estimates, \(a \times b\). Products of normal-ish estimates are not themselves normal (they are skewed), so the usual coefficient standard errors do not apply. The honest, general fix is the <strong>bootstrap</strong>: resample the shoppers with replacement, refit both models, recompute \(a \times b\), and repeat a thousand times. The spread of those thousand values is the sampling distribution of the indirect effect, and its middle 95% is a confidence interval.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+indirect_boot &lt;- replicate(1000, {
+  i  &lt;- sample(nrow(fresh), replace = TRUE)          # a bootstrap resample of the shoppers
+  d  &lt;- fresh[i, ]
+  ai &lt;- coef(lm(opens ~ push, data = d))[&quot;push&quot;]     # a on this resample
+  bi &lt;- coef(lm(spend ~ push + opens, data = d))[&quot;opens&quot;]  # b on this resample
+  ai * bi                                            # the indirect effect on this resample
+})
+quantile(indirect_boot, c(0.025, 0.975))             # 95% percentile confidence interval
+#&gt;     2.5%    97.5%
+#&gt;     5.13     6.20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 95% interval runs from about <strong>$5.13 to $6.20</strong>, comfortably clear of zero, so the mediation through app opens is statistically solid. Report this interval, not a bare point estimate: the whole reason to bootstrap is that the indirect effect's uncertainty is not symmetric.</p>
+<div class="lesson-widget" data-widget-type="bootstrap-sample" data-widget-config='{"seed":7,"tail":"Each resample refits both models and recomputes a times b; the spread of those numbers is the confidence interval."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The catch</div>
+<h2>Why mediation needs more than randomization</h2>
+
+<p>Here is the hard truth this lesson has been building toward. Randomizing the push made the <em>push</em> unconfounded, so the total effect was trustworthy. But look at the outcome model again: it compares shoppers with different numbers of app opens. Nobody randomized app opens. Whatever makes a shopper open the app a lot was left to nature, and if that same thing also drives spending, it confounds the mediator-to-outcome step and poisons \(b\), and therefore \(a \times b\).</p>
+
+<p>Suppose an unmeasured trait, a shopper's baseline <strong>enthusiasm</strong> for grocery-by-app, drives both app opens and spend. The analyst never records it. Watch what it does to \(b\) even though the push is still perfectly randomized.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n &lt;- 2000
+enthusiasm &lt;- rnorm(n)                               # UNMEASURED: how much a shopper loves the app
+push  &lt;- rbinom(n, 1, 0.5)                            # push is STILL randomized
+opens &lt;- 2.5 + 1.5 * push + 1.1 * enthusiasm + rnorm(n, 0, 1)      # enthusiasm also drives opens
+spend &lt;- 34 + 4 * opens + 5 * push + 9 * enthusiasm + rnorm(n, 0, 5)  # ...and spend directly
+
+b_seen &lt;- coef(lm(spend ~ push + opens))[&quot;opens&quot;]                  # what the analyst can fit
+b_true &lt;- coef(lm(spend ~ push + opens + enthusiasm))[&quot;opens&quot;]     # if enthusiasm were visible
+round(c(b_estimated = b_seen, b_if_adjusted = b_true), 2)
+#&gt; b_estimated.opens b_if_adjusted.opens
+#&gt;              8.42                3.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a_seen &lt;- coef(lm(opens ~ push))[&quot;push&quot;]
+round(c(indirect_reported = a_seen * b_seen, indirect_truth = a_seen * b_true), 2)
+#&gt; indirect_reported.push    indirect_truth.push
+#&gt;                  13.33                   6.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The analyst reports an indirect effect of <strong>$13.33</strong>; the truth is about <strong>$6.08</strong>. The estimate is more than double, and the A/B test did nothing to stop it, because randomizing the push never randomized app opens. This extra requirement, <strong>no unmeasured confounder of the mediator and the outcome</strong>, is called <strong>sequential ignorability</strong>, and it is why mediation rests on stronger, untestable assumptions than the matching and difference-in-differences you have been using.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A randomized experiment buys you an unconfounded treatment, not an unconfounded mediator. Every mediation estimate carries a "no hidden mediator-outcome confounder" assumption you cannot test from the data, exactly the kind of fragility Lesson 10 taught you to stress-test.</div></div>
+
+<p>In practice you would hand the two models to the **<code>mediation</code>** package, which does the bootstrap for you and, crucially, ships a sensitivity analysis for precisely this assumption. Run this in your own R session:</p>
+
+<pre><code class="language-r">library(mediation)   # install.packages(&quot;mediation&quot;)
+
+m_model &lt;- lm(opens ~ push, data = fresh)
+y_model &lt;- lm(spend ~ push + opens, data = fresh)
+
+med &lt;- mediate(m_model, y_model, treat = &quot;push&quot;, mediator = &quot;opens&quot;,
+               boot = TRUE, sims = 1000)
+summary(med)   # ACME (indirect), ADE (direct), total effect, proportion mediated, with CIs
+
+# How strong would a hidden mediator-outcome confounder have to be to erase the
+# indirect effect? This is Lesson 10's sensitivity analysis, in mediation form:
+sens &lt;- medsens(med)
+summary(sens)  # reports the confounding strength (rho) that drives the indirect effect to zero</code></pre>
+
+<p><code>medsens</code> is the direct cousin of Lesson 10's E-value: it turns "is there a hidden mediator-outcome confounder?" into "how strong would one have to be to explain the mediation away?"</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Does randomization rescue mediation?</h2>
+
+<p>FreshCart randomized who received the push, a clean A/B test. An analyst concludes: "Because the treatment was randomized, our estimate of the indirect effect through app opens is causally valid." Is that reasoning correct?</p>
+<section class="exercise" data-exercise-id="Mediation-Analysis-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">No: randomizing the push only makes the push itself unconfounded. It does not randomize app opens, so a hidden trait that drives both opens and spend still biases the mediator-to-outcome step, and the indirect effect can be badly off even in a perfect A/B test</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Yes: randomization removes all confounding in the study, so every coefficient, including the mediator's, is causally clean</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Yes, provided the sample is large enough that a and b are statistically significant</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. This is the heart of the lesson. Randomization handles confounding of the treatment, not of the mediator. The mediator is observed, not assigned, so sequential ignorability is an extra, untestable assumption randomization cannot supply.</div><div class="lesson-qfb lesson-qfb-no">Sample size fixes variance, not bias. A hidden mediator-outcome confounder biases the indirect effect no matter how many shoppers you have; a bigger sample just gives you a tighter interval around the wrong number.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take mediation analysis further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1037/0022-3514.51.6.1173">Baron and Kenny (1986), The moderator-mediator variable distinction, JPSP (DOI)</a> - the classic paper that introduced the product-of-coefficients method you used here.</li>
+
+<li><a href="https://doi.org/10.1037/a0020761">Imai, Keele and Tingley (2010), A General Approach to Causal Mediation Analysis, Psychological Methods (DOI)</a> - recasts direct and indirect effects in the potential-outcomes framework, the modern causal footing.</li>
+
+<li><a href="https://doi.org/10.1214/10-STS321">Imai, Keele and Yamamoto (2010), Identification, Inference and Sensitivity Analysis for Causal Mediation Effects, Statistical Science (DOI)</a> - defines sequential ignorability and the sensitivity analysis that <code>medsens</code> implements.</li>
+
+<li><a href="https://www.jstatsoft.org/article/view/v059i05">Tingley et al. (2014), mediation: R Package for Causal Mediation Analysis, JSS</a> - the package that fits the models, bootstraps the effects, and runs the sensitivity check for you.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 11 complete</h2>
+
+<p>You can now ask not just whether a treatment works, but how. You split FreshCart's $10.59 push effect into a <strong>$5.67 indirect</strong> effect flowing through app opens and a <strong>$4.92 direct</strong> effect, using two ordinary regressions: \(a\) from the mediator model, \(b\) and the direct effect \(c'\) from the outcome model, and \(a \times b\) for the indirect piece. You bootstrapped that product to a proper confidence interval, and you saw the identity \(c = c' + ab\) hold exactly. Most important, you learned the catch: randomizing the treatment does not randomize the mediator, so mediation demands <strong>sequential ignorability</strong>, an untestable no-hidden-mediator-outcome-confounder assumption. The enthusiasm example made it concrete: one hidden trait inflated the reported indirect effect from about $6 to $13, and the A/B test did nothing to catch it.</p>
+
+<p>That caveat is the right note to end this course on. Across eleven lessons you moved from spotting confounding to matching, weighting, difference-in-differences, discontinuities, instruments, synthetic controls, uplift, and finally the mechanism itself, and every method came with the same discipline: state your assumptions, then stress-test them. That habit, more than any single estimator, is what separates a causal claim you can defend from a correlation dressed up as one.</p>
+
+<p>Causal Inference for Decisions is one of the graded modules in the Data Scientist track. Pass the assessment and it goes on your verified certificate.</p>
+</section>
+
+{% endraw %}

@@ -114,6 +114,37 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `causal-dag` | confounder / collider / mediator toggle -> what to control for | §10 causal diagrams (DAGs) |
 | `fairness-metrics` | fairness-definition toggle -> per-group selection / TPR / FPR bars + the gap | §11 fairness basics |
 | `drift-monitor` | weeks-since-launch slider -> live histogram drifts; PSI climbs to an alert | §12 monitoring and drift |
+| `robust-weights` | OLS/Huber/Tukey toggle -> the outlier's weight drops and the line snaps back to the honest slope | §13 robust regression I/II |
+| `quantile-lines` | 10th/median/90th percentile lines fan apart on heteroskedastic data | §13 quantile regression; §21 distributional/quantile uncertainty |
+| `coef-path` | lasso/ridge toggle + lambda slider -> coefficients shrink; lasso hits exactly 0 (selection) | §13 regularized regression I/II |
+| `spline-smoother` | smoothness slider -> stiff line to good fit to overfit wiggle vs the true curve | §13 GAMs I/II |
+| `count-dist` | Poisson/NB/zero-inflated toggle -> the fitted line matches the excess-zero bar and long tail | §13 count, overdispersion, zero-inflated/hurdle |
+| `glm-family-shapes` | Gamma/Beta/Tweedie toggle -> the density shape each family implies (positive-skewed, [0,1], spike-at-0) | §13 Gamma/Tweedie/beta regression |
+| `ordinal-cumlogit` | predictor slider -> stacked category bands shift low->high (proportional odds) | §13 ordinal/multinomial regression |
+| `shrinkage-pool` | pooling slider -> small noisy groups shrink toward the grand mean | §13 mixed/multilevel models; §16 hierarchical models, partial pooling |
+| `kernel-svm` | linear/poly/RBF toggle -> boundary bends to wrap the inner class; support vectors circled | §14 SVM + the kernel trick |
+| `bayes-update` | prior mean/confidence + data sliders -> prior x likelihood -> posterior; tightens with n | §16 the Bayesian update, conjugacy, choosing priors |
+| `gp-posterior` | lengthscale toggle -> GP posterior mean + 95% band that pinches at data, flares in gaps | §14 Gaussian processes for regression & uncertainty |
+| `stacking-blend` | errors/weights toggle -> stacked RMSE beats every base learner; meta-learner blend weights | §14 stacking & the Super Learner |
+| `bayesopt-acq` | Next-sample button -> GP surrogate + Expected-Improvement acquisition homes in on the global max | §14 Bayesian optimization for hyperparameters |
+| `km-curve` | arm toggle -> Kaplan-Meier step curves with censoring ticks; medians where curves cross 50% | §15 survival data, Kaplan-Meier & log-rank |
+| `hazard-ratio` | HR toggle -> S1(t)=S0(t)^HR; curve pulls below (HR>1) or above (HR<1) baseline, never crossing | §15 Cox proportional hazards, checking PH |
+| `competing-risks` | time-point toggle -> stacked cumulative-incidence bands (event-free/relapse/death) summing to 1 | §15 competing risks & cumulative incidence |
+| `mcmc-walk` | proposal-width toggle -> Metropolis trace + running histogram vs true posterior; mixing/acceptance trade-off | §16 MCMC, the Metropolis sampler, diagnostics |
+| `ppc-overlay` | good/bad-model toggle -> histogram of a replicated test statistic with the observed value marked (PPC p-value) | §16 posterior predictive checks, Bayesian workflow |
+| `power-curve` | effect-size toggle -> power-vs-sample-size curve with the n-for-80%-power mark; emits `power.t.test` | §17 designing for power, sample size, the effect/alpha/n tradeoff |
+| `cuped-variance` | pre-period correlation toggle -> raw vs CUPED 95% CI shrinking by sqrt(1-rho^2); emits the raw-vs-CUPED SEs | §17 variance reduction, CUPED, stratification |
+| `bandit-explore` | epsilon-greedy vs Thompson toggle -> cumulative-regret curves for a 3-arm bandit; emits a base-R bandit sim | §17 multi-armed bandits, explore/exploit, Thompson sampling |
+| `matching-overlap` | before/after-matching toggle -> mirrored propensity-score histograms (treated vs control) + standardized mean difference; emits glm propensity + NN match | §18 matching, propensity score, IPW, covariate balance |
+| `did-parallel` | Naive vs DiD toggle -> two 2-period trend lines + dashed counterfactual + the double-difference gap; emits lm(y ~ treat*post) | §18 difference-in-differences, parallel trends, staggered DiD |
+| `rdd-cutoff` | bandwidth toggle -> scatter with a local line each side of the cutoff + the jump; emits lm each side | §18 regression discontinuity |
+| `iv-2stage` | strong/weak-instrument toggle -> x-y scatter with biased-OLS vs IV slope + first-stage F; emits manual 2SLS | §18 instrumental variables, 2SLS, weak instruments |
+| `synth-control` | trajectories/gap toggle -> treated vs weighted-donor synthetic over time + post-policy gap; emits optim simplex weights | §18 synthetic control |
+| `uplift-curve` | model/random toggle -> Qini curve (cumulative incremental conversions vs fraction targeted); emits a T-learner uplift model | §18 uplift, heterogeneous effects, causal forests |
+| `shift-types` | covariate/label/concept toggle -> which distribution moves (P(x), P(y), or P(y|x)); emits a glm accuracy demo showing concept shift breaks the model | §19 distribution shift kinds |
+| `ood-detect` | strict/medium/loose threshold toggle -> inlier vs OOD novelty-score histograms with FPR and detection rate; emits Mahalanobis + chi-square detector | §19 out-of-distribution / novelty detection |
+| `adversarial-perturb` | perturbation-budget toggle -> a point crossing the decision boundary under a tiny nudge; emits an FGSM flip on a logistic model | §19 adversarial robustness |
+| `worst-group` | ERM/DRO toggle -> per-group accuracy bars (majority/minority/worst/avg); emits ERM vs group-reweighted glm | §19 group robustness, DRO, worst-group accuracy |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 

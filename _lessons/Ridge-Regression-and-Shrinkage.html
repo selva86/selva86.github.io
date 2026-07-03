@@ -1,0 +1,336 @@
+---
+title: "Advanced Regression Lesson 4: Ridge Regression and Shrinkage"
+description: "When predictors are correlated, OLS coefficients turn wild. Ridge regression shrinks them for a stable, more accurate model, fit and tuned in R with glmnet."
+keywords: "ridge regression, shrinkage, L2 penalty, multicollinearity, glmnet, regularization, lambda, bias-variance tradeoff, cross-validation, R"
+mathjax: true
+webr: true
+curriculum_id: "6.130.4"
+post_type: "LESSON"
+course_id: "ds-reg-glm-expert"
+course_title: "Advanced Regression and GLMs"
+course_lesson: "4"
+course_total: "13"
+course_landing: "R-Advanced-Regression-Course.html"
+course_next: "Lasso-and-Elastic-Net.html"
+course_prev: "Quantile-Regression.html"
+lesson_access: "pro"
+catalog_blurb: "Why shrinking coefficients steadies a model when predictors are correlated."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 13</div>
+<h2>Ridge Regression and Shrinkage</h2>
+
+<p>Lesson 3 fit lines to the median and the tails. But notice what every method so far, ordinary and robust and quantile alike, has quietly assumed: that the data can pin down each coefficient in the first place. When your predictors are strongly correlated, it cannot, and least squares starts reporting nonsense with total confidence.</p>
+
+<p>Meet Maya, a marketing analyst at a coffee-subscription company. Every week she predicts new signups from what she spent on six ad channels: search, social, display, video, email and affiliate. The catch is that she scales all six from one weekly budget, so in a busy week every channel is up and in a quiet week every channel is down. The six spend columns are almost the same column. When Maya fits ordinary least squares, it hands her a model claiming that display and email ads REDUCE signups, and the numbers lurch every time she refits on a slightly different stretch of weeks.</p>
+
+<p>Ridge regression is the fix. By gently shrinking the coefficients toward zero, it trades a tiny, deliberate bias for a large drop in that wobble, and gives Maya a model she can trust. Drag the penalty slider below to watch coefficients shrink (switch to the Ridge (L2) toggle, the subject of this lesson).</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why strongly correlated predictors make ordinary least squares coefficients unstable, and spot the symptom</li>
+
+<li>Define ridge regression as penalized least squares, and say exactly what the penalty controls</li>
+
+<li>See how shrinkage trades a little bias for a large drop in variance, and why that can predict better</li>
+
+<li>Fit ridge in R, choose the penalty by cross-validation, and know when to reach for it</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit and read a linear regression with <code>lm()</code> (a coefficient is a predictor's effect; a residual is actual minus predicted), and you have met the <a href="The-Bias-Variance-Tradeoff.html">bias-variance tradeoff</a>. If <code>lm()</code> is rusty, see <a href="Linear-Regression.html">linear regression</a>. Lessons 1 to 3 of this course are useful context but not required.</p>
+<div class="lesson-widget" data-widget-type="coef-path" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The setup</div>
+<h2>The predictors move together</h2>
+
+<p>Let us build Maya's data so the problem is concrete. Each of 60 weeks has a spend figure for the six channels; because they all scale from one budget, they rise and fall together. Signups truly depend on just two of them, search and social, plus a little noise. (We build the data right here, since each lesson runs in a fresh R session.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 60
+budget &lt;- rnorm(n)                                    # the one weekly budget dial
+spend  &lt;- sapply(1:6, function(j) budget + rnorm(n, sd = 0.15))
+colnames(spend) &lt;- c(&quot;search&quot;, &quot;social&quot;, &quot;display&quot;, &quot;video&quot;, &quot;email&quot;, &quot;affiliate&quot;)
+signups &lt;- 40 + 5 * spend[, &quot;search&quot;] + 3 * spend[, &quot;social&quot;] + rnorm(n, sd = 2)
+ads &lt;- data.frame(signups, spend)
+round(cor(spend), 2)
+#&gt;           search social display video email affiliate
+#&gt; search      1.00   0.97    0.97  0.98  0.98      0.97
+#&gt; social      0.97   1.00    0.97  0.97  0.97      0.97
+#&gt; display     0.97   0.97    1.00  0.96  0.97      0.97
+#&gt; video       0.98   0.97    0.96  1.00  0.98      0.97
+#&gt; email       0.98   0.97    0.97  0.98  1.00      0.97
+#&gt; affiliate   0.97   0.97    0.97  0.97  0.97      1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that correlation matrix: every pair of channels sits around 0.97, almost perfectly in step. Statisticians call predictors this tangled <strong>multicollinear</strong>, and the heatmap below makes it plain, a near-solid block of dark green. To ordinary least squares, these six columns carry nearly the same information six times over.</p>
+<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["search","social","display","video","email","affiliate"],"matrix":[[1,0.97,0.97,0.98,0.98,0.97],[0.97,1,0.97,0.97,0.97,0.97],[0.97,0.97,1,0.96,0.97,0.97],[0.98,0.97,0.96,1,0.98,0.97],[0.98,0.97,0.97,0.98,1,0.97],[0.97,0.97,0.97,0.97,0.97,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The symptom</div>
+<h2>How that wrecks ordinary least squares</h2>
+
+<p>Now fit ordinary least squares and read what it claims.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ols &lt;- lm(signups ~ ., data = ads)
+round(coef(ols), 2)
+#&gt; (Intercept)    search    social   display     video     email affiliate
+#&gt;       39.78      3.41      5.07     -0.40     -0.21     -0.39      0.36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look closely, because two things are wrong. The true model puts weight 5 on search and 3 on social, yet OLS hands the bigger coefficient to social (5.07) and the smaller to search (3.41): it has swapped them. Worse, it stamps display, video and email with NEGATIVE coefficients, as if buying display ads pushed signups DOWN. That is not a finding about advertising. It is OLS unable to tell six near-identical columns apart, so it splits the credit almost at random, even into negatives.</p>
+
+<p>And "at random" is precise. Refit the same model on 200 bootstrap resamples of the weeks and track the search coefficient alone:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+boot_ols &lt;- replicate(200, {
+  i &lt;- sample(nrow(ads), replace = TRUE)
+  coef(lm(signups ~ ., data = ads[i, ]))[&quot;search&quot;]
+})
+round(c(mean = mean(boot_ols), sd = sd(boot_ols),
+        lo = quantile(boot_ols, 0.05), hi = quantile(boot_ols, 0.95)), 2)
+#&gt;   mean     sd  lo.5% hi.95%
+#&gt;   3.16   2.00  -0.16   6.44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The search coefficient swings from about 0 to 6.4 depending on which weeks happen to land in the sample, a standard deviation of 2.0 around a mean of 3.16. Same underlying truth, a completely different story each refit. That is high variance in the estimates themselves.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">OLS solves \( \hat{\beta}^{\text{OLS}} = (X^\top X)^{-1} X^\top y \), where \(X\) is the matrix of predictor values, \(y\) is the vector of signups, and \(\hat{\beta}\) are the fitted coefficients. When columns of \(X\) are nearly identical, \(X^\top X\) is nearly <strong>singular</strong> (close to non-invertible), so its inverse blows up, and with it the variance of every coefficient. Collinearity does not bias OLS; it makes it wildly unstable.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Penalize big coefficients</h2>
+
+<p>The instability comes from coefficients that are free to grow huge and cancel each other (a +40 here offset by a -37 there). Ridge regression takes that freedom away. It asks least squares to do its usual job, make the predictions fit, but attaches a price tag to the size of the coefficients, so the fit can no longer buy a giant coefficient cheaply.</p>
+
+<p>Ordinary least squares minimizes only the squared error:</p>
+
+<p>\[ \hat{\beta}^{\text{OLS}} = \arg\min_{\beta} \sum_{i=1}^{n} \bigl(y_i - x_i^\top \beta\bigr)^2. \]</p>
+
+<p>Ridge adds a penalty on the squared size of the coefficients:</p>
+
+<p>\[ \hat{\beta}^{\text{ridge}} = \arg\min_{\beta} \underbrace{\sum_{i=1}^{n} \bigl(y_i - x_i^\top \beta\bigr)^2}_{\text{fit the data}} \;+\; \underbrace{\lambda \sum_{j=1}^{p} \beta_j^2}_{\text{keep coefficients small}}. \]</p>
+
+<p>Read the new term. \(\beta_j\) is the coefficient on predictor \(j\), \(p\) is the number of predictors, and \(\lambda\) (lambda) is a knob you choose that sets how expensive big coefficients are. The sum \(\sum_j \beta_j^2\) is the <strong>L2 penalty</strong> (the squared length of the coefficient vector). At \(\lambda = 0\) the penalty vanishes and ridge is exactly OLS. As \(\lambda\) grows, every coefficient is squeezed toward zero, but, crucially, never all the way to exactly zero.</p>
+
+<p>Why does squeezing cure the instability? Ridge has its own closed form, \( \hat{\beta}^{\text{ridge}} = (X^\top X + \lambda I)^{-1} X^\top y \), where \(I\) is the identity matrix. Adding \(\lambda I\) lifts the near-singular \(X^\top X\) away from non-invertibility, so the inverse no longer blows up. The very term that shrinks the coefficients also stabilizes them.</p>
+
+<p>Switch the widget below to <strong>Ridge (L2)</strong> and drag the penalty. Watch all six coefficients slide smoothly toward zero as lambda grows, and notice that none of them ever actually reaches it.</p>
+<div class="lesson-widget" data-widget-type="coef-path" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trade</div>
+<h2>A little bias for a lot less variance</h2>
+
+<p>Shrinking the coefficients is not free. Pulling them toward zero makes them <strong>biased</strong>: the ridge estimates come out deliberately too small (a true effect of 5 gets reported as something nearer 1.5). So why do it? Because what we ultimately care about is prediction error, and a model's expected squared error splits into two competing parts:</p>
+
+<p>\[ \text{expected error} \;=\; \underbrace{\text{bias}^2}_{\text{systematically off}} \;+\; \underbrace{\text{variance}}_{\text{jumps from sample to sample}} \;+\; \text{irreducible noise}. \]</p>
+
+<p>OLS here has almost no bias but enormous variance (those wildly swinging coefficients). Ridge accepts a small, controlled dose of bias in exchange for a large cut in variance. When the variance it removes outweighs the bias it adds, total error drops, and there is always some \(\lambda > 0\) that comes out ahead of plain OLS. That is the whole bargain.</p>
+
+<p>The widget below shows this tradeoff with a different knob (polynomial complexity), but the U-shape is universal. For ridge, read it right to left: the far right is plain OLS (\(\lambda = 0\), most flexible, highest variance), and moving left is turning \(\lambda\) up (more shrinkage, more bias, less variance). The lowest test error, the sweet spot, sits in the middle, never at either extreme.</p>
+<div class="lesson-widget" data-widget-type="bias-variance" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does ridge do to a weak coefficient?</h2>
+
+<p>Maya has a channel, affiliate, that barely matters. She turns the ridge penalty up high. What happens to its coefficient?</p>
+<section class="exercise" data-exercise-id="Ridge-Regression-and-Shrinkage-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is set to exactly zero, dropping the channel from the model</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It is shrunk close to zero but stays non-zero, so the channel remains in the model</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is left unchanged, since ridge only touches the large coefficients</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The L2 penalty squeezes every coefficient toward zero and keeps squeezing, but never sets one exactly to zero. Ridge stabilizes; it does not select.</div><div class="lesson-qfb lesson-qfb-no">Ridge shrinks every coefficient, small ones included; in fact it tends to pull a group of correlated predictors toward one shared value. None are left untouched.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit ridge in R</h2>
+
+<p>Time to fix Maya's model. In R, the <code>glmnet</code> package fits ridge (and its cousin lasso) through a single argument, <code>alpha</code>: <code>alpha = 1</code> is lasso, and <code>alpha = 0</code> is pure ridge. Fill in the value that gives you ridge.</p>
+<section class="exercise" data-exercise-id="Ridge-Regression-and-Shrinkage-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="alpha\s*=\s*0(?!\.)"><textarea class="lesson-tryit-input" spellcheck="false">library(glmnet)
+X &lt;- as.matrix(ads[, -1])   # the six spend columns, as a matrix
+y &lt;- ads$signups
+ridge &lt;- glmnet(X, y, alpha = ____)   # which alpha makes it ridge?
+round(coef(ridge, s = 1)[, 1], 2)     # coefficients at penalty lambda = 1</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is ridge. Look at the coefficients: all positive, all pulled into a tight band, no more negatives.</span><span class="lesson-tryit-fb lesson-tryit-no">Ridge is the squared (L2) penalty: set alpha = 0. (alpha = 1 would be lasso.)</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(glmnet)
+X &lt;- as.matrix(ads[, -1])
+y &lt;- ads$signups
+ridge &lt;- glmnet(X, y, alpha = 0)          # alpha = 0 = ridge; alpha = 1 = lasso
+round(coef(ridge, s = 1)[, 1], 2)
+#&gt; (Intercept)    search    social   display     video     email affiliate
+#&gt;       39.80      1.55      1.94      1.04      1.01      0.94      1.10</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Does it actually help? Tune lambda and measure</h2>
+
+<p>A stable model is worthless if it predicts badly, so let us settle the question the honest way: pick the penalty properly, then test the model on weeks it never saw.</p>
+
+<p>Which lambda? You do not guess it; you let <strong>cross-validation</strong> choose. <code>cv.glmnet</code> fits the ridge path many times, each time holding out a slice of the data to score, and reports the lambda with the lowest held-out error:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+cv &lt;- cv.glmnet(X, y, alpha = 0)          # 10-fold cross-validation over a grid of lambda
+round(c(lambda.min = cv$lambda.min, lambda.1se = cv$lambda.1se), 3)
+#&gt; lambda.min lambda.1se
+#&gt;      0.666      6.815</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lambda.min</code> is the penalty with the smallest cross-validated error; <code>lambda.1se</code> is a slightly stronger penalty within one standard error of it, a common, more conservative default. Now the real test: train both models on 40 weeks, predict the other 20, and compare the root-mean-square error (RMSE, the typical size of a prediction miss).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+tr &lt;- sample(nrow(ads), 40)               # 40 weeks to train, 20 held out to test
+ols_fit &lt;- lm(signups ~ ., data = ads[tr, ])
+rid_fit &lt;- cv.glmnet(X[tr, ], y[tr], alpha = 0)
+rmse &lt;- function(pred, actual) sqrt(mean((pred - actual)^2))
+round(c(OLS   = rmse(predict(ols_fit, ads[-tr, ]),                ads$signups[-tr]),
+        ridge = rmse(predict(rid_fit, X[-tr, ], s = &quot;lambda.min&quot;), ads$signups[-tr])), 2)
+#&gt;  OLS ridge
+#&gt; 2.33  1.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ridge predicts new weeks with about 15% less error (1.99 versus 2.33), from the very same data. It gave up a little accuracy on the training weeks (the bias) to stop chasing the noise that made OLS lurch (the variance), and came out ahead where it counts, on weeks it had never seen.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The penalty \(\lambda \sum \beta_j^2\) depends on the SCALE of each predictor: a coefficient measured in dollars and one measured in thousands of dollars get penalized differently. So ridge must standardize the predictors first. <code>glmnet</code> does this for you by default and reports the coefficients back on the original scale, but if you ever compute ridge by hand, standardize before you penalize.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the tradeoff</h2>
+
+<p>You keep pushing lambda higher and higher, well past the value cross-validation chose. What happens to the model's error on new data?</p>
+<section class="exercise" data-exercise-id="Ridge-Regression-and-Shrinkage-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It keeps falling: more shrinkage always means a more stable, better model</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It stays flat once the coefficients have settled</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It falls to a minimum, then rises again as the model starts underfitting</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Test error is U-shaped in lambda: too little penalty leaves OLS-like variance, too much adds so much bias that signal is lost. Cross-validation finds the bottom of that U.</div><div class="lesson-qfb lesson-qfb-no">Error does not plateau; over-shrinking actively hurts. Push lambda to infinity and every coefficient is zero, a model that just predicts the average.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>When ridge earns its keep, and where it does not</h2>
+
+<p>Ridge is not a seasoning to sprinkle on every regression. It shines in specific, common situations.</p>
+
+<p><strong>Reach for ridge when:</strong></p>
+
+<ul>
+
+<li>Your predictors are correlated (multicollinearity), the exact case that wrecked Maya's OLS model.</li>
+
+<li>You have many predictors relative to rows, even more predictors than rows (\(p > n\)), where OLS has no unique solution at all but ridge still does.</li>
+
+<li>You believe most predictors carry a little signal and you want to keep them all, just tamed.</li>
+
+</ul>
+
+<p><strong>Its limits:</strong></p>
+
+<ul>
+
+<li><strong>It does not select.</strong> Ridge shrinks every coefficient toward zero but never to zero, so it never drops a predictor or hands you a short list of the ones that matter. When you need selection, you need lasso.</li>
+
+<li><strong>It is biased on purpose.</strong> The coefficients come out deliberately too small, so do not read a ridge coefficient as an unbiased effect size; read the model as a predictor.</li>
+
+<li><strong>It lives or dies by lambda.</strong> The whole method depends on choosing lambda well, which means cross-validation every time, not a fixed rule of thumb.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Because ridge keeps every predictor, its coefficients are built for prediction, not causal interpretation. With six near-identical channels it spread the credit evenly across all of them; that does not mean each channel truly contributes equally, only that ridge cannot, and does not try to, tell them apart.</div></div>
+
+<p>That gap, ridge cannot pick WHICH correlated predictor matters, is exactly what the next lesson solves.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1080/00401706.1970.10488634">Hoerl and Kennard (1970), Ridge Regression: Biased Estimation for Nonorthogonal Problems, Technometrics</a> - the paper that introduced ridge and proved a beneficial lambda always exists.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 6.2 (free PDF)</a> - the gentle, visual treatment of ridge and lasso, with the shrinkage geometry.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 3.4 (free PDF)</a> - the full math: the closed form, the bias-variance decomposition, and the singular-value view.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/glmnet/vignettes/glmnet.pdf">glmnet vignette (CRAN)</a> - the documentation for the package you used here, including cv.glmnet and the alpha argument.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You watched six near-identical ad channels turn ordinary least squares into nonsense, coefficients that swapped, went negative, and swung by a standard deviation of 2.0 across resamples. Then you fixed it: ridge regression adds an L2 penalty, \(\lambda \sum \beta_j^2\), that shrinks the coefficients toward zero, trading a little bias for a large drop in variance. You fit it with glmnet at alpha = 0, chose lambda by cross-validation, and measured the payoff, about 15% lower error on weeks the model had never seen.</p>
+
+<p>Next, Lesson 5: Lasso and Elastic Net. Ridge shrinks every coefficient but keeps them all. Lasso uses a different penalty that drives the useless ones to exactly zero, doing feature selection for free, and elastic net blends the two so you can shrink AND select even when predictors are correlated.</p>
+</section>
+
+{% endraw %}

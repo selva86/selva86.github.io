@@ -1,0 +1,440 @@
+---
+title: "Experimentation Lesson 2: Variance Reduction with CUPED"
+description: "CUPED from scratch: shrink the variance of an A/B estimate with pre-experiment data, zero bias, the 1 minus rho squared identity, and stratification in R."
+keywords: "CUPED, variance reduction, A/B testing, pre-experiment data, covariate adjustment, regression adjustment, stratification, experiment sensitivity, online experiments, R"
+mathjax: true
+webr: true
+curriculum_id: "6.170.2"
+post_type: "LESSON"
+course_id: "ds-experimentation"
+course_title: "Experimentation"
+course_lesson: "2"
+course_total: "7"
+course_landing: "R-Experimentation-Course.html"
+course_next: "Experiment-Pitfalls-Peeking-and-SRM.html"
+course_prev: "Designing-Experiments-for-Power.html"
+lesson_access: "pro"
+catalog_blurb: "Get tighter A/B results from the traffic you already have."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 7</div>
+<h2>Variance Reduction with CUPED</h2>
+
+<p>Lesson 1 ended with an ugly bill. At Meera's traffic, an 80%-power test of a 0.6pp checkout lift costs six weeks, and a 0.3pp lift costs twenty-three. This lesson is about the lever that does not appear on that bill: the noise itself.</p>
+
+<p>Meera's next test runs on the store's loyalty program: a personalized "Picked for you" shelf, shown to 2,000 randomly chosen members for a month while 2,000 others see the current site. The metric is spend per member over the test month (baseline about $68, and it varies wildly from member to member). The hoped-for lift is about $2.50 per member, worth roughly $100,000 a month if the shelf rolls out to all 40,000 members.</p>
+
+<p>One new fact changes everything: loyalty members are logged in, so Meera already knows what <strong>each member spent in the month before the test</strong>. CUPED (Controlled-experiment Using Pre-Experiment Data, invented at Microsoft in 2013 and now standard in most large experimentation platforms) uses that pre-period data to cancel noise the experiment never needed to carry, with zero bias.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say where the spread in an A/B metric comes from, and why last month's data predicts most of it</li>
+
+<li>Apply the CUPED adjustment in base R and report the tighter confidence interval</li>
+
+<li>Predict the variance cut from the pre-period correlation, using the 1 minus rho squared identity</li>
+
+<li>Spot the covariates that would bias the estimate, and the ones that would not help at all</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 of this course (<a href="Designing-Experiments-for-Power.html">Designing Experiments for Power</a>) for power, standard errors and sample-size arithmetic; correlation as a number between -1 and 1 (<a href="Correlation-in-R.html">Correlation in R</a>); and the two-sample comparison itself (<a href="Comparing-Groups-with-t-tests.html">Comparing groups with t-tests</a>).</p>
+<div class="lesson-widget" data-widget-type="cuped-variance" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where the noise lives</div>
+<h2>The noise you already knew about</h2>
+
+<p>Meet three of Meera's members. Asha buys shoes for her whole family: $182 last month. Dev is a once-a-season browser: $9. Priya sits near the middle: $48. Here is what the three of them spent across two ordinary back-to-back months, no experiment anywhere in sight:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Member</th>
+<th>Last month</th>
+<th>This month</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Asha</td>
+<td>$182</td>
+<td>$146</td>
+</tr>
+<tr>
+<td>Priya</td>
+<td>$48</td>
+<td>$51</td>
+</tr>
+<tr>
+<td>Dev</td>
+<td>$9</td>
+<td>$35</td>
+</tr>
+</tbody>
+</table>
+
+<p>Look at the two kinds of gaps. Within one member, month to month, spend wobbles by a few tens of dollars. Between members, the gap is enormous: Asha and Dev sit more than $130 apart in both months. The member-to-member spread is what makes \(\sigma\) (sigma, the standard deviation of the metric, about $40 across Meera's full membership) so large, and Lesson 1 showed that the required sample size grows with \(\sigma^2 / \Delta^2\), where \(\Delta\) (Delta) is the raw lift you want to detect, $2.50 for the shelf. A $2.50 signal hiding in a $40-wide crowd is exactly why tests need thousands of members.</p>
+
+<p>But that spread is not mystery noise. Heavy spenders stay heavy, light spenders stay light. Below are 24 of Meera's members, last month's spend against this month's, and the pattern is a rising line: the correlation is about 0.7. Most of "this month's spread" was already written down in last month's column.</p>
+
+<p>The part of this month's spend that last month already predicted is not noise the experiment has to live with. It is pre-existing differences between members, and anything predictable can be subtracted.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":13,"y":21},{"x":132,"y":102},{"x":20,"y":36},{"x":20,"y":42},{"x":9,"y":35},{"x":33,"y":55},{"x":32,"y":63},{"x":25,"y":131},{"x":37,"y":41},{"x":56,"y":46},{"x":23,"y":35},{"x":15,"y":28},{"x":23,"y":47},{"x":41,"y":44},{"x":36,"y":69},{"x":24,"y":28},{"x":99,"y":89},{"x":52,"y":43},{"x":59,"y":76},{"x":32,"y":28},{"x":48,"y":51},{"x":182,"y":146},{"x":86,"y":65},{"x":32,"y":50}],"geoms":["point"],"x":"last_month","y":"this_month"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The adjustment</div>
+<h2>Subtract the predictable part</h2>
+
+<p>Start with Asha, not with algebra. Suppose that across all members, every extra pre-period dollar comes with about 0.6 extra dollars this month (that 0.6 is a slope we will estimate in a moment), and the average pre-period spend is about $54. Asha's $182 sits $128 above that average, so before the shelf even existed, we expected her to land about \(0.6 \times 128 \approx \$77\) above a typical member this month. CUPED simply subtracts that expected surplus from her outcome. Dev sits $45 below average, so CUPED adds back \(0.6 \times 45 \approx \$27\) to his:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Member</th>
+<th>Raw this-month spend</th>
+<th>Predictable part</th>
+<th>CUPED-adjusted spend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Asha</td>
+<td>$146</td>
+<td>+$77</td>
+<td>$69</td>
+</tr>
+<tr>
+<td>Priya</td>
+<td>$51</td>
+<td>-$4</td>
+<td>$55</td>
+</tr>
+<tr>
+<td>Dev</td>
+<td>$35</td>
+<td>-$27</td>
+<td>$62</td>
+</tr>
+</tbody>
+</table>
+
+<p>Raw, the three sat $111 apart. Adjusted, they huddle within $14 of each other. Nothing about the shelf's effect was touched; we only removed the spread that last month had already explained.</p>
+
+<p>Now the same thing in symbols. Call the outcome \(Y\) (this month's spend) and the pre-period covariate \(X\) (last month's spend). The slope is</p>
+
+<p>\[ \theta = \frac{\operatorname{Cov}(Y, X)}{\operatorname{Var}(X)} \]</p>
+
+<p>where \(\operatorname{Cov}(Y, X)\) (the covariance) measures how strongly the two move together in their original dollar units, \(\operatorname{Var}(X)\) is the covariate's variance, and \(\theta\) (theta) is exactly the least-squares slope you would get from regressing \(Y\) on \(X\): the extra outcome dollars that ride along with one extra covariate dollar. The adjusted outcome for each member is</p>
+
+<p>\[ Y^{\text{cuped}} = Y - \theta \, (X - \bar{X}) \]</p>
+
+<p>with \(\bar{X}\) the average pre-period spend across everyone. Subtracting the <em>centered</em> term \((X - \bar{X})\), rather than \(X\) itself, means the average adjustment is zero, so the metric keeps its scale: adjusted spend still averages about $68 and still reads in dollars.</p>
+
+<p>Why is this bias-free? Because \(X\) was measured <strong>before anyone was randomized</strong>. The shelf cannot reach back in time and change last month's spend, and randomization gave both arms the same distribution of \(X\). We are subtracting a quantity whose average is the same in treatment and control, and subtracting the same thing from both sides of a comparison cannot move the difference. The lift estimate stays honest; only its wobble shrinks.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>A tempting, terrible covariate</h2>
+
+<p>A teammate looks at Meera's plan and offers an upgrade: "Last-month spend only correlates 0.7 with the outcome. The number of store visits <strong>during the test month</strong> correlates 0.9. Adjust by that instead." What is wrong with the upgrade?</p>
+<section class="exercise" data-exercise-id="Variance-Reduction-with-CUPED-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing is wrong: the stronger the correlation, the bigger the variance cut, so 0.9 beats 0.7</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The shelf itself can change how often members visit during the test, so adjusting by visits subtracts part of the real effect: the estimate becomes biased</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Visit counts measured during the test are too noisy for the correlation to hold up</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A good shelf might work precisely BY drawing extra visits. Adjust those away and the lift estimate shrinks toward zero for the worst possible reason. The covariate must be locked in before randomization; that is the P in CUPED.</div><div class="lesson-qfb lesson-qfb-no">Noise is not the issue, timing is. A during-test covariate can be measured perfectly and still poison the estimate, because the treatment can move it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">See it work</div>
+<h2>Watch the interval shrink</h2>
+
+<p>Time to run Meera's test. We will simulate it, exactly as in Lesson 1, so that we know the truth: the shelf's true lift is <strong>exactly $2.50</strong> by construction, and we get to watch two estimators chase it, one raw, one CUPED. First, build the 4,000 members: last month's spend, then this month's spend, which is partly predicted by last month (that is where the correlation comes from) plus fresh noise plus the lift for the treated arm.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(46)
+n_arm &lt;- 2000
+pre   &lt;- round(rlnorm(2 * n_arm, meanlog = 3.7, sdlog = 0.75), 2)  # last month's spend
+arm   &lt;- rep(0:1, each = n_arm)          # 0 = current site, 1 = &quot;Picked for you&quot; shelf
+spend &lt;- round(0.6 * pre + rlnorm(2 * n_arm, meanlog = 3.3, sdlog = 0.7) + 2.5 * arm, 2)
+
+round(c(control_mean = mean(spend[arm == 0]), sd = sd(spend),
+        cor_with_pre = cor(spend, pre)), 2)
+#&gt; control_mean           sd cor_with_pre
+#&gt;        67.70        39.55         0.69</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A $68 baseline, a $40 spread, and a pre-period correlation of 0.69: Meera's world, in numbers. Here is the ordinary analysis, the difference in arm means with its standard error (Lesson 1's machinery):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d_raw  &lt;- mean(spend[arm == 1]) - mean(spend[arm == 0])
+se_raw &lt;- sqrt(var(spend[arm == 1]) / n_arm + var(spend[arm == 0]) / n_arm)
+round(c(lift = d_raw, se = se_raw,
+        ci_lo = d_raw - 1.96 * se_raw, ci_hi = d_raw + 1.96 * se_raw), 2)
+#&gt;  lift    se ci_lo ci_hi
+#&gt;  2.18  1.25 -0.27  4.64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The confidence interval runs from -$0.27 to $4.64. It contains zero, so after a month and 4,000 members the honest raw verdict is <em>maybe</em>. And remember, the true lift is $2.50; the estimate 2.18 missed it only by sampling wobble. Now the CUPED version of the same data: estimate the slope, subtract the predictable part, and rerun the identical comparison on the adjusted spend.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">theta   &lt;- cov(spend, pre) / var(pre)     # the slope of spend on pre-period spend
+spend_c &lt;- spend - theta * (pre - mean(pre))
+
+d_c  &lt;- mean(spend_c[arm == 1]) - mean(spend_c[arm == 0])
+se_c &lt;- sqrt(var(spend_c[arm == 1]) / n_arm + var(spend_c[arm == 0]) / n_arm)
+round(c(theta = theta, lift = d_c, se = se_c,
+        ci_lo = d_c - 1.96 * se_c, ci_hi = d_c + 1.96 * se_c), 2)
+#&gt; theta  lift    se ci_lo ci_hi
+#&gt;  0.59  2.55  0.90  0.79  4.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same members, same month, same truth. The interval is now $0.79 to $4.32: zero is out, the verdict is <em>the shelf works</em>. The standard error fell from 1.25 to 0.90 because the adjustment removed the spread that last month's spend had already explained.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">CUPED did not nudge the estimate toward significance. Raw (2.18) and CUPED (2.55) are both unbiased estimates of the same true $2.50; run the simulation a thousand times and both average out to 2.50. The only thing CUPED changes is the wobble around the truth, and a smaller wobble is precisely what lets the same data speak more clearly.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The exact price of noise</div>
+<h2>The 1 minus rho squared identity</h2>
+
+<p>How much variance does the adjustment remove? There is an exact answer, and it is one line. If \(\rho\) (rho) is the correlation between the outcome \(Y\) and the pre-period covariate \(X\), then</p>
+
+<p>\[ \operatorname{Var}\!\left(Y^{\text{cuped}}\right) = \left(1 - \rho^2\right) \operatorname{Var}(Y) \]</p>
+
+<p>The variance of the adjusted metric is the raw variance times \(1 - \rho^2\), because \(\rho^2\) is exactly the share of the outcome's variance the covariate can explain, and that is the share CUPED deletes. Standard errors scale with the square root, so the CI narrows by a factor of \(\sqrt{1 - \rho^2}\). Our simulation obeys the identity to the second decimal:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(observed_ratio = se_c / se_raw,
+        predicted = sqrt(1 - cor(spend, pre)^2)), 2)
+#&gt; observed_ratio      predicted
+#&gt;           0.72           0.72</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Toggle the correlation strength below and watch what each level of \(\rho\) buys. At 0.3 the CI barely moves; at 0.85 it collapses to half its width. The interactive computes the exact factor and hands you the matching base R.</p>
+
+<p>The identity converts directly into Lesson 1's currency: sample size. A variance cut of \(\rho^2\) means the same power at \((1 - \rho^2)\) times the members, equivalently \(1 / (1 - \rho^2)\) times the effective sample for free. Size Meera's shelf test both ways, using the $39.60 spread we measured and <code>power.t.test()</code> from Lesson 1:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rho &lt;- 0.7
+n_raw   &lt;- power.t.test(delta = 2.5, sd = 39.6, power = 0.80)$n
+n_cuped &lt;- power.t.test(delta = 2.5, sd = 39.6 * sqrt(1 - rho^2), power = 0.80)$n
+round(c(per_arm_raw = n_raw, per_arm_cuped = n_cuped))
+#&gt;   per_arm_raw per_arm_cuped
+#&gt;          3940          2010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eighty percent power costs 3,940 members per arm raw, and 2,010 with CUPED: the pre-period column just paid for half the experiment. The scaling is worth memorizing at both ends. A weak covariate (\(\rho = 0.2\)) cuts variance by only 4%, barely worth the code; a strong one (\(\rho = 0.9\)) cuts 81%, five experiments for the price of one. Hunting for a strongly correlated pre-period covariate is one of the most valuable hours an experimenter can spend, and the best candidate is almost always the same metric, measured before the test.</p>
+<div class="lesson-widget" data-widget-type="cuped-variance" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>CUPED a music app's test</h2>
+
+<p>Transfer the pattern to a new company. A music app is testing a new playlist algorithm on 1,000 members; the outcome <code>minutes</code> is minutes listened during the test, and <code>pre_min</code> is each member's minutes in the month before. Build the CUPED adjustment: the slope first, then the centered subtraction. Fill in the four blanks.</p>
+<section class="exercise" data-exercise-id="Variance-Reduction-with-CUPED-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="cov\s*\(\s*(minutes\s*,\s*pre_min|pre_min\s*,\s*minutes)\s*\)\s*/\s*var\s*\(\s*pre_min\s*\)[\s\S]*minutes\s*-\s*theta\s*\*\s*\(\s*pre_min\s*-\s*mean\s*\(\s*pre_min\s*\)"><textarea class="lesson-tryit-input" spellcheck="false"># pre_min = minutes listened last month; minutes = minutes during the test.
+set.seed(11)
+pre_min &lt;- rlnorm(1000, meanlog = 4, sdlog = 0.6)
+minutes &lt;- 30 + 0.9 * pre_min + rnorm(1000, 0, 25)
+
+# theta is the slope of the outcome on the pre-period covariate: cov over var.
+theta &lt;- ____ / ____
+min_c &lt;- minutes - theta * (____ - mean(____))</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">theta = cov(minutes, pre_min) / var(pre_min), then subtract theta times the centered pre-period. Here the correlation is about 0.85, so the adjusted spread is 0.53 of the raw spread: the same precision from roughly a third of the members.</span><span class="lesson-tryit-fb lesson-tryit-no">Two pieces: theta <- cov(minutes, pre_min) / var(pre_min), and the centered subtraction min_c <- minutes - theta * (pre_min - mean(pre_min)). The covariate in every blank is pre_min, the PRE-period metric.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(11)
+pre_min &lt;- rlnorm(1000, meanlog = 4, sdlog = 0.6)
+minutes &lt;- 30 + 0.9 * pre_min + rnorm(1000, 0, 25)
+
+theta &lt;- cov(minutes, pre_min) / var(pre_min)
+min_c &lt;- minutes - theta * (pre_min - mean(pre_min))
+round(c(sd_raw = sd(minutes), sd_cuped = sd(min_c),
+        ratio = sd(min_c) / sd(minutes),
+        predicted = sqrt(1 - cor(minutes, pre_min)^2)), 2)
+#&gt;    sd_raw  sd_cuped     ratio predicted
+#&gt;     46.61     24.87      0.53      0.53</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Same trick, other clothes</div>
+<h2>Stratification and the lm() one-liner</h2>
+
+<p>Meera shows the CUPED result to her boss, who distrusts formulas but trusts segments: "Just compare shelf members to control members <em>within</em> light, medium and heavy spenders, then average the three answers." That instinct has a name, <strong>stratification</strong>: split members into strata by a pre-period label, estimate the lift inside each stratum, and combine the estimates weighted by stratum size. Comparing Asha only to other heavy spenders means the huge between-segment spread never enters the comparison. It is CUPED's cousin for categorical covariates. Run the boss's version, with terciles of pre-period spend as the three strata, on the members you simulated earlier:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stratum &lt;- cut(pre, quantile(pre, c(0, 1/3, 2/3, 1)),
+               labels = c(&quot;light&quot;, &quot;medium&quot;, &quot;heavy&quot;), include.lowest = TRUE)
+d_s &lt;- tapply(spend[arm == 1], stratum[arm == 1], mean) -
+       tapply(spend[arm == 0], stratum[arm == 0], mean)
+w   &lt;- as.numeric(table(stratum)) / length(stratum)
+vt  &lt;- tapply(spend[arm == 1], stratum[arm == 1], var)
+vc  &lt;- tapply(spend[arm == 0], stratum[arm == 0], var)
+nt  &lt;- as.numeric(table(stratum[arm == 1]))
+nc  &lt;- as.numeric(table(stratum[arm == 0]))
+se_s &lt;- sqrt(sum(w^2 * (vt / nt + vc / nc)))
+round(c(lift = sum(w * d_s), se = se_s), 2)
+#&gt; lift   se
+#&gt; 1.93 1.07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The stratified standard error, 1.07, lands between raw (1.25) and CUPED (0.90). Three coarse buckets capture part of what the pre-period knows, but a continuous covariate carries more information than any handful of bins, which is why platforms reach for CUPED when the covariate is numeric and for stratification when it is naturally categorical (country, platform, new vs returning), or when they balance arms at assignment time.</p>
+
+<p>There is also a one-line version of CUPED that you already know from the regression lessons: put the covariate in a linear model next to the treatment indicator.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(summary(lm(spend ~ arm + pre))$coefficients[&quot;arm&quot;, 1:2], 2)
+#&gt;   Estimate Std. Error
+#&gt;       2.55       0.90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical to CUPED to two decimals: estimate 2.55, standard error 0.90. CUPED <em>is</em> regression adjustment wearing production clothes (Lin 2013, in the references, is the careful account of why this is safe in randomized experiments). The full scoreboard for one month of Meera's data:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(raw = se_raw, three_buckets = se_s, cuped = se_c), 2)
+#&gt;           raw three_buckets         cuped
+#&gt;          1.25          1.07          0.90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Limits</div>
+<h2>When CUPED cannot help</h2>
+
+<p>CUPED is a discount, not a miracle, and it has exactly three failure modes worth knowing cold:</p>
+
+<ol>
+
+<li><strong>No pre-period.</strong> A member who joined last week has no last-month spend. The standard fix is to set their covariate to the overall mean \(\bar{X}\), which makes their adjustment exactly zero: they keep their raw variance, and CUPED helps only the returning share of the sample. A test on brand-new signups gets nothing from CUPED, because nothing pre-dates them.</li>
+
+<li><strong>A weak covariate.</strong> At \(\rho = 0.2\) the cut is \(1 - 0.2^2\), just 4%. Harmless, but not worth engineering effort. If the same metric measured pre-period correlates weakly (a highly volatile metric, a long gap between periods), look for a better window before looking for a cleverer formula.</li>
+
+<li><strong>A covariate the treatment can move.</strong> The quiz case. Anything measured after randomization is off the table, however strong its correlation, because adjusting by it bleeds real effect into the correction.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Decide the covariate, and the fact that you will adjust at all, in the analysis plan BEFORE results exist. Trying five covariates after the fact and reporting the prettiest interval is not variance reduction, it is fishing, the exact family of sins Lesson 3 is about. Locked in advance, CUPED is bias-free; chosen by outcome, nothing is.</div></div>
+
+<p>And keep Lesson 1's arithmetic in view: at \(\rho = 0.7\) CUPED halves the required sample. It turns Meera's 23-week nightmare into 11 weeks, not into 2. When a design is hopeless, the answer is still a bigger effect, more traffic, or a humbler question.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Pick the covariate</h2>
+
+<p>Meera's next experiment is a loyalty-points revamp, with spend per member as the outcome again. Three covariates are on the table: <strong>(a)</strong> last-month spend, correlation 0.7 with the outcome; <strong>(b)</strong> account age in days, correlation 0.2; <strong>(c)</strong> sessions during the test month, correlation 0.9. Which one should she adjust by, and what does it buy?</p>
+<section class="exercise" data-exercise-id="Variance-Reduction-with-CUPED-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Sessions during the test: at rho 0.9 the identity promises an 81% variance cut, the biggest on offer</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Last-month spend: 1 minus 0.7 squared removes about half the variance, so the test needs roughly half the members, and the lift estimate itself stays unbiased</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Account age: it is barely related to spend, which makes it the safest adjustment</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right on all three counts. Pre-period, strongly correlated, and the adjustment narrows the interval by a factor of sqrt(0.51), about 0.71, without moving the estimate on average. The best covariate is almost always the outcome metric itself, measured before the test.</div><div class="lesson-qfb lesson-qfb-no">It is safe (it is pre-period), but safety was never the scarce resource; last-month spend is equally untouchable by the treatment. At rho 0.2 the cut is 4%. Safety comes from timing; the SIZE of the win comes from correlation.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://dl.acm.org/doi/10.1145/2433396.2433413">Deng, Xu, Kohavi and Walker (2013), Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data, WSDM</a> - the paper that introduced CUPED at Microsoft, with the identity and the original Bing results.</li>
+
+<li><a href="https://experimentguide.com/">Kohavi, Tang and Xu (2020), Trustworthy Online Controlled Experiments</a> - the industry playbook; its sensitivity chapter covers variance reduction as run in production.</li>
+
+<li><a href="https://doi.org/10.1214/12-AOAS583">Lin (2013), Agnostic notes on regression adjustments to experimental data, Annals of Applied Statistics</a> - the careful theory of when and why regression adjustment is safe in randomized experiments.</li>
+
+<li><a href="https://www.microsoft.com/en-us/research/group/experimentation-platform-exp/articles/deep-dive-into-variance-reduction/">Microsoft Experimentation Platform, Deep dive into variance reduction</a> - the team that invented CUPED on deploying it: covariate choice, missing pre-periods, and pitfalls.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>Same members, same month, same truth: the raw analysis said <em>maybe</em> (-$0.27 to $4.64) and CUPED said <em>the shelf works</em> ($0.79 to $4.32), because subtracting the predictable part of each member's spend removed the noise the pre-period had already explained. You can now build the adjustment in three lines of base R, predict its payoff exactly with \(1 - \rho^2\), get the same answer from <code>lm(spend ~ arm + pre)</code>, and refuse the covariates that would poison it: anything the treatment can move, anything without a pre-period, anything barely correlated.</p>
+
+<p>You also just made experiments cheaper, which makes running them carelessly more tempting than ever. Next, Lesson 3: Experiment Pitfalls, Peeking and SRM. The three ways online experiments lie: checking the p-value every morning until it dips, randomizers that quietly break, and users who interfere with each other's treatments.</p>
+</section>
+
+{% endraw %}

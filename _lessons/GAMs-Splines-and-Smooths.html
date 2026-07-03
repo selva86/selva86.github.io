@@ -1,0 +1,358 @@
+---
+title: "Advanced Regression Lesson 6: GAMs, Splines and Smooths"
+description: "A straight line cannot bend. Generalized additive models fit a smooth curve from penalized splines, letting the data pick its shape without overfitting."
+keywords: "GAM, generalized additive model, splines, smooth term, penalized regression, mgcv, effective degrees of freedom, nonlinear regression, basis functions, R"
+mathjax: true
+webr: true
+curriculum_id: "6.130.6"
+post_type: "LESSON"
+course_id: "ds-reg-glm-expert"
+course_title: "Advanced Regression and GLMs"
+course_lesson: "6"
+course_total: "13"
+course_landing: "R-Advanced-Regression-Course.html"
+course_next: "GAMs-Choosing-Smoothness.html"
+course_prev: "Lasso-and-Elastic-Net.html"
+lesson_access: "pro"
+catalog_blurb: "How to fit a smooth curve when a relationship bends, without guessing its shape."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 13</div>
+<h2>GAMs, Splines and Smooths</h2>
+
+<p>Priya runs an ice-cream cart outside a train station. She has logged 120 days: the day's high temperature and how many ice creams she sold. She fits the obvious model, <code>sales ~ temp</code>, and it tells her something absurd: temperature has almost no effect (correlation -0.08, not significant). Yet she knows temperature is the single biggest thing that moves her sales.</p>
+
+<p>The temperature is not the problem. The straight line is. Sales climb as it warms, peak on a pleasant 24 degree afternoon, then fall again when it is too hot to stand on the platform. That is a hill, and a straight line cannot climb a hill and come back down. This lesson gives your regression the ability to bend.</p>
+
+<p>Lesson 5 handed Maya a short list of the channels that matter. Every model in this course so far, ordinary least squares, robust, quantile, ridge and lasso, has fit the same fundamental shape: a straight line (or a flat plane). Today the truth bends, and we let the model bend with it.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Diagnose why a straight-line model fails on a relationship that bends</li>
+
+<li>Explain a smooth as a spline: a flexible curve built by adding up simple building-block curves</li>
+
+<li>Understand how a wiggliness penalty lets the data choose the right flexibility, so you never guess a polynomial degree</li>
+
+<li>Fit a GAM in R, and read the effective degrees of freedom (edf) that tell you how much the curve bent</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit and read an [<code>lm()</code>](OLS-Regression-from-Scratch.html) (coefficients, R-squared, significance), you know the <a href="The-Bias-Variance-Tradeoff.html">bias-variance tradeoff</a> (underfit vs overfit), and you have met a penalty that trades fit for simplicity in <a href="Ridge-Regression-and-Shrinkage.html">ridge regression</a>.</p>
+
+<p>Drag the smoothness dial below. Watch the fit go from a stiff line that misses the bend, to an honest curve that tracks the true shape (dashed), to a wild overfit that chases every noisy point. Finding that middle, automatically, is what a GAM does.</p>
+<div class="lesson-widget" data-widget-type="spline-smoother" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>A straight line cannot bend</h2>
+
+<p>Let us reproduce Priya's frustration in code. We build her 120 days inline (each lesson runs in a fresh R session, so all the data lives right here), then fit the straight line she tried.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+set.seed(7)
+n &lt;- 120
+ice &lt;- data.frame(
+  temp     = round(runif(n, 12, 36), 1),   # daily high temperature, Celsius
+  humidity = round(runif(n, 30, 90)),      # percent relative humidity
+  weekend  = rbinom(n, 1, 0.3)             # 1 on Saturday and Sunday
+)
+# true sales: a hill that peaks near 24 C, plus a weekend bump and day-to-day noise
+base &lt;- 135 - 0.22 * (ice$temp - 24)^2
+ice$sales &lt;- round(pmax(0, base + 10 * ice$weekend - 0.12 * ice$humidity + rnorm(n, 0, 8)))
+
+fit_lin &lt;- lm(sales ~ temp, data = ice)
+round(coef(summary(fit_lin)), 3)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  123.815      4.179  29.631    0.000
+#&gt; temp          -0.140      0.166  -0.841    0.402</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope on <code>temp</code> is -0.14 with a p-value of 0.40. Read literally, the model says: for every extra degree, sales change by essentially nothing, and we cannot even be sure of the direction. The overall fit is just as bleak.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(correlation = cor(ice$temp, ice$sales),
+        r_squared   = summary(fit_lin)$r.squared), 3)
+#&gt; correlation   r_squared
+#&gt;      -0.077       0.006</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An R-squared of 0.006 means the line explains six-tenths of one percent of the variation in sales. Now look at why. Plot the days and lay the best straight line over them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(ice, aes(temp, sales)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = &quot;lm&quot;, se = FALSE) +      # the best straight line
+  labs(x = &quot;temperature (C)&quot;, y = &quot;ice creams sold&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The points make a clear hill: low at both cold and sweltering days, high in the comfortable middle. The straight line runs flat through the crest, because the rising left half and the falling right half cancel out to a slope of nearly zero. The relationship is strong; the line is just the wrong shape to see it. We need a model that can follow the bend.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>A smooth is a sum of simple curves</h2>
+
+<p>Here is the trick that lets a regression bend. Instead of one rigid line, we build the curve out of a handful of simple <strong>building-block curves</strong>, each a gentle bump sitting over a different stretch of the x-axis. Give each block a weight, add them up, and their sum is a flexible curve. That summed curve is called a <strong>spline</strong>, and the blocks are its <strong>basis functions</strong>.</p>
+
+<p>Formally, a smooth term \(f(x)\) is written as a weighted sum of \(k\) basis functions:</p>
+
+<p>\[ f(x) = \sum_{j=1}^{k} \beta_j\, b_j(x) \]</p>
+
+<p>Reading each symbol: \(b_j(x)\) is the \(j\)-th building-block curve (a fixed, known bump), \(\beta_j\) is the weight the model learns for it, and \(k\) is how many blocks we use. The blocks are fixed in advance; fitting the smooth just means finding the weights \(\beta_j\), which is the same least-squares problem you already know, only with these bumps as the predictors instead of raw <code>temp</code>.</p>
+
+<p>You have actually seen one kind of basis before: a polynomial. Writing \(f(x) = \beta_1 x + \beta_2 x^2 + \beta_3 x^3\) uses the powers of \(x\) as its blocks. Polynomials can bend, but a single global polynomial is a blunt tool: crank the degree up and it develops wild swings near the edges of the data, and one formula is forced to describe the whole range at once. Splines use <strong>local</strong> bumps instead, so each part of the curve is shaped mostly by the nearby data. Here are six spline blocks for Priya's temperature range.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(splines)
+library(tidyr)
+B &lt;- as.data.frame(bs(ice$temp, df = 6))   # six spline building-block curves
+names(B) &lt;- paste0(&quot;b&quot;, 1:6)
+B$temp &lt;- ice$temp
+basis_long &lt;- pivot_longer(B, cols = starts_with(&quot;b&quot;),
+                           names_to = &quot;piece&quot;, values_to = &quot;value&quot;)
+ggplot(basis_long, aes(temp, value, colour = piece)) +
+  geom_line(linewidth = 1) +
+  labs(title = &quot;Six building blocks; a spline is their weighted sum&quot;,
+       x = &quot;temperature (C)&quot;, y = &quot;basis value&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each coloured curve is one \(b_j(x)\), switched on over its own slice of temperature. The fitted smooth is these six curves scaled by their learned weights and added together. More blocks (a larger \(k\)) means a more flexible curve that can wiggle in more places, which is exactly the knob we have to get right.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">Feel it</div>
+<h2>The flexibility dial</h2>
+
+<p>That knob, the number of basis functions, controls how flexible the smooth can be, and it is a bias-variance tradeoff dressed in new clothes. Drag it and watch.</p>
+
+<p>With too few blocks (slide left), the smooth is almost a straight line: it cannot reach the bends, so it <strong>underfits</strong>, high bias. With too many (slide right), the smooth becomes flexible enough to detour toward individual noisy points, wandering away from the true dashed curve: it <strong>overfits</strong>, high variance. Somewhere in the middle it tracks the real shape without chasing noise. The whole game of fitting a smooth is landing on that middle, and next you will see the tool that finds it for you.</p>
+<div class="lesson-widget" data-widget-type="spline-smoother" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When flexibility goes too far</h2>
+
+<p>You slide the smoothness dial all the way up, giving the spline the most basis functions it allows. The fitted curve now passes almost exactly through the training points. Is that the best model of Priya's sales?</p>
+<section class="exercise" data-exercise-id="GAMs-Splines-and-Smooths-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes: a curve that hugs the points has captured the relationship most fully</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: that curve is chasing the noise; the honest fit is calmer, tracking the trend without hitting every point</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No: more basis functions make the curve underfit, not overfit</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Maximum flexibility drives the training error toward zero, but those extra wiggles are fit to noise. The best smooth balances following the real bend against staying calm between points.</div><div class="lesson-qfb lesson-qfb-no">It is the other way round. More basis functions make the smooth MORE flexible, which leads to overfitting. Too FEW basis functions is what causes underfitting.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The engine</div>
+<h2>Let the penalty choose the wiggliness</h2>
+
+<p>Picking the number of basis functions by hand is fiddly and easy to get wrong. A GAM sidesteps the whole problem with the idea you already met in ridge and lasso: a <strong>penalty</strong>. Give the smooth plenty of basis functions (a generous upper limit), then punish the fit for being wigglier than the data justifies. The fit minimizes</p>
+
+<p>\[ \underbrace{\sum_{i=1}^{n}\bigl(y_i - f(x_i)\bigr)^2}_{\text{fit the data}} \;+\; \lambda \underbrace{\int f''(x)^2\,dx}_{\text{total wiggliness}} \]</p>
+
+<p>The first term is the usual squared error, pulling the curve toward the points. The second is the penalty. Inside it, \(f''(x)\) is the curve's second derivative, its <strong>curvature</strong>: it is zero where the curve is straight and large where it bends sharply. Squaring and integrating over the whole range adds up the total wiggliness of the curve. The knob \(\lambda\) (lambda) sets how hard we punish that wiggliness.</p>
+
+<p>When \(\lambda\) is large, any curvature is expensive, so the fit flattens toward a straight line. When \(\lambda\) is zero, wiggliness is free and the curve bends to hit every point. The right \(\lambda\) sits in between, and here is the payoff: you do not pick it by eye. <code>mgcv</code> estimates \(\lambda\) from the data automatically (it uses a criterion called GCV or REML), choosing just enough flexibility to fit the signal and no more.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">This is what "penalized spline" means and why a GAM feels almost tuning-free: you set a generous ceiling on flexibility, and the wiggliness penalty, with \(\lambda\) chosen from the data, dials the actual smoothness down to what the data supports. Same bargain as ridge, now spent on curvature instead of coefficient size.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Fit the smooth with mgcv</h2>
+
+<p>Enough theory. The <code>mgcv</code> package fits GAMs, and the whole idea comes down to one piece of notation: wrap a predictor in <code>s()</code> to say "fit a smooth of this," instead of using it raw for a straight line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(mgcv)
+g &lt;- gam(sales ~ s(temp), data = ice)   # s(temp) = fit a penalized smooth of temp
+summary(g)
+#&gt; Parametric coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 120.4250     0.7677   156.9   &lt;2e-16 ***
+#&gt;
+#&gt; Approximate significance of smooth terms:
+#&gt;           edf Ref.df     F p-value
+#&gt; s(temp) 5.969  7.119 18.37  &lt;2e-16 ***
+#&gt;
+#&gt; R-sq.(adj) =  0.517   Deviance explained = 54.2%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare that to the straight line. The linear model explained 0.6% of the variation and called <code>temp</code> insignificant. This GAM, using the very same predictor, explains <strong>54%</strong> and finds the smooth of temperature wildly significant (p below 2e-16). Nothing changed about Priya's data; we only gave the model permission to bend. The smooth term found the hill the straight line was blind to.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the fit</div>
+<h2>Plot the curve, and read the edf</h2>
+
+<p>A fitted GAM is best understood by drawing the curve it learned. We ask the model to predict across the temperature range, with a rough confidence band, and lay it over the data.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid &lt;- data.frame(temp = seq(12, 36, length.out = 200))
+pr &lt;- predict(g, newdata = grid, se.fit = TRUE)
+grid$fit &lt;- pr$fit
+grid$lo  &lt;- pr$fit - 2 * pr$se.fit    # a rough 95% band
+grid$hi  &lt;- pr$fit + 2 * pr$se.fit
+
+ggplot(ice, aes(temp, sales)) +
+  geom_point(alpha = 0.4) +
+  geom_ribbon(data = grid, aes(temp, ymin = lo, ymax = hi),
+              inherit.aes = FALSE, alpha = 0.2) +
+  geom_line(data = grid, aes(temp, fit), inherit.aes = FALSE, linewidth = 1) +
+  labs(x = &quot;temperature (C)&quot;, y = &quot;ice creams sold&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is the hill: sales rise from about 103 on a cold 12 degree day to a peak near 129 around 24 degrees, then slide back to about 106 in the sweltering mid-30s. The band is narrow where days are plentiful and flares at the sparse extremes, an honest picture of where the model is sure.</p>
+
+<p>Now the one number to read off the summary: <strong>edf</strong>, the <em>effective degrees of freedom</em>. It measures how wiggly the fitted curve actually turned out. An edf near 1 means the smooth spent one straight line's worth of flexibility, so it is essentially a line; a larger edf means real curvature. Priya's <code>s(temp)</code> has edf 5.97, confirming a genuine, several-times-bending shape. To see the other extreme, fit a smooth of humidity on its own:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(summary(gam(sales ~ s(humidity), data = ice))$s.table, 3)
+#&gt;             edf Ref.df     F p-value
+#&gt; s(humidity)   1      1 0.176   0.676</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>edf = 1.00. The penalty found no curvature worth keeping in humidity's effect and collapsed the smooth all the way to a straight line. That is the beauty of it: a GAM will happily report that a relationship is linear when it is, so you never pay for flexibility you do not use.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What edf tells you</h2>
+
+<p>You fit <code>gam(y ~ s(x))</code> and the summary reports <strong>edf = 1.0</strong> for the smooth term. What does that tell you about the relationship between <code>x</code> and <code>y</code>?</p>
+<section class="exercise" data-exercise-id="GAMs-Splines-and-Smooths-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The smooth failed to fit and the term should be dropped</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The penalty flattened the smooth to a straight line: x's effect is essentially linear</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">edf = 1 means the model explains 100% of the variance</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. edf counts how much wiggliness the fit used, and edf near 1 is one straight line's worth. The data gave no reason to bend, so a linear term would do the same job.</div><div class="lesson-qfb lesson-qfb-no">edf is effective degrees of freedom, a measure of the fitted curve's flexibility, not a share of variance explained. Deviance explained and R-squared measure fit; edf measures shape.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Add a second smooth: the additive part</h2>
+
+<p>So far, one predictor. The "additive" in Generalized Additive Model is the rule for handling many: give each predictor its own smooth and <strong>add them up</strong>.</p>
+
+<p>\[ \mathbb{E}[y] = \beta_0 + f_1(x_1) + f_2(x_2) + \dots + f_p(x_p) \]</p>
+
+<p>Each \(f_j\) is a penalized smooth (or, if a predictor is best left straight, a plain linear term). Because the terms add rather than tangle together, you can plot and interpret each effect on its own, which is what keeps a GAM readable even as it bends. (The "Generalized" half means, just like a GLM, you can also swap in a different family and link, a Poisson for counts, say; later lessons use it.)</p>
+
+<p>Give Priya's model both a temperature smooth and a humidity smooth, plus a plain weekend bump. Fill in the smooth of humidity, then check.</p>
+<section class="exercise" data-exercise-id="GAMs-Splines-and-Smooths-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="s\s*\(\s*humidity"><textarea class="lesson-tryit-input" spellcheck="false">g2 &lt;- gam(sales ~ s(temp) + s(____) + weekend, data = ice)
+summary(g2)$s.table</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That fits one smooth per predictor and adds them. Notice temp bends hard (edf 3.5) while humidity stays nearly straight (edf 1.6).</span><span class="lesson-tryit-fb lesson-tryit-no">Wrap humidity in a smooth: s(humidity). Each predictor gets its own s() term, and the GAM adds them up.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">g2 &lt;- gam(sales ~ s(temp) + s(humidity) + weekend, data = ice)
+summary(g2)
+#&gt; Parametric coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 119.5419     0.8976 133.179   &lt;2e-16 ***
+#&gt; weekend       3.0278     1.7166   1.764   0.0805 .
+#&gt;
+#&gt; Approximate significance of smooth terms:
+#&gt;               edf Ref.df      F p-value
+#&gt; s(temp)     3.497  4.337 31.423  &lt;2e-16 ***
+#&gt; s(humidity) 1.634  2.037  4.102  0.0177 *
+#&gt;
+#&gt; R-sq.(adj) =  0.545   Deviance explained = 56.9%</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 7 (free PDF)</a> - "Moving Beyond Linearity": the gentle, visual introduction to splines and GAMs.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 5 and 9 (free PDF)</a> - the full math of smoothing splines and additive models.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/mgcv/index.html">mgcv on CRAN (package and manual)</a> - the reference for the package you used here: <code>s()</code>, penalties, and how lambda is chosen.</li>
+
+<li><a href="https://noamross.github.io/gams-in-r-course/">Noam Ross, GAMs in R (free interactive course)</a> - a hands-on tour of fitting and checking GAMs with mgcv.</li>
+
+<li><a href="https://doi.org/10.1214/ss/1177013604">Hastie and Tibshirani (1986), Generalized Additive Models</a> - the original paper that introduced the method.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 6 complete</h2>
+
+<p>You gave regression the ability to bend. When Priya's straight line saw nothing (R-squared 0.006, temperature not significant), a GAM using the same predictor explained 54% of her sales, because it fit the hill instead of a line. The machinery: a smooth is a spline, a weighted sum of simple basis functions; more basis functions mean more flexibility; and a wiggliness penalty, with its strength lambda chosen from the data, dials that flexibility down to exactly what the data supports. You fit one with <code>gam(sales ~ s(temp))</code> in mgcv, read the edf to see how much each term bent, and stacked several smooths into one additive, interpretable model.</p>
+
+<p>Next, Lesson 7: Choosing smoothness. You set <code>k</code> generously here and trusted the penalty, but how do you know <code>k</code> was large enough? What happens when two smooth predictors carry the same information (concurvity), and how do you tell mgcv itself whether the fit is trustworthy? You will learn to read <code>gam.check()</code> and diagnose a smooth the way you diagnose a linear model's residuals.</p>
+</section>
+
+{% endraw %}

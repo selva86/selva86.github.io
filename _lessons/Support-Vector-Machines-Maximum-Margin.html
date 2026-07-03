@@ -1,0 +1,311 @@
+---
+title: "Advanced Supervised Learning Lesson 1: Support Vector Machines and the Maximum Margin"
+description: "See why a support vector machine picks the boundary with the widest margin, meet the support vectors that define it, and fit a linear SVM in R with e1071."
+keywords: "support vector machine, SVM, maximum margin, support vectors, hyperplane, linear SVM, e1071, svm in R, soft margin, cost C"
+mathjax: true
+webr: true
+curriculum_id: "6.140.1"
+post_type: "LESSON"
+course_id: "ds-advanced-supervised"
+course_title: "Advanced Supervised Learning"
+course_lesson: "1"
+course_total: "8"
+course_landing: "R-Advanced-Supervised-Learning-Course.html"
+course_next: "Kernel-SVMs-and-the-Kernel-Trick.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "How a support vector machine separates classes with the widest possible margin."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 8</div>
+<h2>Support Vector Machines and the Maximum Margin</h2>
+
+<p>A tomato packing line measures every fruit on two cheap sensors and has to decide, in a blink, ripe or unripe. Plot a batch and the two groups sit in separate corners with an empty strip between them. You could draw all sorts of lines through that strip. A support vector machine picks one specific line: the one that runs down the exact middle of the widest empty gap, as far from both groups as it can get.</p>
+
+<p>The interactive below is a full support vector machine. Its boundary can be a straight line or, with the buttons, a bending curve. The circled points are its <strong>support vectors</strong>, the handful of examples that hold the boundary in place. This lesson builds the straight-line core (the margin and those support vectors); Lesson 2 adds the bending.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why many lines can split two clean groups, yet the widest-margin line generalizes best</li>
+
+<li>Define the margin and the maximum-margin classifier, and identify the support vectors that set it</li>
+
+<li>Fit a linear SVM in R with <code>svm()</code>, count its support vectors, and classify new cases</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can fit and read a simple classifier and know the difference between a training and a test set, you can read a scatter plot, and you have seen <code>factor()</code>.</p>
+<div class="lesson-widget" data-widget-type="kernel-svm" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Two clean groups, and too many lines</h2>
+
+<p>Let us build the packing line's data so you can see the choice for yourself. Twenty ripe tomatoes read high on <strong>redness</strong> (a 0 to 10 colour score) and high on <strong>give</strong> (millimetres the skin dents under a standard press, so softer means riper). Twenty unripe ones read low on both. Each lesson runs in a fresh R session, so we create the data right here.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(e1071)
+library(ggplot2)
+
+set.seed(1)
+n &lt;- 20
+ripe   &lt;- data.frame(redness = round(rnorm(n, 7.6, 0.6), 1),
+                     give    = round(rnorm(n, 6.6, 0.6), 1), grade = &quot;ripe&quot;)
+unripe &lt;- data.frame(redness = round(rnorm(n, 3.6, 0.6), 1),
+                     give    = round(rnorm(n, 3.2, 0.6), 1), grade = &quot;unripe&quot;)
+tomatoes &lt;- rbind(ripe, unripe)
+tomatoes$grade &lt;- factor(tomatoes$grade)
+head(tomatoes, 3)
+#&gt;   redness give grade
+#&gt; 1     7.2  7.2  ripe
+#&gt; 2     7.7  7.1  ripe
+#&gt; 3     7.1  6.6  ripe</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two groups are <strong>linearly separable</strong>: a single straight line can put every ripe tomato on one side and every unripe one on the other. The trouble is that <em>many</em> lines do this. The three dashed lines below all score a perfect zero errors on the training tomatoes, yet they clearly are not the same rule.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tomatoes, aes(redness, give, colour = grade)) +
+  geom_point(size = 3) +
+  geom_abline(slope = -1.18, intercept = 11.5, linetype = &quot;dashed&quot;) +
+  geom_abline(slope = -0.90, intercept = 10.2, linetype = &quot;dashed&quot;) +
+  geom_abline(slope = -1.60, intercept = 13.6, linetype = &quot;dashed&quot;) +
+  labs(title = &quot;Three boundaries, all correct on the training tomatoes&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Zero training errors tells you nothing about which line to trust on the <em>next</em> tomato. A line that skims right along the edge of the ripe cloud will misjudge the first slightly-off fruit that drifts toward it. We need a principled way to pick.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>The best boundary is the middle of the widest street</h2>
+
+<p>Picture driving a car down a road between two rows of parked cars. You do not hug either side; you steer down the centre, leaving the most room on both sides for a wobble. A support vector machine chooses its boundary the same way: it finds the widest empty <strong>street</strong> it can lay between the two groups and puts the boundary down the middle. The half-width of that street is the <strong>margin</strong>.</p>
+
+<p>Here is the same idea written precisely. A straight boundary is the set of points \(x = (x_1, x_2)\) that satisfy</p>
+
+<p>\[ w \cdot x + b = 0, \qquad w \cdot x = w_1 x_1 + w_2 x_2. \]</p>
+
+<p>Read that slowly. \(w = (w_1, w_2)\) is the <strong>weight vector</strong>, a direction that points straight across the boundary (perpendicular to it). \(b\) is the <strong>offset</strong>, a single number that slides the boundary toward one group or the other. The expression \(w \cdot x\) is the <strong>dot product</strong>, just the weighted sum \(w_1 x_1 + w_2 x_2\). To classify a tomato you plug in its two readings and check the sign: predict ripe when \(w \cdot x + b > 0\) and unripe when it is negative.</p>
+
+<p>We are free to rescale \(w\) and \(b\) without moving the boundary, so we fix the scale by insisting the closest tomato on each side lands exactly on \(w \cdot x + b = +1\) or \(w \cdot x + b = -1\). With that convention the width of the street works out to \(\frac{2}{\lVert w \rVert}\), where \(\lVert w \rVert = \sqrt{w_1^2 + w_2^2}\) is the length of the weight vector. Making the street as wide as possible therefore means making \(\lVert w \rVert\) as <em>small</em> as possible:</p>
+
+<p>\[ \min_{w,\,b} \tfrac{1}{2}\lVert w \rVert^2 \quad\text{subject to}\quad y_i\,(w \cdot x_i + b) \ge 1 \ \text{ for every tomato } i, \]</p>
+
+<p>where \(y_i = +1\) for a ripe tomato and \(y_i = -1\) for an unripe one. The constraint just says every tomato must sit on its own side of the street with room to spare. Let us solve exactly that on the real data. The <code>svm()</code> fit hands the answer back in pieces: <code>fit$SV</code> is the set of borderline tomatoes it kept and <code>fit$coefs</code> their signed weights, so we combine those to rebuild the weight vector \(w\), and read the offset \(b\) straight off the fit.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- svm(grade ~ redness + give, data = tomatoes,
+           kernel = &quot;linear&quot;, cost = 10, scale = FALSE)
+
+w &lt;- drop(t(fit$coefs) %*% fit$SV)   # the weight vector (redness, give)
+b &lt;- -fit$rho                        # the offset
+w
+#&gt; redness    give
+#&gt;   0.476   0.454
+round(b, 3)
+#&gt; [1] -4.994
+length(fit$index)                    # how many points define the boundary?
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slope &lt;- -w[&quot;redness&quot;] / w[&quot;give&quot;]
+svs   &lt;- tomatoes[fit$index, ]       # the support vectors, to circle them
+
+ggplot(tomatoes, aes(redness, give, colour = grade)) +
+  geom_abline(slope = slope, intercept =  -b      / w[&quot;give&quot;]) +                    # boundary
+  geom_abline(slope = slope, intercept = ( 1 - b) / w[&quot;give&quot;], linetype = &quot;dashed&quot;) + # +1 margin
+  geom_abline(slope = slope, intercept = (-1 - b) / w[&quot;give&quot;], linetype = &quot;dashed&quot;) + # -1 margin
+  geom_point(size = 3) +
+  geom_point(data = svs, shape = 21, size = 6, stroke = 1.3, colour = &quot;black&quot;) +
+  labs(title = &quot;The maximum-margin boundary (solid) and its street (dashed)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The solid line is the boundary; the two dashed lines are the edges of the street. Notice the picture chose the <em>most centred</em> of all the separating lines, and that the whole thing rests on just the ringed points.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which boundary would you trust?</h2>
+
+<p>Boundary A skims right along the edge of the ripe cloud. Boundary B sits in the middle of the empty gap with a wide margin on both sides. Both make <strong>zero</strong> errors on the training tomatoes. A new, slightly-overripe tomato arrives a little greener and firmer than usual, drifting toward the gap. Which boundary is more likely to still label it correctly?</p>
+<section class="exercise" data-exercise-id="Support-Vector-Machines-Maximum-Margin-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Boundary B, because a wide margin leaves room for a new point to vary before it crosses the line</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Boundary A, because hugging the ripe cloud fits the training tomatoes more tightly</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither, since both had zero training errors they must behave identically on new data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Both fit the training data perfectly, so training accuracy cannot separate them. The wider margin is a buffer against exactly this kind of drift, which is why the maximum-margin choice generalizes better.</div><div class="lesson-qfb lesson-qfb-no">Equal training accuracy, different margins. The margin is precisely the thing that distinguishes them on unseen tomatoes.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">The key insight</div>
+<h2>Support vectors: the points that hold up the boundary</h2>
+
+<p>Look again at the fit: out of forty tomatoes, only <strong>2</strong> determined the boundary. Those two, one ripe and one unripe, are the closest fruit to the street on each side. They are the <strong>support vectors</strong>.</p>
+
+<p>The maths says exactly why. The constraint \(y_i\,(w \cdot x_i + b) \ge 1\) is a strict inequality for tomatoes comfortably on their own side, but it holds with <strong>equality</strong>, \(y_i\,(w \cdot x_i + b) = 1\), for the points sitting right on a margin edge. Only those touching points enter the solution. In fact the weight vector comes out as a weighted sum of the support vectors alone,</p>
+
+<p>\[ w = \sum_{i \,\in\, \text{SV}} \alpha_i\, y_i\, x_i, \qquad \alpha_i > 0 \ \text{only for support vectors}, \]</p>
+
+<p>and \(\alpha_i = 0\) for every other tomato. Here \(\alpha_i\) is the weight the fit assigns to tomato \(i\). Since the non-support-vectors are multiplied by zero, they literally drop out of the formula: you could delete or shove any of them (as long as it stays on its side of the street) and the boundary would not budge.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">An SVM boundary depends only on a few borderline points. This is the opposite of a regression line, where every point tugs on the fit. Drag the buttons below and watch the circled support vectors: they are the only examples the boundary actually leans on.</div></div>
+
+<p>This interactive uses a different pair of measurements from our tomatoes (an inner group wrapped by an outer ring), but the three things to watch are the same everywhere: the boundary, the margin around it, and the circled support vectors that pin it in place. Keep it on <strong>Linear</strong> for now; the curved kernels are Lesson 2.</p>
+<div class="lesson-widget" data-widget-type="kernel-svm" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Fit the boundary yourself</h2>
+
+<p>The <code>svm()</code> function from the <code>e1071</code> package fits the whole thing for you. The <code>kernel = &quot;linear&quot;</code> argument asks for a straight boundary, which is the maximum-margin classifier we just derived. Fill in the blank, then read how many support vectors hold up the result.</p>
+<section class="exercise" data-exercise-id="Support-Vector-Machines-Maximum-Margin-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="kernel\s*=\s*\S*linear"><textarea class="lesson-tryit-input" spellcheck="false">fit &lt;- svm(grade ~ redness + give, data = tomatoes,
+           kernel = ____, cost = 10, scale = FALSE)
+length(fit$index)   # support vectors that define the boundary</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That fits the linear (maximum-margin) SVM. It leans on just 2 support vectors here.</span><span class="lesson-tryit-fb lesson-tryit-no">Ask for a straight boundary with kernel = "linear" (a string, in quotes).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">fit &lt;- svm(grade ~ redness + give, data = tomatoes,
+           kernel = &quot;linear&quot;, cost = 10, scale = FALSE)
+length(fit$index)
+#&gt; [1] 2
+
+# use the fitted rule on two new tomatoes
+new_tomatoes &lt;- data.frame(redness = c(8.0, 4.0), give = c(6.8, 3.0))
+predict(fit, newdata = new_tomatoes)
+#&gt;      1      2
+#&gt;   ripe unripe
+#&gt; Levels: ripe unripe</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Move a point that is not a support vector</h2>
+
+<p>Your fit leans on 2 support vectors, the two tomatoes nearest the boundary. Now you edit a <strong>different</strong> tomato, one sitting deep inside the ripe cloud far from the street, and push it even further into ripe territory. You refit. What happens to the boundary?</p>
+<section class="exercise" data-exercise-id="Support-Vector-Machines-Maximum-Margin-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing changes: only the support vectors on the margin edges set the boundary, and this point is not one of them</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The boundary shifts toward the moved point, because every training row pulls on the fit</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The margin widens, because the ripe cloud is now more spread out</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Its weight in the solution is zero, so it drops out of the formula for the boundary. Moving it (while it stays on its side) leaves the fit untouched.</div><div class="lesson-qfb lesson-qfb-no">The margin is set by the closest point of each class. A point moving further from the street does not touch the closest points, so the margin is unchanged.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The honest limits</div>
+<h2>When the classes overlap: the soft margin</h2>
+
+<p>Real tomatoes are messier than our clean demo. Some ripe fruit is oddly firm, some unripe fruit oddly red, and the two clouds bleed into each other with no perfectly empty street to find. A hard demand that every point sit outside the margin would then have no solution at all.</p>
+
+<p>The fix is the <strong>soft margin</strong>. We give each tomato a little slack \(\xi_i \ge 0\) (pronounced "ksi"), the amount by which it is allowed to intrude into, or across, the street, and we relax the constraint to \(y_i\,(w \cdot x_i + b) \ge 1 - \xi_i\). We then pay for that slack:</p>
+
+<p>\[ \min_{w,\,b,\,\xi} \ \tfrac{1}{2}\lVert w \rVert^2 + C \sum_i \xi_i, \qquad \xi_i \ge 0. \]</p>
+
+<p>The <strong>cost</strong> \(C\) sets the exchange rate between a wide margin and letting points misbehave. A large \(C\) punishes every violation hard, so the fit keeps a narrow, strict margin. A small \(C\) shrugs off violations to buy a wider, calmer margin. Watch it on our data.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># lower cost = wider, more forgiving margin = more support vectors
+low_cost  &lt;- svm(grade ~ redness + give, data = tomatoes, kernel = &quot;linear&quot;,
+                 cost = 0.1, scale = FALSE)
+high_cost &lt;- svm(grade ~ redness + give, data = tomatoes, kernel = &quot;linear&quot;,
+                 cost = 10,  scale = FALSE)
+c(cost_0.1 = length(low_cost$index), cost_10 = length(high_cost$index))
+#&gt; cost_0.1  cost_10
+#&gt;        6        2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Dropping \(C\) from 10 to 0.1 widened the street, so more tomatoes ended up on or inside it and became support vectors (6 instead of 2). Choosing \(C\) well, and stretching the boundary into curves when a straight line cannot separate the classes at all, is the whole subject of Lesson 2. To preview the curved case, flip the interactive on the cover to Polynomial or RBF.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What did lowering the cost do?</h2>
+
+<p>You dropped the cost <code>C</code> from 10 to 0.1 and refit. The number of support vectors climbed from 2 to 6. What did lowering <code>C</code> do to the model?</p>
+<section class="exercise" data-exercise-id="Support-Vector-Machines-Maximum-Margin-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It widened the margin and tolerated more violations, so more points now sit on or inside the street and count as support vectors</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It made the margin stricter, forcing the boundary to fit every point exactly</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It deleted 4 tomatoes from the training data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A small C values a wide, forgiving margin over strictly separating every point, so more tomatoes land on or inside the street and enter the solution.</div><div class="lesson-qfb lesson-qfb-no">No rows are removed. C only changes the penalty on margin violations, which is why more points end up as support vectors, not fewer rows of data.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four solid places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 9 (free PDF)</a> - the gentlest full treatment of the maximum-margin classifier and SVMs.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 12 (free PDF)</a> - the deeper theory, including the optimization and the role of C.</li>
+
+<li><a href="https://doi.org/10.1007/BF00994018">Cortes and Vapnik (1995), Support-Vector Networks</a> - the paper that introduced the soft-margin SVM.</li>
+
+<li><a href="https://cran.r-project.org/package=e1071">e1071 on CRAN (the svm reference manual)</a> - the package you used here; the manual documents every argument of <code>svm()</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You saw that many lines can separate two clean groups, and that the support vector machine picks the one down the middle of the widest street. You defined the margin as \(\frac{2}{\lVert w \rVert}\), met the handful of support vectors that alone determine the boundary, fit a linear SVM in R, and learned how the cost <code>C</code> softens the margin when classes overlap.</p>
+
+<p>Next, Lesson 2: Kernel SVMs and the kernel trick. You will see how polynomial and RBF kernels bend a straight boundary into a curve that can wrap one class inside another, and how the two knobs <code>C</code> and <code>gamma</code> trade a tight fit against a smooth one.</p>
+</section>
+
+{% endraw %}

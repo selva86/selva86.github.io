@@ -1,0 +1,384 @@
+---
+title: "Advanced Supervised Learning Lesson 2: Kernel SVMs and the Kernel Trick"
+description: "See how polynomial and RBF kernels bend an SVM boundary to separate classes no straight line can, and how the cost C and gamma trade a tight fit against a smooth one."
+keywords: "kernel trick, kernel SVM, RBF kernel, radial basis function, polynomial kernel, gamma, cost C, support vector machine, e1071, svm in R, nonlinear classification"
+mathjax: true
+webr: true
+curriculum_id: "6.140.2"
+post_type: "LESSON"
+course_id: "ds-advanced-supervised"
+course_title: "Advanced Supervised Learning"
+course_lesson: "2"
+course_total: "8"
+course_landing: "R-Advanced-Supervised-Learning-Course.html"
+course_next: "Regularized-Discriminant-Analysis.html"
+course_prev: "Support-Vector-Machines-Maximum-Margin.html"
+lesson_access: "pro"
+catalog_blurb: "How kernels bend the boundary to separate classes a straight line cannot."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 8</div>
+<h2>Kernel SVMs and the Kernel Trick</h2>
+
+<p>In Lesson 1 the ripe and unripe tomatoes sat in two tidy corners, and a straight line down the middle of the widest gap sorted them. Real data is rarely that polite. Sometimes one class completely surrounds another, and then no straight line can ever separate them, whatever cost <code>C</code> you choose. You will meet exactly that shape in a minute: an espresso bar whose good shots cluster in a tight sweet spot while the bad ones ring the outside, a bullseye no straight line can split.</p>
+
+<p>This lesson shows the idea that rescued the support vector machine: the <strong>kernel trick</strong>. It lets an SVM bend its boundary into a curve that wraps one class inside another, without ever leaving the two measurements you started with. The interactive below is that same machine from Lesson 1; press Polynomial or RBF and watch the straight line become a closed curve.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why some classes cannot be split by any straight line, no matter how large <code>C</code> is</li>
+
+<li>Describe the kernel trick: lifting data into a higher-dimensional space where a flat boundary works, using only dot products</li>
+
+<li>Tell the polynomial and RBF kernels apart, and tune the two dials <code>C</code> and <code>gamma</code> that trade a tight fit against a smooth one</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 (the maximum margin, support vectors, and the cost <code>C</code>), and you can read a scatter plot.</p>
+<div class="lesson-widget" data-widget-type="kernel-svm" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Two dials, and a gap no line can cross</h2>
+
+<p>Picture an espresso bar. Every shot is set by two dials: the <strong>grind</strong> (how fine, on a 1 to 30 setting) and the <strong>shot time</strong> (seconds the pump runs). A shot tastes <strong>good</strong> only in a narrow sweet spot near grind 15 and time 28. Drift too far in any direction, too coarse or too fine, too fast or too slow, and it tastes <strong>bad</strong>. So the good shots cluster in the middle, and the bad shots ring the outside.</p>
+
+<p>Each lesson runs in a fresh R session, so we build that log right here.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(e1071)
+library(ggplot2)
+
+set.seed(1)
+sweet_grind &lt;- 15   # the ideal grind setting (higher = finer)
+sweet_time  &lt;- 28   # the ideal shot time in seconds
+
+# 24 good shots near the sweet spot; 36 bad shots in a ring around it
+ang &lt;- runif(60, 0, 2 * pi)
+rad &lt;- c(runif(24, 0, 1.1), 2.2 + runif(36, 0, 1.0))
+shots &lt;- data.frame(
+  grind = round(sweet_grind + rad * cos(ang) * 2.4, 1),
+  time  = round(sweet_time  + rad * sin(ang) * 2.4, 1),
+  taste = factor(c(rep(&quot;good&quot;, 24), rep(&quot;bad&quot;, 36)))
+)
+table(shots$taste)
+#&gt;
+#&gt;  bad good
+#&gt;   36   24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plot the two dials against each other and the shape is unmistakable: a good blob, wrapped by a bad ring.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(shots, aes(grind, time, colour = taste)) +
+  geom_point(size = 3) +
+  labs(title = &quot;Good shots sit in a central blob; bad shots ring the outside&quot;,
+       x = &quot;grind setting&quot;, y = &quot;shot time (seconds)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now ask Lesson 1's linear SVM to separate them. It draws the best straight line it can, and it is hopeless: a line can put a ring on one side and its centre on the other only by slicing straight through both.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lin &lt;- svm(taste ~ grind + time, data = shots, kernel = &quot;linear&quot;)
+mean(predict(lin) != shots$taste)   # fraction of shots misclassified
+#&gt; [1] 0.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Forty percent wrong on the very data it trained on. And turning up the cost <code>C</code> will not help: <code>C</code> only makes a straight boundary stricter or softer, it can never make it curve. We need a genuinely different idea.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trick</div>
+<h2>Add a dimension, and the curve becomes a plane</h2>
+
+<p>Here is the move that fixes everything. The classes overlap hopelessly in the flat grind-vs-time picture, but they differ in one obvious way: good shots are <strong>close</strong> to the sweet spot, bad shots are <strong>far</strong>. So let us hand the model that fact directly, as a brand-new third measurement: the squared distance from the sweet spot.</p>
+
+<p>For a shot at \((\text{grind}, \text{time})\), define</p>
+
+<p>\[ z = (\text{grind} - 15)^2 + (\text{time} - 28)^2. \]</p>
+
+<p>Read it plainly: \(z\) is how far the shot sits from the sweet spot, squared. A good shot has a small \(z\); a bad shot has a large \(z\). We have just built a <strong>feature map</strong>: a function \(\varphi\) that lifts each 2-D shot up into a 3-D point \(\varphi(x) = (\text{grind}, \text{time}, z)\). Let us compute \(z\) and look at its range in each class.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shots$z &lt;- (shots$grind - sweet_grind)^2 + (shots$time - sweet_time)^2
+round(tapply(shots$z, shots$taste, max), 1)   # largest z in each class
+#&gt;  bad good
+#&gt; 58.1  6.4
+round(tapply(shots$z, shots$taste, min), 1)   # smallest z in each class
+#&gt;  bad good
+#&gt; 28.1  0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at that gap. Every good shot has \(z\) between 0.1 and 6.4; every bad shot has \(z\) between 28.1 and 58.1. In this lifted space the two classes no longer overlap at all: a single flat cut at, say, \(z = 17\) puts every point on the correct side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">threshold &lt;- 17
+pred_lift &lt;- ifelse(shots$z &lt; threshold, &quot;good&quot;, &quot;bad&quot;)
+mean(pred_lift != shots$taste)   # error of a FLAT cut in the lifted space
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Zero errors, from a flat boundary. That flat cut in 3-D, projected back down to the original grind-vs-time plane, is exactly the circle you need. <strong>Curving the boundary in 2-D is the same as drawing a flat one in a higher dimension.</strong> That is the whole idea. The only question left is a practical one: inventing the right extra features by hand is a lot of guesswork. The kernel trick automates it.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The shortcut</div>
+<h2>Kernels: the lift without the coordinates</h2>
+
+<p>Lifting points into a bigger space sounds expensive, and for a rich feature map it can be enormous. The kernel trick sidesteps the cost with one beautiful observation: <strong>the SVM never needs the lifted coordinates themselves, only the dot products between them.</strong> A dot product is a single number that measures how much two points line up: multiply their matching coordinates and add. Its decision rule for a new point \(x\) is</p>
+
+<p>\[ f(x) = \operatorname{sign}\!\Big( \sum_{i \,\in\, \text{SV}} \alpha_i\, y_i\, K(x_i, x) + b \Big), \]</p>
+
+<p>where the sum runs over the support vectors \(x_i\), \(y_i = \pm 1\) is each one's class, \(\alpha_i > 0\) is its weight, \(b\) is the offset, and \(K\) is the <strong>kernel</strong>. The kernel is defined as the dot product in the lifted space, \(K(x, x') = \varphi(x) \cdot \varphi(x')\). The trick is that for the useful feature maps we can compute \(K\) with a short formula, without ever building \(\varphi(x)\):</p>
+
+<p>\[ \begin{aligned} \text{linear:} \quad & K(x, x') = x \cdot x' \\ \text{polynomial:} \quad & K(x, x') = (\gamma\, x \cdot x' + c_0)^{d} \\ \text{RBF (Gaussian):} \quad & K(x, x') = \exp\!\big(-\gamma\, \lVert x - x' \rVert^{2}\big) \end{aligned} \]</p>
+
+<p>Here \(d\) is the polynomial <strong>degree</strong>, \(c_0\) a constant, and \(\gamma\) (gamma) a positive scaling number we will meet properly in a moment. A <strong>degree-2 polynomial</strong> kernel secretly builds the squared features \(\text{grind}^2\) and \(\text{time}^2\), the very ingredients of our \(z\), so it can draw a circle. The <strong>RBF kernel</strong> measures similarity by distance: two shots that sit close together score near 1, far-apart shots score near 0, which corresponds to a feature space with infinitely many dimensions. Watch each kernel's training error on our shots.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">err &lt;- function(k, ...) {
+  fit &lt;- svm(taste ~ grind + time, data = shots, kernel = k, ...)
+  mean(predict(fit) != shots$taste)
+}
+round(c(linear     = err(&quot;linear&quot;),
+        polynomial = err(&quot;polynomial&quot;, degree = 2, coef0 = 1),
+        radial     = err(&quot;radial&quot;)), 3)
+#&gt;     linear polynomial     radial
+#&gt;        0.4        0.0        0.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The straight line still gets 40% wrong. Both curved kernels drop to zero, and neither one ever computed a single lifted coordinate.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Swapping the kernel swaps the shape of the boundary the SVM can draw, at almost no extra cost, because everything the SVM needs is a dot product and the kernel hands it one for free. This is why the same <code>svm()</code> call solves a wildly non-linear problem just by changing <code>kernel = &quot;radial&quot;</code>.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">See it move</div>
+<h2>Watch the boundary bend</h2>
+
+<p>Here is the machine again, on a class wrapped inside a ring just like our espresso shots. Start on <strong>Linear</strong> and count how many points it gets wrong: a straight line cannot help. Switch to <strong>Polynomial</strong>, then <strong>RBF</strong>, and the boundary bends into a closed curve that wraps the inner class cleanly. The circled points are the <strong>support vectors</strong>, the handful of borderline shots the boundary actually leans on.</p>
+
+<p>Notice that the linear kernel is not broken, it is simply the wrong shape for this data. The kernel is a choice about what kinds of boundary you will allow, and here a curve is the honest one.</p>
+<div class="lesson-widget" data-widget-type="kernel-svm" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why does RBF succeed where the line fails?</h2>
+
+<p>On our espresso shots a linear SVM misclassifies 40% no matter how high we push the cost <code>C</code>, while an RBF kernel gets every shot right. What is the real reason?</p>
+<section class="exercise" data-exercise-id="Kernel-SVMs-and-the-Kernel-Trick-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">No single straight line can put a surrounded blob on one side and its ring on the other; the RBF kernel effectively bends the boundary into a closed curve</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The linear SVM just needs a much larger cost <code>C</code> to force a perfect fit</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">RBF wins because a curved kernel always uses more support vectors, and more support vectors mean higher accuracy</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The geometry is the problem, not the tuning. A kernel changes the shape of boundary the SVM can draw, so RBF can wrap the inner class in a curve that no line can imitate.</div><div class="lesson-qfb lesson-qfb-no">Support-vector count is not what drives accuracy; a badly overfit RBF also has many support vectors yet generalizes worse. RBF wins because it can represent a curved boundary at all.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The two knobs</div>
+<h2>C and gamma: fit versus smoothness</h2>
+
+<p>The RBF kernel has two dials, and together they set how tightly the boundary hugs the data. You already met the first in Lesson 1.</p>
+
+<ul>
+
+<li>**Cost <code>C</code>** is the margin softness. A large <code>C</code> punishes every misclassified point hard, so the boundary bends to fit the training data tightly (low bias, high variance). A small <code>C</code> tolerates some mistakes for a wider, calmer margin (higher bias, lower variance).</li>
+
+<li>**<code>gamma</code><strong> is the </strong>reach** of each point. In \(K(x, x') = \exp(-\gamma \lVert x - x' \rVert^2)\), a small <code>gamma</code> means each shot's influence spreads far, giving a broad, smooth boundary. A large <code>gamma</code> shrinks each shot's influence to a tiny bubble around itself, so the boundary breaks into little islands that memorize individual points.</li>
+
+</ul>
+
+<p>Let us feel <code>gamma</code> directly. We split the shots into a training and a test set, then fit the RBF SVM at three reaches and read the training error, the test error, and how many support vectors it leaned on.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+idx &lt;- sample(nrow(shots), 40)
+tr  &lt;- shots[idx, ]
+te  &lt;- shots[-idx, ]
+
+fit_gamma &lt;- function(g) {
+  m &lt;- svm(taste ~ grind + time, data = tr, kernel = &quot;radial&quot;, gamma = g, cost = 1)
+  c(train = mean(predict(m)     != tr$taste),
+    test  = mean(predict(m, te) != te$taste),
+    SVs   = length(m$index))
+}
+round(rbind(low      = fit_gamma(0.001),
+            moderate = fit_gamma(0.1),
+            high     = fit_gamma(100)), 3)
+#&gt;          train test SVs
+#&gt; low       0.45 0.30  36
+#&gt; moderate  0.00 0.00  31
+#&gt; high      0.00 0.15  40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the three rows as a story. <strong>Low gamma</strong> is so smooth it is almost a straight line again: it underfits, and both errors stay high. <strong>High gamma</strong> drives training error to zero but test error climbs, and every one of the 40 training shots has become a support vector, the signature of a model that has memorized its data. <strong>Moderate gamma</strong> sits in the sweet spot, low on both.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>gamma</code> and the RBF kernel measure distance, so they are wrecked by features on different scales. Grind runs 1 to 30 while a different feature might run in the thousands, and the big one would dominate the distance. Always scale your features first; <code>svm()</code> does this by default (<code>scale = TRUE</code>), so leave that on.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Tune both dials at once</h2>
+
+<p>Because <code>C</code> and <code>gamma</code> interact, you tune them together on a grid and let cross-validation pick the winner. The <code>tune.svm()</code> helper fits every <code>C</code> and <code>gamma</code> combination with 10-fold cross-validation and reports the best pair. Fill in a <code>gamma</code> grid that spans small to large so the search can find the right reach, then check it.</p>
+<section class="exercise" data-exercise-id="Kernel-SVMs-and-the-Kernel-Trick-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="gamma\s*=\s*c\("><textarea class="lesson-tryit-input" spellcheck="false">set.seed(1)
+tuned &lt;- tune.svm(taste ~ grind + time, data = shots,
+                  kernel = &quot;radial&quot;,
+                  cost  = c(0.1, 1, 10, 100),
+                  gamma = ____)          # a grid spanning small to large
+tuned$best.parameters</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">A grid lets cross-validation compare several reaches and pick the best; here it lands on gamma = 1, cost = 0.1.</span><span class="lesson-tryit-fb lesson-tryit-no">Give gamma a vector to search, e.g. gamma = c(0.01, 0.1, 1, 10), so tuning can compare several reaches.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(1)
+tuned &lt;- tune.svm(taste ~ grind + time, data = shots,
+                  kernel = &quot;radial&quot;,
+                  cost  = c(0.1, 1, 10, 100),
+                  gamma = c(0.01, 0.1, 1, 10))
+tuned$best.parameters
+#&gt;   gamma cost
+#&gt; 3     1  0.1</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the overfit</h2>
+
+<p>You fit an RBF SVM with a very large <code>gamma</code>. Training error drops to 0, but test error climbs and nearly every training shot has become a support vector. What happened?</p>
+<section class="exercise" data-exercise-id="Kernel-SVMs-and-the-Kernel-Trick-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Large gamma shrank each shot's reach to a tiny bubble, so the model memorized individual points instead of learning the region: classic overfitting</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Large gamma widened each shot's influence, giving a boundary so smooth it underfits</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The model has high bias and needs an even larger gamma to bring the test error down</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Zero training error with rising test error and almost every point a support vector is the textbook high-variance signature. The fix is a smaller gamma, found by cross-validation.</div><div class="lesson-qfb lesson-qfb-no">Zero train error with high test error is high <em>variance</em>, not bias. Pushing gamma higher makes it worse; lowering it (via a grid search) is the cure.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>Where kernel SVMs shine, and where they do not</h2>
+
+<p>A kernel SVM is one of the sharpest classifiers you can reach for on small and medium data, but it is not a default for everything. Knowing its edges is what separates picking it on purpose from picking it out of habit.</p>
+
+<p><strong>Strengths</strong></p>
+
+<ul>
+
+<li>Draws highly non-linear boundaries from just a few measurements, via the kernel</li>
+
+<li>The boundary rests on only the support vectors, so it is insensitive to points far from the margin</li>
+
+<li>Strong accuracy on small to medium datasets once <code>C</code> and <code>gamma</code> are tuned</li>
+
+</ul>
+
+<p><strong>Limits</strong></p>
+
+<ul>
+
+<li>You must scale features and tune <code>C</code> and <code>gamma</code>; an untuned RBF SVM is easy to overfit</li>
+
+<li>Training cost grows steeply with the number of rows, so it struggles on very large data</li>
+
+<li>It outputs a decision, not a calibrated probability, without extra work</li>
+
+<li>With mixed feature types or many rows, gradient-boosted trees or a random forest are often the easier win</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four solid places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 9 (free PDF)</a> - the gentlest full treatment of SVMs and the kernel idea, with pictures.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 12 (free PDF)</a> - the deeper math of kernels and the RBF feature space.</li>
+
+<li><a href="https://doi.org/10.1145/130385.130401">Boser, Guyon and Vapnik (1992), A Training Algorithm for Optimal Margin Classifiers</a> - the paper that introduced the kernel trick.</li>
+
+<li><a href="https://cran.r-project.org/package=e1071">e1071 on CRAN (the svm reference manual)</a> - documents <code>kernel</code>, <code>cost</code>, <code>gamma</code>, <code>degree</code>, and <code>tune.svm()</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You saw why a straight line can be helpless, and how the kernel trick rescues it: lift the data into a space where a flat boundary works, and let the kernel supply that lift through dot products alone. You met the polynomial and RBF kernels, watched an RBF boundary wrap a class no line could, and learned that <code>C</code> and <code>gamma</code> together trade a tight fit against a smooth one, tuned on a cross-validated grid.</p>
+
+<p>Next, Lesson 3: Regularized Discriminant Analysis. When classes are many or data is thin, estimating one covariance per class (QDA) is too greedy and sharing one across all classes (LDA) is too rigid; RDA shrinks smoothly between them to find the sweet spot.</p>
+</section>
+
+{% endraw %}

@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Bayesian Modeling Lesson 8: Bayesian Regression and GLMs End to End</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="A full Bayesian regression workflow in R: priors on GLM coefficients, a Metropolis fit, posterior predictive checks, WAIC comparison, and credible intervals.">
+    <meta name="Keywords" content="bayesian regression, bayesian glm, poisson regression, log link, prior predictive check, metropolis sampler, credible interval, rate ratio, posterior predictive check, waic, brms, R">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/Bayesian-Regression-and-GLMs-End-to-End.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Preload the primary body font so first paint has IBM Plex Sans ready -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload heading font (IBM Plex Serif 700) to prevent H1 font swap -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-serif-700.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-600.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-700.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-400.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-500.woff2') format('woff2')}
+      *,*::before,*::after{box-sizing:border-box}
+      html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#0d1117;background:#fafbfc}
+      html body{font-size:18px;line-height:1.7}
+      p{margin:0 0 15px}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      @media(min-width:1200px){.container{width:1170px}}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#1d3158;border-color:#1d3158}.btn-primary:hover{background:#2c4574}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#1d3158;text-decoration:none}a:hover{text-decoration:underline}
+      /* overflow-x:clip (not hidden) so html/body don't become a
+         scrolling container, which would break position:sticky on the
+         right TOC rail under layout-v2. */
+      html,body{overflow-x:clip;max-width:100vw}
+      #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
+      .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
+      .breadcrumb-nav a{color:#6c757d;text-decoration:none}
+      .bc-sep,.breadcrumb-sep{margin:0 5px;color:#757575}
+      .bc-current,.breadcrumb-current{color:#495057;font-weight:500}
+      #content h1,#content h2,#content h3,#content h4{font-family:'IBM Plex Serif',Georgia,'Times New Roman',serif}
+      #content h1{font-weight:700;font-size:2.1em;line-height:1.2;margin:0 0 0.4em 0;letter-spacing:-0.01em;color:#0d1117}
+      #content h2{font-weight:600;font-size:1.65em;line-height:1.25;margin:2.5em 0 0.6em 0;color:#0d1117;padding-top:0.8em;padding-bottom:6px;border-top:1px solid #d8dce2}
+      #content h2:first-of-type{border-top:none;margin-top:1.5em}
+      #content p{line-height:1.75;margin-bottom:1.15em;color:#0d1117}
+      p.lead{font-size:1.1em;line-height:1.75;color:#4a5160;font-weight:400;border-left:3px solid #1d3158;padding-left:1em;margin:-4px 0 1.15em 0}
+      .site-masthead{position:sticky;top:0;z-index:30;background:rgba(250,251,252,0.92);backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid transparent;margin:0 -15px 24px;transition:border-color 0.2s}
+      .site-masthead.scrolled{border-bottom-color:#d8dce2}
+      .site-masthead-inner{max-width:1170px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:24px}
+      .masthead-menu-btn{display:none;background:none;border:1px solid #d8dce2;border-radius:6px;padding:4px 8px;font-size:18px;line-height:1;color:#4a5160;cursor:pointer}
+      .masthead-wordmark{display:inline-flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;color:#0d1117;text-decoration:none;white-space:nowrap}
+      .masthead-mark{position:relative;width:32px;height:32px;border-radius:6px;background:linear-gradient(135deg,#1c2c4f,#33508c);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-family:'IBM Plex Serif',Georgia,serif;font-style:italic;font-weight:700;font-size:19px;line-height:1;letter-spacing:-0.04em;padding-right:1px;box-shadow:0 1px 2px rgba(13,17,23,0.08),inset 0 1px 0 rgba(255,255,255,0.12)}
+      .masthead-mark::after{content:'';position:absolute;right:5px;bottom:5px;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.85)}
+      .masthead-tld{color:#757a87}
+      .masthead-nav{display:flex;gap:4px;flex:1;margin-left:8px}
+      .masthead-nav-link{font-family:'IBM Plex Sans',sans-serif;color:#4a5160;font-size:14px;font-weight:500;padding:6px 12px;border-radius:6px;text-decoration:none;transition:all 0.15s}
+      .masthead-nav-link:hover{background:#f1f3f6;color:#0d1117;text-decoration:none}
+      .masthead-nav-link.active{background:#f1f3f6;color:#0d1117}
+      .masthead-tools{display:flex;align-items:center;gap:10px;flex-shrink:0}
+      /* P7 — mock has a `/` kbd hint on the right of the search input.
+         Positioned absolutely; the input gets extra right padding so the
+         user-typed text doesn't overlap the hint. Pure visual cue — the
+         shortcut wiring is intentionally deferred (Ace editor inside
+         WebR code blocks uses `/` and would conflict). */
+      .masthead-search{margin:0;display:flex;align-items:center;position:relative}
+      .masthead-search input{height:32px;padding:6px 30px 6px 12px;font-size:13px;border:1px solid #d8dce2;border-radius:6px;background:#fff;color:#0d1117;width:160px;font-family:'IBM Plex Sans',sans-serif;transition:border-color 0.15s,box-shadow 0.15s}
+      .masthead-search .kbd-hint{
+        position:absolute;right:7px;top:50%;transform:translateY(-50%);
+        font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;
+        color:#6e7382;background:#eef1f7;border:1px solid #d8dce2;
+        border-radius:4px;padding:1px 5px;line-height:1.2;pointer-events:none;
+      }
+      html.dark .masthead-search .kbd-hint{
+        color:#9aa6c0;background:#1f2a48;border-color:#2c3a62;
+      }
+      .masthead-search input:focus{outline:none;border-color:#1d3158;box-shadow:0 0 0 3px rgba(29,49,88,0.10)}
+      .masthead-icon-btn{background:none;border:1px solid transparent;border-radius:6px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:#4a5160;cursor:pointer;transition:all 0.15s}
+      .masthead-icon-btn:hover{background:#f1f3f6;color:#0d1117}
+      .masthead-cta{display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:8px;background:linear-gradient(135deg,#1c2c4f,#33508c);color:#fff;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;font-weight:600;text-decoration:none;white-space:nowrap;transition:filter 0.15s}
+      .masthead-cta:hover{filter:brightness(1.1);color:#fff;text-decoration:none}
+      .masthead-cta:link,.masthead-cta:visited,.masthead-cta:focus,.masthead-cta:active{color:#fff}
+      html.dark .site-masthead{background:rgba(12,13,16,0.85)}
+      html.dark .site-masthead.scrolled{border-bottom-color:#262a31}
+      html.dark .masthead-wordmark{color:#e8eaee}
+      html.dark .masthead-tld{color:#6e7382}
+      html.dark .masthead-mark{background:#92a4d8}
+      html.dark .masthead-nav-link{color:#b0b5bf}
+      html.dark .masthead-nav-link:hover,html.dark .masthead-nav-link.active{background:#1a1d22;color:#e8eaee}
+      .nav-dropdown{position:relative;display:inline-block}
+      .nav-dropdown-trigger{cursor:pointer}
+      .nav-dropdown-trigger::after{content:' \25BE';font-size:10px;color:#8a8f99}
+      .nav-dropdown-panel{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 0;box-shadow:0 8px 24px rgba(13,17,23,0.10);min-width:260px;z-index:40;flex-direction:column}
+      .nav-dropdown-panel::before{content:"";position:absolute;top:-6px;left:0;right:0;height:6px}
+      .nav-dropdown:hover .nav-dropdown-panel,.nav-dropdown.open .nav-dropdown-panel{display:flex}
+      .nav-cat{position:relative;display:flex;align-items:center;justify-content:space-between;padding:7px 18px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;color:#3a3f4a;cursor:pointer;transition:background 0.1s}
+      .nav-cat:hover{background:#f1f3f6;color:#0d1117}
+      .nav-cat::after{content:' \25B8';font-size:10px;color:#8a8f99;margin-left:8px}
+      .nav-sub{display:none;position:absolute;top:0;left:100%;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 18px;box-shadow:0 8px 24px rgba(13,17,23,0.10);min-width:230px;z-index:50}
+      .nav-sub::before{content:"";position:absolute;top:0;left:-8px;bottom:0;width:8px}
+      .nav-cat:hover .nav-sub{display:block}
+      .nav-sub a{display:block;padding:5px 0;font-size:13px;color:#3a3f4a;text-decoration:none;font-weight:400;line-height:1.4}
+      .nav-sub a:hover{color:#1d3158;text-decoration:underline}
+      .nav-sub h6{margin:10px 0 4px;font-family:'IBM Plex Sans',sans-serif;font-size:10px;font-weight:600;color:#8a8f99;text-transform:uppercase;letter-spacing:0.06em}
+      .nav-sub h6:first-child{margin-top:0}
+      html.dark .nav-dropdown-panel,html.dark .nav-sub{background:#161a1f;border-color:#2a2e35;box-shadow:0 8px 24px rgba(0,0,0,0.45)}
+      html.dark .nav-cat{color:#c5cad3}
+      html.dark .nav-cat:hover{background:#1a1d22;color:#fff}
+      html.dark .nav-sub a{color:#c5cad3}
+      html.dark .nav-sub a:hover{color:#fff}
+      html.dark .nav-sub h6{color:#7a808c}
+      @media (max-width: 768px){.nav-dropdown-panel{min-width:220px;left:auto;right:0}.nav-sub{position:static;border:none;box-shadow:none;padding:6px 0 6px 16px}.nav-cat::after{content:''}}
+      html.dark .masthead-search input{background:#14161a;border-color:#262a31;color:#e8eaee}
+      html.dark .masthead-search input:focus{border-color:#92a4d8;box-shadow:0 0 0 3px rgba(146,164,216,0.15)}
+      html.dark .masthead-icon-btn{color:#b0b5bf}
+      html.dark .masthead-icon-btn:hover{background:#1a1d22;color:#e8eaee}
+      hr{height:0;box-sizing:content-box;border:0;border-top:1px solid #eee}
+      .img-zoomable{cursor:zoom-in;transition:opacity .15s}
+      .img-lightbox{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(0,0,0,.85);cursor:zoom-out;align-items:center;justify-content:center}
+      .img-lightbox.open{display:flex}
+      .img-lightbox img{max-width:95vw;max-height:95vh;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+      /* CLS prevention: sidebar component styles (match main.css final state) */
+      .sidebar-menu{margin:0;padding:0}
+      .sidebar-tabs{display:flex;gap:0;margin:4px 0 0;border-bottom:1px solid #d8dce2}
+      .sidebar-tab{flex:1;padding:9px 12px 8px;border:none;background:transparent;font:600 13px 'IBM Plex Sans',sans-serif;color:#757a87;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s}
+      .sidebar-tab.active{color:#1d3158;border-bottom-color:#1d3158}
+      .sidebar-panel{display:none;padding-top:10px}
+      .sidebar-panel.active{display:block}
+      .sidebar-tools-list{margin:0;padding:0;list-style:none}
+      .sidebar-tools-list li a{display:block;padding:5px 10px 5px 24px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-section-header{padding:7px 12px;font-size:15px;font-weight:700;color:#212529;cursor:pointer;border-radius:4px}
+      .sidebar-chevron{display:inline-block;font-size:10px;margin-right:4px;color:#757575}
+      .sidebar-section-items{display:none;padding-left:0;margin:2px 0 6px}
+      .sidebar-section.expanded .sidebar-section-items{display:block}
+      .sidebar-section-items li{line-height:1.5}
+      .sidebar-section-items li a{display:block;padding:4px 10px 4px 32px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-divider{margin:12px 0 2px;padding:0 12px 4px 24px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f0f2f5;list-style:none}
+      .sidebar-divider:first-child{margin-top:4px}
+      .progress-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #d1d5db;margin-right:7px;vertical-align:middle;flex-shrink:0;position:relative}
+      /* Empty progress-dot (no status class) reads as an unchecked todo /
+         disabled radio next to every sidebar item — visual noise that doesn't
+         belong in a nav. Reserve the layout slot but hide the circle until
+         the item actually has progress. visibility:hidden (not display:none)
+         keeps the width stable when state flips. */
+      .progress-dot:not(.started):not(.visited):not(.completed){visibility:hidden}
+      /* CLS prevention: TOC sidebar matches main.css final state */
+      #toc-wrapper{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding-left:14px;border-left:1px solid #e9ecef}
+      .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6c757d;margin-bottom:10px;padding-bottom:0}
+      #toc{margin:0;padding:0}
+      #toc li{line-height:1.45;margin-bottom:1px}
+      #toc li a{font-size:13.5px;color:#6c757d;text-decoration:none;display:block;padding:3px 0;border-left:2px solid transparent;padding-left:8px;margin-left:-15px}
+      #toc li a.toc-active{color:#1d3158;font-weight:600;border-left-color:#1d3158}
+      /* CLS prevention: engagement strip layout (matches engagement.css) */
+      .engagement-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#64748b;letter-spacing:0.01em;margin:0.4em 0 1em;min-height:22px}
+      .engagement-header:empty{display:none}
+      /* CLS prevention: progress bar space (matches engagement.css) */
+      .engagement-progress{min-height:32px;margin:1.2em 0 1.6em}
+      /* CLS prevention: WebR editor min-height so the static→textarea swap doesn't shift layout */
+      .webr-editor{min-height:60px}
+      /* CLS prevention: images in content always reserve aspect ratio */
+      #content img{max-width:100%;height:auto}
+
+      /* =====================================================
+         LAYOUT V2 (opt-in via body.layout-v2). Retry 2026-05-29.
+         Differences from the first attempt:
+           1. Sidebar columns use clamp(180px, 16vw, 260px) so they
+              SHRINK on narrow viewports (first attempt used minmax
+              which pinned both sides at 260px, squeezing content on
+              typical laptops to ~460px).
+           2. Sidebar links get overflow-wrap so long tutorial titles
+              don't escape the narrower column.
+           3. min-width:0 on every grid child so they can shrink.
+           4. Right TOC breakpoint raised from 1100px -> 1280px so it
+              only shows when the viewport can actually afford it.
+           5. The inline-code background restyle is dropped - kept
+              current syntax-highlighter behavior.
+         All rules scoped under body.layout-v2 so pages without it
+         render identically.
+         ===================================================== */
+      body.layout-v2{
+        --lv2-bg:#f8f9fb;--lv2-card:#fff;--lv2-ink:#0d1117;
+        --lv2-mut:#4b5260;--lv2-faint:#5b6573;
+        --lv2-navy:#1c2c4f;--lv2-navy-h:#2d4173;--lv2-navy-soft:#eef1f7;
+        --lv2-accent:#2056d2;--lv2-accent-soft:#e9efff;
+        --lv2-line:#e4e7ee;--lv2-border:#d4d9e3;
+        --lv2-green:#15803d;
+        background:var(--lv2-bg);color:var(--lv2-ink);
+      }
+      html.dark body.layout-v2{
+        --lv2-bg:#0a0f1c;--lv2-card:#0f1525;--lv2-ink:#eef2fa;
+        --lv2-mut:#a5afc4;--lv2-faint:#9aa6c0;
+        --lv2-navy:#5170b3;--lv2-navy-h:#6587c4;--lv2-navy-soft:#192240;
+        --lv2-accent:#7faaff;--lv2-accent-soft:#1a2748;
+        --lv2-line:#1f2a48;--lv2-border:#2c3a62;
+      }
+
+      /* Wider container; clamp-based grid that scales with viewport.
+         width:auto is REQUIRED because the base critical CSS has
+         @media(min-width:1200px){.container{width:1170px}} which would
+         otherwise pin width to 1170 and ignore max-width:1340. */
+      body.layout-v2 .container{max-width:1340px;width:auto;padding:0 22px}
+      body.layout-v2 .site-masthead-inner{max-width:1340px}
+      /* The legacy .site-masthead has margin:0 -15px to cancel the
+         Bootstrap .container padding of 15px. Under layout-v2 the
+         container padding is 22px, so the negative margin leaves a
+         7px inset. Zero it so the masthead aligns flush with the
+         article shell. */
+      body.layout-v2 .site-masthead{margin-left:0;margin-right:0}
+      body.layout-v2 .row{
+        display:grid;
+        grid-template-columns:
+          clamp(180px, 16vw, 260px)
+          minmax(0, 1fr)
+          clamp(180px, 16vw, 260px);
+        gap:0;margin-left:0;margin-right:0;
+      }
+      /* Bootstrap inserts .row::before AND .row::after pseudo-elements
+         (content:" "; display:table) as a clearfix. Under display:grid
+         these pseudos count as grid items. ::before grabs col 1, pushing
+         every real child one column to the right and wrapping the last
+         child to a new row. The 2026-05-29 first attempt only disabled
+         ::after, resulting in nav in col 2, content in col 3, and toc
+         wrapping to a new row at col 1 (the bug the user reported as
+         "sidebar wide, content narrow"). BOTH pseudos must be killed. */
+      body.layout-v2 .row::before,
+      body.layout-v2 .row::after{display:none;content:none}
+      /* min-width:0 lets grid children shrink below their content's
+         intrinsic min-width; without this, long unbreakable text in any
+         child forces the column wider than the grid template intended. */
+      /* Drop Bootstrap's float and width on the legacy .col-sm-* hooks
+         so the parent .row's CSS grid owns sizing. DO NOT zero horizontal
+         padding here — per-column padding lives in the dedicated rules
+         below (sidebar, main#content, #toc-sidebar) and gives the article
+         the 44px breathing room the mock has. */
+      body.layout-v2 #nav.col-sm-3,
+      body.layout-v2 main#content.col-sm-7,
+      body.layout-v2 #toc-sidebar.col-sm-2{
+        width:auto!important;float:none!important;
+        min-width:0;min-height:0;
+      }
+      body.layout-v2 #nav.col-sm-3{
+        padding:14px 10px 40px;border-right:1px solid var(--lv2-line);
+        position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto;
+      }
+      /* Inner #sidebar-nav had its own sticky + overflow from the legacy critical
+         CSS; under layout-v2 the outer #nav owns scrolling, so flatten the inner
+         one to avoid a double scrollbar. */
+      body.layout-v2 #sidebar-nav{
+        position:static;max-height:none;overflow:visible;padding:0;
+      }
+      /* Wrap long tutorial titles in the sidebar so they never overflow */
+      body.layout-v2 #nav a,
+      body.layout-v2 #nav span,
+      body.layout-v2 #sidebar-nav a,
+      body.layout-v2 #sidebar-nav li{
+        overflow-wrap:break-word;word-break:break-word;
+      }
+      body.layout-v2 main#content{padding:24px 44px 60px}
+
+      /* S3 — Code-block bottom spacing.
+         Default .webr-container margin is 22/22; the dark block visually
+         carries a lot of weight, so the next paragraph reads as cramped.
+         Lift bottom to 30px under layout-v2. */
+      body.layout-v2 #content .webr-container{margin-bottom:30px}
+
+      /* S7 — Further Reading: convert auto-injected <ul> to a 2-column
+         card grid that matches the .rt-grid pattern used elsewhere.
+         No HTML/auto_link.py changes needed — pure CSS. */
+      body.layout-v2 #content #auto-further-reading .further-reading-list{
+        list-style:none;padding:0;margin:14px 0 0;
+        display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
+      }
+      body.layout-v2 #content #auto-further-reading .further-reading-list li{margin:0}
+      body.layout-v2 #content #auto-further-reading .further-reading-list li a{
+        display:block;padding:14px 16px;
+        background:var(--lv2-card);border:1px solid var(--lv2-border);
+        border-radius:8px;color:var(--lv2-ink);
+        font-weight:500;font-size:15px;line-height:1.4;
+        text-decoration:none;
+        transition:border-color .15s,background .15s,transform .15s;
+      }
+      body.layout-v2 #content #auto-further-reading .further-reading-list li a:hover{
+        border-color:var(--lv2-accent);background:var(--lv2-accent-soft);
+        text-decoration:none;transform:translateY(-1px);
+      }
+      @media(max-width:820px){
+        body.layout-v2 #content #auto-further-reading .further-reading-list{
+          grid-template-columns:1fr;
+        }
+      }
+      body.layout-v2 #toc-sidebar{padding:24px 18px;position:sticky;top:74px;align-self:start}
+      @media(max-width:1280px){
+        body.layout-v2 .row{grid-template-columns:clamp(180px, 18vw, 260px) minmax(0,1fr)}
+        body.layout-v2 #toc-sidebar{display:none}
+      }
+      @media(max-width:820px){
+        body.layout-v2 .row{grid-template-columns:1fr}
+        body.layout-v2 #nav{display:none}
+        body.layout-v2 main#content{padding:20px}
+      }
+
+      /* Typography refresh - sized to mock spec */
+      body.layout-v2 #content{
+        font-size:16.5px;line-height:1.7;color:var(--lv2-ink);
+        font-feature-settings:"tnum","ss01","cv11";text-rendering:optimizeLegibility;
+      }
+      body.layout-v2 #content p{line-height:1.7;margin:13px 0;color:var(--lv2-ink);text-wrap:pretty}
+      body.layout-v2 #content h1{
+        font-size:38px;font-weight:700;line-height:1.2;letter-spacing:-0.018em;
+        margin:10px 0 13px;text-wrap:balance;color:var(--lv2-ink);
+      }
+      /* H2: hairline divider + breathing room above. Mock breaks each
+         section with a top rule and ~48px space; staging used 34px and no
+         divider, leaving sections to blur together. :first-of-type keeps
+         the very first H2 flush with the actionbar (no double divider). */
+      body.layout-v2 #content h2{
+        font-size:25px;font-weight:600;line-height:1.25;letter-spacing:-0.018em;
+        margin:48px 0 12px;padding-top:32px;border-top:1px solid var(--lv2-line);
+        text-wrap:balance;color:var(--lv2-ink);
+      }
+      body.layout-v2 #content h2:first-of-type{
+        margin-top:24px;padding-top:0;border-top:none;
+      }
+      body.layout-v2 #content h3,body.layout-v2 #content h4{
+        font-size:18px;font-weight:600;line-height:1.3;margin:24px 0 8px;text-wrap:balance;color:var(--lv2-ink);
+      }
+      /* Specificity bump: `body.layout-v2 #content p` (1 id + 1 class
+         + 2 elements) was beating `body.layout-v2 p.lead` (2 classes +
+         2 elements) and forcing the dek to var(--lv2-ink) instead of
+         var(--lv2-mut). Adding #content here matches that specificity. */
+      body.layout-v2 #content p.lead{
+        font-size:18.5px;line-height:1.6;color:var(--lv2-mut);
+        border-left:3px solid var(--lv2-navy);padding-left:17px;margin:-2px 0 20px;font-weight:400;
+      }
+
+      /* Body link color: legacy a{color:#1d3158} and Bootstrap .text-muted
+         leave inline links almost indistinguishable from body text. Use
+         the mock accent so links are obviously clickable. Excludes
+         buttons, cards, prev/next nav, and TOC items which have their
+         own palette. */
+      body.layout-v2 #content a:not(.btn):not(.rt-card):not(.pn-link):not(.lv2-anchor):not([class*="toc"]){
+        color:var(--lv2-accent);
+      }
+      body.layout-v2 #content a:not(.btn):not(.rt-card):not(.pn-link):not(.lv2-anchor):not([class*="toc"]):hover{
+        text-decoration:underline;
+      }
+
+      /* Inline <code> palette: match the mock's navy-soft tint instead
+         of the legacy purple-blue (#eef vs #eef1f7). */
+      body.layout-v2 #content :not(pre) > code{
+        background:var(--lv2-navy-soft);color:var(--lv2-ink);
+        border-radius:4px;padding:2px 5px;font-size:0.92em;
+      }
+
+      /* TOC right rail */
+      body.layout-v2 #toc-sidebar .toc-title{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--lv2-faint);margin-bottom:9px}
+      body.layout-v2 #toc{font-size:13px}
+      body.layout-v2 #toc li{margin:0;line-height:1.45}
+      body.layout-v2 #toc li a{
+        display:block;padding:5px 0 5px 11px;
+        border-left:2px solid var(--lv2-line);
+        color:var(--lv2-faint);font-size:13px;
+        transition:color .15s,border-color .15s;
+      }
+      body.layout-v2 #toc li a:hover{color:var(--lv2-ink)}
+      body.layout-v2 #toc li a.toc-active{
+        border-left-color:var(--lv2-navy);color:var(--lv2-ink);font-weight:600;
+      }
+
+      /* Reading progress bar - uses transform:scaleX so we don't fight any
+         containing-block / overflow quirks that can pin a width-% bar to 0. */
+      .lv2-progress{
+        position:fixed;top:0;left:0;width:100vw;height:3px;
+        background:var(--lv2-accent,#2056d2);z-index:90;
+        transform:scaleX(0);transform-origin:left center;
+        transition:transform .1s ease-out;pointer-events:none;
+      }
+
+      /* Heading anchor links (hover-reveal) */
+      body.layout-v2 #content h2,
+      body.layout-v2 #content h3,
+      body.layout-v2 #content h4{position:relative}
+      body.layout-v2 .lv2-anchor{
+        position:absolute;left:-26px;top:50%;transform:translateY(-50%);
+        font-size:.55em;color:var(--lv2-faint);text-decoration:none;
+        opacity:0;transition:opacity .15s,color .15s;
+        cursor:pointer;padding:4px 6px;line-height:1;font-weight:400;
+      }
+      body.layout-v2 #content h2:hover .lv2-anchor,
+      body.layout-v2 #content h3:hover .lv2-anchor,
+      body.layout-v2 #content h4:hover .lv2-anchor,
+      body.layout-v2 .lv2-anchor:focus-visible{opacity:1}
+      body.layout-v2 .lv2-anchor:hover{color:var(--lv2-accent)}
+      @media(max-width:820px){body.layout-v2 .lv2-anchor{left:0;top:-22px;transform:none}}
+
+      /* Focus ring refresh */
+      body.layout-v2 a:focus-visible,
+      body.layout-v2 button:focus-visible,
+      body.layout-v2 input:focus-visible,
+      body.layout-v2 textarea:focus-visible{
+        outline:none;
+        box-shadow:0 0 0 3px rgba(32,86,210,.22);
+        border-radius:4px;
+      }
+      html.dark body.layout-v2 a:focus-visible,
+      html.dark body.layout-v2 button:focus-visible,
+      html.dark body.layout-v2 input:focus-visible{box-shadow:0 0 0 3px rgba(127,170,255,.22)}
+
+      /* Reduced motion: shut everything down for users who request it */
+      @media (prefers-reduced-motion: reduce){
+        body.layout-v2 *,body.layout-v2 *::before,body.layout-v2 *::after{
+          animation-duration:0.01ms!important;
+          animation-iteration-count:1!important;
+          transition-duration:0.01ms!important;
+          scroll-behavior:auto!important;
+        }
+      }
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
+    <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.min.css?h=026681ec" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.min.css?h=026681ec" rel="stylesheet"></noscript>
+    <style>
+      a{color:#1d3158}a:hover{text-decoration:underline}
+      li{line-height:1.65}
+      .MathJax_Display{margin:0}
+      blockquote p{line-height:1.75;color:#717171}
+      /* engagement.js renders a meta strip into .engagement-header that
+         duplicates the byline (difficulty + time). Hide it; saved-posts-
+         button.js reads the data-* attrs directly for the byline. */
+      .engagement-header{display:none!important}
+      /* Byline (saved-posts widget rebuilds this after H1+lead, mock-style) */
+      .byline{display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+        font-size:13.5px;color:#4b5260;margin:6px 0 16px;line-height:1.5}
+      /* P1 — bump avatar 26→30 to match mock visual weight. */
+      .byline .av-sm{width:30px;height:30px;border-radius:50%;
+        background:linear-gradient(135deg,#1c2c4f,#2d4173);color:#fff;
+        display:inline-flex;align-items:center;justify-content:center;
+        font-weight:700;font-size:12px;flex:none;letter-spacing:.02em}
+      .byline .who{color:#0d1117;font-weight:600}
+      .byline .dot{color:#c0c5cf}
+      .byline .rev{color:#137a3e;font-weight:600;display:inline-flex;align-items:center;gap:4px}
+      .byline .time{display:inline-flex;align-items:center;gap:4px;color:#6b7280}
+      .byline .diff{font-size:10.5px;font-weight:700;text-transform:uppercase;
+        letter-spacing:.05em;background:#eef1f7;color:#4b5260;
+        padding:3px 8px;border-radius:999px;margin-left:2px}
+
+      /* Action bar (saved-posts widget injects this after byline) */
+      .actionbar{display:flex;align-items:center;gap:9px;margin:10px 0 26px;padding:12px 0;
+        border-top:1px solid #e4e7ee;border-bottom:1px solid #e4e7ee;flex-wrap:wrap}
+      .actionbar .act{display:inline-flex;align-items:center;gap:6px;border:1px solid #d4d9e3;
+        background:#fff;border-radius:9px;padding:7px 12px;font-size:13px;font-weight:600;
+        color:#4b5260;cursor:pointer;font-family:inherit;
+        transition:border-color .15s,color .15s,background .15s}
+      .actionbar .act:hover{border-color:#0a0d14;color:#0a0d14}
+      .actionbar .act.bookmark-btn[data-saved="1"]{background:#fef3c7;border-color:#f59e0b;color:#92400e}
+      .actionbar .act.bookmark-btn[data-saved="1"] svg{fill:#f59e0b}
+      .actionbar .act:disabled{opacity:.55;cursor:wait}
+      .actionbar-sync{margin-left:auto;font-size:12px;color:#6b7280}
+      .actionbar-sync a{color:#2056d2;font-weight:600;text-decoration:none}
+      .actionbar-sync a:hover{text-decoration:underline}
+
+      /* Dark-mode overrides for byline + actionbar. The hard-coded #0d1117
+         on .who renders invisible on the dark background; the action-bar
+         borders and surfaces also need to flip. Tokens (--lv2-ink, --lv2-mut,
+         --lv2-line, --lv2-card) already swap under html.dark body.layout-v2;
+         we just need to point the hard-coded rules at them under dark. */
+      html.dark body.layout-v2 .byline{color:var(--lv2-mut)}
+      html.dark body.layout-v2 .byline .who{color:var(--lv2-ink)}
+      html.dark body.layout-v2 .byline .dot{color:var(--lv2-faint)}
+      html.dark body.layout-v2 .byline .time{color:var(--lv2-mut)}
+      html.dark body.layout-v2 .byline .diff{background:var(--lv2-navy-soft);color:var(--lv2-mut)}
+      html.dark body.layout-v2 .actionbar{border-top-color:var(--lv2-line);border-bottom-color:var(--lv2-line)}
+      html.dark body.layout-v2 .actionbar .act{background:var(--lv2-card);border-color:var(--lv2-border);color:var(--lv2-mut)}
+      html.dark body.layout-v2 .actionbar .act:hover{border-color:var(--lv2-ink);color:var(--lv2-ink)}
+      html.dark body.layout-v2 .actionbar-sync{color:var(--lv2-mut)}
+
+      /* Toast (Share button "Link copied" feedback) */
+      .rs-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);
+        background:#0a0d14;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;
+        font-family:'IBM Plex Sans',sans-serif;z-index:1000;opacity:0;pointer-events:none;
+        transition:opacity .2s,transform .2s;box-shadow:0 8px 24px rgba(10,13,20,.25)}
+      .rs-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+      /* Auth-state visibility helpers (used by masthead variants) */
+      .auth-anon,.auth-user{display:none}
+      body.state-anon .auth-anon{display:inline-flex;align-items:center}
+      body.state-pro .auth-user{display:inline-flex;align-items:center;gap:8px}
+      .masthead-auth-link{font-family:'IBM Plex Sans',sans-serif;color:#4a5160;font-size:13.5px;font-weight:500;padding:6px 10px;border-radius:6px;text-decoration:none;transition:background .15s,color .15s;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .masthead-auth-link:hover{background:#f1f3f6;color:#0d1117;text-decoration:none}
+      html.dark .masthead-auth-link{color:#c3cad9}
+      html.dark .masthead-auth-link:hover{background:#1f242c;color:#fff}
+      .auth-signout.masthead-icon-btn{background:none;border:1px solid #d8dce2;border-radius:6px;padding:4px 9px;font-size:14px;line-height:1;color:#4a5160;cursor:pointer;transition:border-color .15s,color .15s}
+      .auth-signout.masthead-icon-btn:hover{border-color:#9a1f1f;color:#9a1f1f}
+      html.dark .auth-signout.masthead-icon-btn{border-color:#262a31;color:#c3cad9}
+      html.dark .auth-signout.masthead-icon-btn:hover{border-color:#f08989;color:#f08989}
+      @media(min-width:1200px){.container{width:1170px}}
+      #nav,#content,#toc-sidebar{box-sizing:border-box}
+      #content{padding-left:15px;padding-right:15px;overflow-wrap:break-word;word-wrap:break-word;overflow-x:clip}
+      @media(max-width:767px){#nav{display:none}.masthead-menu-btn{display:inline-flex!important}.masthead-nav{display:none}.masthead-search{display:none}.site-masthead-inner{padding:10px 16px;gap:12px}}
+      @media(max-width:400px){.masthead-name{font-size:13px}}
+      .mobile-sidebar-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.4)}
+      .mobile-sidebar-overlay.open{display:block}
+      .mobile-sidebar-panel{position:fixed;top:0;left:0;bottom:0;width:280px;background:#fff;z-index:10000;overflow-y:auto;padding:16px;box-shadow:2px 0 16px rgba(0,0,0,0.15);transform:translateX(-100%);transition:transform 0.25s ease}
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel{transform:translateX(0)}
+      .mobile-sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:#666}
+      /* Mobile top-nav drawer section */
+      .mnav-section{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #e5e7eb}
+      .mnav-section:last-child{border-bottom:none}
+      .mnav-title{font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:600;color:#8a8f99;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px}
+      .mnav-link{display:block;padding:9px 10px;color:#3a3f4a;text-decoration:none;font-size:15px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif}
+      .mnav-link:hover,.mnav-link:active{background:#f1f3f6;color:#0d1117;text-decoration:none}
+      .mnav-accordion{padding:0}
+      .mnav-accordion>summary{padding:9px 10px;cursor:pointer;font-size:15px;font-weight:500;color:#3a3f4a;list-style:none;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;display:flex;align-items:center;justify-content:space-between}
+      .mnav-accordion>summary::-webkit-details-marker{display:none}
+      .mnav-accordion>summary::after{content:'\25BE';font-size:11px;color:#8a8f99;transition:transform 0.15s}
+      .mnav-accordion[open]>summary::after{transform:rotate(180deg)}
+      .mnav-accordion>summary:hover{background:#f1f3f6}
+      .mnav-accordion-body{padding:4px 6px 8px 10px}
+      .mnav-accordion-body .mnav-link{padding:7px 8px;font-size:14px;color:#4a5160}
+      .mnav-accordion-body h6{margin:10px 0 4px 8px;font-family:'IBM Plex Sans',sans-serif;font-size:10px;font-weight:600;color:#8a8f99;text-transform:uppercase;letter-spacing:0.06em}
+      html.dark .mobile-sidebar-panel{background:#1e293b}
+      html.dark .mobile-sidebar-overlay{background:rgba(0,0,0,0.6)}
+      html.dark .mobile-sidebar-close{color:#94a3b8}
+      html.dark .mnav-section{border-bottom-color:#334155}
+      html.dark .mnav-title{color:#7a808c}
+      html.dark .mnav-link,html.dark .mnav-accordion>summary{color:#c5cad3}
+      html.dark .mnav-link:hover,html.dark .mnav-link:active,html.dark .mnav-accordion>summary:hover{background:#1a1d22;color:#fff}
+      html.dark .mnav-accordion-body .mnav-link{color:#b0b5bf}
+      html.dark .mnav-accordion-body h6{color:#7a808c}
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Bayesian Modeling Lesson 8: Bayesian Regression and GLMs End to End">
+    <meta property="og:description" content="A full Bayesian regression workflow in R: priors on GLM coefficients, a Metropolis fit, posterior predictive checks, WAIC comparison, and credible intervals.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/Bayesian-Regression-and-GLMs-End-to-End.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/Bayesian-Regression-and-GLMs-End-to-End.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Bayesian Modeling Lesson 8: Bayesian Regression and GLMs End to End">
+    <meta name="twitter:description" content="A full Bayesian regression workflow in R: priors on GLM coefficients, a Metropolis fit, posterior predictive checks, WAIC comparison, and credible intervals.">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Bayesian-Regression-and-GLMs-End-to-End.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Bayesian Modeling Lesson 8: Bayesian Regression and GLMs End to End",
+      "description": "A full Bayesian regression workflow in R: priors on GLM coefficients, a Metropolis fit, posterior predictive checks, WAIC comparison, and credible intervals.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/Bayesian-Regression-and-GLMs-End-to-End.html",
+      "datePublished": "2026-07-03",
+      "dateModified": "2026-07-03",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "Bayesian Modeling Lesson 8: Bayesian Regression and GLMs End to End", "item": "https://r-statistics.co/Bayesian-Regression-and-GLMs-End-to-End.html"}
+      ]
+    }
+    </script>
+    
+        <link rel="stylesheet" href="www/webr.min.css?h=23e578a3">
+
+    
+    
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
+    <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
+  </head>
+
+  <body class="lesson-mode" data-lesson-access="pro" data-course-id="ds-bayesian" data-course-title="Bayesian Modeling" data-course-lesson="8" data-course-total="8" data-course-landing="R-Bayesian-Modeling-Course.html" data-course-prev="Bayesian-Model-Comparison-LOO-and-WAIC.html">
+    <!-- LAYOUT V2 (default for all tutorial pages as of 2026-05-29).
+         Was previously opt-in via a V2_PAGES whitelist; reference work on
+         /R-Vectors validated the design, so it now applies unconditionally
+         to every page served from this template.
+
+         To opt a specific page OUT (e.g. landing/marketing pages that need
+         the legacy look), add `data-no-lv2` to its <body> or set
+         window.__noLv2 = true in an inline script before this block. -->
+    <script>
+      (function(){
+        if (window.__noLv2 || document.body.hasAttribute('data-no-lv2')) return;
+        document.body.classList.add('layout-v2');
+      })();
+    </script>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+
+        <!-- Top nav (mobile only) -->
+        <div class="mnav-section">
+          <h6 class="mnav-title">Navigate</h6>
+          <a class="mnav-link" href="/roadmap/">Roadmap</a>
+          <a class="mnav-link" href="/tutorials/">Tutorials</a>
+          <a class="mnav-link" href="/exercises/">Exercises</a>
+          <a class="mnav-link" href="/tools/">Tools</a>
+          <a class="mnav-link mnav-cta" href="/pricing.html">Get certified</a>
+        </div>
+
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js (curriculum nav) -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <header class="site-masthead">
+        <div class="site-masthead-inner">
+          <button id="mobile-menu-btn" class="masthead-menu-btn" aria-label="Menu">&#9776;</button>
+          <a class="masthead-wordmark" href="/">
+            <span class="masthead-mark">R</span>
+            <span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>
+          </a>
+          <nav class="masthead-nav">
+            <a class="masthead-nav-link" href="/roadmap/">Roadmap</a>
+            <a class="masthead-nav-link" href="/tutorials/">Tutorials</a>
+            <a class="masthead-nav-link" href="/exercises/">Exercises</a>
+            <a class="masthead-nav-link" href="/tools/">Tools</a>
+          </nav>
+          <div class="masthead-tools">
+            <form onsubmit="my_search_google(); return false;" class="masthead-search">
+              <input type="text" id="my-google-search" placeholder="Search…" aria-label="Search r-statistics.co">
+              <span class="kbd-hint" aria-hidden="true">/</span>
+            </form>
+            <a class="masthead-cta" href="/pricing.html">Get certified</a>
+            <button id="dark-mode-toggle" class="masthead-icon-btn" aria-label="Toggle dark mode" title="Toggle dark mode">&#9789;</button>
+            <span class="auth-anon"><a href="/signin.html" class="masthead-auth-link">Sign in</a></span>
+            <span class="auth-user"><!-- auth-hydrate.js fills with avatar + dropdown --></span>
+          </div>
+        </div>
+      </header>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav"><div class="continue-chip" data-continue-chip><span class="chip-label">Continue reading</span><a href="#" data-continue-link></a></div><div class="sidebar-tabs" role="tablist"><button class="sidebar-tab active" data-tab="posts" type="button" role="tab" onclick="var n=this.dataset.tab;document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}">Posts</button><button class="sidebar-tab" data-tab="tools" type="button" role="tab" onclick="var n=this.dataset.tab;document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}">Tools</button></div><div class="sidebar-panel active" data-panel="posts"><ul class="sidebar-menu list-unstyled"><li class="sidebar-section expanded"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Learn R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Getting Started</li><li data-subkey="sec0sub1"><a href="/Is-R-Worth-Learning-in-2026.html"><span class="progress-dot"></span>Is R Worth Learning?</a></li><li data-subkey="sec0sub1"><a href="/Install-R-and-RStudio-2026.html"><span class="progress-dot"></span>Install R &amp; RStudio</a></li><li data-subkey="sec0sub1"><a href="/RStudio-IDE-Tour.html"><span class="progress-dot"></span>RStudio IDE Tour</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec0sub2"><a href="/R-Syntax-101.html"><span class="progress-dot"></span>R Syntax 101</a></li><li data-subkey="sec0sub2"><a href="/R-Data-Types.html"><span class="progress-dot"></span>R Data Types</a></li><li data-subkey="sec0sub2"><a href="/R-Vectors.html"><span class="progress-dot"></span>R Vectors</a></li><li data-subkey="sec0sub2"><a href="/R-Matrices.html"><span class="progress-dot"></span>R Matrices</a></li><li data-subkey="sec0sub2"><a href="/R-Factors.html"><span class="progress-dot"></span>R Factors</a></li><li data-subkey="sec0sub2"><a href="/R-Data-Frames.html"><span class="progress-dot"></span>R Data Frames</a></li><li data-subkey="sec0sub2"><a href="/R-Lists.html"><span class="progress-dot"></span>R Lists</a></li><li data-subkey="sec0sub2"><a href="/R-Control-Flow.html"><span class="progress-dot"></span>R Control Flow</a></li><li data-subkey="sec0sub2"><a href="/R-Special-Values.html"><span class="progress-dot"></span>R Special Values</a></li><li data-subkey="sec0sub2"><a href="/R-Type-Coercion.html"><span class="progress-dot"></span>R Type Coercion</a></li><li data-subkey="sec0sub2"><a href="/R-Functions.html"><span class="progress-dot"></span>Writing R Functions</a></li><li data-subkey="sec0sub2"><a href="/R-Beginner-Exercises-quiz.html"><span class="progress-dot"></span>R Fundamentals Quiz</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Working Effectively</li><li data-subkey="sec0sub3"><a href="/R-Subsetting.html"><span class="progress-dot"></span>R Subsetting</a></li><li data-subkey="sec0sub3"><a href="/Getting-Help-in-R.html"><span class="progress-dot"></span>Getting Help in R</a></li><li data-subkey="sec0sub3"><a href="/R-Project-Structure.html"><span class="progress-dot"></span>R Project Structure</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Career &amp; Resources</li><li data-subkey="sec0sub4"><a href="/R-vs-Python.html"><span class="progress-dot"></span>R vs Python</a></li><li data-subkey="sec0sub4"><a href="/How-to-Learn-R.html"><span class="progress-dot"></span>How to Learn R</a></li><li data-subkey="sec0sub4"><a href="/R-for-Excel-Users.html"><span class="progress-dot"></span>R for Excel Users</a></li><li data-subkey="sec0sub4"><a href="/R-Interview-Questions.html"><span class="progress-dot"></span>R Interview Questions</a></li><li data-subkey="sec0sub4"><a href="/R-Interview-Questions-quiz.html"><span class="progress-dot"></span>R Interview Readiness Quiz</a></li><li data-subkey="sec0sub4"><a href="/R-Cheat-Sheet.html"><span class="progress-dot"></span>R Cheat Sheet</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Professional R</li><li data-subkey="sec0sub5"><a href="/Data-Ethics-in-R.html"><span class="progress-dot"></span>Data Ethics</a></li><li data-subkey="sec0sub5"><a href="/Bias-in-Data-and-Models.html"><span class="progress-dot"></span>Bias in Data &amp; Models</a></li><li data-subkey="sec0sub5"><a href="/Reproducibility-Crisis.html"><span class="progress-dot"></span>Reproducibility</a></li><li data-subkey="sec0sub5"><a href="/Data-Privacy-in-R.html"><span class="progress-dot"></span>Data Privacy</a></li><li data-subkey="sec0sub5"><a href="/Communicating-Uncertainty.html"><span class="progress-dot"></span>Communicating Uncertainty</a></li><li data-subkey="sec0sub5"><a href="/R-Foundations-Basics-Course.html"><span class="progress-dot"></span>R Foundations: The Basics (Course)</a></li><li data-subkey="sec0sub5"><a href="/R-Foundations-Structures-Course.html"><span class="progress-dot"></span>R Foundations: Data Structures (Course)</a></li><li data-subkey="sec0sub5"><a href="/R-Foundations-Programming-Course.html"><span class="progress-dot"></span>R Foundations: Programming (Course)</a></li><li data-subkey="sec0sub5"><a href="/R-Foundations-Import-Course.html"><span class="progress-dot"></span>R Foundations: Importing Data (Course)</a></li><li data-subkey="sec0sub5"><a href="/R-Foundations-Strings-Course.html"><span class="progress-dot"></span>R Foundations: Strings, Dates &amp; Factors (Course)</a></li><li data-subkey="sec0sub5"><a href="/R-Foundations-Iteration-Course.html"><span class="progress-dot"></span>R Foundations: Iteration (Course)</a></li><li data-subkey="sec0sub5"><a href="/R-Foundations-Debugging-Course.html"><span class="progress-dot"></span>R Foundations: Debugging (Course)</a></li><li data-subkey="sec0sub5"><a href="/R-Foundations-Workflow-Course.html"><span class="progress-dot"></span>R Foundations: Reproducible Workflow (Course)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Data Wrangling<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Import &amp; Setup</li><li data-subkey="sec1sub1"><a href="/Importing-Data-in-R.html"><span class="progress-dot"></span>Importing Data</a></li><li data-subkey="sec1sub1"><a href="/R-Pipe-Operator.html"><span class="progress-dot"></span>Pipe Operator</a></li><li data-subkey="sec1sub1"><a href="/Tidy-Data-in-R.html"><span class="progress-dot"></span>Tidy Data</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> dplyr Essentials</li><li data-subkey="sec1sub2"><a href="/dplyr-filter-select.html"><span class="progress-dot"></span>dplyr filter &amp; select</a></li><li data-subkey="sec1sub2"><a href="/dplyr-mutate-rename.html"><span class="progress-dot"></span>dplyr mutate &amp; rename</a></li><li data-subkey="sec1sub2"><a href="/dplyr-group-by-summarise.html"><span class="progress-dot"></span>dplyr group_by &amp; summarise</a></li><li data-subkey="sec1sub2"><a href="/dplyr-arrange-slice.html"><span class="progress-dot"></span>dplyr arrange &amp; slice</a></li><li data-subkey="sec1sub2"><a href="/dplyr-across.html"><span class="progress-dot"></span>dplyr across()</a></li><li data-subkey="sec1sub2"><a href="/dplyr-case-when.html"><span class="progress-dot"></span>dplyr case_when()</a></li><li data-subkey="sec1sub2"><a href="/dplyr-Exercises-in-R-quiz.html"><span class="progress-dot"></span>dplyr Quiz</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Join &amp; Reshape</li><li data-subkey="sec1sub3"><a href="/R-Joins.html"><span class="progress-dot"></span>R Joins</a></li><li data-subkey="sec1sub3"><a href="/pivot_longer-pivot_wider-Reshape-Data-in-R.html"><span class="progress-dot"></span>pivot_longer &amp; pivot_wider</a></li><li data-subkey="sec1sub3"><a href="/tidyr-separate-unite-Split-Combine-Columns-in-R.html"><span class="progress-dot"></span>separate() &amp; unite()</a></li><li data-subkey="sec1sub3"><a href="/tidyr-Exercises-in-R-quiz.html"><span class="progress-dot"></span>tidyr Quiz</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Clean &amp; Quality</li><li data-subkey="sec1sub4"><a href="/Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"><span class="progress-dot"></span>Missing Values (NA)</a></li><li data-subkey="sec1sub4"><a href="/Data-Quality-Checking-in-R.html"><span class="progress-dot"></span>Data Quality Checking</a></li><li data-subkey="sec1sub4"><a href="/janitor-Package-in-R.html"><span class="progress-dot"></span>janitor Package</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Strings &amp; Dates</li><li data-subkey="sec1sub5"><a href="/stringr-in-R.html"><span class="progress-dot"></span>stringr</a></li><li data-subkey="sec1sub5"><a href="/R-Regex-stringr-Pattern-Matching.html"><span class="progress-dot"></span>Regex Patterns</a></li><li data-subkey="sec1sub5"><a href="/lubridate-in-R.html"><span class="progress-dot"></span>lubridate</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Scale &amp; Connect</li><li data-subkey="sec1sub6"><a href="/DBI-in-R.html"><span class="progress-dot"></span>DBI &amp; Databases</a></li><li data-subkey="sec1sub6"><a href="/DuckDB-in-R.html"><span class="progress-dot"></span>DuckDB &amp; duckplyr</a></li><li data-subkey="sec1sub6"><a href="/Web-Scraping-in-R-with-rvest.html"><span class="progress-dot"></span>Web Scraping (rvest)</a></li><li data-subkey="sec1sub6"><a href="/REST-APIs-in-R-with-httr2.html"><span class="progress-dot"></span>REST APIs (httr2)</a></li><li data-subkey="sec1sub6"><a href="/Data-Wrangling-dplyr-Course.html"><span class="progress-dot"></span>Data Wrangling with dplyr (Course)</a></li><li data-subkey="sec1sub6"><a href="/Join-Reshape-Course.html"><span class="progress-dot"></span>Join &amp; Reshape (Course)</a></li><li data-subkey="sec1sub6"><a href="/data-table-Course.html"><span class="progress-dot"></span>data.table (Course)</a></li><li data-subkey="sec1sub6"><a href="/Report-Tables-Course.html"><span class="progress-dot"></span>Report-Ready Tables (Course)</a></li><li data-subkey="sec1sub6"><a href="/Communicate-Automate-Course.html"><span class="progress-dot"></span>Communicate &amp; Automate (Course)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Visualization<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> ggplot2 Foundations</li><li data-subkey="sec2sub1"><a href="/ggplot2-Grammar-of-Graphics.html"><span class="progress-dot"></span>Grammar of Graphics</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Getting-Started.html"><span class="progress-dot"></span>ggplot2 Getting Started</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Aesthetics-aes-Map-Data.html"><span class="progress-dot"></span>ggplot2 Aesthetics (aes)</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Colours.html"><span class="progress-dot"></span>ggplot2 Colours</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Scales.html"><span class="progress-dot"></span>ggplot2 Scales</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Themes-in-R.html"><span class="progress-dot"></span>ggplot2 Themes</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Labels-and-Annotations.html"><span class="progress-dot"></span>Labels &amp; Annotations</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Facets.html"><span class="progress-dot"></span>ggplot2 Facets</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Exercises-in-R-quiz.html"><span class="progress-dot"></span>ggplot2 Quiz</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Core Charts</li><li data-subkey="sec2sub2"><a href="/ggplot2-Scatter-Plots.html"><span class="progress-dot"></span>Scatter Plots</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Line-Charts.html"><span class="progress-dot"></span>Line Charts</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Bar-Charts.html"><span class="progress-dot"></span>Bar Charts</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Distribution-Charts.html"><span class="progress-dot"></span>Distribution Charts</a></li><li data-subkey="sec2sub2"><a href="/Error-Bars-in-R.html"><span class="progress-dot"></span>Error Bars</a></li><li data-subkey="sec2sub2"><a href="/geom_smooth-in-R.html"><span class="progress-dot"></span>geom_smooth()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Distributions &amp; Groups</li><li data-subkey="sec2sub3"><a href="/Violin-Plot-in-R.html"><span class="progress-dot"></span>Violin Plot</a></li><li data-subkey="sec2sub3"><a href="/Ridgeline-Plot-in-R.html"><span class="progress-dot"></span>Ridgeline Plot</a></li><li data-subkey="sec2sub3"><a href="/Lollipop-Chart-in-R.html"><span class="progress-dot"></span>Lollipop Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Relationships</li><li data-subkey="sec2sub4"><a href="/Bubble-Chart-in-R.html"><span class="progress-dot"></span>Bubble Chart</a></li><li data-subkey="sec2sub4"><a href="/Heatmap-in-R.html"><span class="progress-dot"></span>Heatmap in R</a></li><li data-subkey="sec2sub4"><a href="/Correlation-Matrix-Plot-in-R.html"><span class="progress-dot"></span>Correlation Matrix</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Advanced Charts</li><li data-subkey="sec2sub5"><a href="/Pie-Donut-Chart-in-R.html"><span class="progress-dot"></span>Pie &amp; Donut Chart</a></li><li data-subkey="sec2sub5"><a href="/Treemap-in-R.html"><span class="progress-dot"></span>Treemap</a></li><li data-subkey="sec2sub5"><a href="/Waffle-Chart-in-R.html"><span class="progress-dot"></span>Waffle Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Exploratory Analysis</li><li data-subkey="sec2sub6"><a href="/Exploratory-Data-Analysis-in-R.html"><span class="progress-dot"></span>EDA (7-Step Framework)</a></li><li data-subkey="sec2sub6"><a href="/Univariate-EDA-in-R.html"><span class="progress-dot"></span>Univariate EDA</a></li><li data-subkey="sec2sub6"><a href="/Bivariate-EDA-in-R.html"><span class="progress-dot"></span>Bivariate EDA</a></li><li data-subkey="sec2sub6"><a href="/Descriptive-Statistics-in-R.html"><span class="progress-dot"></span>Descriptive Statistics</a></li><li data-subkey="sec2sub6"><a href="/Correlation-Analysis-in-R.html"><span class="progress-dot"></span>Correlation Analysis</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub7" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Interactive &amp; Maps</li><li data-subkey="sec2sub7"><a href="/Combining-ggplot2-with-plotly.html"><span class="progress-dot"></span>ggplot2 + plotly Interactive</a></li><li data-subkey="sec2sub7"><a href="/Interactive-Maps-in-R-with-leaflet.html"><span class="progress-dot"></span>Leaflet Interactive Maps</a></li><li data-subkey="sec2sub7"><a href="/Spatial-Data-in-R-with-sf.html"><span class="progress-dot"></span>Spatial Data (sf)</a></li><li data-subkey="sec2sub7"><a href="/Choropleth-Maps-in-R.html"><span class="progress-dot"></span>Choropleth Maps (sf)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub8" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Customization &amp; Reference</li><li data-subkey="sec2sub8"><a href="/ggplot2-Legends-in-R.html"><span class="progress-dot"></span>ggplot2 Legends</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Secondary-Axis.html"><span class="progress-dot"></span>Secondary Axis</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Log-Scale.html"><span class="progress-dot"></span>Log Scale</a></li><li data-subkey="sec2sub8"><a href="/patchwork-Package.html"><span class="progress-dot"></span>patchwork (Combine Plots)</a></li><li data-subkey="sec2sub8"><a href="/Publication-Quality-Figures-in-R.html"><span class="progress-dot"></span>Publication-Ready Figures</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-cheatsheet.html"><span class="progress-dot"></span>ggplot2 Quickref</a></li><li data-subkey="sec2sub8"><a href="/Advanced-ggplot2-Course.html"><span class="progress-dot"></span>Advanced ggplot2 (Course)</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Course.html"><span class="progress-dot"></span>ggplot2 (Course)</a></li><li data-subkey="sec2sub8"><a href="/Dashboards-Course.html"><span class="progress-dot"></span>Interactive Dashboards (Course)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Statistics<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> EDA &amp; Data Quality</li><li data-subkey="sec3sub1"><a href="/Automated-EDA-in-R.html"><span class="progress-dot"></span>Automated EDA</a></li><li data-subkey="sec3sub1"><a href="/Missing-Data-Visualization-in-R-naniar.html"><span class="progress-dot"></span>Missing Data Viz (naniar)</a></li><li data-subkey="sec3sub1"><a href="/Outlier-Detection-in-R.html"><span class="progress-dot"></span>Outlier Detection</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Probability</li><li data-subkey="sec3sub2"><a href="/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html"><span class="progress-dot"></span>Probability Axioms</a></li><li data-subkey="sec3sub2"><a href="/Conditional-Probability-in-R.html"><span class="progress-dot"></span>Conditional Probability</a></li><li data-subkey="sec3sub2"><a href="/Random-Variables-in-R.html"><span class="progress-dot"></span>Random Variables</a></li><li data-subkey="sec3sub2"><a href="/Binomial-and-Poisson-Distributions-in-R.html"><span class="progress-dot"></span>Binomial vs Poisson</a></li><li data-subkey="sec3sub2"><a href="/Normal-t-F-and-Chi-Squared-Distributions-in-R.html"><span class="progress-dot"></span>Normal, t, F, Chi-Squared</a></li><li data-subkey="sec3sub2"><a href="/Central-Limit-Theorem-in-R.html"><span class="progress-dot"></span>Central Limit Theorem</a></li><li data-subkey="sec3sub2"><a href="/Sampling-Distributions-in-R.html"><span class="progress-dot"></span>Sampling Distributions</a></li><li data-subkey="sec3sub2"><a href="/Law-of-Large-Numbers-vs-CLT-in-R.html"><span class="progress-dot"></span>LLN vs CLT</a></li><li data-subkey="sec3sub2"><a href="/What-Is-Probability-Simulation-First-Intuition-in-R-Before-the-Formulas.html"><span class="progress-dot"></span>Probability (Simulation-First)</a></li><li data-subkey="sec3sub2"><a href="/Expected-Value-and-Variance-in-R.html"><span class="progress-dot"></span>Expected Value and Variance</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Inference &amp; Estimation</li><li data-subkey="sec3sub3"><a href="/Maximum-Likelihood-Estimation-in-R.html"><span class="progress-dot"></span>Maximum Likelihood Estimation</a></li><li data-subkey="sec3sub3"><a href="/Hypothesis-Testing-in-R.html"><span class="progress-dot"></span>Hypothesis Testing</a></li><li data-subkey="sec3sub3"><a href="/Sample-Size-Planning-in-R.html"><span class="progress-dot"></span>Sample Size Planning</a></li><li data-subkey="sec3sub3"><a href="/Which-Statistical-Test-in-R.html"><span class="progress-dot"></span>Choosing the Right Test</a></li><li data-subkey="sec3sub3"><a href="/Statistical-Tests-in-R.html"><span class="progress-dot"></span>Statistical Tests</a></li><li data-subkey="sec3sub3"><a href="/Measures-of-Association-in-R.html"><span class="progress-dot"></span>Measures of Association</a></li><li data-subkey="sec3sub3"><a href="/Point-Estimation-in-R.html"><span class="progress-dot"></span>Point Estimation</a></li><li data-subkey="sec3sub3"><a href="/Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Confidence Intervals</a></li><li data-subkey="sec3sub3"><a href="/Type-I-and-Type-II-Errors-in-R.html"><span class="progress-dot"></span>Type I and II Errors</a></li><li data-subkey="sec3sub3"><a href="/Statistical-Power-Analysis-in-R.html"><span class="progress-dot"></span>Power Analysis</a></li><li data-subkey="sec3sub3"><a href="/Effect-Size-in-R.html"><span class="progress-dot"></span>Effect Size</a></li><li data-subkey="sec3sub3"><a href="/t-Tests-in-R.html"><span class="progress-dot"></span>t-Tests</a></li><li data-subkey="sec3sub3"><a href="/Proportion-Tests-in-R.html"><span class="progress-dot"></span>Proportion Tests</a></li><li data-subkey="sec3sub3"><a href="/Normality-and-Variance-Tests-in-R.html"><span class="progress-dot"></span>Normality &amp; Variance Tests</a></li><li data-subkey="sec3sub3"><a href="/Chi-Square-Tests-in-R.html"><span class="progress-dot"></span>Chi-Square Tests</a></li><li data-subkey="sec3sub3"><a href="/Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html"><span class="progress-dot"></span>Wilcoxon, Mann-Whitney &amp; Kruskal-Wallis</a></li><li data-subkey="sec3sub3"><a href="/Multiple-Comparisons-in-R.html"><span class="progress-dot"></span>Multiple Testing Correction</a></li><li data-subkey="sec3sub3"><a href="/Hypothesis-Testing-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Hypothesis Testing Quiz</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Regression</li><li data-subkey="sec3sub4"><a href="/Linear-Regression.html"><span class="progress-dot"></span>Linear Regression</a></li><li data-subkey="sec3sub4"><a href="/Logistic-Regression-With-R.html"><span class="progress-dot"></span>Logistic Regression</a></li><li data-subkey="sec3sub4"><a href="/Variable-Selection-and-Importance-With-R.html"><span class="progress-dot"></span>Feature Selection</a></li><li data-subkey="sec3sub4"><a href="/Model-Selection-in-R.html"><span class="progress-dot"></span>Model Selection</a></li><li data-subkey="sec3sub4"><a href="/Missing-Value-Treatment-With-R.html"><span class="progress-dot"></span>Missing Value Treatment</a></li><li data-subkey="sec3sub4"><a href="/Outlier-Treatment-With-R.html"><span class="progress-dot"></span>Outlier Analysis</a></li><li data-subkey="sec3sub4"><a href="/adv-regression-models.html"><span class="progress-dot"></span>Advanced Regression Models</a></li><li data-subkey="sec3sub4"><a href="/Linear-Regression-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Linear Regression Quiz</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Reporting</li><li data-subkey="sec3sub5"><a href="/Statistical-Consulting-in-R.html"><span class="progress-dot"></span>Statistical Consulting</a></li><li data-subkey="sec3sub5"><a href="/Statistical-Report-Writing-in-R.html"><span class="progress-dot"></span>Statistical Report Writing</a></li><li data-subkey="sec3sub5"><a href="/Bootstrap-Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Bootstrap Confidence Intervals</a></li><li data-subkey="sec3sub5"><a href="/Reporting-Statistics-in-R.html"><span class="progress-dot"></span>Reporting Statistics</a></li><li data-subkey="sec3sub5"><a href="/Correlation-in-R.html"><span class="progress-dot"></span>Correlation (Pearson, Spearman, Kendall)</a></li><li data-subkey="sec3sub5"><a href="/Linear-Regression-Assumptions-in-R.html"><span class="progress-dot"></span>Linear Regression Assumptions</a></li><li data-subkey="sec3sub5"><a href="/Dummy-Variables-in-R.html"><span class="progress-dot"></span>Dummy Variables in R</a></li><li data-subkey="sec3sub5"><a href="/Interaction-Effects-in-R.html"><span class="progress-dot"></span>Interaction Effects</a></li><li data-subkey="sec3sub5"><a href="/Regression-Diagnostics-in-R.html"><span class="progress-dot"></span>Regression Diagnostics</a></li><li data-subkey="sec3sub5"><a href="/Logistic-Regression-in-R.html"><span class="progress-dot"></span>Logistic Regression (glm + ROC)</a></li><li data-subkey="sec3sub5"><a href="/Variable-Selection-in-R.html"><span class="progress-dot"></span>Variable Selection</a></li><li data-subkey="sec3sub5"><a href="/Poisson-Regression-in-R.html"><span class="progress-dot"></span>Poisson Regression</a></li><li data-subkey="sec3sub5"><a href="/Ridge-and-Lasso-Regression-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Regression</a></li><li data-subkey="sec3sub5"><a href="/Polynomial-and-Spline-Regression-in-R.html"><span class="progress-dot"></span>Polynomial &amp; Splines</a></li><li data-subkey="sec3sub5"><a href="/Regression-Tables-in-R.html"><span class="progress-dot"></span>Regression Tables (3 packages)</a></li><li data-subkey="sec3sub5"><a href="/One-Way-ANOVA-in-R.html"><span class="progress-dot"></span>One-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Post-Hoc-Tests-After-ANOVA.html"><span class="progress-dot"></span>Post-Hoc Tests After ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Two-Way-ANOVA-in-R.html"><span class="progress-dot"></span>Two-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Repeated-Measures-ANOVA-in-R.html"><span class="progress-dot"></span>Repeated Measures ANOVA</a></li><li data-subkey="sec3sub5"><a href="/ANCOVA-in-R.html"><span class="progress-dot"></span>ANCOVA</a></li><li data-subkey="sec3sub5"><a href="/Experimental-Design-Principles-in-R.html"><span class="progress-dot"></span>Experimental Design in R</a></li><li data-subkey="sec3sub5"><a href="/Factorial-Experiments-in-R.html"><span class="progress-dot"></span>Factorial Designs (2^k)</a></li><li data-subkey="sec3sub5"><a href="/AB-Testing-in-R.html"><span class="progress-dot"></span>A/B Testing</a></li><li data-subkey="sec3sub5"><a href="/MANOVA-in-R.html"><span class="progress-dot"></span>MANOVA</a></li><li data-subkey="sec3sub5"><a href="/Mixed-ANOVA-in-R.html"><span class="progress-dot"></span>Mixed ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Multivariate-Statistics-in-R.html"><span class="progress-dot"></span>Multivariate Distances &amp; Hotelling's T²</a></li><li data-subkey="sec3sub5"><a href="/PCA-in-R.html"><span class="progress-dot"></span>PCA with prcomp()</a></li><li data-subkey="sec3sub5"><a href="/Interpreting-PCA-Results-in-R.html"><span class="progress-dot"></span>Interpreting PCA Output</a></li><li data-subkey="sec3sub5"><a href="/Exploratory-Factor-Analysis-in-R.html"><span class="progress-dot"></span>Exploratory Factor Analysis</a></li><li data-subkey="sec3sub5"><a href="/CFA-and-Structural-Equation-Modeling-in-R.html"><span class="progress-dot"></span>SEM and CFA (lavaan)</a></li><li data-subkey="sec3sub5"><a href="/Linear-Discriminant-Analysis-in-R.html"><span class="progress-dot"></span>LDA (Linear Discriminant Analysis)</a></li><li data-subkey="sec3sub5"><a href="/Cluster-Analysis-in-R.html"><span class="progress-dot"></span>Clustering (k-Means / HC / DBSCAN)</a></li><li data-subkey="sec3sub5"><a href="/Correspondence-Analysis-in-R.html"><span class="progress-dot"></span>Correspondence Analysis</a></li><li data-subkey="sec3sub5"><a href="/t-SNE-and-UMAP-in-R.html"><span class="progress-dot"></span>t-SNE and UMAP</a></li><li data-subkey="sec3sub5"><a href="/Simple-Linear-Regression-in-R.html"><span class="progress-dot"></span>Simple Linear Regression</a></li><li data-subkey="sec3sub5"><a href="/Multiple-Regression-in-R.html"><span class="progress-dot"></span>Multiple Regression</a></li><li data-subkey="sec3sub5"><a href="/Robust-Regression-in-R.html"><span class="progress-dot"></span>Robust Regression (rlm)</a></li><li data-subkey="sec3sub5"><a href="/factoextra-and-FactoMineR.html"><span class="progress-dot"></span>factoextra (PCA + Clusters)</a></li><li data-subkey="sec3sub5"><a href="/Categorical-Data-in-R.html"><span class="progress-dot"></span>Categorical Data (Tables &amp; Mosaic)</a></li><li data-subkey="sec3sub5"><a href="/Chi-Square-Test-of-Independence-in-R.html"><span class="progress-dot"></span>Chi-Square Test of Independence</a></li><li data-subkey="sec3sub5"><a href="/Chi-Square-Goodness-of-Fit-Test-in-R.html"><span class="progress-dot"></span>Chi-Square Goodness-of-Fit</a></li><li data-subkey="sec3sub5"><a href="/Fishers-Exact-Test-in-R.html"><span class="progress-dot"></span>Fisher's Exact Test</a></li><li data-subkey="sec3sub5"><a href="/Odds-Ratios-and-Relative-Risk-in-R.html"><span class="progress-dot"></span>Odds Ratios &amp; Relative Risk</a></li><li data-subkey="sec3sub5"><a href="/Logistic-Regression-in-R-2.html"><span class="progress-dot"></span>Logistic Regression (Diagnostics)</a></li><li data-subkey="sec3sub5"><a href="/Poisson-and-Negative-Binomial-Regression.html"><span class="progress-dot"></span>Poisson &amp; Negative Binomial Regression</a></li><li data-subkey="sec3sub5"><a href="/Multinomial-and-Ordinal-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Multinomial &amp; Ordinal Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="/When-to-Use-Nonparametric-Tests-in-R.html"><span class="progress-dot"></span>When to Use Nonparametric Tests</a></li><li data-subkey="sec3sub5"><a href="/Wilcoxon-Signed-Rank-Test-in-R.html"><span class="progress-dot"></span>Wilcoxon Signed-Rank Test</a></li><li data-subkey="sec3sub5"><a href="/Mann-Whitney-U-Test-in-R.html"><span class="progress-dot"></span>Mann-Whitney U Test</a></li><li data-subkey="sec3sub5"><a href="/Kruskal-Wallis-Test-in-R-2.html"><span class="progress-dot"></span>Kruskal-Wallis Test</a></li><li data-subkey="sec3sub5"><a href="/Friedman-Test-in-R.html"><span class="progress-dot"></span>Friedman Test</a></li><li data-subkey="sec3sub5"><a href="/Spearman-and-Kendall-Correlation-in-R.html"><span class="progress-dot"></span>Spearman &amp; Kendall Correlation</a></li><li data-subkey="sec3sub5"><a href="/Bootstrap-in-R.html"><span class="progress-dot"></span>Bootstrap (boot package)</a></li><li data-subkey="sec3sub5"><a href="/Quantile-Regression-in-R-2.html"><span class="progress-dot"></span>Quantile Regression</a></li><li data-subkey="sec3sub5"><a href="/Matrix-Operations-in-R.html"><span class="progress-dot"></span>Matrix Operations in R</a></li><li data-subkey="sec3sub5"><a href="/Solving-Linear-Systems-in-R.html"><span class="progress-dot"></span>Solving Linear Systems in R</a></li><li data-subkey="sec3sub5"><a href="/Eigenvalues-and-Eigenvectors-in-R.html"><span class="progress-dot"></span>Eigenvalues &amp; Eigenvectors in R</a></li><li data-subkey="sec3sub5"><a href="/Singular-Value-Decomposition-in-R.html"><span class="progress-dot"></span>Singular Value Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="/Projections-and-the-Hat-Matrix-in-R.html"><span class="progress-dot"></span>Projections &amp; the Hat Matrix</a></li><li data-subkey="sec3sub5"><a href="/QR-Decomposition-in-R.html"><span class="progress-dot"></span>QR Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="/Quadratic-Forms-in-R.html"><span class="progress-dot"></span>Quadratic Forms</a></li><li data-subkey="sec3sub5"><a href="/Matrix-Derivatives-and-the-Hessian-in-R.html"><span class="progress-dot"></span>Matrix Derivatives &amp; Hessian</a></li><li data-subkey="sec3sub5"><a href="/Exponential-Family-Distributions-in-R.html"><span class="progress-dot"></span>Exponential Family Distributions</a></li><li data-subkey="sec3sub5"><a href="/Sufficient-Statistics-in-R.html"><span class="progress-dot"></span>Sufficient Statistics</a></li><li data-subkey="sec3sub5"><a href="/Complete-and-Ancillary-Statistics-in-R.html"><span class="progress-dot"></span>Complete &amp; Ancillary Statistics</a></li><li data-subkey="sec3sub5"><a href="/UMVUE-in-R-2.html"><span class="progress-dot"></span>UMVUE (Rao-Blackwell &amp; Lehmann-Scheffé)</a></li><li data-subkey="sec3sub5"><a href="/Cramer-Rao-Lower-Bound-in-R-2.html"><span class="progress-dot"></span>Cramér-Rao Lower Bound</a></li><li data-subkey="sec3sub5"><a href="/Asymptotic-Theory-in-R-2.html"><span class="progress-dot"></span>Asymptotic Theory</a></li><li data-subkey="sec3sub5"><a href="/Neyman-Pearson-Lemma-in-R-2.html"><span class="progress-dot"></span>Neyman-Pearson Lemma</a></li><li data-subkey="sec3sub5"><a href="/Likelihood-Ratio-Tests-and-Pivotal-Methods.html"><span class="progress-dot"></span>Likelihood Ratio &amp; Pivotal Methods</a></li><li data-subkey="sec3sub5"><a href="/Decision-Theory-in-R.html"><span class="progress-dot"></span>Decision Theory</a></li><li data-subkey="sec3sub5"><a href="/Asymptotic-Relative-Efficiency-in-R.html"><span class="progress-dot"></span>Asymptotic Relative Efficiency</a></li><li data-subkey="sec3sub5"><a href="/Bayes-Theorem-in-R.html"><span class="progress-dot"></span>Bayes' Theorem</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Statistics-in-R.html"><span class="progress-dot"></span>Bayesian Statistics</a></li><li data-subkey="sec3sub5"><a href="/Conjugate-Priors-in-R.html"><span class="progress-dot"></span>Conjugate Priors</a></li><li data-subkey="sec3sub5"><a href="/Grid-Approximation-in-R.html"><span class="progress-dot"></span>Grid Approximation</a></li><li data-subkey="sec3sub5"><a href="/MCMC-in-R.html"><span class="progress-dot"></span>MCMC in R</a></li><li data-subkey="sec3sub5"><a href="/Gibbs-Sampling-in-R.html"><span class="progress-dot"></span>Gibbs Sampling</a></li><li data-subkey="sec3sub5"><a href="/Hamiltonian-Monte-Carlo-in-R.html"><span class="progress-dot"></span>Hamiltonian Monte Carlo</a></li><li data-subkey="sec3sub5"><a href="/Stan-in-R.html"><span class="progress-dot"></span>Stan</a></li><li data-subkey="sec3sub5"><a href="/brms-in-R.html"><span class="progress-dot"></span>brms</a></li><li data-subkey="sec3sub5"><a href="/Choosing-Priors-in-R.html"><span class="progress-dot"></span>Choosing Priors</a></li><li data-subkey="sec3sub5"><a href="/Prior-Predictive-Checks-in-R.html"><span class="progress-dot"></span>Prior Predictive Checks</a></li><li data-subkey="sec3sub5"><a href="/Compare-Bayesian-Models-in-R.html"><span class="progress-dot"></span>Compare Bayesian Models</a></li><li data-subkey="sec3sub5"><a href="/Posterior-Predictive-Checks-in-R.html"><span class="progress-dot"></span>Posterior Predictive Checks</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Linear-Regression-in-R.html"><span class="progress-dot"></span>Bayesian Linear Regression</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Bayesian Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Hierarchical-Models-in-R.html"><span class="progress-dot"></span>Bayesian Hierarchical Models</a></li><li data-subkey="sec3sub5"><a href="/Multilevel-Models-in-R.html"><span class="progress-dot"></span>Multilevel Models</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-ANOVA-in-R.html"><span class="progress-dot"></span>Bayesian ANOVA</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Machine Learning</li><li data-subkey="sec3sub6"><a href="/Random-Forest-Course.html"><span class="progress-dot"></span>Random Forests (Course)</a></li><li data-subkey="sec3sub6"><a href="/R-Gradient-Boosting-Course.html"><span class="progress-dot"></span>Gradient Boosting (Course)</a></li><li data-subkey="sec3sub6"><a href="/R-tidymodels-Course.html"><span class="progress-dot"></span>tidymodels (Course)</a></li><li data-subkey="sec3sub6"><a href="/Machine-Learning-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Machine Learning Quiz</a></li><li data-subkey="sec3sub6"><a href="/T-Test-Course.html"><span class="progress-dot"></span>The t-test (Lesson)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Time Series<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec4sub0"><a href="/Time-Series-Analysis-With-R.html"><span class="progress-dot"></span>Time Series Analysis</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Forecasting-With-R.html"><span class="progress-dot"></span>Time Series Forecasting</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Forecasting-With-R-part2.html"><span class="progress-dot"></span>More Time Series Forecasting</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Time Series Quiz</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Advanced R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Functional Programming</li><li data-subkey="sec5sub1"><a href="/Functional-Programming-in-R.html"><span class="progress-dot"></span>Functional Programming</a></li><li data-subkey="sec5sub1"><a href="/R-Functional-Programming-Exercises-quiz.html"><span class="progress-dot"></span>Functional Programming Quiz</a></li><li data-subkey="sec5sub1"><a href="/purrr-map-Variants.html"><span class="progress-dot"></span>purrr map() Variants</a></li><li data-subkey="sec5sub1"><a href="/R-Anonymous-Functions.html"><span class="progress-dot"></span>R Anonymous Functions</a></li><li data-subkey="sec5sub1"><a href="/R-Function-Factories.html"><span class="progress-dot"></span>R Function Factories</a></li><li data-subkey="sec5sub1"><a href="/R-Function-Operators.html"><span class="progress-dot"></span>R Function Operators</a></li><li data-subkey="sec5sub1"><a href="/Reduce-Filter-Map-in-R.html"><span class="progress-dot"></span>Reduce, Filter, Map</a></li><li data-subkey="sec5sub1"><a href="/Memoization-in-R.html"><span class="progress-dot"></span>Memoization in R</a></li><li data-subkey="sec5sub1"><a href="/Writing-Composable-R-Code.html"><span class="progress-dot"></span>Composable R Code</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> OOP in R</li><li data-subkey="sec5sub2"><a href="/OOP-in-R.html"><span class="progress-dot"></span>OOP in R: S3/S4/R6</a></li><li data-subkey="sec5sub2"><a href="/S3-Classes-in-R.html"><span class="progress-dot"></span>S3 Classes</a></li><li data-subkey="sec5sub2"><a href="/S3-Method-Dispatch-in-R.html"><span class="progress-dot"></span>S3 Method Dispatch</a></li><li data-subkey="sec5sub2"><a href="/S4-Classes-in-R.html"><span class="progress-dot"></span>S4 Classes</a></li><li data-subkey="sec5sub2"><a href="/S4-Methods-in-R.html"><span class="progress-dot"></span>S4 Methods &amp; Dispatch</a></li><li data-subkey="sec5sub2"><a href="/R6-Classes-in-R.html"><span class="progress-dot"></span>R6 Classes</a></li><li data-subkey="sec5sub2"><a href="/R6-Advanced.html"><span class="progress-dot"></span>R6 Advanced</a></li><li data-subkey="sec5sub2"><a href="/Operator-Overloading-in-R.html"><span class="progress-dot"></span>Operator Overloading</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> How R Works</li><li data-subkey="sec5sub3"><a href="/R-Names-and-Values.html"><span class="progress-dot"></span>R Names &amp; Values</a></li><li data-subkey="sec5sub3"><a href="/R-Assignment-Deep-Dive.html"><span class="progress-dot"></span>R Assignment Deep Dive</a></li><li data-subkey="sec5sub3"><a href="/R-Memory-lobstr.html"><span class="progress-dot"></span>R Memory &amp; lobstr</a></li><li data-subkey="sec5sub3"><a href="/R-Environments.html"><span class="progress-dot"></span>R Environments</a></li><li data-subkey="sec5sub3"><a href="/R-Lexical-Scoping.html"><span class="progress-dot"></span>Lexical Scoping</a></li><li data-subkey="sec5sub3"><a href="/R-Closures.html"><span class="progress-dot"></span>R Closures</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Debugging &amp; Performance</li><li data-subkey="sec5sub4"><a href="/R-Conditions-System.html"><span class="progress-dot"></span>Conditions System</a></li><li data-subkey="sec5sub4"><a href="/R-Debugging.html"><span class="progress-dot"></span>Debugging R Code</a></li><li data-subkey="sec5sub4"><a href="/R-Common-Errors.html"><span class="progress-dot"></span>50 Common R Errors</a></li><li data-subkey="sec5sub4"><a href="/Parallel-Computing-With-R.html"><span class="progress-dot"></span>Parallel Computing</a></li><li data-subkey="sec5sub4"><a href="/Strategies-To-Improve-And-Speedup-R-Code.html"><span class="progress-dot"></span>Speedup R Code</a></li><li data-subkey="sec5sub4"><a href="/Shiny-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Shiny Quiz</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Classic Tutorials<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec6sub0"><a href="/R-Tutorial.html"><span class="progress-dot"></span>R Tutorial (Classic)</a></li><li data-subkey="sec6sub0"><a href="/ggplot2-Tutorial-With-R.html"><span class="progress-dot"></span>ggplot2 Short Tutorial</a></li><li data-subkey="sec6sub0"><a href="/Complete-Ggplot2-Tutorial-Part1-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 1 - Intro</a></li><li data-subkey="sec6sub0"><a href="/Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 2 - Theme</a></li><li data-subkey="sec6sub0"><a href="/Top50-Ggplot2-Visualizations-MasterList-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 3 - Masterlist</a></li><li data-subkey="sec6sub0"><a href="/Association-Mining-With-R.html"><span class="progress-dot"></span>Association Mining</a></li><li data-subkey="sec6sub0"><a href="/Multi-Dimensional-Scaling-With-R.html"><span class="progress-dot"></span>Multi Dimensional Scaling</a></li><li data-subkey="sec6sub0"><a href="/Optimization-With-R.html"><span class="progress-dot"></span>Optimization</a></li><li data-subkey="sec6sub0"><a href="/Information-Value-With-R.html"><span class="progress-dot"></span>InformationValue Package</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Practice Exercises<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Mastery Quizzes (Certificate)</li><li data-subkey="sec7sub1"><a href="/R-Beginner-Exercises-quiz.html"><span class="progress-dot"></span>R Fundamentals Quiz</a></li><li data-subkey="sec7sub1"><a href="/dplyr-Exercises-in-R-quiz.html"><span class="progress-dot"></span>dplyr Quiz</a></li><li data-subkey="sec7sub1"><a href="/ggplot2-Exercises-in-R-quiz.html"><span class="progress-dot"></span>ggplot2 Quiz</a></li><li data-subkey="sec7sub1"><a href="/Hypothesis-Testing-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Hypothesis Testing Quiz</a></li><li data-subkey="sec7sub1"><a href="/Linear-Regression-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Linear Regression Quiz</a></li><li data-subkey="sec7sub1"><a href="/Machine-Learning-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Machine Learning Quiz</a></li><li data-subkey="sec7sub1"><a href="/tidyr-Exercises-in-R-quiz.html"><span class="progress-dot"></span>tidyr Quiz</a></li><li data-subkey="sec7sub1"><a href="/Time-Series-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Time Series Quiz</a></li><li data-subkey="sec7sub1"><a href="/Shiny-Exercises-in-R-quiz.html"><span class="progress-dot"></span>Shiny Quiz</a></li><li data-subkey="sec7sub1"><a href="/R-Interview-Questions-quiz.html"><span class="progress-dot"></span>R Interview Readiness Quiz</a></li><li data-subkey="sec7sub1"><a href="/R-Functional-Programming-Exercises-quiz.html"><span class="progress-dot"></span>Functional Programming Quiz</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec7sub2"><a href="/R-Basics-Exercises.html"><span class="progress-dot"></span>R Basics (15 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Vectors-Exercises.html"><span class="progress-dot"></span>R Vectors (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Data-Frames-Exercises.html"><span class="progress-dot"></span>R Data Frames (15 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Lists-Exercises.html"><span class="progress-dot"></span>R Lists (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Control-Flow-Exercises.html"><span class="progress-dot"></span>R Control Flow (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Functions-Exercises.html"><span class="progress-dot"></span>R Functions (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-String-Exercises.html"><span class="progress-dot"></span>R Strings (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Date-Time-Exercises.html"><span class="progress-dot"></span>R Date &amp; Time (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Apply-Exercises.html"><span class="progress-dot"></span>R apply Family (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Subsetting-Exercises.html"><span class="progress-dot"></span>R Subsetting (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-Functional-Programming-Exercises.html"><span class="progress-dot"></span>Functional Programming (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/R-OOP-Exercises.html"><span class="progress-dot"></span>OOP in R (8 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Data Wrangling</li><li data-subkey="sec7sub3"><a href="/R-Data-Import-Exercises.html"><span class="progress-dot"></span>Data Import (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/dplyr-Exercises.html"><span class="progress-dot"></span>dplyr (15 problems)</a></li><li data-subkey="sec7sub3"><a href="/dplyr-filter-select-Exercises.html"><span class="progress-dot"></span>dplyr filter() &amp; select() (12 problems)</a></li><li data-subkey="sec7sub3"><a href="/dplyr-group-by-summarise-Exercises.html"><span class="progress-dot"></span>dplyr group_by() &amp; summarise() (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/dplyr-Join-Exercises.html"><span class="progress-dot"></span>dplyr Joins (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/data-table-Exercises.html"><span class="progress-dot"></span>data.table (12 problems)</a></li><li data-subkey="sec7sub3"><a href="/purrr-Exercises.html"><span class="progress-dot"></span>purrr (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/tidyr-Reshaping-Exercises.html"><span class="progress-dot"></span>tidyr Reshaping (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/Missing-Data-in-R-Exercises.html"><span class="progress-dot"></span>Missing Data in R (10 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Visualization</li><li data-subkey="sec7sub4"><a href="/ggplot2-Exercises.html"><span class="progress-dot"></span>ggplot2 (15 problems)</a></li><li data-subkey="sec7sub4"><a href="/ggplot2-Geom-Exercises.html"><span class="progress-dot"></span>ggplot2 Geoms (12 problems)</a></li><li data-subkey="sec7sub4"><a href="/ggplot2-Aesthetics-Exercises.html"><span class="progress-dot"></span>ggplot2 Aesthetics (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/ggplot2-Customization-Exercises.html"><span class="progress-dot"></span>ggplot2 Customization (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/ggplot2-Facet-Exercises.html"><span class="progress-dot"></span>ggplot2 Facets (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/R-Visualization-Project.html"><span class="progress-dot"></span>R Visualization Project (5 charts)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Statistics</li><li data-subkey="sec7sub5"><a href="/Probability-in-R-Exercises.html"><span class="progress-dot"></span>Probability in R Exercises</a></li><li data-subkey="sec7sub5"><a href="/R-Probability-Distributions-Exercises.html"><span class="progress-dot"></span>R Probability Distributions (12 problems)</a></li><li data-subkey="sec7sub5"><a href="/Binomial-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Binomial Distribution Exercises</a></li><li data-subkey="sec7sub5"><a href="/Poisson-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Poisson Distribution Exercises</a></li><li data-subkey="sec7sub5"><a href="/Central-Limit-Theorem-Exercises-in-R.html"><span class="progress-dot"></span>Central Limit Theorem Exercises</a></li><li data-subkey="sec7sub5"><a href="/Hypothesis-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Hypothesis Testing Exercises</a></li><li data-subkey="sec7sub5"><a href="/t-Test-Exercises-in-R.html"><span class="progress-dot"></span>t-Test Exercises (12 problems)</a></li><li data-subkey="sec7sub5"><a href="/Chi-Square-Test-Exercises-in-R.html"><span class="progress-dot"></span>Chi-Square Exercises (10 problems)</a></li><li data-subkey="sec7sub5"><a href="/Confidence-Interval-Exercises-in-R.html"><span class="progress-dot"></span>Confidence Interval (10 problems)</a></li><li data-subkey="sec7sub5"><a href="/Power-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Power Analysis Exercises (8 problems)</a></li><li data-subkey="sec7sub5"><a href="/Nonparametric-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Nonparametric Exercises (10 problems)</a></li><li data-subkey="sec7sub5"><a href="/Multiple-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Testing (8 problems)</a></li><li data-subkey="sec7sub5"><a href="/Multiple-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Regression Exercises</a></li><li data-subkey="sec7sub5"><a href="/Logistic-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Logistic Regression Exercises (10 problems)</a></li><li data-subkey="sec7sub5"><a href="/Regression-Diagnostics-Exercises-in-R.html"><span class="progress-dot"></span>Regression Diagnostics Exercises</a></li><li data-subkey="sec7sub5"><a href="/Ridge-and-Lasso-Exercises-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Exercises</a></li><li data-subkey="sec7sub5"><a href="/GLM-Exercises-in-R.html"><span class="progress-dot"></span>GLM Exercises (10 problems)</a></li><li data-subkey="sec7sub5"><a href="/ANOVA-Exercises-in-R.html"><span class="progress-dot"></span>ANOVA Exercises (15 problems)</a></li><li data-subkey="sec7sub5"><a href="/Post-Hoc-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Post-Hoc Tests Exercises (8 problems)</a></li><li data-subkey="sec7sub5"><a href="/Repeated-Measures-Exercises-in-R.html"><span class="progress-dot"></span>Repeated Measures (8 problems)</a></li><li data-subkey="sec7sub5"><a href="/Experimental-Design-Exercises-in-R.html"><span class="progress-dot"></span>Experimental Design Exercises (8 problems)</a></li><li data-subkey="sec7sub5"><a href="/AB-Testing-Exercises-in-R.html"><span class="progress-dot"></span>A/B Testing Exercises (8 problems)</a></li><li data-subkey="sec7sub5"><a href="/Linear-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Linear Regression (15 problems)</a></li><li data-subkey="sec7sub5"><a href="/PCA-Exercises-in-R.html"><span class="progress-dot"></span>PCA Exercises (10 problems)</a></li><li data-subkey="sec7sub5"><a href="/Cluster-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Clustering Exercises (10 problems)</a></li><li data-subkey="sec7sub5"><a href="/SEM-Exercises-in-R.html"><span class="progress-dot"></span>SEM Exercises (8 problems)</a></li><li data-subkey="sec7sub5"><a href="/A-B-Testing-Exercises-in-R.html"><span class="progress-dot"></span>A/B Testing Exercises</a></li><li data-subkey="sec7sub5"><a href="/API-Calls-Exercises-in-R.html"><span class="progress-dot"></span>API Calls Exercises</a></li><li data-subkey="sec7sub5"><a href="/ARIMA-Exercises-in-R.html"><span class="progress-dot"></span>ARIMA Exercises</a></li><li data-subkey="sec7sub5"><a href="/Apply-Family-Exercises-in-R.html"><span class="progress-dot"></span>Apply Family Exercises</a></li><li data-subkey="sec7sub5"><a href="/Bayesian-Statistics-Exercises-in-R.html"><span class="progress-dot"></span>Bayesian Statistics Exercises</a></li><li data-subkey="sec7sub5"><a href="/Clustering-Exercises-in-R.html"><span class="progress-dot"></span>Clustering Exercises</a></li><li data-subkey="sec7sub5"><a href="/Correlation-Exercises-in-R.html"><span class="progress-dot"></span>Correlation Exercises</a></li><li data-subkey="sec7sub5"><a href="/Cross-Validation-Exercises-in-R.html"><span class="progress-dot"></span>Cross Validation Exercises</a></li><li data-subkey="sec7sub5"><a href="/Data-Cleaning-Exercises-in-R.html"><span class="progress-dot"></span>Data Cleaning Exercises</a></li><li data-subkey="sec7sub5"><a href="/Data-Visualization-Exercises-in-R.html"><span class="progress-dot"></span>Data Viz Exercises</a></li><li data-subkey="sec7sub5"><a href="/Data-Wrangling-Exercises-in-R.html"><span class="progress-dot"></span>Data Wrangling Exercises</a></li><li data-subkey="sec7sub5"><a href="/Decision-Tree-Exercises-in-R.html"><span class="progress-dot"></span>Decision Tree Exercises</a></li><li data-subkey="sec7sub5"><a href="/EDA-Exercises-in-R.html"><span class="progress-dot"></span>EDA Exercises</a></li><li data-subkey="sec7sub5"><a href="/GAM-Exercises-in-R.html"><span class="progress-dot"></span>GAM Exercises</a></li><li data-subkey="sec7sub5"><a href="/Machine-Learning-Exercises-in-R.html"><span class="progress-dot"></span>Machine Learning Exercises</a></li><li data-subkey="sec7sub5"><a href="/Mixed-Effects-Models-Exercises-in-R.html"><span class="progress-dot"></span>Mixed Effects Exercises</a></li><li data-subkey="sec7sub5"><a href="/Network-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Network Analysis Exercises</a></li><li data-subkey="sec7sub5"><a href="/Parallel-Computing-in-R-Exercises.html"><span class="progress-dot"></span>Parallel Computing Exercises</a></li><li data-subkey="sec7sub5"><a href="/Poisson-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Poisson Regression</a></li><li data-subkey="sec7sub5"><a href="/Probability-Distributions-Exercises-in-R.html"><span class="progress-dot"></span>Probability Distributions</a></li><li data-subkey="sec7sub5"><a href="/R-Beginner-Exercises.html"><span class="progress-dot"></span>R Beginner Exercises</a></li><li data-subkey="sec7sub5"><a href="/R-Debugging-Exercises.html"><span class="progress-dot"></span>R Debugging Exercises</a></li><li data-subkey="sec7sub5"><a href="/R-Markdown-Exercises.html"><span class="progress-dot"></span>R Markdown Exercises</a></li><li data-subkey="sec7sub5"><a href="/R-Package-Development-Exercises.html"><span class="progress-dot"></span>R Package Development</a></li><li data-subkey="sec7sub5"><a href="/R-Performance-Optimization-Exercises.html"><span class="progress-dot"></span>R Performance Exercises</a></li><li data-subkey="sec7sub5"><a href="/R-for-Biostatistics-Exercises.html"><span class="progress-dot"></span>R for Biostatistics</a></li><li data-subkey="sec7sub5"><a href="/R-for-Data-Science-Exercises.html"><span class="progress-dot"></span>R for Data Science Exercises</a></li><li data-subkey="sec7sub5"><a href="/R-for-Finance-Exercises.html"><span class="progress-dot"></span>R for Finance Exercises</a></li><li data-subkey="sec7sub5"><a href="/R-for-Genomics-Exercises.html"><span class="progress-dot"></span>R for Genomics</a></li><li data-subkey="sec7sub5"><a href="/R-for-Healthcare-Exercises.html"><span class="progress-dot"></span>R for Healthcare Exercises</a></li><li data-subkey="sec7sub5"><a href="/R-for-Marketing-Analytics-Exercises.html"><span class="progress-dot"></span>R for Marketing Analytics</a></li><li data-subkey="sec7sub5"><a href="/R-for-Sports-Analytics-Exercises.html"><span class="progress-dot"></span>R for Sports Analytics</a></li><li data-subkey="sec7sub5"><a href="/Random-Forest-Exercises-in-R.html"><span class="progress-dot"></span>Random Forest Exercises</a></li><li data-subkey="sec7sub5"><a href="/Regex-Exercises-in-R.html"><span class="progress-dot"></span>Regex Exercises</a></li><li data-subkey="sec7sub5"><a href="/Sampling-Methods-Exercises-in-R.html"><span class="progress-dot"></span>Sampling Methods Exercises</a></li><li data-subkey="sec7sub5"><a href="/Shiny-Exercises-in-R.html"><span class="progress-dot"></span>Shiny Exercises</a></li><li data-subkey="sec7sub5"><a href="/Spatial-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Spatial Analysis Exercises</a></li><li data-subkey="sec7sub5"><a href="/Survey-Analysis-in-R-Exercises.html"><span class="progress-dot"></span>Survey Analysis Exercises</a></li><li data-subkey="sec7sub5"><a href="/Survival-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Survival Analysis Exercises</a></li><li data-subkey="sec7sub5"><a href="/Text-Mining-Exercises-in-R.html"><span class="progress-dot"></span>Text Mining Exercises</a></li><li data-subkey="sec7sub5"><a href="/Time-Series-Exercises-in-R.html"><span class="progress-dot"></span>Time Series Exercises</a></li><li data-subkey="sec7sub5"><a href="/Web-Scraping-Exercises-in-R.html"><span class="progress-dot"></span>Web Scraping Exercises</a></li><li data-subkey="sec7sub5"><a href="/XGBoost-Exercises-in-R.html"><span class="progress-dot"></span>XGBoost Exercises</a></li><li data-subkey="sec7sub5"><a href="/broom-Exercises-in-R.html"><span class="progress-dot"></span>broom Exercises</a></li><li data-subkey="sec7sub5"><a href="/caret-Exercises-in-R.html"><span class="progress-dot"></span>caret Exercises</a></li><li data-subkey="sec7sub5"><a href="/data.table-Exercises-in-R.html"><span class="progress-dot"></span>data.table Exercises</a></li><li data-subkey="sec7sub5"><a href="/dbplyr-SQL-Exercises-in-R.html"><span class="progress-dot"></span>dbplyr / SQL Exercises</a></li><li data-subkey="sec7sub5"><a href="/dplyr-Exercises-in-R.html"><span class="progress-dot"></span>dplyr Exercises</a></li><li data-subkey="sec7sub5"><a href="/dplyr-Group-By-Exercises-in-R.html"><span class="progress-dot"></span>dplyr group_by Exercises</a></li><li data-subkey="sec7sub5"><a href="/dplyr-Joins-Exercises-in-R.html"><span class="progress-dot"></span>dplyr Joins Exercises</a></li><li data-subkey="sec7sub5"><a href="/dplyr-Window-Functions-Exercises-in-R.html"><span class="progress-dot"></span>dplyr Window Functions Exercises</a></li><li data-subkey="sec7sub5"><a href="/forcats-Exercises-in-R.html"><span class="progress-dot"></span>forcats Exercises</a></li><li data-subkey="sec7sub5"><a href="/ggplot2-Bar-Chart-Exercises-in-R.html"><span class="progress-dot"></span>ggplot2 Bar Chart Exercises</a></li><li data-subkey="sec7sub5"><a href="/ggplot2-Color-Scales-Exercises-in-R.html"><span class="progress-dot"></span>ggplot2 Color Scales Exercises</a></li><li data-subkey="sec7sub5"><a href="/ggplot2-Exercises-in-R.html"><span class="progress-dot"></span>ggplot2 Exercises</a></li><li data-subkey="sec7sub5"><a href="/ggplot2-Facets-Exercises-in-R.html"><span class="progress-dot"></span>ggplot2 Facets Exercises</a></li><li data-subkey="sec7sub5"><a href="/ggplot2-Heatmap-Exercises-in-R.html"><span class="progress-dot"></span>ggplot2 Heatmap Exercises</a></li><li data-subkey="sec7sub5"><a href="/ggplot2-Themes-Exercises-in-R.html"><span class="progress-dot"></span>ggplot2 Themes Exercises</a></li><li data-subkey="sec7sub5"><a href="/gt-Tables-Exercises-in-R.html"><span class="progress-dot"></span>gt Tables Exercises</a></li><li data-subkey="sec7sub5"><a href="/leaflet-Exercises-in-R.html"><span class="progress-dot"></span>leaflet Exercises</a></li><li data-subkey="sec7sub5"><a href="/lubridate-Exercises-in-R.html"><span class="progress-dot"></span>lubridate Exercises</a></li><li data-subkey="sec7sub5"><a href="/plotly-Exercises-in-R.html"><span class="progress-dot"></span>plotly Exercises</a></li><li data-subkey="sec7sub5"><a href="/purrr-Exercises-in-R.html"><span class="progress-dot"></span>purrr Exercises</a></li><li data-subkey="sec7sub5"><a href="/readr-Exercises-in-R.html"><span class="progress-dot"></span>readr Exercises</a></li><li data-subkey="sec7sub5"><a href="/stringr-Exercises-in-R.html"><span class="progress-dot"></span>stringr Exercises</a></li><li data-subkey="sec7sub5"><a href="/testthat-Exercises-in-R.html"><span class="progress-dot"></span>testthat Exercises</a></li><li data-subkey="sec7sub5"><a href="/tidymodels-Exercises-in-R.html"><span class="progress-dot"></span>tidymodels Exercises</a></li><li data-subkey="sec7sub5"><a href="/tidyr-Exercises-in-R.html"><span class="progress-dot"></span>tidyr Exercises</a></li><li data-subkey="sec7sub5"><a href="/tidyr-Nest-Unnest-Exercises-in-R.html"><span class="progress-dot"></span>tidyr Nest/Unnest Exercises</a></li><li data-subkey="sec7sub5"><a href="/tidyr-Pivot-Exercises-in-R.html"><span class="progress-dot"></span>tidyr Pivot Exercises</a></li><li data-subkey="sec7sub5"><a href="/tidyverse-Exercises-in-R.html"><span class="progress-dot"></span>Tidyverse Exercises</a></li><li data-subkey="sec7sub5"><a href="/Date-Time-Manipulation-Exercises-in-R.html"><span class="progress-dot"></span>Date-Time Manipulation Exercises</a></li><li data-subkey="sec7sub5"><a href="/Loops-vs-Vectorization-Exercises-in-R.html"><span class="progress-dot"></span>Loops vs Vectorization Exercises</a></li></ul></li></ul><div class="sidebar-subscribe"><p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p><p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p></div></div><div class="sidebar-panel" data-panel="tools"><ul class="sidebar-tools-list list-unstyled"><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Calculators</li><li><a href="/tools/ab-test-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="4" height="9" rx="0.5"/><rect x="9.5" y="3.5" width="4" height="9" rx="0.5"/></svg></span><span class="tool-label">A/B Test Calculator</span></a></li><li><a href="/tools/t-test-calculator.html"><span class="tool-icon"></span><span class="tool-label">t-Test Calculator</span></a></li><li><a href="/tools/chi-square-calculator.html"><span class="tool-icon"></span><span class="tool-label">Chi-Square Test</span></a></li><li><a href="/tools/confidence-interval-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4v8M3.5 4H5M3.5 12H5"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M12.5 4v8M12.5 4H11M12.5 12H11"/></svg></span><span class="tool-label">Confidence Interval</span></a></li><li><a href="/tools/bootstrap-ci-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bootstrap CI</span></a></li><li><a href="/tools/effect-size-converter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h11M11 3l2.5 2.5L11 8"/><path d="M13.5 10.5h-11M5 8l-2.5 2.5L5 13"/></svg></span><span class="tool-label">Effect Size Converter</span></a></li><li><a href="/tools/power-analysis.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg></span><span class="tool-label">Power Analysis</span></a></li><li><a href="/tools/survival-power-calculator.html"><span class="tool-icon"></span><span class="tool-label">Survival Power</span></a></li><li><a href="/tools/type-i-ii-error-visualizer.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12c1.5 0 2-2 3.5-2S7 12 8 12s2-8 3.5-8S13 12 14.5 12"/><line x1="8" y1="2" x2="8" y2="14" stroke-dasharray="2 2"/></svg></span><span class="tool-label">Type I / II Error</span></a></li><li><a href="/tools/z-score-percentile.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">Z-Score &amp; Percentile</span></a></li><li><a href="/tools/equivalence-noninferiority-calculator.html"><span class="tool-icon"></span><span class="tool-label">Equivalence / NI</span></a></li><li><a href="/tools/outlier-detection-calculator.html"><span class="tool-icon"></span><span class="tool-label">Outlier Detection</span></a></li><li><a href="/tools/roc-auc-calculator.html"><span class="tool-icon"></span><span class="tool-label">ROC / AUC</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Bayesian</li><li><a href="/tools/bayes-theorem-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bayes Theorem</span></a></li><li><a href="/tools/bayes-factor-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bayes Factor</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Interpreters</li><li><a href="/tools/lm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13.5L14 3"/><circle cx="4" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="7.5" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">lm() Output</span></a></li><li><a href="/tools/glm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13C5 13 5 3 8 3s3 10 6 10"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">glm() Output</span></a></li><li><a href="/tools/anova-output-interpreter.html"><span class="tool-icon"></span><span class="tool-label">ANOVA Output</span></a></li><li><a href="/tools/vif-interpreter.html"><span class="tool-icon"></span><span class="tool-label">VIF / Multicollinearity</span></a></li><li><a href="/tools/confusion-matrix-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></svg></span><span class="tool-label">Confusion Matrix</span></a></li><li><a href="/tools/diagnostic-plot-interpreter.html"><span class="tool-icon"></span><span class="tool-label">Diagnostic Plots</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Pickers</li><li><a href="/tools/normality-test-picker.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><circle cx="13" cy="4" r="1.6" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">Normality Test</span></a></li><li><a href="/tools/nonparametric-test-picker.html"><span class="tool-icon"></span><span class="tool-label">Non-Parametric Test</span></a></li><li><a href="/tools/multiple-testing-correction.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4l2 2 3-3M2.5 8l2 2 3-3M2.5 12l2 2 3-3"/><path d="M10.5 4h3M10.5 8h3M10.5 12h3"/></svg></span><span class="tool-label">Multiple Testing</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Time series</li><li><a href="/tools/ts-stationarity-calculator.html"><span class="tool-icon"></span><span class="tool-label">TS Stationarity</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Utilities</li><li><a href="/tools/dag-confounder-picker.html"><span class="tool-icon"></span><span class="tool-label">DAG Confounder Picker</span></a></li><li><a href="/tools/reprex-builder.html"><span class="tool-icon"></span><span class="tool-label">Reprex Builder</span></a></li></ul></div></div>
+        </div>
+
+        <main id="content" class="col-xs-12 col-sm-7">
+
+          
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">Bayesian Modeling Lesson 8: Bayesian Regression and GLMs End to End</span></nav>
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 8 of 8</div>
+<h2>Bayesian Regression and GLMs End to End</h2>
+
+<p>Lesson 7 crowned a champion: the Gamma-Poisson beat the rounded Normal by 4.9 elpd points, nearly three standard errors, and the win sat exactly on the blank days that price Asha's moss orders. But look at what that champion actually believes. One demand rate, every day, all season. Asha has never believed that for a second. Some days the craft market is packed and she sells out by two; some days it drizzles and she re-mists unsold moss. What has been missing from this entire course is the thing every real model needs: <strong>a predictor</strong>.</p>
+
+<p>This final lesson adds one, and in doing so runs the whole pipeline you have built, once, end to end: write a model with a slope in it, put a prior on every coefficient, catch silly priors before fitting, fit with the Lesson 3 sampler, diagnose with the Lesson 4 habits, check with a Lesson 6 posterior predictive test, settle the rematch with Lesson 7's scoreboard, and hand over numbers a decision can lean on.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Write a Bayesian GLM: a linear predictor, a link function, a family, and a prior for every coefficient</li>
+
+<li>Catch an absurd prior before fitting anything, using a prior predictive check</li>
+
+<li>Fit a two-parameter model with the Metropolis sampler in base R and verify the chains agree</li>
+
+<li>Turn posterior draws into decision numbers: credible intervals for rate ratios, expected demand, and what one actual day might sell</li>
+
+<li>Check the fitted model with a posterior predictive test and prove the predictor earns its keep with a WAIC comparison</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 7 of this course (the prior-times-likelihood update, conjugate posteriors and posterior draws, the Metropolis sampler, trace-plot and multi-chain diagnostics, posterior predictive checks, and the WAIC scoreboard), plus base R functions, <code>sapply()</code> and <code>quantile()</code>.</p>
+
+<p>You already know the machine below from ordinary regression: drag a line through a cloud of points and let the sum of squared misses judge it. Least squares crowns ONE best line and stops. Keep that picture as the starting point, because everything in this lesson is one upgrade to it: instead of the single best line, you will leave with every line the data finds plausible, each carrying its own probability.</p>
+<div class="lesson-widget" data-widget-type="ols-fit" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">A second column</div>
+<h2>Seventy-five days, two numbers a day</h2>
+
+<p>A new season, a fuller notebook. The craft market where Asha rents her stall publishes a daily visitor tally from the gate counter, and this season she copied it down next to each day's kit sales: seventy-five days, two numbers a day. She also has a decision waiting. The market association has offered her a corner pitch by the entrance for next season, at 40 percent more rent, and corner stalls see roughly ten more visitors a day. Whether that rent is worth paying depends on a number nobody has yet: how much does one extra visitor actually move kit sales?</p>
+
+<p>As always in this course, we play the record keeper with an answer key: we generate the season from a known recipe, then pretend we only have the notebook. The recipe stays sealed until the fit is done, when it becomes the test our machinery has to pass. Each lesson runs in a fresh interactive R session, so run this first:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">12</span>)</span>
+<span class="cl">visitors <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">runif</span>(<span class="m">75</span>, <span class="m">5</span>, <span class="m">40</span>))                 <span class="c1"># the gate tally, day by day</span></span>
+<span class="cl">kits     <span class="o">&lt;-</span> <span class="nf">rpois</span>(<span class="m">75</span>, <span class="nf">exp</span>(<span class="m">-1.2</span> <span class="o">+</span> <span class="m">0.09</span> <span class="o">*</span> visitors))  <span class="c1"># her sales, tied to traffic</span></span>
+<span class="cl"><span class="nf">c</span>(days <span class="o">=</span> <span class="nf">length</span>(kits), total <span class="o">=</span> <span class="nf">sum</span>(kits), zero_days <span class="o">=</span> <span class="nf">sum</span>(kits <span class="o">==</span> <span class="m">0</span>),</span>
+<span class="cl">  biggest <span class="o">=</span> <span class="nf">max</span>(kits), quietest <span class="o">=</span> <span class="nf">min</span>(visitors), busiest <span class="o">=</span> <span class="nf">max</span>(visitors))</span>
+<span class="cl"><span class="c1">#&gt;      days     total zero_days   biggest  quietest   busiest </span></span>
+<span class="cl"><span class="c1">#&gt;        75       234        12        14         5        39 </span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">cor</span>(visitors, kits), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.78</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A busier season than the last one: 234 kits, still twelve blank days, and one fourteen-kit day she remembers fondly. Traffic ranged from five visitors on a rained-out Tuesday to thirty-nine at the autumn fair, and the correlation of 0.78 says the two columns clearly move together. Plot it and the story is visible before any model touches it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(visitors, kits, pch <span class="o">=</span> <span class="m">16</span>, col <span class="o">=</span> <span class="s">&quot;navy&quot;</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;visitors that day&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;kits sold&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Seventy-five days: market traffic against kit sales&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Quiet days hug zero. Busy days spread high and wide. Note that second part, because it matters later: the busy days do not just sell more, they VARY more, exactly what count data does. A straight line through this cloud is a start, but this lesson needs the line to respect what counts are.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The model</div>
+<h2>A line, a link, a family</h2>
+
+<p>Start with the regression you know and break it deliberately. The familiar line says expected kits \(= a + b \cdot \text{visitors}\). Feed it a rained-out five-visitor day with any plausible slope and intercept and it happily predicts negative kits, the exact disease that sank the rounded Normal in Lessons 6 and 7. It also claims each visitor ADDS a fixed number of kits, the same amount whether the stall is dead or slammed. Real demand does not add; it scales.</p>
+
+<p>Both defects have one cure: model the <strong>logarithm</strong> of expected demand as the line, not demand itself. Two bookkeeping moves first. Write \(\lambda_i\) (lambda) for the expected number of kits on day \(i\), the demand level that day. And center the predictor, \(x_i = \text{visitors}_i - \overline{\text{visitors}}\), so that \(x_i = 0\) means an average-traffic day rather than an impossible zero-visitor day:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">x <span class="o">&lt;-</span> visitors <span class="o">-</span> <span class="nf">mean</span>(visitors)     <span class="c1"># center traffic: x = 0 is an average day</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">mean</span>(visitors), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 21.8</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="m">0.8</span> <span class="o">+</span> <span class="m">0.09</span> <span class="o">*</span> <span class="nf">c</span>(<span class="m">-10</span>, <span class="m">0</span>, <span class="m">10</span>)), <span class="m">2</span>)   <span class="c1"># one trial line: kits at 12, 22, 32 visitors</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.90 2.23 5.47</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model, in full:</p>
+
+<p>\[ \text{kits}_i \sim \text{Poisson}(\lambda_i), \qquad \log \lambda_i = a + b\, x_i \]</p>
+
+<p>Every symbol in words. \(a\) is the intercept: the log of expected demand on an average day (about 22 visitors). \(b\) is the slope: how much the log of demand rises per extra visitor. The \(\log\) is called the <strong>link function</strong>, the bridge between the line (which roams the whole number line) and demand (which must stay positive: \(\lambda = e^{a+bx}\) cannot go negative, no matter what the line does). And Poisson is the <strong>family</strong>, the shape of days around each demand level, the same champion that won Lesson 7. This trio, line plus link plus family, is a <strong>generalized linear model</strong>, a GLM: the recipe behind Poisson, logistic, and most of applied regression.</p>
+
+<p>The link changes what the slope MEANS, and the trial line above shows it. At 12 visitors it expects 0.90 kits, at 22 it expects 2.23, at 32 it expects 5.47: each step of ten visitors MULTIPLIES demand by the same factor of about 2.45, because \(e^{a+b(x+10)} = e^{a+bx} \cdot e^{10b}\). One extra visitor multiplies demand by \(e^{b}\); ten extra visitors compound to \(e^{10b}\). Multiplicative, never additive. Hold onto that: it is the single most misread number in applied GLMs, and the corner-stall decision hangs on it.</p>
+
+<p>One decision is still open in that trio: why Poisson for the family? It is the count family with one honest knob (its variance equals its mean), and it is the shape that survived Lessons 6 and 7. Below are the day-shapes the main count families imply. Toggle them: if kit sales later turned out to spread wider than Poisson allows, the negative binomial is the standard fallback, and the workflow you are about to run would simply go around its loop once more with that family.</p>
+<div class="lesson-widget" data-widget-type="count-dist" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The priors</div>
+<h2>Priors that know the scale</h2>
+
+<p>Two unknowns now, so two priors. Nothing here is new in kind: each coefficient gets exactly the treatment Asha's conversion rate got in Lesson 1, a prior belief, soon to be multiplied by a likelihood. What IS new is a trap. On the log scale, "vague and harmless" priors are neither, because everything you say about \(b\) gets exponentiated. Watch. Give the slope a standard vague prior, Normal with mean 0 and standard deviation 1, and ask what it implies about the busiest day of the season:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">4</span>)</span>
+<span class="cl">b_wild <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">4</span>, <span class="m">0</span>, <span class="m">1</span>)             <span class="c1"># four slopes drawn from a &quot;harmless&quot; vague prior</span></span>
+<span class="cl"><span class="nf">round</span>(b_wild, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1]  0.22 -0.54  0.89  0.60</span></span>
+<span class="cl"><span class="nf">signif</span>(<span class="nf">exp</span>(<span class="m">0.8</span> <span class="o">+</span> b_wild <span class="o">*</span> (<span class="nf">max</span>(visitors) <span class="o">-</span> <span class="nf">mean</span>(visitors))), <span class="m">2</span>)  <span class="c1"># implied kits, busiest day</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 9.3e+01 2.0e-04 1.0e+07 6.3e+04</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read those four worlds. Ninety-three kits on a fair day: conceivable. A sale every five thousand days: a dead stall. Ten MILLION kits: the prior believes Asha might personally supply every terrarium on Earth that afternoon. Sixty-three thousand: still absurd. This is a <strong>prior predictive check</strong>: push draws from the prior through the model and look at the data they imply, BEFORE any fitting. It is the cheapest mistake-catcher in the whole workflow, and link scales are where you need it most, because a slope prior you would call timid in ordinary regression turns into science fiction after \(e^{x}\).</p>
+
+<p>So choose priors that know the scale, weakly informative rather than vague:</p>
+
+<p>\[ a \sim \text{Normal}(0,\, 1), \qquad b \sim \text{Normal}(0,\, 0.05) \]</p>
+
+<p>(both written as mean and standard deviation). Translate each into kits before accepting it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="nf">qnorm</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>)) <span class="o">*</span> <span class="m">1</span>), <span class="m">2</span>)          <span class="c1"># a ~ N(0, 1): kits on an average day</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.14 7.10</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="nf">qnorm</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>)) <span class="o">*</span> <span class="m">0.05</span> <span class="o">*</span> <span class="m">10</span>), <span class="m">2</span>)  <span class="c1"># b ~ N(0, 0.05): multiplier per 10 visitors</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.38 2.66</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intercept prior spans one sale a week up to seven a day on an average day: generous but earthly. The slope prior says ten extra visitors could cut demand to a third or multiply it by 2.7, and anything stronger needs real evidence. Neither prior smuggles in the answer; both rule out the ten-million-kit universe. Every piece of this is the machinery you already own: prior times likelihood, coefficient by coefficient, the same update you watched compress in Lesson 1, below.</p>
+<div class="lesson-widget" data-widget-type="bayes-update" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading a slope through a link</h2>
+
+<p>Suppose the fit lands the slope near \(b = 0.08\). Asha's colleague reads the model \(\log \lambda = a + b x\) and announces: "so each extra visitor adds 0.08 kits to expected sales." What is the correct reading?</p>
+<section class="exercise" data-exercise-id="Bayesian-Regression-and-GLMs-End-to-End-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">He is right: b is the number of extra kits per visitor</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Each extra visitor multiplies expected demand by exp(0.08), about 1.08, so ten extra visitors compound to exp(0.8), about 2.2 times the sales, not 0.8 extra kits</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The slope cannot be interpreted until you also know the noise parameter sigma</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">exp(0.08) is about 1.08, so each visitor adds 1.08 kits</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Effects through a log link are multiplicative, and they compound: ten visitors do not add ten small slices, they stack ten multiplications. This is exactly why the corner-stall question will be answered with a rate ratio, not a kit count.</div><div class="lesson-qfb lesson-qfb-no">exp(0.08) is a MULTIPLIER, not a count. On a two-kit day one more visitor adds about 0.17 kits in expectation; on a seven-kit day, about 0.58. Same ratio, different kit counts: that is what multiplicative means.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fit</div>
+<h2>Metropolis, now with two knobs</h2>
+
+<p>Time to fit. Bayes rule has not changed shape: the posterior over BOTH coefficients is prior times likelihood,</p>
+
+<p>\[ p(a, b \mid \text{kits}) \;\propto\; p(a)\; p(b) \prod_{i=1}^{75} \text{Poisson}\!\big(\text{kits}_i \mid e^{a + b x_i}\big) \]</p>
+
+<p>but conjugate mercy is gone: no textbook family hands you this posterior in closed form. This is precisely the situation Lesson 3 built the Metropolis sampler for, and the sampler barely notices the upgrade. The walker now stands at a PAIR \((a, b)\) and proposes a nudge to both coordinates at once; the accept-or-stay rule is word for word the same. The entire model, prior beliefs and all, lives in one function:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">logpost <span class="o">&lt;-</span> <span class="kr">function</span>(th) {</span>
+<span class="cl">  a <span class="o">&lt;-</span> th[<span class="m">1</span>]; b <span class="o">&lt;-</span> th[<span class="m">2</span>]</span>
+<span class="cl">  <span class="nf">dnorm</span>(a, <span class="m">0</span>, <span class="m">1</span>, log <span class="o">=</span> <span class="kc">TRUE</span>) <span class="o">+</span> <span class="nf">dnorm</span>(b, <span class="m">0</span>, <span class="m">0.05</span>, log <span class="o">=</span> <span class="kc">TRUE</span>) <span class="o">+</span></span>
+<span class="cl">    <span class="nf">sum</span>(<span class="nf">dpois</span>(kits, <span class="nf">exp</span>(a <span class="o">+</span> b <span class="o">*</span> x), log <span class="o">=</span> <span class="kc">TRUE</span>))</span>
+<span class="cl">}</span>
+<span class="cl">metropolis2 <span class="o">&lt;-</span> <span class="kr">function</span>(logpost, start, prop_sd, n) {</span>
+<span class="cl">  chain <span class="o">&lt;-</span> <span class="nf">matrix</span>(<span class="m">0</span>, n, <span class="m">2</span>, dimnames <span class="o">=</span> <span class="nf">list</span>(<span class="kc">NULL</span>, <span class="nf">c</span>(<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>)))</span>
+<span class="cl">  chain[<span class="m">1</span>, ] <span class="o">&lt;-</span> start</span>
+<span class="cl">  acc <span class="o">&lt;-</span> <span class="m">0</span></span>
+<span class="cl">  <span class="kr">for</span> (i <span class="kr">in</span> <span class="m">2</span><span class="o">:</span>n) {</span>
+<span class="cl">    cand <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">2</span>, chain[i <span class="o">-</span> <span class="m">1</span>, ], prop_sd)     <span class="c1"># nudge BOTH coordinates</span></span>
+<span class="cl">    <span class="kr">if</span> (<span class="nf">log</span>(<span class="nf">runif</span>(<span class="m">1</span>)) <span class="o">&lt;</span> <span class="nf">logpost</span>(cand) <span class="o">-</span> <span class="nf">logpost</span>(chain[i <span class="o">-</span> <span class="m">1</span>, ])) {</span>
+<span class="cl">      chain[i, ] <span class="o">&lt;-</span> cand</span>
+<span class="cl">      acc <span class="o">&lt;-</span> acc <span class="o">+</span> <span class="m">1</span></span>
+<span class="cl">    } <span class="kr">else</span> chain[i, ] <span class="o">&lt;-</span> chain[i <span class="o">-</span> <span class="m">1</span>, ]</span>
+<span class="cl">  }</span>
+<span class="cl">  <span class="nf">list</span>(chain <span class="o">=</span> chain, accept <span class="o">=</span> acc <span class="o">/</span> (n <span class="o">-</span> <span class="m">1</span>))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">fit <span class="o">&lt;-</span> <span class="nf">metropolis2</span>(logpost, start <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>), prop_sd <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.11</span>, <span class="m">0.011</span>), n <span class="o">=</span> <span class="m">20000</span>)</span>
+<span class="cl"><span class="nf">round</span>(fit<span class="o">$</span>accept, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.36</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Acceptance 0.36, comfortably in the healthy zone from Lesson 3 (roughly 0.2 to 0.5 for a walk like this; the widget below lets you re-feel why too-timid and too-bold proposals both waste the walk). Now the Lesson 4 discipline, in its smallest useful form: look at the trace, and run a SECOND chain from a deliberately silly start, twice the plausible intercept and a negative slope. If both walks describe the same posterior, the start did not matter and the chains have found the real thing:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(fit<span class="o">$</span>chain[<span class="m">1</span><span class="o">:</span><span class="m">2000</span>, <span class="s">&quot;b&quot;</span>], type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;navy&quot;</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;slope b&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;The slope chain: a short climb, then home&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">8</span>)</span>
+<span class="cl">fit2 <span class="o">&lt;-</span> <span class="nf">metropolis2</span>(logpost, start <span class="o">=</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">-0.2</span>), prop_sd <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.11</span>, <span class="m">0.011</span>), n <span class="o">=</span> <span class="m">20000</span>)</span>
+<span class="cl">draws  <span class="o">&lt;-</span> fit<span class="o">$</span>chain[<span class="nf">seq</span>(<span class="m">2001</span>, <span class="m">20000</span>, by <span class="o">=</span> <span class="m">4</span>), ]   <span class="c1"># drop warm-up, keep every 4th step</span></span>
+<span class="cl">draws2 <span class="o">&lt;-</span> fit2<span class="o">$</span>chain[<span class="nf">seq</span>(<span class="m">2001</span>, <span class="m">20000</span>, by <span class="o">=</span> <span class="m">4</span>), ]</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">rbind</span>(chain_1 <span class="o">=</span> <span class="nf">colMeans</span>(draws), chain_2 <span class="o">=</span> <span class="nf">colMeans</span>(draws2)), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;             a     b</span></span>
+<span class="cl"><span class="c1">#&gt; chain_1 0.813 0.084</span></span>
+<span class="cl"><span class="c1">#&gt; chain_2 0.812 0.084</span></span>
+<span class="cl"></span>
+<span class="cl">a_draws <span class="o">&lt;-</span> draws[, <span class="s">&quot;a&quot;</span>]; b_draws <span class="o">&lt;-</span> draws[, <span class="s">&quot;b&quot;</span>]</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(b_mean <span class="o">=</span> <span class="nf">mean</span>(b_draws), b_lo90 <span class="o">=</span> <span class="nf">as.numeric</span>(<span class="nf">quantile</span>(b_draws, <span class="m">0.05</span>)),</span>
+<span class="cl">        b_hi90 <span class="o">=</span> <span class="nf">as.numeric</span>(<span class="nf">quantile</span>(b_draws, <span class="m">0.95</span>))), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; b_mean b_lo90 b_hi90 </span></span>
+<span class="cl"><span class="c1">#&gt;  0.084  0.071  0.097 </span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(a_truth <span class="o">=</span> <span class="m">-1.2</span> <span class="o">+</span> <span class="m">0.09</span> <span class="o">*</span> <span class="nf">mean</span>(visitors), b_truth <span class="o">=</span> <span class="m">0.09</span>), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; a_truth b_truth </span></span>
+<span class="cl"><span class="c1">#&gt;    0.76    0.09 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two chains, two starts, the same answer to the third decimal: agreement is the whole idea behind Lesson 4's R-hat, seen with the naked eye. And now unseal the recipe. The notebook was generated with a centered intercept of 0.76 and a slope of 0.09. The posterior put its 90% interval for \(a\) at 0.668 to 0.953 and for \(b\) at 0.071 to 0.097. Both truths sit inside. The machine, assembled over seven lessons, works.</p>
+<div class="lesson-widget" data-widget-type="mcmc-walk" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Price the corner stall</h2>
+
+<p>The decision number. The corner pitch sees about ten more visitors a day, and step 3 showed that ten extra visitors multiply expected demand by \(e^{10b}\). You hold 4,500 posterior draws of \(b\) in <code>b_draws</code>, so you hold 4,500 plausible values of that multiplier. State the 90% credible interval for it: transform the draws, then read off the 0.05 and 0.95 quantiles.</p>
+<section class="exercise" data-exercise-id="Bayesian-Regression-and-GLMs-End-to-End-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="quantile\s*\(\s*exp\s*\(\s*(10\s*\*\s*b_draws|b_draws\s*\*\s*10)\s*\)\s*,\s*(probs\s*=\s*)?c\s*\(\s*0?\.05\s*,\s*0?\.95\s*\)\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">rr_ci &lt;- ____          # 90% credible interval for the ten-visitor multiplier
+round(rr_ci, 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">rr_ci = 2.04 to 2.63: with 90% credibility, ten extra visitors a day multiply expected kit sales by a factor between about 2.0 and 2.6. Note the move you just made: transform EVERY draw first, then take quantiles. That one habit answers any derived question the posterior can be asked.</span><span class="lesson-tryit-fb lesson-tryit-no">Transform the draws first, then summarize: quantile(exp(10 * b_draws), c(0.05, 0.95)). Applying exp to a summary of b instead of to the draws works only for quantiles and fails for means; transforming the whole vector of draws is the habit that always works.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">rr_ci &lt;- quantile(exp(10 * b_draws), c(0.05, 0.95))
+round(rr_ci, 2)
+#&gt;   5%  95% 
+#&gt; 2.04 2.63 </code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The report</div>
+<h2>The band and the day</h2>
+
+<p>So the corner stall roughly doubles expected sales, and even the pessimistic end of the interval doubles them. Against 40 percent more rent, the answer writes itself, with one caution we will meet in the final quiz. But a report that only quotes coefficients is not finished. Stakeholders ask concrete questions: "the autumn fair brings 35 visitors; what do we sell?" That question hides TWO different uncertainties, and confusing them is the most common error in applied reporting.</p>
+
+<p>The first is uncertainty about the demand LEVEL: what is \(\lambda\) on a 35-visitor day? The posterior draws answer by transformation, the same move as the try-it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">S <span class="o">&lt;-</span> <span class="nf">length</span>(b_draws)                                        <span class="c1"># 4500 plausible worlds</span></span>
+<span class="cl">demand35 <span class="o">&lt;-</span> <span class="nf">exp</span>(a_draws <span class="o">+</span> b_draws <span class="o">*</span> (<span class="m">35</span> <span class="o">-</span> <span class="nf">mean</span>(visitors)))  <span class="c1"># each draw states a demand</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">9</span>)</span>
+<span class="cl">day35 <span class="o">&lt;-</span> <span class="nf">rpois</span>(S, demand35)                <span class="c1"># then each world runs one ACTUAL such day</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(demand_mean <span class="o">=</span> <span class="nf">mean</span>(demand35),</span>
+<span class="cl">        demand_lo90 <span class="o">=</span> <span class="nf">as.numeric</span>(<span class="nf">quantile</span>(demand35, <span class="m">0.05</span>)),</span>
+<span class="cl">        demand_hi90 <span class="o">=</span> <span class="nf">as.numeric</span>(<span class="nf">quantile</span>(demand35, <span class="m">0.95</span>))), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; demand_mean demand_lo90 demand_hi90 </span></span>
+<span class="cl"><span class="c1">#&gt;        6.85        5.96        7.76 </span></span>
+<span class="cl"><span class="nf">quantile</span>(day35, <span class="nf">c</span>(<span class="m">0.05</span>, <span class="m">0.95</span>))             <span class="c1"># what the day itself might sell</span></span>
+<span class="cl"><span class="c1">#&gt;  5% 95% </span></span>
+<span class="cl"><span class="c1">#&gt;   3  11 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two intervals side by side. Expected demand on a 35-visitor day: 6.85 kits, 90% credible interval 5.96 to 7.76. Tight, because seventy-five days of data pin the line down well. But the day ITSELF might sell anywhere from 3 to 11 kits, an interval three times wider, because a single day adds Poisson luck on top of the uncertain level. The first interval is a <strong>credible interval</strong> for the average; the second is a <strong>prediction interval</strong> for one realization. Stock for the fair using the first and Asha runs out one day in four; the moss order needs the second. More data shrinks the first toward a point; the second never shrinks past the Poisson noise floor. Feel exactly that below: grow the sample size and watch the inner band pinch while the outer band refuses.</p>
+
+<p>So the report reads: on a typical fair day of 35 visitors, expect about 6.9 kit sales (90% credible interval 6.0 to 7.8); plan stock for as many as 11, as few as 3; ten extra visitors of daily traffic multiply expected sales by 2.0 to 2.6.</p>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check and compare</div>
+<h2>Earn the right to be believed</h2>
+
+<p>Two audits before that report leaves the stall, both with tools you already own. First, Lesson 6's question: can this model even IMITATE the season it was fit to? Pick the statistic the whole lesson is about, the traffic-sales correlation, and let each fitted model invent two thousand seasons: the GLM, and Lesson 7's champion, the flat Gamma-Poisson (one rate for every day), updated on this new season as the challenger.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">T_obs <span class="o">&lt;-</span> <span class="nf">cor</span>(visitors, kits)              <span class="c1"># the statistic a flat model cannot fake</span></span>
+<span class="cl">a0 <span class="o">&lt;-</span> <span class="m">4</span> <span class="o">+</span> <span class="nf">sum</span>(kits); b0 <span class="o">&lt;-</span> <span class="m">2</span> <span class="o">+</span> <span class="m">75</span>         <span class="c1"># the old champion, updated on the new season</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">10</span>)</span>
+<span class="cl">lam0 <span class="o">&lt;-</span> <span class="nf">rgamma</span>(S, a0, b0)</span>
+<span class="cl">cor_flat <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">2000</span>, <span class="kr">function</span>(s) <span class="nf">cor</span>(visitors, <span class="nf">rpois</span>(<span class="m">75</span>, lam0[s])))</span>
+<span class="cl">cor_glm  <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">2000</span>, <span class="kr">function</span>(s) <span class="nf">cor</span>(visitors, <span class="nf">rpois</span>(<span class="m">75</span>, <span class="nf">exp</span>(a_draws[s] <span class="o">+</span> b_draws[s] <span class="o">*</span> x))))</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(observed <span class="o">=</span> T_obs,</span>
+<span class="cl">        flat_can_match <span class="o">=</span> <span class="nf">mean</span>(cor_flat <span class="o">&gt;=</span> T_obs),</span>
+<span class="cl">        glm_can_match  <span class="o">=</span> <span class="nf">mean</span>(cor_glm  <span class="o">&gt;=</span> T_obs)), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;       observed flat_can_match  glm_can_match </span></span>
+<span class="cl"><span class="c1">#&gt;          0.784          0.000          0.350 </span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">range</span>(cor_flat), <span class="m">2</span>)                 <span class="c1"># the flat repertoire, 2000 tries</span></span>
+<span class="cl"><span class="c1">#&gt; [1] -0.39  0.38</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed correlation is 0.784. In two thousand invented seasons the flat model never once reached it; its entire repertoire tops out at 0.38, exactly the picture the widget below draws (an observed value stranded outside everything the model can produce). The GLM reproduces it comfortably (a healthy 0.35 of its seasons score higher). Last season the flat model was the champion; one new column of data and the same check that crowned it now retires it. Second audit, Lesson 7's scoreboard, rebuilt in three lines:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">llik_glm  <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">75</span>, <span class="kr">function</span>(i) <span class="nf">dpois</span>(kits[i], <span class="nf">exp</span>(a_draws <span class="o">+</span> b_draws <span class="o">*</span> x[i]), log <span class="o">=</span> <span class="kc">TRUE</span>))</span>
+<span class="cl">llik_flat <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">75</span>, <span class="kr">function</span>(i) <span class="nf">dpois</span>(kits[i], lam0, log <span class="o">=</span> <span class="kc">TRUE</span>))</span>
+<span class="cl">elpd <span class="o">&lt;-</span> <span class="kr">function</span>(llik) <span class="nf">log</span>(<span class="nf">colMeans</span>(<span class="nf">exp</span>(llik))) <span class="o">-</span> <span class="nf">apply</span>(llik, <span class="m">2</span>, var)  <span class="c1"># Lesson 7, per day</span></span>
+<span class="cl">e_glm <span class="o">&lt;-</span> <span class="nf">elpd</span>(llik_glm); e_flat <span class="o">&lt;-</span> <span class="nf">elpd</span>(llik_flat)</span>
+<span class="cl">d <span class="o">&lt;-</span> e_glm <span class="o">-</span> e_flat</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(elpd_glm <span class="o">=</span> <span class="nf">sum</span>(e_glm), elpd_flat <span class="o">=</span> <span class="nf">sum</span>(e_flat),</span>
+<span class="cl">        diff <span class="o">=</span> <span class="nf">sum</span>(d), se <span class="o">=</span> <span class="nf">sqrt</span>(<span class="m">75</span> <span class="o">*</span> <span class="nf">var</span>(d))), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;  elpd_glm elpd_flat      diff        se </span></span>
+<span class="cl"><span class="c1">#&gt;    -129.5    -200.1      70.6      14.4 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An elpd gap of 70.6 at standard error 14.4, about five standard errors: not last lesson's photo finish but a rout. The predictor earns its keep on both audits. In practice you will run this pipeline through Stan tooling rather than hand-built samplers; here is this entire lesson in five lines, to run in a local R where Stan is installed (Stan cannot run in a browser session):</p>
+
+<pre><code class="language-r"># The same pipeline with brms (local R)
+library(brms)
+d &lt;- data.frame(kits, visitors)
+fit &lt;- brm(kits ~ visitors, data = d, family = poisson(),
+           prior = c(prior(normal(0, 1), class = Intercept),
+                     prior(normal(0, 0.05), class = b)))
+summary(fit)      # coefficients, credible intervals, R-hat, effective sample size
+pp_check(fit)     # the posterior predictive check, one call
+loo(fit)          # the elpd machinery of Lesson 7, industrial grade</code></pre>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Four limits belong in the report. First, the model measured ASSOCIATION across days, not the effect of moving the stall; hold that thought two more steps. Second, traffic ranged from 5 to 39 visitors, so the model has earned no opinion about a 60-visitor festival; through an exponential link, extrapolation fails expensively. Third, the Poisson family fixes variance equal to mean; if sales run wider (weekend bursts, bulk buyers), the negative binomial is the standard next lap of the workflow loop. Fourth, with 75 days the data overrules any reasonable prior, but in thin-data corners (a new product, a short season) the priors carry real weight, which is why step 4 made them defensible out loud.</div></div>
+<div class="lesson-widget" data-widget-type="ppc-overlay" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The corner-stall verdict</h2>
+
+<p>The report lands on the desk of the marketing lead: ten-visitor rate ratio 2.3, 90% credible interval 2.0 to 2.6; elpd gap 70.6 at standard error 14.4. He concludes: "The interval excludes 1 and the model comparison is a five-sigma rout. Renting the corner stall will roughly double kit sales; the data has proven it." What is the sharpest correction?</p>
+<section class="exercise" data-exercise-id="Bayesian-Regression-and-GLMs-End-to-End-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing to correct: the interval is tight, the elpd gap is decisive, so the doubling is established</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Both numbers measure association across days as they happened: busy days differ from quiet days in ways that travel with traffic (weather, season, events), so moving the stall changes the visitor count but not necessarily the rest. The doubling is a forecast that leans on a causal assumption the data alone cannot check</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The claim fails because the credible interval is too wide to support a business decision</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">WAIC only shows the flat model is worse, so no statement about visitors is allowed at all</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The model is excellent at predicting sales FROM traffic; whether traffic obtained by relocation behaves like traffic that came with sunny fair days is a causal question, answerable by moving the stall for a trial month, not by tightening the interval.</div><div class="lesson-qfb lesson-qfb-no">Too strong in the other direction. The comparison, together with the predictive check, fully licenses USING traffic to predict sales, for stocking and moss orders. What it cannot license by itself is the intervention reading: change the traffic, collect the doubling.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take the whole course further:</p>
+
+<ul>
+
+<li><a href="https://avehtari.github.io/ROS-Examples/">Gelman, Hill and Vehtari, Regression and Other Stories (official site)</a> - the book-length version of this lesson: regression as workflow, priors, checking, and honest reporting, with all code public.</li>
+
+<li><a href="https://xcelab.net/rm/">McElreath, Statistical Rethinking (book site)</a> - the course whose teaching philosophy this one shares: models built from scratch, samplers demystified, causal caution throughout.</li>
+
+<li><a href="https://www.jstatsoft.org/article/view/v080i01">Buerkner (2017), brms: An R Package for Bayesian Multilevel Models Using Stan (JSS)</a> - the tool you will actually fit GLMs with; this paper is its guided tour.</li>
+
+<li><a href="https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations">Stan wiki: Prior Choice Recommendations</a> - the field notes behind step 4: which priors are defensible where, and why vague is not neutral.</li>
+
+<li><a href="https://arxiv.org/abs/2011.01808">Gelman et al. (2020), Bayesian Workflow (arXiv)</a> - the full loop this course walked (model, fit, check, compare, expand), written by the people who named it.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Course complete</h2>
+
+<p>Eight lessons ago, Bayes rule was one line about a conversion rate. Look at what ran today, end to end, in plain base R. You wrote a GLM (a line, a log link, a Poisson family), gave every coefficient a prior and made each defend itself in kits before fitting (one vague slope quietly implied ten million kit sales at the autumn fair). You fit the two-parameter posterior with the Lesson 3 Metropolis sampler (acceptance 0.36), ran Lesson 4's smallest diagnostic (two chains, silly starts, identical answers), and unsealed the recipe: both true coefficients inside their 90% intervals. Then the draws answered every question by transformation: the corner stall multiplies expected sales by 2.0 to 2.6; a 35-visitor fair day averages 6.0 to 7.8 kits but might sell 3 to 11, the band versus the day. And the model earned belief the hard way: Lesson 6's check retired last season's champion (a flat model whose two thousand invented seasons never once matched the observed correlation), and Lesson 7's scoreboard scored the win at five standard errors.</p>
+
+<p>That loop (model, fit, check, compare, expand) is the whole discipline. The tools scale up but do not change shape: where you wrote fifteen lines of Metropolis, brms writes Stan; where you built a log-likelihood matrix, loo builds it with safety rails. Take the references with you, and the next time a model needs a prior, a check, or an honest interval, you will not be borrowing anyone's black box. You built each piece yourself, and you know exactly what every number in the report earned the right to say.</p>
+</section>
+
+
+
+          
+
+        </main>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <div class="toc-title">On this page</div>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+    </div> <!-- /container -->
+
+<!-- SITE-FOOTER-V2 -->
+<style>
+.rsft{background:#101a30;color:#aeb9d4;font-size:14px;font-family:'IBM Plex Sans',-apple-system,Segoe UI,Roboto,Arial,sans-serif;line-height:1.6;margin-top:64px}
+.rsft a{text-decoration:none;transition:color .14s}
+.rsft-in{max-width:1060px;margin:0 auto;padding:46px 26px 0;display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:32px}
+.rsft-bm{display:inline-flex;align-items:center;gap:9px;font-family:'IBM Plex Serif',Georgia,serif;font-weight:700;font-size:18px;color:#fff}
+.rsft-mk{width:30px;height:30px;border-radius:7px;background:#fff;color:#1c2c4f;display:inline-flex;align-items:center;justify-content:center;font-style:italic;font-weight:700;font-family:'IBM Plex Serif',Georgia,serif}
+.rsft-tag{margin:14px 0 16px;color:#aeb9d4;font-size:13.5px;max-width:300px;line-height:1.6}
+.rsft-soc{display:flex;gap:10px}
+.rsft-soc a{min-width:34px;height:34px;padding:0 10px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);color:#eef2fb;border:1px solid rgba(255,255,255,.10);font-size:12px;font-weight:600}
+.rsft-soc a:hover{background:rgba(255,255,255,.13)}
+.rsft-col h4{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#eef2fb;margin:4px 0 14px;font-weight:600}
+.rsft-col a{display:block;color:#aeb9d4;margin-bottom:10px;font-size:13.5px}
+.rsft-col a:hover{color:#fff}
+.rsft-bot{max-width:1060px;margin:30px auto 0;padding:18px 26px;border-top:1px solid rgba(255,255,255,.10);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;font-size:12.5px;color:#8a96b5}
+.rsft-bot a{color:#8a96b5}.rsft-bot a:hover{color:#fff}
+@media(max-width:720px){.rsft-in{grid-template-columns:1fr 1fr}.rsft-brandcol{grid-column:1/-1}}
+</style>
+<footer class="rsft" role="contentinfo">
+  <div class="rsft-in">
+    <div class="rsft-brandcol">
+      <a class="rsft-bm" href="/"><span class="rsft-mk">R</span>r-statistics<span style="color:#7da2ff">.co</span></a>
+      <p class="rsft-tag">Learn R and statistics the practical way: runnable tutorials, auto-graded exercises, free tools, and shareable certificates.</p>
+      <div class="rsft-soc"><a href="/feed.xml" aria-label="RSS feed">RSS</a><a href="https://github.com/selva86" rel="noopener" aria-label="GitHub">GitHub</a></div>
+    </div>
+    <div class="rsft-col"><h4>Explore</h4><a href="/posts/">All Tutorials</a><a href="/tools/">All Tools</a><a href="/about/">About</a></div>
+    <div class="rsft-col"><h4>Popular tools</h4><a href="/tools/t-test-calculator.html">t-Test Calculator</a><a href="/tools/ab-test-calculator.html">A/B Test Calculator</a><a href="/tools/confidence-interval-calculator.html">Confidence Intervals</a></div>
+    <div class="rsft-col"><h4>Site</h4><a href="/pricing.html">Pricing</a><a href="/feedback.html">Feedback</a><a href="/privacy.html">Privacy</a><a href="/terms-of-service.html">Terms</a></div>
+  </div>
+  <div class="rsft-bot">
+    <span>&copy; 2016-2026 r-statistics.co</span>
+    <span>Content licensed under <a href="https://creativecommons.org/licenses/by-nc/3.0/" rel="noopener">CC BY-NC 3.0</a></span>
+  </div>
+</footer>
+<!-- /SITE-FOOTER-V2 -->
+
+  <script>
+  (function(){
+    function wireTabs(){
+      var tabs = document.querySelectorAll('.sidebar-tab');
+      var panels = document.querySelectorAll('.sidebar-panel');
+      if (!tabs.length || !panels.length) return false;
+      function activate(name){
+        tabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab') === name); });
+        panels.forEach(function(p){ p.classList.toggle('active', p.getAttribute('data-panel') === name); });
+      }
+      var onToolPage = location.pathname.indexOf('/tools/') === 0;
+      if (!onToolPage){
+        try { var pinned = localStorage.getItem('rstat_sidebar_tab'); if (pinned === 'tools' || pinned === 'posts') activate(pinned); } catch(e){}
+      } else {
+        activate('tools');
+      }
+      tabs.forEach(function(tab){
+        if (tab.dataset.wired) return;
+        tab.dataset.wired = '1';
+        tab.addEventListener('click', function(){
+          var name = tab.getAttribute('data-tab');
+          activate(name);
+          try { localStorage.setItem('rstat_sidebar_tab', name); } catch(e){}
+        });
+      });
+      return true;
+    }
+    if (!wireTabs()){
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireTabs);
+      else setTimeout(wireTabs, 50);
+    }
+  })();
+  </script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
+  <!-- MathJax Script -->
+  
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {
+        inlineMath: [['$','$'], ['\\(','\\)']],
+        displayMath: [['$$','$$'], ['\\[','\\]']],
+        processEscapes: true
+      }
+    });
+  </script>
+  <script type="text/javascript" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  </script>
+
+  <!-- WebR Interactive Code -->
+    <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
+
+  
+  
+    <script src="www/lesson-widgets.bundle.min.js?h=eb68cc20"></script>
+  <script src="www/exercise-api.min.js?h=ef0c85df"></script>
+  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
+       scripting doesn't compete with the critical path. Events fired before
+       the loader lands get buffered on window.dataLayer and flushed once
+       gtag runs, so pageviews are not lost. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    // Consent Mode v2 (Phase 8): default DENIED until region/consent resolves.
+    // Non-EU visitors are granted immediately (no banner, full GA); EU/UK stay
+    // denied -> cookieless *modeled* measurement -> minimal analytics loss.
+    gtag('consent', 'default', {
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', wait_for_update: 1500
+    });
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      // User interaction is the cheapest trigger we can hang analytics on ,
+      // gtag doesn't need to run until someone is actually interacting with
+      // the page. A 6s fallback ensures bounce sessions still record.
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+
+  <!-- Cookie consent (EU/UK only) + Google Consent Mode v2 -->
+  <!-- Controller is the shared /www/consent-banner.js (single source of truth,
+       used by template-built pages AND legacy GA pages). The Consent Mode
+       *default* is set inline in the GA block above, before gtag('config'). -->
+  <script defer src="/www/consent-banner.js?v=2"></script>
+
+  <!-- Cloudflare Web Analytics (cookieless; no consent gating required).
+       Manual beacon: HTML is served through the Pages Worker, which bypasses
+       Cloudflare's automatic injection, so the token is embedded here. -->
+  <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "edf7e3d50c3e4130a913e7f144643624"}'></script>
+
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox"><img alt="" /></div>
+  <script>
+    (function(){
+      var lb=document.getElementById('img-lightbox'),lbImg=lb.querySelector('img');
+      document.addEventListener('click',function(e){
+        var img=e.target.closest('.img-zoomable');
+        if(img){lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open');document.body.style.overflow='hidden';}
+      });
+      lb.addEventListener('click',function(){lb.classList.remove('open');document.body.style.overflow='';});
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb.classList.contains('open')){lb.classList.remove('open');document.body.style.overflow='';}});
+    })();
+  </script>
+
+  <!-- Google site search -->
+  <script>
+    function my_search_google() {
+      var query = document.getElementById("my-google-search").value;
+      window.open("https://google.com/search?q=" + query + "%20site:https://r-statistics.co");
+    }
+  </script>
+
+  <!-- Masthead behavior: active link + scroll shadow -->
+  <script>
+    (function() {
+      var path = window.location.pathname;
+      var links = document.querySelectorAll('.masthead-nav-link');
+      links.forEach(function(a) {
+        var href = a.getAttribute('href');
+        if (href === '/') return;  // home only matches /
+        if (path.indexOf(href) === 0) a.classList.add('active');
+      });
+      // Tutorial pages (everything not /, /posts/, /about/) get no active link.
+      var masthead = document.querySelector('.site-masthead');
+      if (masthead) {
+        var onScroll = function() {
+          masthead.classList.toggle('scrolled', window.scrollY > 4);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+      }
+    })();
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  <script defer src="/www/auth-hydrate.js?v=11"></script>
+  <script defer src="/www/saved-posts-button.js?v=6"></script>
+  <script defer src="/www/google-onetap.js?v=1"></script>
+  <script defer src="/www/signin-nudge.js?v=10"></script>
+  <script defer src="/www/persona-menu.js?v=4"></script>
+  <script defer src="/www/practice-nav.js?v=5"></script>
+  <!-- Layout v2 enhancements: reading progress bar + heading anchor links.
+       Gated on body.layout-v2 so non-v2 pages skip the work entirely. -->
+  <script>
+  (function(){
+    if (!document.body.classList.contains('layout-v2')) return;
+
+    // Reading progress bar
+    var bar = document.createElement('div');
+    bar.className = 'lv2-progress';
+    document.body.appendChild(bar);
+    var article = document.getElementById('content') || document.body;
+    function updateProgress(){
+      var rect = article.getBoundingClientRect();
+      var totalScrollable = article.offsetHeight - window.innerHeight;
+      if (totalScrollable <= 0){ bar.style.transform = 'scaleX(1)'; return; }
+      var scrolled = Math.max(0, -rect.top);
+      var pct = Math.max(0, Math.min(1, scrolled / totalScrollable));
+      bar.style.transform = 'scaleX(' + pct + ')';
+    }
+    var rafId = 0;
+    function rafProgress(){
+      if (rafId) return;
+      rafId = requestAnimationFrame(function(){ rafId = 0; updateProgress(); });
+    }
+    window.addEventListener('scroll', rafProgress, { passive: true });
+    window.addEventListener('resize', rafProgress);
+    updateProgress();
+
+    // Heading anchor links - hover-reveal '#', click copies the URL.
+    // Page convention uses h2 and h4 (not h3) per CLAUDE.md. Some H4s
+    // arrive without an id because toc.js's slugify may run after this
+    // script — slugify locally so anchors still work.
+    var headings = document.querySelectorAll('#content h2, #content h3, #content h4');
+    var slugifyLocal = function(t){return t.replace(/\s+/g,'-').replace(/[^\w-]/g,'');};
+    headings.forEach(function(h){if(!h.id) h.id = slugifyLocal(h.textContent);});
+    headings = Array.prototype.slice.call(headings).filter(function(h){return !!h.id;});
+    headings.forEach(function(h){
+      var a = document.createElement('a');
+      a.className = 'lv2-anchor';
+      a.href = '#' + h.id;
+      a.textContent = '#';
+      a.setAttribute('aria-label', 'Copy link to section');
+      a.addEventListener('click', function(e){
+        e.preventDefault();
+        var url = window.location.origin + window.location.pathname + '#' + h.id;
+        if (history.replaceState) history.replaceState(null, '', '#' + h.id);
+        if (navigator.clipboard){
+          navigator.clipboard.writeText(url).then(function(){
+            a.textContent = '✓';
+            setTimeout(function(){ a.textContent = '#'; }, 1500);
+          }).catch(function(){ /* clipboard blocked - URL is in address bar anyway */ });
+        }
+      });
+      h.insertBefore(a, h.firstChild);
+    });
+  })();
+  </script>
+  </body>
+</html>

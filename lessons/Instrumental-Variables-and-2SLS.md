@@ -1,0 +1,304 @@
+---
+title: "Causal Inference for Decisions Lesson 6: Instrumental Variables and 2SLS"
+catalog_blurb: "Estimate a causal effect when a hidden influence biases the treatment."
+description: "An instrument shifts the treatment but not the outcome, so it recovers a causal effect ordinary regression cannot. Build two-stage least squares by hand in R."
+keywords: "instrumental variables, IV, 2SLS, two-stage least squares, exclusion restriction, weak instrument, first-stage F, endogeneity, confounding, causal inference, R"
+post_type: "LESSON"
+curriculum_id: "6.180.6"
+webr: true
+mathjax: true
+lesson_access: "pro"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "6"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Synthetic-Control.html"
+course_prev: "Regression-Discontinuity.html"
+---
+
+=== step === cover
+::eyebrow Lesson 6 of 11
+## Instrumental Variables and 2SLS
+
+Lesson 5 ended on a puzzle. When a cutoff only nudges the *chance* of treatment, you recover the effect by scaling the jump in the outcome by the jump in take-up. That ratio, outcome-move over treatment-move, has a name and a whole method behind it: instrumental variables.
+
+Here is the problem it solves. You want to know whether doing more lessons on a language app really raises exam scores. But the keen students do more lessons *and* score higher anyway, so a plain regression credits the lessons with a boost that was really just keenness. Instrumental variables finds a lever that pushes some students to do more lessons for a reason unrelated to how keen they are, and reads the true effect off that push.
+
+By the end of this lesson you will be able to:
+
+- Explain why regressing the outcome on the treatment is biased when a hidden trait drives both
+- Say what makes a variable a valid instrument: relevance, exclusion, and independence
+- Build the two-stage least squares estimator by hand in R and watch it recover the true effect
+- Spot the weak-instrument trap with the first-stage F before it quietly wrecks your estimate
+
+**Prerequisites:** [Lesson 1](Matching-and-the-Propensity-Score.html) (confounding and the potential-outcomes gap), [Lesson 3](Difference-in-Differences-and-Parallel-Trends.html) (why a naive comparison is biased), and [Lesson 5](Regression-Discontinuity.html) (the fuzzy-cutoff ratio you are about to generalize). You can fit `lm` and read its coefficients in base R.
+
+::widget iv-2stage {}
+
+=== step === concept
+::eyebrow The setup
+## A language app, and a slope that flatters
+
+Meet **Lingo**, a Spanish-learning app. Every user does some number of **lessons**, and at the end takes a standard **exam scored 0 to 100**. The product team wants one number: how many exam points does one extra lesson actually buy? If lessons genuinely lift scores, they will push notifications, streaks, the works, to get people doing more of them.
+
+We will build Lingo's data ourselves, so we know the true answer to check against. In our simulated app one extra lesson truly adds **0.4 points** to the exam. There is also a hidden trait, call it **motivation** (grit, ambition, spare time), that makes a student do more lessons *and* score higher for reasons of their own. And there is the lever we will need later: the app **randomly switches on daily reminders** for half its users. Each lesson runs in a fresh R session, so we create everything here.
+
+```r
+set.seed(6)
+n <- 2000
+motivation <- rnorm(n)                     # hidden trait: grit, ambition, spare time
+reminder   <- rbinom(n, 1, 0.5)            # the app randomly switches daily reminders ON
+lessons    <- round(30 + 8 * reminder + 5 * motivation + rnorm(n, 0, 4))
+score      <- round(40 + 0.4 * lessons + 8 * motivation + rnorm(n, 0, 4), 1)
+app <- data.frame(reminder, lessons, score)
+head(app)
+#>   reminder lessons score
+#> 1        1      46  57.8
+#> 2        1      41  47.1
+#> 3        1      48  62.0
+#> 4        1      44  69.5
+#> 5        0      35  54.2
+#> 6        0      29  47.9
+```
+
+The obvious way to answer the team's question is to regress the exam score on the number of lessons and read the slope.
+
+```r
+naive <- lm(score ~ lessons, data = app)
+round(coef(naive), 2)
+#> (Intercept)     lessons
+#>       16.05        1.10
+```
+
+The slope says **1.10 points per lesson**. Nearly three times the 0.4 that lessons truly deliver. Take it at face value and you would promise a student that grinding out ten more lessons lifts their exam by eleven points, when the honest figure is four. Plot the data and the tempting, too-steep line is right there.
+
+```r
+library(ggplot2)
+p_raw <- ggplot(app, aes(lessons, score)) +
+  geom_point(alpha = 0.25, size = 0.8, colour = "#1c2c4f") +
+  geom_smooth(method = "lm", se = FALSE, colour = "#c0392b") +
+  labs(x = "lessons completed", y = "final exam score",
+       title = "More lessons, higher scores: but how much is really the lessons?")
+print(p_raw)
+```
+
+=== step === concept
+::eyebrow Why the slope lies
+## The keen students do both
+
+The students who did the most lessons were not a random slice of users. They were, on average, the more motivated ones, and motivated students score higher on the exam whether or not the app ever nudged them. So the steep 1.10 slope blends two different things: the real 0.4 nudge from each lesson, and the head start in motivation that made those same students both study more and test better.
+
+Because we simulated the data, we can do something you can never do in real life: colour every student by their hidden motivation and look.
+
+```r
+app$motivation <- round(motivation, 2)     # the hidden trait, visible only because we simulated it
+p_conf <- ggplot(app, aes(lessons, score, colour = motivation)) +
+  geom_point(alpha = 0.5, size = 0.9) +
+  scale_colour_gradient(low = "#c9d4e6", high = "#c0392b") +
+  labs(x = "lessons completed", y = "final exam score", colour = "hidden\nmotivation",
+       title = "The most motivated students (red) sit high AND far right")
+print(p_conf)
+```
+
+The red, high-motivation students cluster in the top-right: they do more lessons *and* earn higher scores. That upward drift is what tilts the naive line too steep. In the language of the earlier lessons, motivation is a **confounder**: it causes the treatment (lessons) and it causes the outcome (score).
+
+The size of the damage has a clean formula. If the true model is \(\text{score} = \beta\,\text{lessons} + \gamma\,\text{motivation} + \varepsilon\) but you leave motivation out, the slope you actually estimate converges to
+
+\[ \hat\beta_{\text{OLS}} \;\longrightarrow\; \beta \;+\; \gamma\,\frac{\operatorname{Cov}(\text{lessons},\,\text{motivation})}{\operatorname{Var}(\text{lessons})} \]
+
+Read the pieces in words: \(\beta\) is the true per-lesson effect (0.4), \(\gamma\) is how strongly motivation lifts the score on its own, and the fraction is how much lessons and motivation move together. Both extra terms are positive here, so the estimate lands *above* the truth. That whole second term is the **bias**.
+
+If only we could measure motivation, we could just put it in the regression and the bias would vanish:
+
+```r
+round(coef(lm(score ~ lessons + motivation, data = app)), 2)
+#> (Intercept)     lessons  motivation
+#>       40.67        0.38        8.06
+```
+
+There it is: **0.38**, essentially the true 0.4, once motivation is controlled for. But that is a fantasy. Grit and ambition are not columns in any real dataset. The whole difficulty of this lesson is recovering that 0.38 *without* ever measuring motivation.
+
+[KEY INSIGHT]
+When an unmeasured cause drives both the treatment and the outcome, the treatment is called **endogenous**, and ordinary regression cannot separate its effect from the confounder's. Adjusting for the confounder would fix it, but you cannot adjust for something you cannot see.
+
+=== step === quiz
+::eyebrow Check yourself
+## Which way does the bias point?
+
+The naive regression reported 1.10 points per lesson; the truth is 0.4. A colleague says: "motivated students both study more and score higher on their own." Given only that, what should you expect of the naive slope, and why?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- It is too low, because motivated students would have scored well without the lessons, so the lessons look less important ::no Check the direction. Motivation pushes lessons UP and score UP together, so the omitted-variable term adds a positive amount to the slope. That inflates it, and indeed 1.10 sits well above the true 0.4.
+- It is too high, because the extra score that motivation produces gets wrongly credited to the lessons the motivated students happen to do ::ok Exactly. Lessons and motivation move up together, and motivation lifts the score on its own, so its effect is loaded onto the lesson coefficient. The bias term is positive, and 1.10 lands above the true 0.4.
+- It is unbiased, because with 2000 students the sample is large enough for the slope to be correct ::no A bigger sample makes a biased estimate MORE precise, not more correct. It would converge tightly onto 1.10, the wrong number. Sample size cannot cure confounding.
+
+=== step === concept
+::eyebrow The fix
+## An instrument: a lever with one job
+
+Here is the trick. Suppose there is a variable that gives some students a push to do more lessons, but does so for a reason that has nothing to do with their motivation and touches the exam score only through those extra lessons. Such a variable is called an **instrument**. It lets us isolate the slice of "lessons" that is clean of motivation, and read the effect off that slice alone.
+
+For Lingo we designed one on purpose: the **randomized daily reminder**. The app flipped a coin for each user and switched reminders on for half of them. A valid instrument has to clear three conditions, and the reminder is built to pass all three:
+
+1. **Relevance:** the instrument actually moves the treatment. Reminders really do get people to do more lessons (we will confirm this, and measure how strongly, in a moment).
+2. **Exclusion:** the instrument affects the outcome *only* through the treatment. A push notification does not teach Spanish by itself; its only route to the exam score is the extra lessons it prompts.
+3. **Independence:** the instrument is unrelated to the hidden confounder. Because reminders were assigned by a coin flip, they are unrelated to motivation, so the students who got reminders are not secretly keener.
+
+Since reminders were handed out at random, the reminded and unreminded groups start out the same on average, motivation included. So any difference in their lessons, and any difference in their scores, can be traced back to the reminder. Compare the two groups:
+
+```r
+by_reminder <- aggregate(cbind(lessons, score) ~ reminder, data = app, FUN = mean)
+round(by_reminder, 2)
+#>   reminder lessons score
+#> 1        0   30.01 51.79
+#> 2        1   37.88 55.16
+```
+
+Getting a reminder raised lessons from about 30 to about 38, and the exam score from about 51.8 to about 55.2. Now the key move. The reminder bought **7.87 extra lessons** and, through them, **3.36 extra exam points**. If those points came *only* from the extra lessons, then each lesson is worth the points-per-lesson ratio of the two:
+
+```r
+lift_lessons <- diff(by_reminder$lessons)   # reminder's effect on lessons  (the "first stage")
+lift_score   <- diff(by_reminder$score)     # reminder's effect on the score (the "reduced form")
+round(c(reminder_on_lessons = lift_lessons,
+        reminder_on_score   = lift_score,
+        wald_estimate       = lift_score / lift_lessons), 2)
+#> reminder_on_lessons   reminder_on_score       wald_estimate
+#>                7.87                3.36                0.43
+```
+
+**0.43**, right on the true 0.4, and nowhere near the naive 1.10. This ratio is the **Wald estimator**. Written out, with \(Z\) the instrument (reminder), \(X\) the treatment (lessons), and \(Y\) the outcome (score):
+
+\[ \hat\beta_{\text{IV}} \;=\; \frac{\bar{Y}_{Z=1} - \bar{Y}_{Z=0}}{\bar{X}_{Z=1} - \bar{X}_{Z=0}} \;=\; \frac{3.36}{7.87} \;\approx\; 0.43 \]
+
+The numerator is how much the outcome moved with the instrument; the denominator is how much the treatment moved with it. We recovered the true effect without ever measuring motivation. That is the whole idea.
+
+=== step === concept
+::eyebrow The general recipe
+## Two-stage least squares
+
+The Wald ratio works beautifully when the instrument is a simple yes/no like our reminder. Two-stage least squares (2SLS) is the same idea written so it works with any instrument and lets you add control variables: split the treatment into a clean part and a dirty part, keep only the clean part, and regress on that.
+
+::widget process-flow {"steps":[{"title":"Stage 1: predict the treatment","sub":"regress the treatment on the instrument; the fitted values are the instrument-driven, confounder-free part"},{"title":"Stage 2: use the prediction","sub":"regress the outcome on those fitted values; that slope is the causal effect"}]}
+
+Stage 1 asks: how much of a student's lesson count is explained by the reminder alone? Whatever the reminder predicts is untouched by motivation, because the reminder was random.
+
+```r
+stage1 <- lm(lessons ~ reminder, data = app)   # STAGE 1: lessons explained by the instrument
+round(coef(stage1), 2)
+#> (Intercept)    reminder
+#>       30.01        7.87
+app$lessons_hat <- fitted(stage1)              # keep only the reminder-driven part of lessons
+```
+
+Notice Stage 1's coefficient on `reminder` is **7.87**, exactly the lesson lift you found by hand. The fitted values `lessons_hat` take just two values, the two group means: they are the part of a student's lessons that the coin flip, not their motivation, accounts for. Formally, with \(\hat X\) the Stage 1 prediction, Stage 2 is
+
+\[ Y \;=\; \beta\,\hat X \;+\; \text{error} \]
+
+and \(\beta\) is the causal effect. When the instrument is a single yes/no variable, 2SLS gives back the Wald ratio exactly. You will see that number appear in the next step.
+
+=== step === tryit
+::eyebrow Your turn
+## Run the second stage
+
+Stage 1 is done and `app$lessons_hat` holds the reminder-driven part of each student's lessons. All that is left is **Stage 2**: regress the exam `score` on `lessons_hat`. Fill in the predictor.
+
+```r
+# STAGE 2: regress the outcome on the confounder-free part of the treatment
+stage2 <- lm(score ~ ____, data = app)
+round(coef(stage2)[2], 2)
+```
+::check {"regex":"lessons_hat","gate":true,"difficulty":"intermediate","ok":"That is it: about 0.43, matching the Wald ratio and landing on the true 0.4, with motivation never measured.","no":"Regress score on the Stage 1 fitted values. The column is called lessons_hat, so the formula is score ~ lessons_hat."}
+::solution
+```r
+stage2 <- lm(score ~ lessons_hat, data = app)
+round(coef(stage2)[2], 2)
+#> lessons_hat
+#>        0.43
+```
+
+=== step === concept
+::eyebrow The one thing that breaks it
+## Weak instruments
+
+Everything above rests on the denominator: the instrument has to move the treatment by a real, solid amount. If it barely does, the Wald ratio divides a small number by a tiny, noisy one, and the estimate goes haywire. An instrument that barely shifts the treatment is called **weak**, and it is the most common way an IV analysis quietly fails.
+
+The health check is the **first-stage F**, the F-statistic from the Stage 1 regression of the treatment on the instrument. A big F means the instrument is a strong, reliable mover; a small one is a warning. The rule of thumb, from Stock and Yogo, is \(F > 10\). Our reminder is very strong:
+
+```r
+round(summary(stage1)$fstatistic[1], 1)     # STRONG instrument: first-stage F, far above 10
+#>  value
+#>  720.6
+```
+
+Now watch what a weak instrument does. Suppose the reminder had barely worked, nudging lessons by less than one on average instead of by eight. Everything else about the students is unchanged.
+
+```r
+set.seed(11)
+weak      <- rbinom(n, 1, 0.5)
+lessons_w <- round(30 + 0.6 * weak + 5 * motivation + rnorm(n, 0, 4))  # reminder barely moves lessons
+score_w   <- round(40 + 0.4 * lessons_w + 8 * motivation + rnorm(n, 0, 4), 1)
+s1_weak   <- lm(lessons_w ~ weak)
+weak_iv   <- coef(lm(score_w ~ fitted(s1_weak)))[2]
+round(c(first_stage_F = unname(summary(s1_weak)$fstatistic[1]),
+        weak_IV       = unname(weak_iv),
+        naive_OLS     = unname(coef(lm(score_w ~ lessons_w))[2]),
+        true          = 0.4), 2)
+#> first_stage_F       weak_IV     naive_OLS          true
+#>          6.24          0.78          1.38          0.40
+```
+
+The first-stage F is **6.24**, under the threshold of 10, and the IV estimate is **0.78**, badly off the true 0.4. Worse than merely noisy: notice it drifted back *toward* the biased naive OLS of 1.38. That is the signature of a weak instrument. It does not just add scatter, it pulls the estimate back toward the very bias you were trying to escape. Toggle the widget from strong to weak and you can watch the same collapse: the IV line swings while the first-stage F falls apart.
+
+::widget iv-2stage {}
+
+=== step === quiz
+::eyebrow Check yourself
+## Is this a good instrument?
+
+A team wants the causal effect of using their fitness app (treatment) on weight loss (outcome). Fitter, more health-conscious people both use the app more and lose weight more easily, so a naive regression is confounded. They propose an instrument: **each user's self-reported interest in health**, arguing it strongly predicts app use. Which objection is the real problem?
+
+::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
+- No problem: it predicts app use strongly, so the first-stage F will be high and the instrument is valid ::no A high first-stage F only satisfies relevance, one of the three conditions. Relevance alone does not make an instrument valid; it also has to be unrelated to the confounder and affect the outcome only through the treatment. This one fails those.
+- It is too weak: interest in health barely moves app usage, so the first-stage F would be small ::no The team's whole pitch is that interest predicts usage strongly, so relevance is likely fine. The fatal flaw is elsewhere, in the other two conditions.
+- It violates independence and exclusion: health-conscious people lose weight through diet and exercise too, so interest is tangled with the confounder and reaches weight loss by routes other than the app ::ok Right. Interest in health IS essentially the confounder, and it affects weight loss through many channels besides the app (diet, gym, sleep). A valid instrument must be as-good-as-random and touch the outcome only through the treatment. This one fails both.
+
+=== step === concept
+::eyebrow Read the fine print
+## What IV can and cannot promise
+
+Instrumental variables is powerful, but it buys its answer with assumptions, and honesty about them is the difference between a credible study and a fooled one.
+
+- **Exclusion cannot be tested, only argued.** No amount of data proves that reminders touch the score *only* through lessons. If a reminder also, say, made students anxious on exam day, that hidden second path would contaminate the estimate, and the numbers would look fine anyway. You defend exclusion with the design and domain knowledge, not with a p-value.
+- **The effect is local.** IV recovers the effect for the **compliers**: the students who did more lessons *because* of the reminder. It says nothing about people who would have done every lesson regardless, or none no matter what. This is the same LATE (local average treatment effect) idea you met at the RDD cutoff.
+- **A weak instrument is worse than none.** As you just saw, a low first-stage F does not merely widen the error bars, it biases the estimate back toward OLS. Always report the first-stage F.
+
+In practice you would not code the two stages by hand every time (doing it once, as you did, is how you understand it). A dedicated package fits 2SLS in one line and hands you the right standard errors and a battery of diagnostics, including the weak-instrument test:
+
+```r-static
+# The professional tool (run locally; install the ivreg package first)
+library(ivreg)
+fit <- ivreg(score ~ lessons | reminder, data = app)   # outcome ~ treatment | instrument
+summary(fit, diagnostics = TRUE)   # effect, correct SEs, and the weak-instrument F test
+```
+
+The `lessons | reminder` syntax says "lessons is the endogenous treatment, reminder is the instrument". The estimate it returns is the same 0.43 you built by hand, now with trustworthy standard errors.
+
+=== step === concept
+::eyebrow Go deeper
+## References
+
+Five authoritative places to take instrumental variables further:
+
+- [Angrist and Krueger (1991), Does Compulsory School Attendance Affect Schooling and Earnings? (QJE)](https://doi.org/10.2307/2937954) - the celebrated study that used quarter of birth as an instrument for years of schooling; the paper that made IV famous in economics.
+- [Angrist, Imbens and Rubin (1996), Identification of Causal Effects Using Instrumental Variables (JASA)](https://doi.org/10.1080/01621459.1996.10476902) - where the compliers / LATE interpretation of IV was made precise; the reason "local" is in the name.
+- [Stock and Yogo (2005), Testing for Weak Instruments in Linear IV Regression (NBER working paper)](https://www.nber.org/papers/t0284) - the source of the first-stage F rule of thumb and the formal weak-instrument critical values.
+- [Cunningham, Causal Inference: The Mixtape, Instrumental Variables chapter](https://mixtape.scunning.com/07-instrumental_variables) - a from-scratch walk-through with runnable R, free online; the gentlest full treatment.
+- [ivreg (CRAN)](https://cran.r-project.org/package=ivreg) - the production package for 2SLS in R: one-line fitting, correct standard errors, and built-in diagnostics for weak instruments and exclusion.
+
+=== step === complete
+## Lesson 6 complete
+
+You took a treatment tangled up with a hidden confounder and pulled a clean causal effect out of it. A naive regression claimed each Lingo lesson was worth **1.10 exam points**, nearly three times the truth, because the keen students both studied more and scored higher on their own. You could not measure that keenness, so adjusting for it was impossible. Instead you found a lever, a **randomized reminder** that moved lessons for a reason unrelated to motivation, and used it two ways: the Wald ratio (outcome-lift over treatment-lift, 3.36 over 7.87) and two-stage least squares by hand, both landing on **0.43**, right on the planted 0.4. Then you learned to guard the method, checking the **first-stage F** so a weak instrument cannot quietly drag your estimate back toward the bias.
+
+Next, Lesson 7: Synthetic Control. Sometimes there is only one treated unit, a single city, company, or country that adopted a policy, and no clean comparison group anywhere. You will build one from scratch, blending several untreated units into a synthetic twin that tracks the treated unit before the policy, then read the effect as the gap that opens afterward.

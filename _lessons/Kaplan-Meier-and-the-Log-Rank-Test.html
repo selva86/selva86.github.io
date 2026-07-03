@@ -1,0 +1,348 @@
+---
+title: "Survival Analysis Lesson 2: Kaplan-Meier and the Log-Rank Test"
+description: "Build the Kaplan-Meier survival curve from censored data by hand and in R, read its median, then use the log-rank test to compare two treatment arms with survdiff."
+keywords: "Kaplan-Meier, log-rank test, survival curve, product-limit estimator, survfit, survdiff, median survival, censored data, survival analysis in R"
+mathjax: true
+webr: true
+curriculum_id: "6.150.2"
+post_type: "LESSON"
+course_id: "ds-survival"
+course_title: "Survival Analysis"
+course_lesson: "2"
+course_total: "7"
+course_landing: "R-Survival-Analysis-Course.html"
+course_next: "Cox-Proportional-Hazards.html"
+course_prev: "Survival-Data-and-Censoring.html"
+lesson_access: "pro"
+catalog_blurb: "Estimate survival curves from censored data and test whether two groups differ."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 7</div>
+<h2>Kaplan-Meier and the Log-Rank Test</h2>
+
+<p>In Lesson 1 you learned that a censored row like Arun's <code>18+</code> is a floor, not a death, and that the honest summary of a waiting time is the survival curve S(t). But we never built one. This lesson does exactly that: it turns Dr. Rao's censored table into the two step curves below, one careful drop at a time, and then tests whether the gap between her two arms is real or just luck.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why "the fraction still alive" quietly breaks the moment a patient is censored</li>
+
+<li>Compute a Kaplan-Meier survival curve by hand, then reproduce it in R and read its median</li>
+
+<li>Say what the log-rank test actually compares, run it, and read its p-value, and know the one thing it will not tell you</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> <a href="Survival-Data-and-Censoring.html">Lesson 1</a> (right-censoring, the <code>Surv()</code> outcome, the survival function S(t) and its median). You can run R and read a data frame.</p>
+<div class="lesson-widget" data-widget-type="km-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The obstacle</div>
+<h2>Why you cannot just count heads</h2>
+
+<p>Here is the tempting shortcut. To estimate the chance of surviving past 12 months, count how many patients lasted past 12 months and divide by the total. On clean data that works. On censored data it falls apart, and Lesson 1 told you why: Farid left the study alive at 9.4 months. Is he a survivor past 12 months? We have no idea. Counting him as a death understates survival; counting him as a survivor overstates it; dropping him throws away the real fact that he lived at least 9.4 months.</p>
+
+<p>Kaplan and Meier's fix is to stop asking one big question and ask a chain of tiny ones. Do not compute S(12) in one shot. Instead, walk forward in time and, at each moment a death actually happens, ask only: <strong>of the patients still being watched right now, what fraction just died?</strong> That group still being watched is the <strong>at-risk set</strong>: everyone who has neither died nor been censored yet. Its size just before a death time \(t_i\) is written \(n_i\).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A censored patient stays in the at-risk set for every month you actually saw them alive, then simply leaves it, without ever being scored as a death. That is how Kaplan-Meier uses Farid's "at least 9.4 months" honestly: he helps hold the curve up while he is watched, and quietly steps out when we lose sight of him.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The estimator</div>
+<h2>The product-limit estimator, by hand</h2>
+
+<p>Chain those tiny questions together and you get the <strong>Kaplan-Meier estimator</strong>, also called the <strong>product-limit estimator</strong>. At each death time the curve is multiplied by the fraction of the at-risk set that survived that instant:</p>
+
+<p>\[ \hat{S}(t) = \prod_{t_i \le t} \left(1 - \frac{d_i}{n_i}\right) \]</p>
+
+<p>Read the pieces slowly. The big \(\prod\) means "multiply together", running over every death time \(t_i\) up to the time \(t\) you care about. At each such time, \(d_i\) is the number of deaths exactly then, and \(n_i\) is the number at risk just before it. So \(1 - d_i/n_i\) is the fraction who survived that moment, and the running product of those fractions is the probability of surviving all of them, which is exactly S(t).</p>
+
+<p>Let's turn the crank on Dr. Rao's standard arm, all fifteen patients, ordered by follow-up time. Start with everyone alive, \(\hat{S} = 1\), and update only at deaths:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Month</th>
+<th>At risk (n)</th>
+<th>Deaths (d)</th>
+<th>Survives the moment (1 - d/n)</th>
+<th>S(t)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.7</td>
+<td>15</td>
+<td>1</td>
+<td>14/15 = 0.933</td>
+<td>0.933</td>
+</tr>
+<tr>
+<td>3.2</td>
+<td>14</td>
+<td>1</td>
+<td>13/14 = 0.929</td>
+<td>0.867</td>
+</tr>
+<tr>
+<td>4.5</td>
+<td>13</td>
+<td>1</td>
+<td>12/13 = 0.923</td>
+<td>0.800</td>
+</tr>
+<tr>
+<td>5.5</td>
+<td>12</td>
+<td>1</td>
+<td>11/12 = 0.917</td>
+<td>0.733</td>
+</tr>
+<tr>
+<td>6.1</td>
+<td>11</td>
+<td>1</td>
+<td>10/11 = 0.909</td>
+<td>0.667</td>
+</tr>
+<tr>
+<td>7.0</td>
+<td>10</td>
+<td>1</td>
+<td>9/10 = 0.900</td>
+<td>0.600</td>
+</tr>
+<tr>
+<td>8.3</td>
+<td>9</td>
+<td>1</td>
+<td>8/9 = 0.889</td>
+<td>0.533</td>
+</tr>
+<tr>
+<td>9.4</td>
+<td>8</td>
+<td>0 (censored)</td>
+<td>no drop</td>
+<td>0.533</td>
+</tr>
+<tr>
+<td>11.5</td>
+<td>7</td>
+<td>1</td>
+<td>6/7 = 0.857</td>
+<td>0.457</td>
+</tr>
+</tbody>
+</table>
+
+<p>Look hard at the 9.4-month row, the whole idea lives there. Farid is censored, not dead, so the curve does <strong>not</strong> drop: nothing died, so the fraction surviving that instant is 1. But he still leaves the at-risk set. That is why the very next death, at 11.5 months, is now divided over 7 patients instead of 8, so it takes a slightly bigger bite out of the curve. Censoring never pushes the curve down; it only shrinks the pool that later deaths are measured against.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The curve crosses 0.5 at 11.5 months: that is the <strong>median survival</strong>, the time by which half the standard arm has died. You read it straight off the estimate, no averaging, no assumption about the shape of the hazard.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>The same curve in two lines</h2>
+
+<p>You will never build that table by hand again, because <code>survfit()</code> in the <code>survival</code> package does the entire product-limit calculation for you. Each lesson runs in a fresh R session, so we create Dr. Rao's standard arm right here first (run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(survival)
+
+# Dr. Rao's standard arm: 15 patients. months = follow-up, status = 1 died / 0 censored.
+std_months &lt;- c(2.7, 3.2, 4.5, 5.5, 6.1, 7.0, 8.3, 9.4, 11.5, 12.6, 13.5, 15.8, 18.0, 24.0, 24.0)
+std_status &lt;- c(1,   1,   1,   1,   1,   1,   1,   0,   1,    1,    1,    1,    0,    0,    0)
+
+km &lt;- survfit(Surv(std_months, std_status) ~ 1)
+summary(km)     # one row per death: the product-limit table you just built by hand
+#&gt;  time n.risk n.event survival std.err lower 95% CI upper 95% CI
+#&gt;   2.7     15       1    0.933  0.0644        0.815        1.000
+#&gt;   3.2     14       1    0.867  0.0878        0.711        1.000
+#&gt;   4.5     13       1    0.800  0.1033        0.621        1.000
+#&gt;   ...
+#&gt;   8.3      9       1    0.533  0.1288        0.332        0.856
+#&gt;  11.5      7       1    0.457  0.1310        0.261        0.802</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>survival</code> column matches your hand table to the last digit, and the <code>n.risk</code> column shows the at-risk set shrinking. Now ask R for the headline number:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">km        # n, number of events, and the median with a 95% confidence interval
+#&gt;       n events median 0.95LCL 0.95UCL
+#&gt; [1,] 15     11   11.5     6.1      NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Median survival 11.5 months, exactly where your table crossed 0.5. The upper confidence limit prints <code>NA</code> because the curve never reliably reaches the low survival levels needed to pin it down: a fingerprint of censored data, not a bug.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">Read the picture</div>
+<h2>What a KM curve is telling you</h2>
+
+<p>Now put both arms on one plot. The chart below draws a Kaplan-Meier curve for each of Dr. Rao's arms. Toggle between them and read the four things every survival curve shows:</p>
+
+<ul>
+
+<li><strong>The steps.</strong> The curve is flat, then drops. Every drop is a death; the height of the drop is that death's bite out of the at-risk set. Flat stretches are periods when nobody died.</li>
+
+<li><strong>The ticks.</strong> Each vertical tick is a censored patient leaving the study alive. Notice the curve does not fall at a tick.</li>
+
+<li><strong>The median.</strong> Where a curve crosses the dashed 50% line is that arm's median survival. The new drug's curve crosses much further to the right.</li>
+
+<li><strong>The gap.</strong> The new-drug curve sits above the standard curve almost the whole way. That vertical gap, at every time point, is the visible effect of the treatment, and it is what the log-rank test will put a number on.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A Kaplan-Meier estimate is exactly right on average, but on a small arm it is chunky and its tail is uncertain (those widening confidence intervals). With fifteen patients per arm you should trust the overall shape and the early curve far more than the last few steps. More patients give a smoother, more trustworthy curve.</div></div>
+<div class="lesson-widget" data-widget-type="km-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the curve</h2>
+
+<p>On a Kaplan-Meier curve you see a vertical tick mark at 9 months, and the curve stays perfectly flat across it. What does that tick mean?</p>
+<section class="exercise" data-exercise-id="Kaplan-Meier-and-the-Log-Rank-Test-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A patient died at 9 months, which is why the curve is marked there</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A patient was censored at 9 months: last seen alive, then out of the at-risk set, so no drop</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The study collected no data at 9 months</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A tick is a censoring, a patient still alive at last contact. The curve holds steady because no one died; the patient simply leaves the pool that later deaths are measured against.</div><div class="lesson-qfb lesson-qfb-no">The tick is real data: it records a patient who was alive at 9 months and then left follow-up. That "at least 9 months" is exactly the censored information Kaplan-Meier is built to use.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Comparing two arms</div>
+<h2>The log-rank test: observed versus expected</h2>
+
+<p>The curves clearly separate, but eyeballing is not proof. A gap that size could still show up by chance in thirty patients. The <strong>log-rank test</strong> turns the question "is the gap real?" into a hypothesis test.</p>
+
+<p>Its logic is the same at-risk bookkeeping, now done for both arms at once. Walk through every time a death happens in the whole trial. At that moment there are \(n_i\) patients at risk in total and \(d_i\) deaths; the standard arm holds \(n_{1i}\) of those at-risk patients. If the two drugs were truly identical (the null hypothesis), a death should land in the standard arm in proportion to its share of the risk set. So the <strong>expected</strong> standard-arm deaths at that time are</p>
+
+<p>\[ e_{1i} = d_i \times \frac{n_{1i}}{n_i}. \]</p>
+
+<p>Add these up across all death times and compare the total the standard arm actually suffered, \(O_1 = \sum_i d_{1i}\) (observed), against the total we would expect under the null, \(E_1 = \sum_i e_{1i}\) (expected). A large gap between \(O_1\) and \(E_1\) is evidence the arms differ. The test rolls that gap into a single chi-square statistic,</p>
+
+<p>\[ \chi^2 = \frac{(O_1 - E_1)^2}{V}, \]</p>
+
+<p>where \(V\) is its variance (R computes it for you), and reads off a p-value with one degree of freedom.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The log-rank test never looks at the medians. It compares the whole curves, death time by death time, weighting the entire follow-up. Two arms with the same median but different long-run survival can still come apart under a log-rank test.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Run the log-rank test with survdiff</h2>
+
+<p>Add the new-drug arm, stack both arms into one data frame with an <code>arm</code> label, and hand it to <code>survdiff()</code>. The formula is the same <code>Surv(...) ~</code> you know, with the grouping variable on the right:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The new-drug arm: 15 patients, longer follow-up, more still alive at the 24-month close.
+new_months &lt;- c(9.0, 24.0, 19.2, 24.0, 13.0, 22.5, 24.0, 16.4, 24.0, 20.8, 15.0, 24.0, 18.0, 21.0, 23.0)
+new_status &lt;- c(1,   0,    1,    0,    1,    1,    0,    1,    0,    1,    0,    0,    1,    1,    1)
+
+trial &lt;- data.frame(
+  months = c(std_months, new_months),
+  status = c(std_status, new_status),
+  arm    = factor(rep(c(&quot;standard&quot;, &quot;new&quot;), each = 15), levels = c(&quot;standard&quot;, &quot;new&quot;))
+)
+
+survfit(Surv(months, status) ~ arm, data = trial)   # a median for each arm
+#&gt;              n events median 0.95LCL 0.95UCL
+#&gt; arm=standard 15     11   11.5     6.1      NA
+#&gt; arm=new      15      9   22.5    19.2      NA
+
+survdiff(Surv(months, status) ~ arm, data = trial)  # the log-rank test
+#&gt;              N Observed Expected (O-E)^2/E (O-E)^2/V
+#&gt; arm=standard 15       11      6.3      3.51      5.41
+#&gt; arm=new      15        9     13.7      1.61      5.41
+#&gt;  Chisq= 5.4  on 1 degrees of freedom, p= 0.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read it as a story. The standard arm suffered 11 deaths but, under the null of no difference, only about 6.3 were expected: it did far worse than chance predicts. The new arm did the mirror image, 9 deaths against 13.7 expected. That mismatch gives a chi-square of 5.4 and a p-value of 0.02. Under a true null, a gap this large would appear about 2 times in 100, so we conclude the two survival curves genuinely differ.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Point the test at the right groups</h2>
+
+<p><code>survdiff()</code> needs to know which column splits the patients into groups to compare. Everything else is built: <code>trial</code> has <code>months</code>, <code>status</code>, and an <code>arm</code> column. Fill in the grouping variable so the test compares the standard and new arms.</p>
+<section class="exercise" data-exercise-id="Kaplan-Meier-and-the-Log-Rank-Test-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="~\s*arm|Surv\([^)]*\)\s*~\s*arm"><textarea class="lesson-tryit-input" spellcheck="false">survdiff(Surv(months, status) ~ ____, data = trial)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the log-rank test comparing the two arms: chi-square 5.4, p = 0.02. The variable to the right of ~ is what you are comparing across.</span><span class="lesson-tryit-fb lesson-tryit-no">The grouping column is arm. Put it on the right of the ~ : survdiff(Surv(months, status) ~ arm, data = trial).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">survdiff(Surv(months, status) ~ arm, data = trial)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What the p-value does and does not say</h2>
+
+<p>Dr. Rao's log-rank test returns p = 0.02. A colleague summarizes the result four different ways. Which statement is correct?</p>
+<section class="exercise" data-exercise-id="Kaplan-Meier-and-the-Log-Rank-Test-step10" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">"There is a 2% chance the two drugs are actually the same."</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">"The new drug extends median survival by 11 months, and that is significant."</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">"If the drugs were truly identical, a difference this large would arise only about 2% of the time, so we have good evidence they differ."</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">"A p above 0.05 would have proved the drugs are equally effective."</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. That is what a log-rank p-value means: evidence against the null of identical survival. It flags that the curves differ, and leaves the size of the difference to the next tool.</div><div class="lesson-qfb lesson-qfb-no">A non-significant test never proves equality; it just fails to find a difference, often because the study is too small. Absence of evidence is not evidence of absence.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four solid places to take this further:</p>
+
+<ul>
+
+<li><a href="https://cran.r-project.org/web/packages/survival/vignettes/survival.pdf">The survival package vignette (Therneau, CRAN)</a> - the canonical R reference for <code>survfit</code> and <code>survdiff</code>, from the package's own author.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 11 (free PDF)</a> - a clear chapter on the Kaplan-Meier estimator and the log-rank test with worked intuition.</li>
+
+<li><a href="https://doi.org/10.1136/bmj.328.7447.1073">Bland and Altman (2004), The logrank test, BMJ 328:1073</a> - a one-page classic that walks through the observed-versus-expected calculation by hand.</li>
+
+<li><a href="https://doi.org/10.1016/j.otohns.2010.05.007">Rich et al. (2010), A practical guide to understanding Kaplan-Meier curves</a> - how to read, and how not to misread, a published KM curve.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now build a survival curve from censored data instead of just describing one. Kaplan-Meier walks time forward and, at each death, multiplies the curve by the fraction of the at-risk set that survived, letting censored patients hold the curve up and then leave without ever counting as deaths; the median is where the curve crosses 0.5. And the log-rank test compares two arms by summing observed against expected deaths across every event time, turning a visible gap (here, medians of 11.5 vs 22.5 months) into a p-value (0.02) that says the curves genuinely differ.</p>
+
+<p>But notice the one number the log-rank test refused to give you: <strong>how much</strong> better the new drug is. It tells you the arms differ, not by how much, and it cannot adjust for age, sex, or disease severity. Next, Lesson 3: Cox proportional hazards, the model that estimates the hazard ratio, a single number for the size of the effect, while controlling for everything else in the chart.</p>
+</section>
+
+{% endraw %}

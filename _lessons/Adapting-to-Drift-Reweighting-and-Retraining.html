@@ -1,0 +1,403 @@
+---
+title: "Robustness and Drift Lesson 3: Adapting to Drift: Reweighting and Retraining"
+description: "Drift detected, now fix it: reweight training data by a density ratio to correct covariate shift, and set a control-limit trigger so you retrain only when needed."
+keywords: "covariate shift, importance weighting, density ratio, model retraining, control limit, concept drift adaptation, PSI, model monitoring, R"
+mathjax: true
+webr: true
+curriculum_id: "6.190.3"
+post_type: "LESSON"
+course_id: "ds-robustness-drift"
+course_title: "Robustness, Drift and Distribution Shift"
+course_lesson: "3"
+course_total: "7"
+course_landing: "R-Robustness-and-Drift-Course.html"
+course_next: "Out-of-Distribution-and-Novelty-Detection.html"
+course_prev: "Detecting-Distribution-Shift.html"
+lesson_access: "pro"
+catalog_blurb: "Correct shifted inputs by reweighting, and retrain only when the data says to."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 7</div>
+<h2>Adapting to Drift: Reweighting and Retraining</h2>
+
+<p>In Lesson 2, Nadia's monitor finally earned its keep. With no fraud labels in hand, the Population Stability Index caught the purchase <code>amount</code> creeping up and tripped the alarm. But an alarm is not a fix. Knowing the inputs moved tells you nothing about <strong>what to do next</strong>.</p>
+
+<p>There are exactly two moves, and this lesson is about choosing between them and executing each one in R:</p>
+
+<ul>
+
+<li><strong>Reweight</strong> the data you already have, no new labels needed, when only the inputs drifted.</li>
+
+<li><strong>Retrain</strong> on fresh labels, when the world's actual rule changed, and do it on a <em>trigger</em>, not a calendar.</li>
+
+</ul>
+
+<p>Slide the monitor below: as the weeks pass, the live inputs pull away from what Nadia's model trained on and the PSI climbs past its alarm line. That moment, when the alarm fires, is where this lesson begins.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Decide which fix a shift needs: <strong>covariate shift</strong> you reweight, <strong>concept shift</strong> you retrain</li>
+
+<li>Correct covariate shift by <strong>importance-weighting</strong> the training data with a <strong>density ratio</strong></li>
+
+<li>Estimate those weights the easy way, as the <strong>odds of a domain classifier</strong> (the Lesson 2 trick, reused)</li>
+
+<li>Set a <strong>control-limit retraining trigger</strong> so you retrain when the data demands it, not on a schedule</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you finished <a href="Detecting-Distribution-Shift.html">Lesson 2</a> (PSI and its 0.1 / 0.2 lines, the classifier two-sample test, covariate vs concept shift), and you can fit and read a logistic regression.</p>
+<div class="lesson-widget" data-widget-type="drift-monitor" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fork in the road</div>
+<h2>Two shifts, two fixes</h2>
+
+<p>Lesson 1 split the ways a deployed model can break. Two of them matter here, and they call for opposite responses.</p>
+
+<p><strong>Covariate shift</strong> means the inputs moved but the rule did not: \(P(x)\), how common each feature value is, changes, while \(P(y \mid x)\), the chance of fraud given those features, stays fixed. For Nadia, customers started making bigger purchases, so the distribution of <code>amount</code> shifted up, but a transaction of a given size is still exactly as likely to be fraud as it always was. The map from features to fraud is intact; you just have fewer training examples in the region where traffic now lives. You do <strong>not</strong> need new labels to fix this. You reweight.</p>
+
+<p><strong>Concept shift</strong> means the rule itself moved: \(P(y \mid x)\) changed. Fraudsters found a new trick, so transactions that used to look safe are now fraud. No reweighting of old data can teach the new rule, because that old data was labelled under the old rule. You need <strong>fresh labels</strong> and a <strong>retrain</strong>.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Covariate shift</th>
+<th>Concept shift</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What moved</td>
+<td>the inputs, <code>P(x)</code></td>
+<td>the rule, `P(y</td>
+<td>x)`</td>
+</tr>
+<tr>
+<td>Nadia's version</td>
+<td>bigger baskets</td>
+<td>a new fraud tactic</td>
+</tr>
+<tr>
+<td>New labels needed?</td>
+<td>no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>The fix</td>
+<td><strong>reweight</strong> the training data</td>
+<td><strong>retrain</strong> on fresh data</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Reweighting is cheap and label-free but only corrects covariate shift. Retraining is powerful but costs fresh labels and compute. The whole game is spending the cheap fix when it is enough, and the expensive one only when you must.</div></div>
+
+<p>We take them in that order: reweighting first, then when and how to retrain.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reweighting, the idea</div>
+<h2>Make the model care about today's data</h2>
+
+<p>Your fraud model was trained to make as few mistakes as possible <strong>on the training data</strong>. Concretely, <code>glm</code> chose its coefficients to minimise the average loss over last quarter's transactions, where most <code>amount</code> values sat near the old average. Rows from the now-common big-basket region were rare back then, so the fit barely cared about getting them right.</p>
+
+<p>Production has flipped that. The big-basket region is where most transactions now live, and it is exactly the region the model paid least attention to. The fix is a one-line idea: <strong>weight each training row by how much it looks like today's traffic.</strong> A training transaction that resembles current production counts for more; one from a region production abandoned counts for less.</p>
+
+<p>We can make that precise. Write \(\ell(x)\) for the model's loss on a transaction with features \(x\), \(p_{\text{train}}(x)\) for how common those feature values were in training, and \(p_{\text{prod}}(x)\) for how common they are now. What we actually care about is the loss on production, and a clean identity turns it into a weighted average over the data we already have:</p>
+
+<p>\[ \underbrace{\mathbb{E}_{x \sim p_{\text{prod}}}\big[\ell(x)\big]}_{\text{what we want}} \;=\; \mathbb{E}_{x \sim p_{\text{train}}}\big[\, w(x)\,\ell(x)\,\big], \qquad w(x) = \frac{p_{\text{prod}}(x)}{p_{\text{train}}(x)}. \]</p>
+
+<p>The multiplier \(w(x)\) is the <strong>importance weight</strong>, or <strong>density ratio</strong>: how many times more common a feature value is in production than it was in training. Weight every training row by \(w(x)\), and its average loss becomes an honest estimate of the production loss, though not one production label was used.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Importance weighting does not invent production data. It re-balances the training data you already have so its average speaks for the distribution you now face.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where do the weights come from?</div>
+<h2>The weights are just a classifier's odds</h2>
+
+<p>The identity needs \(w(x) = p_{\text{prod}}(x) / p_{\text{train}}(x)\), a ratio of two densities we do not know and, with many features, cannot reliably estimate. Here is the trick that makes the method practical, and you already built it in Lesson 2.</p>
+
+<p>Pool the training rows and the production rows and label each by where it came from: \(0\) for training, \(1\) for production. Train any classifier to predict that label and call its output \(c(x) = P(\text{row is from production} \mid x)\). If you pooled equal numbers from each side, Bayes' rule collapses the density ratio into the classifier's <strong>odds</strong>:</p>
+
+<p>\[ w(x) = \frac{p_{\text{prod}}(x)}{p_{\text{train}}(x)} = \frac{c(x)}{1 - c(x)}. \]</p>
+
+<p>That is the <strong>classifier two-sample test</strong> from Lesson 2, put to work: there it told you <em>whether</em> the data moved; here its per-row probability tells you <em>how much</em> each training row looks like production, which is exactly the weight you need.</p>
+
+<p>Let us build Nadia's two windows from scratch (each lesson runs in its own R session) and estimate the weights. The true fraud risk is a fixed curve in <code>amount</code>; training amounts sit near zero, and production amounts have crept up by about 1.2 standard deviations.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fraud_rule &lt;- function(x) plogis(-1.2 + 1.8 * x - 1.1 * x^2)  # true risk P(y|x), never changes
+n &lt;- 4000
+train &lt;- data.frame(amount = rnorm(n, 0.0, 1))               # last quarter: amounts near 0
+train$fraud &lt;- rbinom(n, 1, fraud_rule(train$amount))
+prod  &lt;- data.frame(amount = rnorm(n, 1.2, 1))               # now: baskets crept up
+prod$fraud  &lt;- rbinom(n, 1, fraud_rule(prod$amount))          # labels exist only to score, later
+round(c(train_mean = mean(train$amount), prod_mean = mean(prod$amount)), 2)
+#&gt; train_mean  prod_mean
+#&gt;       0.00       1.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the domain classifier and the weights. Notice it never sees <code>fraud</code>, only <code>is_prod</code>: reweighting needs no fraud labels at all.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pool &lt;- data.frame(amount  = c(train$amount, prod$amount),
+                   is_prod = c(rep(0, n), rep(1, n)))
+dom  &lt;- glm(is_prod ~ amount, data = pool, family = binomial)
+c_tr &lt;- predict(dom, newdata = train, type = &quot;response&quot;)     # P(looks like production | x)
+w    &lt;- c_tr / (1 - c_tr)                                     # density ratio = classifier odds
+w    &lt;- w / mean(w)                                           # normalise to average weight 1
+round(summary(w), 2)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;    0.01    0.23    0.49    1.00    1.14   39.38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Half the training rows now carry a weight below 0.49, while a few big-basket rows carry weights above 30. The model is about to hear a very different story about which transactions matter.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Refit weighted, then score on production</h2>
+
+<p>Fit the fraud model twice, once as usual and once with the weights, then score both on the production window (whose labels we finally touch, only to grade). The weighted fit minimises the reweighted training loss, which by the identity targets production.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">logloss &lt;- function(fit, d) {
+  p &lt;- pmin(pmax(predict(fit, newdata = d, type = &quot;response&quot;), 1e-6), 1 - 1e-6)
+  -mean(d$fraud * log(p) + (1 - d$fraud) * log(1 - p))
+}
+acc &lt;- function(fit, d) mean((predict(fit, newdata = d, type = &quot;response&quot;) &gt; 0.5) == d$fraud)
+
+fit_uw &lt;- glm(fraud ~ amount, data = train, family = binomial)
+fit_iw &lt;- suppressWarnings(glm(fraud ~ amount, data = train, family = binomial, weights = w))
+round(rbind(unweighted = coef(fit_uw), weighted = coef(fit_iw)), 3)
+#&gt;            (Intercept) amount
+#&gt; unweighted      -1.598  0.671
+#&gt; weighted        -0.925 -0.270</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the <code>amount</code> coefficient: it flipped sign, from \(+0.67\) to \(-0.27\). That is not a bug, it is the whole point. The true risk <strong>bends</strong>: fraud rises with amount for small baskets, then falls again for very large ones (that is the \(-1.1\,x^2\) term). A straight-line logistic model can only track one slope. Unweighted, it fits the crowded training region near zero, where the slope is positive. Reweighted toward the big-basket region where production now lives, it learns the locally negative slope instead. Now score them:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(unweighted = logloss(fit_uw, prod), weighted = logloss(fit_iw, prod)), 3)
+#&gt; unweighted   weighted
+#&gt;      0.635      0.532
+round(c(unweighted = acc(fit_uw, prod), weighted = acc(fit_iw, prod)), 3)
+#&gt; unweighted   weighted
+#&gt;      0.653      0.770</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Production accuracy climbs from <strong>65% to 77%</strong> and log-loss drops, with no new labels, just a reweighting of the data Nadia already had.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Reweighting is not free, and it has hard limits. It only works where the two distributions <strong>overlap</strong>: if production visits feature values training never had, \(w(x)\) explodes and the estimate rests on almost nothing. And leaning hard on a few high-weight rows shrinks your <strong>effective sample size</strong>, \(n_{\text{eff}} = \left(\sum_i w_i\right)^2 / \sum_i w_i^2\), the honest count of rows left after weighting.</div></div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(n_train = n, effective_n = sum(w)^2 / sum(w^2)), 0)
+#&gt;     n_train effective_n
+#&gt;        4000        1092</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four thousand training rows now pull the weight of about <strong>1,092</strong>. Reweighting bought a better-aimed fit by spending most of its data. And crucially, none of this can rescue you from <em>concept</em> shift: if the fraud rule itself changed, the labels on your old data are simply wrong, and no weighting of wrong labels makes them right.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When does reweighting help?</h2>
+
+<p>Nadia's teammate proposes importance weighting as a catch-all: "whenever the monitor alarms, reweight the training data and refit, no need to relabel anything." For which alarm does this actually fix the model?</p>
+<section class="exercise" data-exercise-id="Adapting-to-Drift-Reweighting-and-Retraining-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Any drift at all: reweighting corrects both covariate and concept shift, so it is a safe default for every alarm</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Covariate shift: the inputs moved but the fraud rule held, so reweighting the old, still-correctly-labelled data toward production is exactly the fix</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither: without fresh labels you can never improve a drifting model, so any alarm forces a retrain</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. When the rule P(y|x) is intact, the old labels are still valid, and reweighting aims the fit at the region production now occupies. No new labels needed.</div><div class="lesson-qfb lesson-qfb-no">Too pessimistic. Under covariate shift the old labels are still correct, and reweighting demonstrably helped here (65% to 77%) with no new labels.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The other fix</div>
+<h2>Retrain on a trigger, not a calendar</h2>
+
+<p>When the alarm is concept shift, reweighting cannot save you and you must retrain on freshly labelled data. That raises the real operational question: <strong>when?</strong></p>
+
+<p>The lazy answer is a calendar: retrain on the first of every month. It is wrong in both directions. If nothing drifted, you burn compute and risk swapping a fine model for a worse one trained on a noisier recent sample. If a shift hits in week one, you limp for three more weeks until the calendar comes around. Retraining should be <strong>event-driven</strong>: fire it when a monitored metric crosses a line you set in advance. That line is a <strong>control limit</strong>, borrowed from decades of factory quality control.</p>
+
+<p>Write \(M_t\) for the metric in week \(t\), say the weekly PSI you built in Lesson 2. The trigger is simply</p>
+
+<p>\[ M_t \;>\; \text{UCL}, \]</p>
+
+<p>where UCL is the <strong>upper control limit</strong>. For PSI the field convention hands you one directly: UCL \(= 0.2\). For a metric with no convention (a rolling loss, say), set the limit from a calm baseline period: UCL \(= \mu_0 + k\,\sigma_0\), where \(\mu_0\) and \(\sigma_0\) are the metric's mean and standard deviation while things were stable, and \(k\) is typically \(3\).</p>
+
+<p>Watch it happen. We track PSI weekly against a fixed reference; the world is stable for ten weeks, then <code>amount</code> starts drifting up.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+psi &lt;- function(ref, cur, bins = 10) {
+  cuts &lt;- as.numeric(quantile(ref, seq(0, 1, length.out = bins + 1)))
+  cuts[1] &lt;- -Inf; cuts[length(cuts)] &lt;- Inf
+  e &lt;- as.numeric(table(cut(ref, cuts))) / length(ref)
+  o &lt;- as.numeric(table(cut(cur, cuts))) / length(cur)
+  sum((pmax(o, 1e-4) - pmax(e, 1e-4)) * log(pmax(o, 1e-4) / pmax(e, 1e-4)))
+}
+ref &lt;- rnorm(3000, 0, 1)                                  # the training reference
+week_psi &lt;- sapply(1:20, function(wk) {
+  mu &lt;- if (wk &lt;= 10) 0 else (wk - 10) * 0.07            # drift begins in week 11
+  psi(ref, rnorm(3000, mu, 1))
+})
+round(week_psi, 3)
+#&gt;  [1] 0.007 0.009 0.008 0.009 0.005 0.004 0.007 0.006 0.007 0.010 0.005 0.010
+#&gt; [13] 0.044 0.057 0.122 0.153 0.195 0.234 0.328 0.472</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plot the weekly metric against its control limit and the trigger reads straight off the chart.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ggplot(data.frame(week = 1:20, psi = week_psi), aes(week, psi)) +
+  geom_line(colour = &quot;grey45&quot;) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.2, linetype = &quot;dashed&quot;, colour = &quot;firebrick&quot;) +
+  annotate(&quot;text&quot;, x = 5, y = 0.23, label = &quot;control limit (UCL 0.2)&quot;, colour = &quot;firebrick&quot;) +
+  labs(title = &quot;Retrain on a trigger, not a calendar&quot;,
+       subtitle = &quot;weekly PSI sits flat, then breaches the control limit&quot;,
+       x = &quot;weeks since launch&quot;, y = &quot;weekly PSI&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>PSI hugs zero for eleven weeks, so a monthly retrain in week 4 or week 8 would have been wasted effort. Then it climbs and clears the 0.2 line in week 18: <em>that</em> is when to spend a retrain.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<div class="lesson-step-eyebrow">The loop</div>
+<h2>The adaptation loop</h2>
+
+<p>Put both fixes together and monitoring becomes a loop, not a one-off. Each live batch is scored, a breach triggers a diagnosis, the diagnosis picks reweight or retrain, and the fresh model is validated before it ever ships. Then the reference resets and the loop runs again.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A trigger is a trade-off, not a certainty. Set the limit too low and normal noise fires false alarms and needless retrains; set it too high and real drift runs unchecked. And a retrain needs fresh labels, which in fraud arrive weeks late, so the honest setup pairs a fast, label-free input-drift trigger (like PSI) with a slower performance trigger that fires once the labels confirm real damage. Requiring two windows in a row over the limit, rather than one, is a cheap guard against a single noisy week.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Monitor","sub":"score PSI on every batch of live inputs"},{"title":"Trigger","sub":"a metric clears its control limit, two weeks running"},{"title":"Diagnose","sub":"inputs moved, reweight; the rule moved, retrain"},{"title":"Validate","sub":"test the new model on a fresh labelled holdout"},{"title":"Redeploy","sub":"promote it, reset the reference, keep watching"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Find the retrain trigger</h2>
+
+<p>You have <code>week_psi</code>, the twenty weekly PSI values from before. Apply the PSI control limit as the retraining trigger and report the first week whose PSI breaches it. Fill in the limit, then read off the week.</p>
+<section class="exercise" data-exercise-id="Adapting-to-Drift-Reweighting-and-Retraining-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="week_psi\s*&gt;=\s*0\.2"><textarea class="lesson-tryit-input" spellcheck="false">first_breach &lt;- which(week_psi &gt;= ____)[1]
+first_breach</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the trigger: the first week PSI clears the 0.2 control limit is week 18, so retraining fires there, not on any calendar date. In production you would demand two consecutive breaches (weeks 18 and 19) before pulling the trigger, to shrug off a single noisy week.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the PSI alarm convention as the control limit: which(week_psi >= 0.2)[1]. The 0.1 line is only 'watch'; 0.2 is the 'act' line.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">first_breach &lt;- which(week_psi &gt;= 0.20)[1]
+first_breach
+#&gt; [1] 18</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>How often should you retrain?</h2>
+
+<p>A manager mandates: "retrain the fraud model on the first of every month, no exceptions, that keeps it fresh." Nadia pushes back. What is the strongest reason a fixed monthly schedule is the wrong default?</p>
+<section class="exercise" data-exercise-id="Adapting-to-Drift-Reweighting-and-Retraining-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is not wrong: a regular calendar retrain is best practice, because training more often always yields a better model</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A schedule is fine as long as it is frequent enough, so the fix is simply to retrain daily instead of monthly</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A calendar ignores whether anything actually drifted: it wastes retrains when the data is stable and reacts too late when a shift lands mid-cycle</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The schedule is decoupled from reality. A control-limit trigger ties retraining to a monitored metric, so you act exactly when the data crosses the line, not on an arbitrary date.</div><div class="lesson-qfb lesson-qfb-no">Daily retrains multiply compute and the risk of promoting a worse model, and they still ignore the real question: did anything drift? A trigger retrains when needed, which may be far less or far more often than daily.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1016/S0378-3758%2800%2900115-4">Shimodaira (2000), Improving predictive inference under covariate shift by weighting the log-likelihood function</a> - the paper that showed weighting each training row by the density ratio corrects covariate shift for a misspecified model.</li>
+
+<li><a href="https://www.jmlr.org/papers/v10/bickel09a.html">Bickel, Bruckner and Scheffer (2009), Discriminative Learning Under Covariate Shift, JMLR</a> - estimating the importance weights by training a classifier to tell training from production, the trick you used here.</li>
+
+<li><a href="https://doi.org/10.1145/2523813">Gama, Zliobaite, Bifet, Pechenizkiy and Bouchachia (2014), A Survey on Concept Drift Adaptation, ACM Computing Surveys</a> - the broad map of adaptation strategies, including when and how to retrain.</li>
+
+<li><a href="https://arxiv.org/abs/2007.06299">Klaise, Van Looveren, Cox, Vacanti and Coca (2020), Monitoring and explainability of models in production</a> - a practical account of drift monitors and retraining triggers in a real serving stack.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You now hold both moves for after the alarm. When only the inputs drifted (covariate shift), <strong>reweight</strong>: estimate each training row's density ratio as a domain classifier's odds, refit weighted, and watch production accuracy recover with no new labels, mindful that overlap and effective sample size set the limits. When the rule itself changed (concept shift), reweighting cannot help, so <strong>retrain</strong>, and fire that retrain on a <strong>control-limit trigger</strong> tied to a monitored metric, never on a calendar.</p>
+
+<p>Next, Lesson 4: Out-of-Distribution and Novelty Detection. Drift asks whether the whole stream has moved; novelty detection asks a sharper question about a single input: is <em>this</em> transaction unlike anything the model ever trained on? You will build a novelty score and set the threshold that trades false alarms against catching the genuinely strange.</p>
+</section>
+
+{% endraw %}

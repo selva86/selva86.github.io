@@ -1,0 +1,299 @@
+---
+title: "Causal Inference for Decisions Lesson 10: Sensitivity Analysis and Placebo Tests"
+description: "No observational estimate is assumption-free. Measure how strong a hidden confounder must be to overturn your result, and run placebo tests in R."
+keywords: "sensitivity analysis, E-value, Rosenbaum bounds, placebo test, unmeasured confounding, causal inference, observational study, robustness, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.10"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "10"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Mediation-Analysis.html"
+course_prev: "Double-Debiased-Machine-Learning.html"
+lesson_access: "pro"
+catalog_blurb: "How much a hidden confounder could change your causal conclusion."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 10 of 11</div>
+<h2>Sensitivity Analysis and Placebo Tests</h2>
+
+<p>Across this course you have built an arsenal for pulling a causal effect out of messy observational data: matching and propensity scores, inverse-probability weighting, difference-in-differences, regression discontinuity, instrumental variables. Every one of them shares a quiet catch. They strip out the confounding you can measure and put in a model, and none of them can rule out a confounder you never measured.</p>
+
+<p>Take a real-sounding case. FreshCart, an online grocery, notices that customers who joined its paid membership, FreshCart Plus, are still active a year later far more often than customers who did not. It is tempting to announce that Plus <em>causes</em> loyalty. But maybe the keenest shoppers, the ones who love ordering groceries by app, both sign up for Plus and stick around regardless. That keenness is a confounder, and nobody wrote it down.</p>
+
+<p>You cannot prove it is absent. So this lesson does the honest thing instead: it measures how fragile your conclusion is. By the end you will be able to:</p>
+
+<ul>
+
+<li>Explain why every estimate in this course rests on an untestable no-unmeasured-confounding assumption</li>
+
+<li>Compute an E-value: how strong a hidden confounder would have to be to explain your result away</li>
+
+<li>Read Rosenbaum bounds, the matched-design cousin of the E-value</li>
+
+<li>Run placebo tests, and recognise a failed one as proof your design is picking up bias</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 3 of this course (confounding and potential outcomes, propensity-score matching and IPW, and difference-in-differences); you can fit <code>lm</code> and <code>glm</code> and read a risk ratio and a p-value.</p>
+<div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The crack in every method</div>
+<h2>One assumption holds up the whole course</h2>
+
+<p>Look back at what each method actually did. Matching and IPW balanced the treated and control groups on the covariates you fed them. Difference-in-differences leaned on a control group with parallel trends. Regression discontinuity trusted that units just above and below a cutoff were otherwise alike. Different machinery, one shared load-bearing belief: once you account for what you measured, who ended up treated is as good as random.</p>
+
+<p>That belief has a name, <strong>ignorability</strong> (also called no unmeasured confounding). Writing \(Y^1\) and \(Y^0\) for the outcome a unit would have with and without treatment \(T\), and \(X\) for the covariates you measured, ignorability says</p>
+
+<p>\[ \{Y^0, Y^1\} \perp\!\!\!\perp T \mid X. \]</p>
+
+<p>In words: among customers with the same measured covariates \(X\), which of them joined Plus is unrelated to how they would have behaved either way. If that holds, the leftover difference is the causal effect. If a confounder sits <em>outside</em> \(X\), it does not hold, and every estimate above is off by an unknown amount.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Ignorability cannot be tested from the data, because the data never contain the confounders you failed to measure. It is an assumption you defend with judgement. Sensitivity analysis replaces "trust me, there is no other confounder" with a number: how strong would one have to be?</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Matching and IPW","sub":"balance treated and control on the covariates you measured"},{"title":"Difference-in-differences","sub":"borrow a control group that was trending in parallel"},{"title":"Regression discontinuity","sub":"compare units just above and below a cutoff"},{"title":"Every one of them assumes","sub":"no unmeasured confounder sits outside the model"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The number on the table</div>
+<h2>FreshCart's result, and why it is shaky</h2>
+
+<p>Let us make the FreshCart story concrete so we have something to stress-test. Each lesson runs in a fresh R session, so we build the data here. We plant an unmeasured trait, <code>enthusiasm</code>, that drives BOTH joining Plus and staying active. In real life you would never see this column; here we create it on purpose, so we know exactly the truth the analyst is missing.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 4000
+# enthusiasm: an UNMEASURED trait, how much a shopper enjoys grocery-by-app.
+# It pushes people to BOTH join Plus and stay active. The analyst never records it.
+enthusiasm &lt;- rnorm(n)
+member &lt;- rbinom(n, 1, plogis(-0.3 + 1.2 * enthusiasm))                  # self-selection into Plus
+active &lt;- rbinom(n, 1, plogis(-0.2 + 1.0 * enthusiasm + 0.15 * member))  # enthusiasm dominates; Plus adds little
+
+p1 &lt;- mean(active[member == 1])   # 12-month retention among members
+p0 &lt;- mean(active[member == 0])   # 12-month retention among non-members
+round(c(members = p1, nonmembers = p0, risk_ratio = p1 / p0), 3)
+#&gt;    members nonmembers risk_ratio 
+#&gt;      0.595      0.358      1.662 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Members are retained 59.5% of the time, non-members only 35.8%. Taken at face value, membership carries a <strong>risk ratio of 1.66</strong>: members are two-thirds more likely to still be around. With 4,000 customers that gap is wildly "significant". But we built the data, so we know the truth: membership adds only a little, and most of that 1.66 is enthusiasm doing the work in both columns at once. An analyst without the enthusiasm column would see 1.66 and have no way, from the data alone, to know how much of it is real.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Turning the question around</div>
+<h2>How strong would the hidden confounder need to be?</h2>
+
+<p>Instead of arguing about whether enthusiasm exists, ask a sharper question: <em>how strongly</em> would it have to act to fake the whole result? An unmeasured confounder \(U\) (the node drawn as Z below) does its damage through two arrows: its association with the treatment (keen shoppers are likelier to join Plus) and its association with the outcome (keen shoppers stay active). Call those two risk ratios \(RR_{UT}\) and \(RR_{UY}\).</p>
+
+<p>The most bias those two arrows can jointly produce is capped by the <strong>bias factor</strong></p>
+
+<p>\[ B = \frac{RR_{UT}\,\times\,RR_{UY}}{RR_{UT} + RR_{UY} - 1}. \]</p>
+
+<p>Read it as a dial. A confounder that is weak on either arrow (either risk ratio near 1) can barely nudge the estimate; only one that is strong on <em>both</em> arrows at once can manufacture a large apparent effect. The widget below makes this tangible. Switch it to the confounder pattern and run its R: watch an omitted confounder inflate a coefficient, then collapse it back toward zero once you put the confounder into the model.</p>
+<div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The headline number</div>
+<h2>The E-value</h2>
+
+<p>The <strong>E-value</strong> turns that bias factor into one number you can report. It is the <em>smallest</em> value that both risk ratios, \(RR_{UT}\) and \(RR_{UY}\), would each have to reach for an unmeasured confounder to explain the observed association away completely. For an observed risk ratio \(RR \ge 1\),</p>
+
+<p>\[ \text{E-value} = RR + \sqrt{RR\,(RR - 1)}. \]</p>
+
+<p>A larger E-value means the result is harder to overturn: a confounder would have to be that strong on <em>both</em> arrows to erase it. An E-value near 1 means a whisker of confounding would do it. Report it for the point estimate and, more tellingly, for the confidence-interval limit nearest 1, since the effect could already be as small as that limit before any confounding enters.</p>
+
+<p>First the risk ratio with a confidence interval, computed by hand from the log-risk-ratio standard error:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n1 &lt;- sum(member == 1); n0 &lt;- sum(member == 0)
+rr &lt;- p1 / p0
+se &lt;- sqrt((1 - p1) / (p1 * n1) + (1 - p0) / (p0 * n0))   # standard error of log(RR)
+ci &lt;- exp(log(rr) + c(lo = -1.96, hi = 1.96) * se)
+round(c(rr = rr, ci), 2)
+#&gt;   rr   lo   hi 
+#&gt; 1.66 1.55 1.78 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># E-value: the least association (risk-ratio scale) a hidden confounder needs with BOTH
+# membership and retention to fully explain the estimate away. Base R, one formula.
+evalue &lt;- function(x) { x &lt;- ifelse(x &gt;= 1, x, 1 / x); x + sqrt(x * (x - 1)) }
+round(c(point = evalue(rr), ci_limit = evalue(ci[[&quot;lo&quot;]])), 2)
+#&gt;    point ci_limit 
+#&gt;     2.71     2.48 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So an unmeasured confounder would need a risk ratio of about <strong>2.48</strong> with both joining Plus and staying active, over and above everything you did measure, before the effect (down to its lower confidence limit) could be pure bias. Is that plausible? That is now a concrete judgement, not a hand-wave: compare 2.48 against the strength of the confounders you <em>did</em> measure. If none of your measured predictors reaches an association of 2.5, an unmeasured one that strong is a stretch and the result looks fairly robust. If a keen-shopper trait plausibly clears 2.5 on both arrows, and for FreshCart it might, you should not call membership causal yet.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A big E-value never proves an effect is causal. It only says the confounding required to kill it would have to be strong. The E-value moves the argument onto firmer ground; it does not settle it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The matched-design cousin</div>
+<h2>Rosenbaum bounds</h2>
+
+<p>The E-value speaks the language of risk ratios. When your design was a <strong>matched</strong> one (Lesson 1: each member paired with a similar non-member), there is a cousin that speaks the language of the pairs directly: <strong>Rosenbaum bounds</strong>.</p>
+
+<p>The idea: inside a matched pair the two customers looked alike on everything you measured, so absent hidden bias each was equally likely to be the one who joined Plus, a coin flip. A sensitivity parameter \(\Gamma \ge 1\) (Gamma) relaxes that. It lets an unmeasured confounder make one member of a pair up to \(\Gamma\) times more likely to have joined:</p>
+
+<p>\[ \frac{1}{\Gamma} \;\le\; \frac{\text{odds unit } i \text{ joined}}{\text{odds unit } j \text{ joined}} \;\le\; \Gamma. \]</p>
+
+<p>\(\Gamma = 1\) is the no-hidden-bias world (a randomized experiment). At \(\Gamma = 2\), hidden bias could double the joining odds within a pair. For each \(\Gamma\) you recompute the p-value under the least favourable configuration and see how high \(\Gamma\) can climb before the result stops being significant. That climb is your robustness.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rosenbaum bounds for the matched-pair sign test (using the matching from Lesson 1).
+# Say the matched analysis left D discordant pairs (member and non-member differed on the
+# outcome), and in t of them the MEMBER was the one who stayed active.
+D &lt;- 200    # discordant matched pairs
+t &lt;- 131    # pairs in which the member stayed and the matched non-member did not
+# Under hidden bias Gamma, the member-favoured probability per pair is at most Gamma/(1+Gamma),
+# so the LARGEST the one-sided p-value can be is:
+gamma &lt;- c(1, 1.25, 1.5, 1.75, 2)
+p_upper &lt;- sapply(gamma, function(g) pbinom(t - 1, D, g / (1 + g), lower.tail = FALSE))
+data.frame(gamma, p_value_upper_bound = round(p_upper, 3))
+#&gt;   gamma p_value_upper_bound
+#&gt; 1  1.00               0.000
+#&gt; 2  1.25               0.003
+#&gt; 3  1.50               0.064
+#&gt; 4  1.75               0.320
+#&gt; 5  2.00               0.667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At \(\Gamma = 1\) the result is overwhelmingly significant. It survives a little hidden bias (still p = 0.003 at \(\Gamma = 1.25\)), but by \(\Gamma = 1.5\) the worst-case p-value has already climbed past 0.05. So the finding holds only as long as no unmeasured confounder shifts the within-pair joining odds by more than about 40 percent. That is not much slack: this matched result is only mildly robust, and an honest write-up says so.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What a big E-value actually tells you</h2>
+
+<p>FreshCart's analyst reports an E-value of 2.48 for the lower confidence limit and writes: "Since the E-value is well above 1, we conclude that FreshCart Plus causes higher retention." What is wrong with that sentence?</p>
+<section class="exercise" data-exercise-id="Sensitivity-Analysis-and-Placebo-Tests-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing is wrong: an E-value above 1 is the standard threshold for declaring an effect causal</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The E-value only says a confounder would have to be fairly strong (a risk ratio of 2.48 on both arrows) to erase the effect; it does not show that no such confounder exists, so it cannot on its own establish causation</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The E-value is too small to interpret: you need it above 5 before drawing any conclusion</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Sensitivity analysis quantifies fragility, it does not certify causation. You still have to argue that a confounder of that strength is implausible given what you know about the setting.</div><div class="lesson-qfb lesson-qfb-no">There is no universal cutoff, and 2.48 is a meaningful degree of robustness. The flaw is the logic (an E-value cannot prove the absence of confounding), not the magnitude.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">A different kind of check</div>
+<h2>Placebo tests: run your method where the answer must be zero</h2>
+
+<p>Sensitivity analysis asks "how strong must a confounder be?" A placebo test asks something you can run directly: <em>point my exact estimator at a situation where the true effect is known to be zero, and see whether it still finds one.</em> If it does, the method is manufacturing effects out of bias, and its "real" answer is suspect too.</p>
+
+<p>Three common flavours:</p>
+
+<ul>
+
+<li><strong>Placebo outcome.</strong> Swap the real outcome for one the treatment cannot possibly affect, often something measured <em>before</em> treatment. FreshCart Plus cannot change how active you were last spring. If membership still "predicts" that pre-launch behaviour, the confounder is showing itself.</li>
+
+<li><strong>Placebo timing.</strong> Re-run a difference-in-differences with the policy date moved to a time when nothing happened. The picture below is the real DiD from Lesson 3: treated and control split apart at the policy. A placebo-timing test refits that same model with the policy date moved back to a quiet month. A clean design shows the lines still moving together there (gap near 0); a gap at the fake date means something other than the policy is pulling them apart.</li>
+
+<li><strong>Placebo group.</strong> Attach the treatment label to a group that was never treated. Any "effect" is pure bias.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A placebo test is a trap you set for your own method. Passing it does not prove you are right (the placebo could differ from the real setting in some way), but failing it is strong evidence you are wrong. It is one of the cheapest and most persuasive robustness checks you can run.</div></div>
+<div class="lesson-widget" data-widget-type="did-parallel" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Run a placebo-outcome test</h2>
+
+<p>Here is FreshCart's placebo outcome: whether each customer was active in the six months <em>before</em> Plus launched. Membership cannot reach back in time, so a well-identified design should return a risk ratio near 1 on this outcome. We build it from enthusiasm alone (Plus did not exist yet):</p>
+<section class="exercise" data-exercise-id="Sensitivity-Analysis-and-Placebo-Tests-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="active_before\s*\[\s*member\s*==\s*0"><textarea class="lesson-tryit-input" spellcheck="false"># Pre-launch activity: driven by enthusiasm, NOT by membership (Plus did not exist yet).
+active_before &lt;- rbinom(n, 1, plogis(-0.2 + 0.9 * enthusiasm))</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">There it is: a risk ratio near 1.5 on an outcome membership cannot possibly cause. That gap is the enthusiasm confounder, caught red-handed. The same bias is inflating the real 1.66, so treat that number with suspicion.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the pre-launch outcome active_before in the denominator too: mean(active_before[member == 0]).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">placebo_rr &lt;- mean(active_before[member == 1]) / mean(active_before[member == 0])
+round(placebo_rr, 2)
+#&gt; [1] 1.49</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading a failed placebo</h2>
+
+<p>A colleague evaluates a new onboarding email with difference-in-differences. To be safe, she runs a placebo-timing test: she pretends the campaign launched three months earlier than it did, when nothing was actually sent, and refits the model. The placebo run returns a statistically significant "effect" at that fake date. What should she conclude?</p>
+<section class="exercise" data-exercise-id="Sensitivity-Analysis-and-Placebo-Tests-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The design is flawed: an effect at a date when nothing happened means her estimator is picking up a pre-existing difference or trend, not the campaign, so the real estimate is not trustworthy either</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The result is stronger than she thought: finding an effect even at the earlier date shows the campaign works robustly across time</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing is wrong, as long as the real-date effect is larger than the placebo effect</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A placebo should return roughly zero. A significant placebo effect is direct evidence the method attributes non-treatment differences to treatment, which contaminates the real estimate too.</div><div class="lesson-qfb lesson-qfb-no">A nonzero placebo is a failure regardless of relative size. It proves the estimator moves on things other than the treatment; you cannot simply subtract it off and trust the remainder, because you do not know the bias is the same at both dates.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four solid places to take sensitivity analysis and placebo tests further:</p>
+
+<ul>
+
+<li><a href="https://pubmed.ncbi.nlm.nih.gov/28693043/">VanderWeele and Ding (2017), Sensitivity Analysis in Observational Research: Introducing the E-Value (Annals of Internal Medicine)</a> - the paper that defined the E-value, with the full derivation and worked examples.</li>
+
+<li><a href="https://cran.r-project.org/package=EValue">The EValue R package (CRAN)</a> - compute E-values for risk ratios, odds ratios, hazard ratios and more, instead of coding the formula by hand.</li>
+
+<li><a href="https://link.springer.com/book/10.1007/978-1-4757-3692-2">Rosenbaum, Observational Studies, 2nd edition (Springer)</a> - the canonical treatment of Rosenbaum bounds and design-based sensitivity analysis.</li>
+
+<li><a href="https://carloscinelli.com/sensemakr/">Cinelli and Hazlett, sensemakr (documentation and paper)</a> - a modern regression sensitivity toolkit (partial R-squared, robustness values) that generalises the bias-factor idea.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 10 complete</h2>
+
+<p>You stopped taking a causal estimate at face value and started stress-testing it. Two tools did the work. The <strong>E-value</strong> turned "is there confounding?" into "how strong would it have to be?", 2.48 for FreshCart's lower limit, a bar you judge against the confounders you actually measured. <strong>Rosenbaum bounds</strong> did the same for a matched design on the odds scale, and showed the result held only out to a Gamma of about 1.4. And <strong>placebo tests</strong> set a trap: run the estimator where the truth is zero, and a nonzero answer, like the 1.49 you found on pre-launch behaviour, exposes bias you can no longer wave away.</p>
+
+<p>None of these prove an effect is causal. They do something more useful: they tell you, and your readers, exactly how much doubt an honest analysis should carry.</p>
+
+<p>Next, Lesson 11: Mediation Analysis. Instead of asking whether a treatment works, you will ask <em>how</em> it works, splitting a total effect into the part that runs directly and the part that flows through a mediator, and seeing why mediation leans on assumptions even stronger than the ones you just learned to stress-test.</p>
+</section>
+
+{% endraw %}
