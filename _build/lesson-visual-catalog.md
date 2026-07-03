@@ -135,6 +135,12 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `power-curve` | effect-size toggle -> power-vs-sample-size curve with the n-for-80%-power mark; emits `power.t.test` | §17 designing for power, sample size, the effect/alpha/n tradeoff |
 | `cuped-variance` | pre-period correlation toggle -> raw vs CUPED 95% CI shrinking by sqrt(1-rho^2); emits the raw-vs-CUPED SEs | §17 variance reduction, CUPED, stratification |
 | `bandit-explore` | epsilon-greedy vs Thompson toggle -> cumulative-regret curves for a 3-arm bandit; emits a base-R bandit sim | §17 multi-armed bandits, explore/exploit, Thompson sampling |
+| `matching-overlap` | before/after-matching toggle -> mirrored propensity-score histograms (treated vs control) + standardized mean difference; emits glm propensity + NN match | §18 matching, propensity score, IPW, covariate balance |
+| `did-parallel` | Naive vs DiD toggle -> two 2-period trend lines + dashed counterfactual + the double-difference gap; emits lm(y ~ treat*post) | §18 difference-in-differences, parallel trends, staggered DiD |
+| `rdd-cutoff` | bandwidth toggle -> scatter with a local line each side of the cutoff + the jump; emits lm each side | §18 regression discontinuity |
+| `iv-2stage` | strong/weak-instrument toggle -> x-y scatter with biased-OLS vs IV slope + first-stage F; emits manual 2SLS | §18 instrumental variables, 2SLS, weak instruments |
+| `synth-control` | trajectories/gap toggle -> treated vs weighted-donor synthetic over time + post-policy gap; emits optim simplex weights | §18 synthetic control |
+| `uplift-curve` | model/random toggle -> Qini curve (cumulative incremental conversions vs fraction targeted); emits a T-learner uplift model | §18 uplift, heterogeneous effects, causal forests |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 
