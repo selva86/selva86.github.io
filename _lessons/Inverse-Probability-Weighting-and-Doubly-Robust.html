@@ -1,0 +1,413 @@
+---
+title: "Causal Inference for Decisions Lesson 2: Inverse-Probability Weighting and Doubly-Robust Estimation"
+description: "When people choose their own treatment, a naive comparison is confounded. Reweight by the propensity score, check overlap, and add a doubly-robust safety net in R."
+keywords: "inverse probability weighting, IPW, IPTW, doubly robust, AIPW, propensity score, positivity, overlap, causal inference, ATE, R"
+mathjax: true
+webr: true
+curriculum_id: "6.180.2"
+post_type: "LESSON"
+course_id: "ds-causal-decisions"
+course_title: "Causal Inference for Decisions"
+course_lesson: "2"
+course_total: "11"
+course_landing: "R-Causal-Decisions-Course.html"
+course_next: "Difference-in-Differences-and-Parallel-Trends.html"
+course_prev: "Matching-and-the-Propensity-Score.html"
+lesson_access: "pro"
+catalog_blurb: "Reweight to fix confounding, with a safety net if a model is wrong."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 11</div>
+<h2>Inverse-Probability Weighting and Doubly-Robust Estimation</h2>
+
+<p>In Lesson 1 you fixed a confounded comparison by matching: pair each treated patient with an untreated look-alike on their propensity score, then compare only fair matches. It worked, the naive 52-metre headline dissolved back to the real 25. But matching is wasteful. It throws away every control who fails to find a partner, and it stumbles when a treated patient has no close twin at all.</p>
+
+<p>We are still with the cardiac-rehab study from Lesson 1: <strong>400 heart-attack patients</strong>, some enrolled in an optional rehab program and some did not, and the outcome is how much further each could walk in six minutes three months later. Fitter patients were both more likely to enroll AND more likely to recover on their own, so the raw gap between enrollees and non-enrollees, <strong>52 metres</strong>, badly overstates the <strong>25-metre</strong> effect we actually built into the data.</p>
+
+<p>This lesson gives you two sharper tools and then fuses them. First, <strong>inverse-probability weighting</strong>: instead of discarding controls, reweight every patient so the treated and untreated groups look alike, no data left behind. Then the <strong>doubly-robust</strong> estimator, which combines weighting with a second model so that you only have to get ONE of the two right. Toggle the panel below: it is the same overlap picture from Lesson 1, treated patients piled at high propensity scores, controls at low. Weighting operates on exactly this picture.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Reweight the sample by inverse propensity to rebuild a pseudo-randomized population, and compute the effect</li>
+
+<li>Read the weights to judge whether the estimate can be trusted, and state the positivity (overlap) requirement</li>
+
+<li>Estimate the same effect a second way, by modelling the outcome, and see why each single method fails if its model is wrong</li>
+
+<li>Combine both into the doubly-robust (AIPW) estimator and watch it stay correct when either model, but not both, is misspecified</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 (the propensity score, confounding, potential outcomes, and the average treatment effect); you can fit <code>glm</code> and <code>lm</code>, read their <code>predict</code> outputs, and you know what a weighted average is.</p>
+<div class="lesson-widget" data-widget-type="matching-overlap" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>Reweight the sample instead of throwing data away</h2>
+
+<p>Matching's instinct was to find, for each treated patient, one control who looks like them, and ignore the rest. Weighting keeps a different instinct: keep everyone, but turn the volume up on the units that are under-represented and down on the ones that are over-represented, until the two groups balance.</p>
+
+<p>The dial is the <strong>propensity score</strong> \(e(x)\) from Lesson 1, the probability a patient with covariates \(x\) enrolls. Give every patient a weight equal to one divided by the probability of the treatment they actually received. A treated patient gets \(1/e(x)\); a control gets \(1/(1-e(x))\):</p>
+
+<p>\[ w_i = \frac{T_i}{e(x_i)} + \frac{1-T_i}{1-e(x_i)}, \]</p>
+
+<p>where \(T_i = 1\) if patient \(i\) enrolled and \(0\) if not. Why one-over-probability? Picture a very fit patient. Fit patients almost all enroll, so a fit patient who did NOT is a rare bird. That single unusual control has to stand in for all the fit controls the data is short of, so weighting counts them several times over. A few concrete patients from our study make it tangible:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Patient</th>
+<th>Baseline</th>
+<th>Enrolled?</th>
+<th>Propensity \(e(x)\)</th>
+<th>Weight</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>419 m</td>
+<td>no</td>
+<td>0.76</td>
+<td>4.12</td>
+</tr>
+<tr>
+<td>2</td>
+<td>383 m</td>
+<td>yes</td>
+<td>0.64</td>
+<td>1.56</td>
+</tr>
+<tr>
+<td>5</td>
+<td>431 m</td>
+<td>yes</td>
+<td>0.79</td>
+<td>1.27</td>
+</tr>
+</tbody>
+</table>
+
+<p>Patient 1 was very fit (419 m), had a 76% chance of enrolling, but did not. As a control that makes them precious: their weight is one over their chance of NOT enrolling (about one in four), which works out to 4.12, so they count for about four ordinary controls. Patient 2 enrolled with a middling 64% chance, a fairly typical enrollee, so their weight \(1/0.64 = 1.56\) is close to one.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Matching keeps a handful of controls and discards the rest. Weighting keeps ALL of them and just adjusts how loudly each one speaks. The reweighted world is a <strong>pseudo-population</strong> in which enrollment no longer depends on fitness, a rebuilt version of the randomized trial we were never allowed to run.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The estimator</div>
+<h2>From weights to an effect</h2>
+
+<p>Every lesson opens a fresh R session, so we rebuild the study exactly as in Lesson 1, same seed, same 25-metre true effect planted in the data.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 400
+baseline &lt;- round(rnorm(n, 350, 70))                                  # 6-min walk at discharge, metres
+rehab    &lt;- rbinom(n, 1, plogis(0.15 + 1.1 * (baseline - 350) / 70))  # 1 = enrolled in rehab
+improve  &lt;- round(40 + 25 * rehab + 0.45 * (baseline - 350) + rnorm(n, 0, 25))  # 3-month gain, metres
+study    &lt;- data.frame(baseline, rehab, improve)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now estimate each patient's propensity with the same logistic model from Lesson 1, and turn it into a weight.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ps &lt;- predict(glm(rehab ~ baseline, family = binomial, data = study), type = &quot;response&quot;)
+w  &lt;- ifelse(study$rehab == 1, 1 / ps, 1 / (1 - ps))   # weight = 1 / prob of the treatment received
+head(data.frame(baseline = study$baseline, rehab = study$rehab,
+                ps = round(ps, 2), weight = round(w, 2)))
+#&gt;   baseline rehab   ps weight
+#&gt; 1      419     0 0.76   4.12
+#&gt; 2      383     1 0.64   1.56
+#&gt; 3      342     0 0.49   1.96
+#&gt; 4      335     0 0.46   1.86
+#&gt; 5      431     1 0.79   1.27
+#&gt; 6      440     1 0.81   1.23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimate itself is now just a weighted average. Take the weighted mean gain of the enrollees, subtract the weighted mean gain of the non-enrollees, and because the weights rebuilt a balanced pseudo-population, that difference estimates the effect. This targets the <strong>average treatment effect</strong> (ATE) from Lesson 1, the effect averaged over everyone.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m1 &lt;- weighted.mean(study$improve[study$rehab == 1], w[study$rehab == 1])  # weighted mean, enrollees
+m0 &lt;- weighted.mean(study$improve[study$rehab == 0], w[study$rehab == 0])  # weighted mean, non-enrollees
+round(c(control = m0, treated = m1, effect = m1 - m0), 1)
+#&gt;  control  treated   effect
+#&gt;     41.2     69.3     28.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw group means were 26.4 and 78.5, a 52.1-metre gap. After weighting they are 41.2 and 69.3, a gap of <strong>28.1 metres</strong>, most of the way back to the true 25. Weighting did the same job matching did in Lesson 1, without discarding a single patient. A shortcut worth knowing: weighted least squares returns the identical number, so in day-to-day work you fit one line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(lm(improve ~ rehab, data = study, weights = w))[&quot;rehab&quot;], 1)
+#&gt; rehab
+#&gt;  28.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For the record, the version that divides by the sample size \(n\) rather than by the weight totals is the classic <strong>Horvitz-Thompson</strong> estimator,</p>
+
+<p>\[ \hat\tau_{\text{IPW}} = \frac{1}{n}\sum_{i=1}^{n} \frac{T_i\,Y_i}{e(x_i)} \; - \; \frac{1}{n}\sum_{i=1}^{n} \frac{(1-T_i)\,Y_i}{1-e(x_i)}, \]</p>
+
+<p>with \(Y_i\) the observed gain of patient \(i\). The weighted-mean version above is the stabilized (Hajek) cousin that normalizes by the weight totals. You will compute the Horvitz-Thompson form yourself next.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Compute the estimate yourself</h2>
+
+<p>You just saw the stabilized estimate, 28.1 metres. The Horvitz-Thompson estimator is even more direct: divide each patient's outcome by the probability they received their own treatment, then average over all \(n\) patients. The non-enrollees are already divided by \(1-e(x)\), their probability of not enrolling. Fill in the denominator for the enrollees, which is their probability of enrolling.</p>
+<section class="exercise" data-exercise-id="Inverse-Probability-Weighting-and-Doubly-Robust-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="improve\s*/\s*ps"><textarea class="lesson-tryit-input" spellcheck="false"># Horvitz-Thompson IPW: divide each outcome by the prob of the treatment received, then average
+tau_ht &lt;- mean(study$rehab * study$improve / ____) -
+          mean((1 - study$rehab) * study$improve / (1 - ps))
+round(tau_ht, 1)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. Dividing an enrollee's outcome by ps up-weights the ones who were unlikely to enroll, and the Horvitz-Thompson estimate lands at 24.9 metres, almost exactly the true 25. The two IPW flavours (24.9 and 28.1) bracket the truth and both leave the confounded 52.1 far behind.</span><span class="lesson-tryit-fb lesson-tryit-no">An enrollee's outcome is divided by their probability of enrolling, which is their propensity: study$improve / ps. (The non-enrollees below are divided by 1 - ps, their probability of NOT enrolling.)</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">tau_ht &lt;- mean(study$rehab * study$improve / ps) -
+          mean((1 - study$rehab) * study$improve / (1 - ps))
+round(tau_ht, 1)
+#&gt; [1] 24.9</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What the weights actually do</h2>
+
+<p>In our study the biggest weight, <strong>4.12</strong>, went to a fit patient (baseline 419 m) who did not enroll. Why does inverse-probability weighting hand that particular patient so much weight?</p>
+<section class="exercise" data-exercise-id="Inverse-Probability-Weighting-and-Doubly-Robust-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because that patient is an outlier whose outcome should count for less, and a large weight shrinks their influence</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because fit patients almost all enroll, so a fit patient who did NOT is rare, and weighting counts them several times over to stand in for all the fit controls the data is missing</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because weighting corrects for confounders you never measured, and this patient carried the most unmeasured risk</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. IPW amplifies the under-represented kind of unit so the reweighted control group matches the treated group's fitness mix. Nobody is discarded; the rare look-alikes are turned up.</div><div class="lesson-qfb lesson-qfb-no">Weighting only balances the confounders inside the propensity model, here baseline fitness. Just like matching, it does nothing about confounders you never recorded; that assumption is unchanged from Lesson 1.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The catch</div>
+<h2>When a weight explodes: positivity and overlap</h2>
+
+<p>Reweighting has a failure mode that matching quietly hid. A weight is one divided by a probability, so if a patient was almost certain to receive the treatment they got, that probability sits near 1, its complement near 0, and the weight blows up.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">1 / (1 - c(0.90, 0.99, 0.999))   # a control's weight as their chance of enrolling approaches 1
+#&gt; [1]   10  100 1000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A single control with a propensity of 0.999 would count as a thousand people and drown out everyone else. This is the <strong>positivity</strong> assumption, also called <strong>overlap</strong>: every patient must have a real, non-trivial chance of landing in either group. Where it fails, IPW hands the answer to a tiny number of extreme units, and no amount of clever code repairs it.</p>
+
+<p>So how healthy is our study? Look at the spread of weights and the effective sample size.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(summary(w), 2)                 # the spread of the weights
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;    1.03    1.33    1.63    1.98    2.24    7.93
+round(sum(w)^2 / sum(w^2))           # Kish effective sample size, out of 400
+#&gt; [1] 316</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The biggest weight is <strong>7.9</strong> (one fit control speaking for about eight), and the <strong>effective sample size is 316 of 400</strong>: after reweighting we retain most of our data's worth of information. That is comfortable overlap. Toggle the widget below to see why, the treated and control propensity histograms sit on top of each other across the whole range, with no treated patient stranded in a zone where no control exists.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">When weights DO explode, you have honest moves: <strong>trim or cap</strong> extreme weights (accepting a little bias), switch to the <strong>stabilized (Hajek)</strong> weights you already met (they tame the variance), or <strong>restrict to the region of common support</strong> and report that you did. What you must never do is let three patients quietly decide the result. Always inspect the weight distribution before you trust an IPW estimate.</div></div>
+<div class="lesson-widget" data-widget-type="matching-overlap" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the overlap</h2>
+
+<p>A colleague fits a propensity model and finds that 30 of the treated patients have propensity scores above 0.98, with almost no control patients up there. What is the right read?</p>
+<section class="exercise" data-exercise-id="Inverse-Probability-Weighting-and-Doubly-Robust-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Good news: scores near 1 mean the model predicts treatment almost perfectly, so the estimate will be very accurate</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">This is a positivity (overlap) violation: those patients sit in a region with no comparable controls, so any effect there is an extrapolation, and their inverse weights will be enormous</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Positivity is guaranteed the moment you fit a logistic model, so there is nothing to check</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. With no controls near propensity 0.98, there is nothing to weight against; IPW would lean on a few extreme weights and invent a comparison the data cannot support. Trim, restrict to common support, or report the limitation.</div><div class="lesson-qfb lesson-qfb-no">Fitting a model never guarantees overlap; overlap is a property of the DATA, not the model. A logistic fit will happily produce scores of 0.98 with no controls nearby. You have to inspect the score distributions and the weights yourself.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">A second road</div>
+<h2>The other way: model the outcome, not the treatment</h2>
+
+<p>Every tool so far, matching and weighting, has modelled the <strong>treatment</strong>: who was likely to enroll. There is a completely different route to the same effect, model the <strong>outcome</strong> instead. Fit a regression of the gain on treatment and the confounder, then use it to predict, for every patient, both of their potential outcomes: the gain the model expects if they had enrolled, and the gain if they had not. Average the within-patient differences. This is <strong>g-computation</strong>, or the outcome-regression approach.</p>
+
+<p>Write \(\hat\mu_1(x)\) for the model's predicted gain when enrolled and \(\hat\mu_0(x)\) when not. The outcome-model estimate is the average predicted effect,</p>
+
+<p>\[ \hat\tau_{\text{reg}} = \frac{1}{n}\sum_{i=1}^{n}\big[\hat\mu_1(x_i) - \hat\mu_0(x_i)\big]. \]</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">out_model &lt;- lm(improve ~ rehab + baseline, data = study)
+mu1 &lt;- predict(out_model, transform(study, rehab = 1))   # everyone's predicted gain IF enrolled
+mu0 &lt;- predict(out_model, transform(study, rehab = 0))   # everyone's predicted gain IF not
+round(mean(mu1 - mu0), 1)
+#&gt; [1] 25.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>25.6 metres</strong>, again close to the true 25 and nowhere near 52. Two different philosophies, weight the treatment or model the outcome, landing in the same place is reassuring. (With this simple linear model the average predicted effect is just the <code>rehab</code> coefficient; the predict-both-worlds recipe earns its keep once the model has interactions, or you want the effect for one subgroup.) But each road leans on its own model being correct, and that is the crack the next idea slips through.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<div class="lesson-step-eyebrow">The best of both</div>
+<h2>Doubly-robust estimation: a second chance</h2>
+
+<p>Here is the tension. Inverse-probability weighting is trustworthy only if your <strong>propensity</strong> model is right. The outcome-regression estimate is trustworthy only if the <strong>outcome</strong> model is right. In a real study you are guessing at both specifications, and you do not know which, if either, you got wrong. The <strong>doubly-robust</strong> estimator, also called <strong>augmented inverse-probability weighting</strong> (AIPW), fuses them so that you only need ONE of the two to be correct.</p>
+
+<p>The recipe reads as a short pipeline: start from the outcome-model estimate, then add a correction that reweights the outcome model's own mistakes (its residuals) by the inverse propensity.</p>
+
+<p>Written out, with \(Y_i\) the observed gain again,</p>
+
+<p>\[ \hat\tau_{\text{AIPW}} = \frac{1}{n}\sum_{i=1}^{n}\Big[\, \hat\mu_1(x_i) - \hat\mu_0(x_i) \;+\; \frac{T_i\,(Y_i - \hat\mu_1(x_i))}{e(x_i)} \;-\; \frac{(1-T_i)\,(Y_i - \hat\mu_0(x_i))}{1-e(x_i)} \,\Big]. \]</p>
+
+<p>Read the two pieces. The first, \(\hat\mu_1 - \hat\mu_0\), is exactly the outcome-model estimate from the last step. The second is an inverse-probability-weighted average of the outcome model's <strong>residuals</strong>, \(Y_i - \hat\mu\), the part of each patient the model failed to explain. If the outcome model is perfect, those residuals are zero and the correction vanishes, leaving the correct outcome estimate. If the outcome model is wrong but the propensity model is right, that weighted-residual term mops up the leftover bias and rescues the answer. Either model can carry the estimate.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aipw_hat &lt;- mean( mu1 - mu0
+  + study$rehab       * (study$improve - mu1) / ps
+  - (1 - study$rehab) * (study$improve - mu0) / (1 - ps) )
+round(aipw_hat, 1)
+#&gt; [1] 25.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>25.4 metres.</strong> With both models sensible, AIPW simply agrees with everything else. The point of the machinery only shows up when one of the two models is broken, which we are about to do on purpose.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Fit two models","sub":"a propensity model e(x) and an outcome model for each arm"},{"title":"Predict both worlds","sub":"mu1 and mu0 for every patient from the outcome model"},{"title":"Correct with weights","sub":"reweight each leftover residual by inverse propensity"},{"title":"Average","sub":"the mean over all patients is the doubly-robust effect"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Break a model on purpose</h2>
+
+<p>Time to earn the name "doubly robust." We will sabotage each model in turn and watch what survives. A <strong>wrong propensity model</strong> that ignores baseline fitness (a constant chance of enrolling for everyone) and a <strong>wrong outcome model</strong> that also ignores it (gain depends only on treatment). Each, used on its own, reproduces the confounded 52.1.</p>
+<section class="exercise" data-exercise-id="Inverse-Probability-Weighting-and-Doubly-Robust-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mu1\)\s*/\s*ps_wrong"><textarea class="lesson-tryit-input" spellcheck="false">ps_wrong  &lt;- rep(mean(study$rehab), nrow(study))   # propensity ignores fitness (WRONG)
+out_wrong &lt;- lm(improve ~ rehab, data = study)     # outcome ignores fitness (WRONG)
+mu1_w &lt;- predict(out_wrong, transform(study, rehab = 1))
+mu0_w &lt;- predict(out_wrong, transform(study, rehab = 0))
+
+round(c(
+  ipw_wrong_ps = mean(study$rehab * study$improve / ps_wrong) -
+                 mean((1 - study$rehab) * study$improve / (1 - ps_wrong)),
+  gcomp_wrong  = mean(mu1_w - mu0_w)), 1)
+#&gt; ipw_wrong_ps  gcomp_wrong
+#&gt;         52.1         52.1</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">There it is: 25.6 metres, even though the propensity model is deliberately broken. The correct outcome model carried the estimate home. Use ps_wrong throughout to see AIPW survive a wrong propensity model.</span><span class="lesson-tryit-fb lesson-tryit-no">Apply the SAME broken model, ps_wrong, to the enrollees: (study$improve - mu1) / ps_wrong. The whole point is to prove AIPW survives even when the propensity model is wrong, so do not quietly swap in the correct ps here.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">dr &lt;- mean( mu1 - mu0
+  + study$rehab       * (study$improve - mu1) / ps_wrong
+  - (1 - study$rehab) * (study$improve - mu0) / (1 - ps_wrong) )
+round(dr, 1)
+#&gt; [1] 25.6
+
+# the full picture: AIPW under every combination of right / wrong models
+aipw &lt;- function(e, m1, m0) mean(m1 - m0 +
+          study$rehab * (study$improve - m1) / e -
+          (1 - study$rehab) * (study$improve - m0) / (1 - e))
+round(c(
+  both_right = aipw(ps,       mu1,   mu0),
+  wrong_ps   = aipw(ps_wrong, mu1,   mu0),
+  wrong_out  = aipw(ps,       mu1_w, mu0_w),
+  both_wrong = aipw(ps_wrong, mu1_w, mu0_w)), 1)
+#&gt; both_right   wrong_ps  wrong_out both_wrong
+#&gt;       25.4       25.6       28.2       52.1</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/">Hernan and Robins, Causal Inference: What If (free PDF)</a> - the rigorous treatment of IP weighting (ch. 12) and doubly-robust estimators (ch. 13), plus positivity and exchangeability.</li>
+
+<li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8757413/">Chesnaye et al. (2022), An introduction to inverse probability of treatment weighting (PMC)</a> - the gentlest applied walk-through of IPTW, weights, and balance; start here.</li>
+
+<li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4626409/">Austin and Stuart (2015), Moving towards best practice when using IPTW (PMC)</a> - practical guidance on stabilized weights, trimming, and diagnostics.</li>
+
+<li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3070495/">Funk et al. (2011), Doubly Robust Estimation of Causal Effects (PMC)</a> - the clearest applied introduction to why AIPW gives you two chances at the truth.</li>
+
+<li><a href="https://ngreifer.github.io/WeightIt/">WeightIt: weighting for covariate balance (R package)</a> - the tool that fits the weights and the doubly-robust estimate in a couple of lines.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You reweighted a confounded study back into balance without discarding a single patient, and pulled the naive 52.1 metres back toward the true 25. You met the positivity requirement in its sharpest form, a weight is one over a probability, so overlap is not optional. You estimated the same effect a second way by modelling the outcome, then fused the two into the doubly-robust AIPW estimator and watched it survive a deliberately broken model, because one correct model is enough.</p>
+
+<p>Next, Lesson 3: Difference-in-Differences and Parallel Trends. When you cannot model every confounder, sometimes you can difference them away instead, comparing the before-and-after change in a treated group against the change in a control group, and letting the two groups' shared trend cancel the confounding you could never measure.</p>
+</section>
+
+{% endraw %}
