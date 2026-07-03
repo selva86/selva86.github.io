@@ -141,6 +141,10 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `iv-2stage` | strong/weak-instrument toggle -> x-y scatter with biased-OLS vs IV slope + first-stage F; emits manual 2SLS | §18 instrumental variables, 2SLS, weak instruments |
 | `synth-control` | trajectories/gap toggle -> treated vs weighted-donor synthetic over time + post-policy gap; emits optim simplex weights | §18 synthetic control |
 | `uplift-curve` | model/random toggle -> Qini curve (cumulative incremental conversions vs fraction targeted); emits a T-learner uplift model | §18 uplift, heterogeneous effects, causal forests |
+| `shift-types` | covariate/label/concept toggle -> which distribution moves (P(x), P(y), or P(y|x)); emits a glm accuracy demo showing concept shift breaks the model | §19 distribution shift kinds |
+| `ood-detect` | strict/medium/loose threshold toggle -> inlier vs OOD novelty-score histograms with FPR and detection rate; emits Mahalanobis + chi-square detector | §19 out-of-distribution / novelty detection |
+| `adversarial-perturb` | perturbation-budget toggle -> a point crossing the decision boundary under a tiny nudge; emits an FGSM flip on a logistic model | §19 adversarial robustness |
+| `worst-group` | ERM/DRO toggle -> per-group accuracy bars (majority/minority/worst/avg); emits ERM vs group-reweighted glm | §19 group robustness, DRO, worst-group accuracy |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 
