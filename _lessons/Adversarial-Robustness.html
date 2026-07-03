@@ -1,0 +1,355 @@
+---
+title: "Robustness and Drift Lesson 6: Adversarial Robustness"
+description: "A logistic spam filter can be 84% accurate yet flip a confident call under a tiny nudge. Build the FGSM attack in R, then defend it with adversarial training."
+keywords: "adversarial robustness, adversarial examples, FGSM, fast gradient sign method, perturbation budget, epsilon, adversarial training, evasion attack, threat model, R"
+mathjax: true
+webr: true
+curriculum_id: "6.190.6"
+post_type: "LESSON"
+course_id: "ds-robustness-drift"
+course_title: "Robustness, Drift and Distribution Shift"
+course_lesson: "6"
+course_total: "7"
+course_landing: "R-Robustness-and-Drift-Course.html"
+course_next: "A-Monitoring-and-Robustness-Playbook.html"
+course_prev: "Group-Robustness-and-DRO.html"
+lesson_access: "pro"
+catalog_blurb: "How a tiny nudge can flip a confident prediction, and how to defend."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 7</div>
+<h2>Adversarial Robustness</h2>
+
+<p>Lesson 5 watched a model fail a whole group of ordinary customers by accident. Every failure in this course so far, drifting data, a strange input, a sacrificed subgroup, has been unintentional. This lesson introduces the first failure with a <strong>mind behind it</strong>: an adversary who studies your model and crafts an input designed to fool it.</p>
+
+<p>Meet Leo. He runs the spam filter for a mailing service, and by every honest measure it works: on real inbox traffic it is right about <strong>84%</strong> of the time, and it flags one particular junk email as spam with probability <strong>0.81</strong>, confident and correct. Then a spammer who has read the same textbook you are about to read makes a change to that email so small it barely registers, and the same filter waves it through as <strong>not spam</strong>, just as confidently.</p>
+
+<p>Nothing about the model was broken. It is accurate and brittle at the same time, and those two things turn out to be almost unrelated. Toggle the panel below from the original point to a tiny perturbation and watch a confident prediction cross the line.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Define an <strong>adversarial example</strong> and explain how a model can be accurate on normal data yet flip on a tiny crafted nudge</li>
+
+<li>See why the attack direction is simply the <strong>gradient</strong> of the model's score, and build the <strong>fast gradient sign method (FGSM)</strong> in R</li>
+
+<li>Reason about the <strong>perturbation budget</strong> \(\epsilon\) and how attack success grows with it</li>
+
+<li>Harden a model with <strong>adversarial training</strong>, read the robustness-versus-accuracy tradeoff, and tie robustness to a <strong>threat model</strong></li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you finished <a href="Group-Robustness-and-DRO.html">Lesson 5: Group Robustness and DRO</a>, you can fit and read a logistic regression, and you are comfortable with a gradient as "the direction that changes an output fastest."</p>
+<div class="lesson-widget" data-widget-type="adversarial-perturb" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The core idea</div>
+<h2>Accurate is not robust</h2>
+
+<p>An <strong>adversarial example</strong> is an input that a human reads one way, that the model <em>should</em> read the same way, but that has been nudged just enough to make the model read it the opposite way. The nudge is deliberate and tiny. The prediction it produces is confident and wrong.</p>
+
+<p>The word to sit with is <em>deliberate</em>. A drifting feature or an out-of-distribution input is the world changing on its own. An adversarial example is someone with access to your model (or a copy of it) solving a small optimization problem: "what is the least I can change about this input to flip the answer?" Accuracy measures how the model does on inputs drawn from nature. Robustness measures how it does on inputs drawn by an opponent. A model can be superb at the first and hopeless at the second.</p>
+
+<p>Each lesson runs in its own R session, so we build Leo's world from scratch. His filter reads two standardized features of every email: <code>link_ratio</code>, how link-heavy the message is (the spammer writes this), and <code>sender_risk</code>, the sending domain's server-side risk score (computed from Leo's logs). Higher means spammier. Real spam depends on both.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+n &lt;- 1000
+link_ratio  &lt;- rnorm(n)   # how link-heavy the email is (standardized)
+sender_risk &lt;- rnorm(n)   # the sending domain's server-side risk score (standardized)
+# The TRUE label: genuine spam is driven by BOTH signals.
+spam &lt;- rbinom(n, 1, plogis(2.2 * link_ratio + 2.2 * sender_risk))
+emails &lt;- data.frame(spam, link_ratio, sender_risk)
+
+clf &lt;- glm(spam ~ link_ratio + sender_risk, family = binomial, data = emails)
+round(mean((predict(clf, type = &quot;response&quot;) &gt; 0.5) == emails$spam), 2)   # accuracy on real email
+#&gt; [1] 0.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The filter is 84% accurate. Now take one ordinary spam email and ask the filter how sure it is:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">email &lt;- data.frame(link_ratio = 0.35, sender_risk = 0.30)     # one junk email
+round(as.numeric(predict(clf, email, type = &quot;response&quot;)), 3)   # P(spam): confident, and correct
+#&gt; [1] 0.811</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Accuracy and robustness are different properties, not two ends of one scale. Leo's filter is accurate <em>because</em> the boundary it learned separates real spam from real mail well. It is fragile <em>because</em> that same boundary can sit a hair away from a confident point, and an adversary is allowed to aim straight at it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The mechanism</div>
+<h2>Why a small nudge is enough</h2>
+
+<p>To see how 0.81 becomes 0.32 under a tiny push, look at what the model actually computes. A logistic regression turns an input \(\mathbf{x}\) (here the two features) into a <strong>score</strong>, a single number that is a weighted sum,</p>
+
+<p>\[ s(\mathbf{x}) \;=\; \mathbf{w}^\top \mathbf{x} + b \;=\; w_1\,\text{link\_ratio} + w_2\,\text{sender\_risk} + b, \]</p>
+
+<p>where \(w_1, w_2\) are the feature weights and \(b\) is the intercept. It then squashes the score into a probability with the logistic function \(\sigma\):</p>
+
+<p>\[ P(\text{spam}) \;=\; \sigma(s) \;=\; \frac{1}{1 + e^{-s}}. \]</p>
+
+<p>The <strong>decision boundary</strong> is the set of inputs where \(s = 0\), the line at which \(P(\text{spam}) = 0.5\). An email is called spam when it sits on the positive side of that line.</p>
+
+<p>Here is the whole trick in one line of calculus. The direction in feature space that raises the score fastest is the <strong>gradient</strong> of \(s\) with respect to the input, and for a linear score that gradient is just the weight vector, a constant:</p>
+
+<p>\[ \nabla_{\mathbf{x}}\, s \;=\; \mathbf{w}. \]</p>
+
+<p>So to <em>lower</em> the spam score as fast as possible, an attacker moves the input along \(-\mathbf{w}\). Look at the weights and the distance to the boundary:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w &lt;- coef(clf)[c(&quot;link_ratio&quot;, &quot;sender_risk&quot;)]   # the two feature weights
+round(w, 2)
+#&gt; link_ratio sender_risk
+#&gt;       2.14        2.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both weights are positive and near 2. Leo's confident email scores \(s \approx 1.45\), which feels far from the boundary at \(s = 0\), but "far" in score is not far in <em>input</em> space: because the weights are large, a small move in the features produces a large move in the score. The point is only about half a feature-unit from the line. The model is confident and close to the edge at the same time, and the attacker knows exactly which way the edge is.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Confident, accurate, and fragile</h2>
+
+<p>Leo's filter is <strong>84% accurate</strong> and calls the email spam at <strong>0.81</strong>, yet nudging each feature by half a unit flips it to "not spam" at <strong>0.34</strong>. What best explains how a confident, usually-correct model can be this fragile?</p>
+<section class="exercise" data-exercise-id="Adversarial-Robustness-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The decision boundary sits close to the point in input space, and a step along the weight vector (the gradient) is the most efficient direction across it, so a small coordinated nudge crosses it even though the model is accurate on natural email</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The model is overfit and undertrained; more training data or stronger regularization would remove the flip</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A probability of 0.81 is not really confident, so the model was never sure and the flip is expected</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Confidence in probability does not mean distance in input space: large weights make the score steep, so a point can read 0.81 and still be a short hop from the 0.5 boundary. The attacker moves along the gradient, the single fastest way across, so a small budget goes a long way.</div><div class="lesson-qfb lesson-qfb-no">0.81 is a confident, correct call, and the model was right. The flip does not happen because the model was unsure; it happens because the boundary is a short, well-signposted walk away in input space, whatever the probability reads.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">The attack</div>
+<h2>The Fast Gradient Sign Method</h2>
+
+<p>Now name the attack. The <strong>fast gradient sign method (FGSM)</strong> takes the gradient of the model's <strong>loss</strong> \(L\) with respect to the input and steps every feature by a fixed amount \(\epsilon\) in the direction that <em>increases</em> the loss:</p>
+
+<p>\[ \mathbf{x}_{\text{adv}} \;=\; \mathbf{x} \;+\; \epsilon\,\operatorname{sign}\!\left(\nabla_{\mathbf{x}} L\right). \]</p>
+
+<p>Three ideas are packed into that formula. \(\epsilon\) (epsilon) is the <strong>budget</strong>, the most any single feature is allowed to move. The <strong>sign</strong> throws away the size of the gradient and keeps only its direction per feature, so every feature moves by exactly \(\pm\epsilon\); that is what makes the attack an \(L_\infty\) attack (no feature moves more than \(\epsilon\)) and what makes it <em>fast</em>, one gradient evaluation and done. For a true-spam email, increasing the loss means decreasing the spam score, and since \(\nabla_{\mathbf{x}} s = \mathbf{w}\), the recipe simplifies to stepping each feature <em>against</em> the sign of its weight: \(\mathbf{x}_{\text{adv}} = \mathbf{x} - \epsilon\,\operatorname{sign}(\mathbf{w})\).</p>
+
+<p>This is exactly the panda-to-gibbon trick from the famous image example (Goodfellow and colleagues, 2015): add a perturbation of magnitude \(\epsilon\) to every pixel, invisible to a person, and a network that was 58% sure of "panda" becomes 99% sure of "gibbon." Toggle the budget below and watch the same thing happen on a two-feature model. The panel builds the attack in base R for you as well.</p>
+<div class="lesson-widget" data-widget-type="adversarial-perturb" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Attack Leo's email</h2>
+
+<p>Turn the formula into the attack. Give every feature the same small budget <code>eps</code>, then step each one <strong>against the sign of its weight</strong> to drive the spam score down. Fill in the two blanks with the FGSM direction, then read how far the prediction moves.</p>
+<section class="exercise" data-exercise-id="Adversarial-Robustness-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="sign\(\s*w"><textarea class="lesson-tryit-input" spellcheck="false">eps &lt;- 0.5                                        # a small budget, applied to EVERY feature
+w   &lt;- coef(clf)[c(&quot;link_ratio&quot;, &quot;sender_risk&quot;)]  # the gradient direction is the weights
+evaded &lt;- data.frame(link_ratio  = email$link_ratio  - eps * ____,
+                     sender_risk = email$sender_risk - eps * ____)
+round(c(before = as.numeric(predict(clf, email,  type = &quot;response&quot;)),
+        after  = as.numeric(predict(clf, evaded, type = &quot;response&quot;))), 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is FGSM. Stepping each feature by eps against sign(w) lowers the score the fastest way possible, and the email drops from 0.811 (spam) to 0.341 (not spam), a confident, correct call turned into a confident, wrong one by a nudge of 0.5 per feature.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the direction that lowers the spam score fastest: move against the sign of each weight. Both weights are positive, so use sign(w["link_ratio"]) and sign(w["sender_risk"]) in the blanks (each returns 1, so the attack subtracts eps from each feature).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">eps &lt;- 0.5
+w   &lt;- coef(clf)[c(&quot;link_ratio&quot;, &quot;sender_risk&quot;)]
+evaded &lt;- data.frame(link_ratio  = email$link_ratio  - eps * sign(w[&quot;link_ratio&quot;]),
+                     sender_risk = email$sender_risk - eps * sign(w[&quot;sender_risk&quot;]))
+round(c(before = as.numeric(predict(clf, email,  type = &quot;response&quot;)),
+        after  = as.numeric(predict(clf, evaded, type = &quot;response&quot;))), 3)
+#&gt; before  after
+#&gt;  0.811  0.341</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">How far can it go</div>
+<h2>The perturbation budget epsilon</h2>
+
+<p>The whole attack is governed by one dial, the budget \(\epsilon\). Formally it caps the change in the \(L_\infty\) sense: the adversarial input must stay inside a small box around the original,</p>
+
+<p>\[ \lVert \mathbf{x}_{\text{adv}} - \mathbf{x} \rVert_\infty \;=\; \max_j\, \lvert x_{\text{adv},j} - x_j \rvert \;\le\; \epsilon, \]</p>
+
+<p>which reads: no single feature moves by more than \(\epsilon\). A bigger budget flips more inputs but is easier to notice; a smaller budget is stealthier but flips fewer. To see the tradeoff, attack every true-spam email at a range of budgets and measure the <strong>evasion rate</strong>, the fraction the filter now waves through as "not spam":</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spam_only &lt;- emails[emails$spam == 1, c(&quot;link_ratio&quot;, &quot;sender_risk&quot;)]   # the real spam
+budget &lt;- c(0, 0.25, 0.5, 0.75, 1.0)
+evade_rate &lt;- sapply(budget, function(e) {
+  a &lt;- data.frame(link_ratio  = spam_only$link_ratio  - e * sign(w[&quot;link_ratio&quot;]),
+                  sender_risk = spam_only$sender_risk - e * sign(w[&quot;sender_risk&quot;]))
+  mean(predict(clf, a, type = &quot;response&quot;) &lt; 0.5)   # fraction now called &quot;not spam&quot;
+})
+round(setNames(evade_rate, paste0(&quot;eps=&quot;, budget)), 2)
+#&gt; eps=0 eps=0.25 eps=0.5 eps=0.75 eps=1
+#&gt;  0.16     0.32    0.55     0.73  0.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the row. At \(\epsilon = 0\) the filter already misses 16% of spam; that is its honest natural error, no attack involved. As the budget grows the adversary drives evasion up smoothly, past half the spam at \(\epsilon = 0.5\) and to <strong>84%</strong> at \(\epsilon = 1\). There is no magic threshold where the model suddenly breaks; robustness degrades gracefully as you hand the attacker more room.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Here every feature was fair game, the worst case, and the honest one for images, where an attacker really can touch every pixel. In a tabular system like Leo's the attacker rarely controls everything, and that gap is exactly where the defense lives.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fighting back</div>
+<h2>Threat models and adversarial training</h2>
+
+<p>Two questions decide how defensible a model is. First, <strong>what can the attacker actually change?</strong> This is the <strong>threat model</strong>, and it is the most important line you will write. Leo's spammer composes the email, so they control <code>link_ratio</code> freely, but <code>sender_risk</code> is computed on Leo's servers from the sending domain's history: a throwaway domain scores risky and there is no cheap way to fake a long clean record. In this threat model the attacker has one lever, not two.</p>
+
+<p>Second, <strong>how do you train against it?</strong> The standard defense is <strong>adversarial training</strong>: instead of minimizing loss on clean data, minimize it on the <em>worst</em> input within the budget. That is a min-max objective,</p>
+
+<p>\[ \min_{\theta}\ \mathbb{E}_{(\mathbf{x},y)}\ \Big[\, \max_{\lVert \boldsymbol{\delta} \rVert_\infty \le \epsilon}\, L\!\left(\theta;\, \mathbf{x} + \boldsymbol{\delta},\, y\right) \Big], \]</p>
+
+<p>where \(\theta\) are the model parameters and \(\boldsymbol{\delta}\) is the perturbation the attacker is allowed. The inner maximization is the strongest attack; the outer minimization trains the model to survive it. In practice you approximate the inner attack with FGSM, add those adversarial copies to the training set (keeping their true labels), and refit. Here we perturb only <code>link_ratio</code>, because that is all the threat model grants the attacker:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eps &lt;- 1.0
+dir &lt;- sign(coef(clf)[&quot;link_ratio&quot;])
+# Adversarial training: add a link_ratio-perturbed copy of every email (true label kept), then refit.
+adv_copies &lt;- transform(emails, link_ratio = link_ratio - eps * dir * (2 * spam - 1))
+adv_train  &lt;- rbind(emails, adv_copies)
+robust &lt;- glm(spam ~ link_ratio + sender_risk, family = binomial, data = adv_train)
+
+evade &lt;- function(model) {                     # the link_ratio-only attack, same budget
+  a &lt;- data.frame(link_ratio = spam_only$link_ratio - eps * dir, sender_risk = spam_only$sender_risk)
+  mean(predict(model, a, type = &quot;response&quot;) &lt; 0.5)
+}
+round(c(clean_plain  = mean((predict(clf,    type = &quot;response&quot;) &gt; 0.5) == emails$spam),
+        clean_robust = mean((predict(robust, emails, type = &quot;response&quot;) &gt; 0.5) == emails$spam),
+        evade_plain  = evade(clf),
+        evade_robust = evade(robust)), 2)
+#&gt; clean_plain clean_robust evade_plain evade_robust
+#&gt;        0.84         0.77        0.56         0.34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The evasion rate falls from <strong>0.56 to 0.34</strong>, and clean accuracy slips from <strong>0.84 to 0.77</strong>. That drop is the price, paid on purpose. And notice the single-lever attack already evades less than the everything-goes attack did (0.56 versus 0.84 at the same budget), because the threat model took a weapon away. Now look at <em>how</em> the defense worked:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(rbind(plain = coef(clf), robust = coef(robust)), 2)
+#&gt;        (Intercept) link_ratio sender_risk
+#&gt; plain         0.08       2.14        2.08
+#&gt; robust        0.04       0.34        1.36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adversarial training collapsed the <code>link_ratio</code> weight from <strong>2.14 to 0.34</strong> and leaned harder on <code>sender_risk</code>. You never told it which feature was attackable; feeding it emails whose <code>link_ratio</code> had been scrambled taught it that <code>link_ratio</code> is unreliable, so it shifted its trust onto the one signal the attacker cannot touch.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Robustness is always robustness <em>against a threat model</em>. The most effective defense here was not a clever loss but an honest answer to "what can the adversary change?", followed by training the model to rely on what they cannot.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What adversarial training bought</h2>
+
+<p>After adversarial training, evasion fell from <strong>0.56 to 0.34</strong>, clean accuracy fell from <strong>0.84 to 0.77</strong>, and the <code>link_ratio</code> weight collapsed from <strong>2.14 to 0.34</strong>. Which reading is correct?</p>
+<section class="exercise" data-exercise-id="Adversarial-Robustness-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It taught the model to lean on sender_risk, the feature the attacker cannot fake, cutting evasion at a deliberate clean-accuracy cost; robustness is defined against a threat model, not in the abstract</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It made the model strictly better: more robust and more accurate at once</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It removed adversarial examples entirely and solved the robustness problem</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Perturbing link_ratio during training made that feature look untrustworthy, so the fit down-weighted it and shifted onto the untamperable sender_risk. Evasion dropped, clean accuracy paid a little, and none of it means anything without naming what the attacker can change.</div><div class="lesson-qfb lesson-qfb-no">Evasion is 0.34, not 0. A larger budget, or an attacker who found a way to influence sender_risk, would still get through. Adversarial training raises the cost of an attack within one threat model; it does not make a model unbreakable.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The honest limits</div>
+<h2>Where robustness still leaks</h2>
+
+<p>Adversarial training helped, but treat it as a rate limiter, not a lock. Three limits keep this an open problem:</p>
+
+<ul>
+
+<li><strong>Transferability.</strong> An adversary rarely needs your exact model. Examples crafted on a <em>substitute</em> model they trained themselves often transfer and fool yours, so "the attacker cannot see my weights" is weak protection. This is what makes black-box attacks practical.</li>
+
+<li><strong>No complete defense.</strong> Adversarial training hardens a model against the specific attack and budget you trained on. A stronger or differently shaped attack (a larger \(\epsilon\), a different norm, an attack on a feature you assumed was safe) can still win. Robustness is a moving target, not a checkbox.</li>
+
+<li><strong>Images versus tables.</strong> The classic "imperceptible" story needs many dimensions: thousands of pixels each nudged by a hair add up to a boundary-crossing shove no human sees. Leo's two features cannot hide a change that way, so tabular adversaries trade invisibility for <em>validity</em>, making cheap changes to the inputs they control that still describe a real, sendable email.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Never let a robustness result travel without its threat model. "Evasion dropped to 0.34" is meaningful only alongside "against an FGSM attack of budget 1.0 on link_ratio." Change the budget, the norm, or the controllable features and the number changes with it.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Everything here used a linear model so the gradient is exactly the weights and you can see every step. Real attacks on deep networks use the same idea with iterative, stronger versions (PGD and its relatives); the concepts, gradient direction, budget, min-max training, carry over unchanged.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://arxiv.org/abs/1312.6199">Szegedy et al. (2014), Intriguing Properties of Neural Networks</a> - the paper that first found adversarial examples and named the phenomenon.</li>
+
+<li><a href="https://arxiv.org/abs/1412.6572">Goodfellow, Shlens and Szegedy (2015), Explaining and Harnessing Adversarial Examples</a> - introduces FGSM and the panda-to-gibbon example; the linear view you used here.</li>
+
+<li><a href="https://arxiv.org/abs/1706.06083">Madry et al. (2018), Towards Deep Learning Models Resistant to Adversarial Attacks</a> - frames adversarial training as the min-max problem and introduces PGD, the stronger iterative attack.</li>
+
+<li><a href="https://arxiv.org/abs/1805.12152">Tsipras et al. (2019), Robustness May Be at Odds with Accuracy</a> - the clean-accuracy cost you paid, explained and made precise.</li>
+
+<li><a href="https://arxiv.org/abs/1905.02175">Ilyas et al. (2019), Adversarial Examples Are Not Bugs, They Are Features</a> - why the vulnerability exists: models lean on predictive but non-robust features, exactly the link_ratio story.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 6 complete</h2>
+
+<p>You can now explain why a model is <strong>accurate and brittle at the same time</strong>: accuracy is measured on inputs from nature, robustness on inputs from an opponent, and a confident point can sit a short, well-signposted walk from the decision boundary. You built the <strong>fast gradient sign method</strong>, stepping each feature by a budget \(\epsilon\) against the sign of the gradient (which for a linear model is just the weights), and flipped a confident spam call from 0.81 to 0.34. You traced how <strong>attack success grows with the budget</strong>, and hardened the filter with <strong>adversarial training</strong>, watching it trade a little clean accuracy to lean on the one feature the attacker could not fake. Above all, you learned to state a <strong>threat model</strong> first, because robustness has no meaning without one.</p>
+
+<p>Next, Lesson 7: A Monitoring and Robustness Playbook. You will assemble this whole section, drift, out-of-distribution inputs, group failures, and adversarial attacks, into a single deployment checklist: what to log, which alarms to wire, and when an alert should page a human instead of quietly rolling back.</p>
+</section>
+
+{% endraw %}
