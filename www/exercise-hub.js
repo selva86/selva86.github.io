@@ -499,8 +499,15 @@
     });
     mapEl.appendChild(lanesWrap);
 
+    // Place the map after the intro (title, lead, byline, setup), just before
+    // the exercises begin - so the H1 keeps leading instead of being pushed
+    // down. Anchor on the first section heading, else the first exercise.
     var h1 = content.querySelector('h1');
-    if (h1 && h1.parentElement) h1.parentElement.insertBefore(mapEl, h1);
+    var anchor = content.querySelector('#content h2, main h2, .exercise-hub h2') ||
+                 content.querySelector('h2') ||
+                 content.querySelector('section.exercise');
+    if (anchor && anchor.parentElement) anchor.parentElement.insertBefore(mapEl, anchor);
+    else if (h1 && h1.parentElement) h1.parentElement.insertBefore(mapEl, h1);
     else content.insertBefore(mapEl, content.firstChild);
   }
 
