@@ -18,6 +18,7 @@
      --------------------------------------------------------------- */
   var PROGRESS_KEY = 'rsc-exercise-hub-v1:' + location.pathname;
   var STREAK_KEY = 'rsc-streak-v1';                       // site-wide
+  var DAILY_KEY = 'rsc-daily-v1';                         // solves made today
   var TIME_BY_DIFF = { beginner: 3, intermediate: 5, advanced: 7 };
   var DOTS_BY_DIFF = { beginner: 1, intermediate: 2, advanced: 3 };
   // XP is difficulty-weighted: a hard solve is worth more than an easy one.
@@ -141,6 +142,20 @@
     },
     saveStreak: function (d) {
       try { localStorage.setItem(STREAK_KEY, JSON.stringify(d)); } catch (e) {}
+    },
+    /* Honest daily micro-goal (item 5): a real count of solves made today. */
+    loadDaily: function () {
+      try {
+        var d = JSON.parse(localStorage.getItem(DAILY_KEY));
+        if (d && d.date === todayStr() && typeof d.count === 'number') return d;
+      } catch (e) {}
+      return { date: todayStr(), count: 0 };
+    },
+    bumpDaily: function () {
+      var d = this.loadDaily();
+      d.count = (d.count || 0) + 1; d.date = todayStr();
+      try { localStorage.setItem(DAILY_KEY, JSON.stringify(d)); } catch (e) {}
+      return d.count;
     }
   };
 
@@ -393,129 +408,188 @@
   /* ---------------------------------------------------------------
      Status bar - streak + progress + honest proof line
      --------------------------------------------------------------- */
-  var progressFillEl, progressLabelEl, streakEl, xpNumEl, xpGainEl;
+  // Progress map (replaces the old streak/XP/flat-progress .xh-statusbar).
+  var mapEl, mapCountEl, mapContinueEl, mapGoalEl;
+  var mapLanes = [];        // { el, countEl, railFill, cards:[{node,id}], n }
+  var xpNumEl = null, xpGainEl = null;   // XP now lives in the masthead + account
+  var DAILY_GOAL = 3;       // honest daily micro-goal (item 5)
+  var _painted = {};        // ids already shown solved (drives the node pop)
+  var AUTO_HINT_AFTER = 2;  // reveal hint 1 after this many failed checks
 
-  /* Native position:sticky is dead here - the site sets overflow on
-     #content / body / html, which kills sticky for descendants. So pin the
-     bar to the viewport ourselves: position:fixed once scrolled past, in
-     normal flow otherwise, with a placeholder holding the flow space. */
-  function makeBarSticky(bar) {
-    var ph = document.createElement('div');
-    ph.setAttribute('aria-hidden', 'true');
-    bar.parentNode.insertBefore(ph, bar);
-    var pinned = false;
-    function sync() {
-      var anchor = ph.getBoundingClientRect().top + window.scrollY;
-      var shouldPin = window.scrollY >= anchor;
-      if (shouldPin !== pinned) {
-        pinned = shouldPin;
-        if (pinned) {
-          var r = ph.getBoundingClientRect();
-          ph.style.height = bar.offsetHeight + 'px';
-          bar.style.position = 'fixed';
-          bar.style.top = '0';
-          bar.style.left = r.left + 'px';
-          bar.style.width = r.width + 'px';
-          bar.classList.add('is-pinned');
-        } else {
-          ph.style.height = '0';
-          bar.style.position = '';
-          bar.style.top = '';
-          bar.style.left = '';
-          bar.style.width = '';
-          bar.classList.remove('is-pinned');
-        }
-      } else if (pinned) {
-        var r2 = ph.getBoundingClientRect();
-        bar.style.left = r2.left + 'px';
-        bar.style.width = r2.width + 'px';
-      }
-    }
-    window.addEventListener('scroll', sync, { passive: true });
-    window.addEventListener('resize', sync);
-    sync();
+  /* The progress map is a top-of-page overview, not a pinned bar - no sticky. */
+
+  function cleanHeading(el) {
+    var raw = (el.textContent || '').replace(/^\s*#\s*/, '').trim();
+    var m = raw.match(/^Section\s+(\d+)\s*[.:]?\s*(.+?)\s*(?:\([^)]*\))?\s*$/i);
+    if (m) return { num: m[1], name: m[2].trim() };
+    return { num: '', name: raw.replace(/\s*\([^)]*\)\s*$/, '') };
   }
 
+  /* Build the section-lanes progress map: one lane per section heading, one
+     node per exercise, in the sidebar's node + rail + green-tick language.
+     Runs before cards are enhanced, so node clicks resolve the card by id at
+     click time. Falls back to a single unlabelled rail if a hub has no section
+     headings (none currently do). */
   function buildStatusBar(total, streakDays) {
-    var bar = document.createElement('div');
-    bar.className = 'xh-statusbar';
-
-    streakEl = document.createElement('div');
-    streakEl.className = 'xh-streak';
-    streakEl.innerHTML = '🔥 <span></span>';
-    streakEl.querySelector('span').textContent = streakDays + '-day streak';
-
-    var xpEl = document.createElement('div');
-    xpEl.className = 'xh-xp';
-    xpEl.title = 'Experience points: harder exercises are worth more';
-    xpEl.innerHTML = '⚡ <b>0</b> XP' +
-      '<span class="xh-xp-gain" aria-hidden="true"></span>';
-    xpNumEl = xpEl.querySelector('b');
-    xpGainEl = xpEl.querySelector('.xh-xp-gain');
-
-    var prog = document.createElement('div');
-    prog.className = 'xh-progress';
-    prog.setAttribute('role', 'progressbar');
-    prog.setAttribute('aria-valuemin', '0');
-    prog.setAttribute('aria-valuemax', String(total));
-    prog.setAttribute('aria-valuenow', '0');
-    prog.setAttribute('aria-label', 'Exercises solved');
-    prog.innerHTML =
-      '<span class="xh-progress-count"><b>0</b> / ' + total + ' solved</span>' +
-      '<div class="xh-progress-track"><div class="xh-progress-fill"></div></div>' +
-      '<span class="xh-progress-pct">0%</span>';
-
-    bar.appendChild(streakEl);
-    bar.appendChild(xpEl);
-    bar.appendChild(prog);
-
-    progressFillEl = bar.querySelector('.xh-progress-fill');
-    progressLabelEl = bar.querySelector('.xh-progress-count');
-    progressLabelEl._prog = prog;
-
-    // Place directly above the page H1 header (matches the mock).
     var content = document.querySelector('#content') || document.body;
-    var h1 = content.querySelector('h1');
-    if (h1 && h1.parentElement) {
-      h1.parentElement.insertBefore(bar, h1);
-    } else {
-      var fallback = content.querySelector('section.exercise');
-      if (fallback && fallback.parentElement) {
-        fallback.parentElement.insertBefore(bar, fallback);
+    var groups = [];
+    var curr = null;
+    var els = content.querySelectorAll('h2, section.exercise');
+    Array.prototype.forEach.call(els, function (el) {
+      if (el.classList && el.classList.contains('exercise')) {
+        var id = el.getAttribute('data-exercise-id');
+        if (!id) return;
+        if (!curr) { curr = { head: null, cards: [] }; groups.push(curr); }
+        curr.cards.push(id);
       } else {
-        content.insertBefore(bar, content.firstChild);
+        curr = { head: cleanHeading(el), cards: [] };
+        groups.push(curr);
       }
+    });
+    groups = groups.filter(function (g) { return g.cards.length; });
+    if (!groups.length) return;
+    var single = groups.length === 1 && (!groups[0].head || !groups[0].head.name);
+
+    mapEl = document.createElement('div');
+    mapEl.className = 'xh-map' + (single ? ' xh-map-single' : '');
+    mapEl.setAttribute('role', 'group');
+    var head = document.createElement('div');
+    head.className = 'xh-map-head';
+    head.innerHTML =
+      '<span class="xh-map-eyebrow">Your progress</span>' +
+      '<span class="xh-map-goal" hidden></span>' +
+      '<span class="xh-map-count"><b>0</b> of ' + total + ' solved</span>' +
+      '<button type="button" class="xh-map-continue"></button>';
+    mapEl.appendChild(head);
+    mapCountEl = head.querySelector('.xh-map-count');
+    mapGoalEl = head.querySelector('.xh-map-goal');
+    mapContinueEl = head.querySelector('.xh-map-continue');
+    mapContinueEl.addEventListener('click', continueToNext);
+
+    var lanesWrap = document.createElement('div');
+    lanesWrap.className = 'xh-map-lanes';
+    mapLanes = [];
+    groups.forEach(function (g, gi) {
+      var idxTxt = (g.head && g.head.num) ? g.head.num : String(gi + 1);
+      var name = (g.head && g.head.name) ? g.head.name : '';
+      var lane = document.createElement('div');
+      lane.className = 'xh-lane';
+      lane.innerHTML =
+        (single ? '' :
+          '<span class="xh-lane-idx">' + escapeHtml(idxTxt) + '</span>' +
+          '<span class="xh-lane-name">' + escapeHtml(name) + '</span>') +
+        '<span class="xh-lane-nodes"><span class="xh-rail-bg"></span>' +
+        '<span class="xh-rail-fill"></span></span>' +
+        '<span class="xh-lane-count">0/' + g.cards.length + '</span>';
+      var nodesHost = lane.querySelector('.xh-lane-nodes');
+      var rec = { el: lane, countEl: lane.querySelector('.xh-lane-count'),
+                  railFill: lane.querySelector('.xh-rail-fill'), cards: [], n: g.cards.length };
+      g.cards.forEach(function (id, i) {
+        var node = document.createElement('button');
+        node.type = 'button';
+        node.className = 'xh-node';
+        node.setAttribute('data-ex-id', id);
+        node.setAttribute('aria-label', 'Go to exercise ' + idxTxt + '.' + (i + 1));
+        node.addEventListener('click', function () { jumpToExercise(id); });
+        nodesHost.appendChild(node);
+        rec.cards.push({ node: node, id: id });
+      });
+      mapLanes.push(rec);
+      lanesWrap.appendChild(lane);
+    });
+    mapEl.appendChild(lanesWrap);
+
+    var h1 = content.querySelector('h1');
+    if (h1 && h1.parentElement) h1.parentElement.insertBefore(mapEl, h1);
+    else content.insertBefore(mapEl, content.firstChild);
+  }
+
+  function openAndScroll(card) {
+    setCardOpen(card.section, true);
+    var h = card.section.querySelector('.xh-ex-head');
+    if (h) h.setAttribute('aria-expanded', 'true');
+    var y = card.section.getBoundingClientRect().top + window.scrollY - 76;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  }
+  function cardById(id) {
+    for (var i = 0; i < cards.length; i++) if (cards[i].id === id) return cards[i];
+    return null;
+  }
+  function jumpToExercise(id) {
+    var c = cardById(id);
+    if (c) { openAndScroll(c); return; }
+    var sec = document.querySelector('section.exercise[data-exercise-id="' + id + '"]');
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function continueToNext() {
+    for (var i = 0; i < cards.length; i++) {
+      if (!cards[i].solved) { openAndScroll(cards[i]); return; }
     }
-    makeBarSticky(bar);
   }
 
-  function updateProgress(solvedCount, total) {
-    if (!progressFillEl) return;
-    var pct = total ? Math.round(solvedCount / total * 100) : 0;
-    progressFillEl.style.width = pct + '%';
-    progressLabelEl.querySelector('b').textContent = solvedCount;
-    progressLabelEl._prog.querySelector('.xh-progress-pct').textContent = pct + '%';
-    progressLabelEl._prog.setAttribute('aria-valuenow', String(solvedCount));
+  function isSolvedId(id) {
+    for (var i = 0; i < cards.length; i++) if (cards[i].id === id) return !!cards[i].solved;
+    return !!(progressState && progressState.solved && progressState.solved[id]);
+  }
+  function popNode(node) {
+    node.classList.remove('xh-node-pop'); void node.offsetWidth; node.classList.add('xh-node-pop');
+  }
+  function updateProgress(solved, total) {
+    if (!mapEl) return;
+    var overall = 0;
+    mapLanes.forEach(function (lane) {
+      var k = 0;
+      lane.cards.forEach(function (c) {
+        var s = isSolvedId(c.id);
+        c.node.classList.toggle('solved', s);
+        if (s && !_painted[c.id]) { popNode(c.node); _painted[c.id] = true; }
+        if (s) k++;
+      });
+      lane.countEl.textContent = k + '/' + lane.n;
+      lane.el.classList.toggle('is-done', lane.n > 0 && k === lane.n);
+      var frac = lane.n > 1 ? (k > 0 ? (k - 1) / (lane.n - 1) : 0) : (k > 0 ? 1 : 0);
+      lane.railFill.style.width = 'calc((100% - 16px) * ' + frac + ')';
+      overall += k;
+    });
+    if (mapCountEl) mapCountEl.querySelector('b').textContent = overall;
+    mapEl.setAttribute('aria-label', overall + ' of ' + total + ' exercises solved');
+    updateGoal();
+    updateContinue(overall, total);
+  }
+  function updateContinue(solved, total) {
+    if (!mapContinueEl) return;
+    if (solved >= total) { mapContinueEl.hidden = true; return; }
+    mapContinueEl.hidden = false;
+    mapContinueEl.innerHTML = (solved === 0 ? 'Start solving'
+      : 'Continue <span class="xh-cont-sep">&middot;</span> ' + (total - solved) + ' to go') +
+      ' <span class="xh-cont-arrow" aria-hidden="true">&rarr;</span>';
+  }
+  function updateGoal() {
+    if (!mapGoalEl) return;
+    var n = STORE.loadDaily().count || 0;
+    if (n <= 0) { mapGoalEl.hidden = true; return; }
+    mapGoalEl.hidden = false;
+    if (n >= DAILY_GOAL) {
+      mapGoalEl.className = 'xh-map-goal is-met';
+      mapGoalEl.innerHTML = '<span aria-hidden="true">&#10003;</span> Daily goal';
+    } else {
+      mapGoalEl.className = 'xh-map-goal';
+      mapGoalEl.textContent = 'Today ' + n + ' / ' + DAILY_GOAL;
+    }
   }
 
-  /* Briefly pulse the solved-count - the status bar is always on screen,
-     so this is a scroll-independent confirmation that a solve registered. */
+  /* Pulse the overall solved-count when a solve registers. */
   function pulseProgress() {
-    if (!progressLabelEl) return;
-    var b = progressLabelEl.querySelector('b');
+    if (!mapCountEl) return;
+    var b = mapCountEl.querySelector('b');
     if (!b) return;
     b.classList.remove('xh-bump');
     void b.offsetWidth;
     b.classList.add('xh-bump');
   }
 
-  /* progress-bar surge - a glow pulse on the fill when an exercise is solved */
-  function surgeProgressFill() {
-    if (!progressFillEl) return;
-    progressFillEl.classList.remove('xh-surge');
-    void progressFillEl.offsetWidth;
-    progressFillEl.classList.add('xh-surge');
-  }
+  /* The newly-solved node's pop is handled in updateProgress (see popNode). */
+  function surgeProgressFill() {}
 
   /* Total XP from solved cards - difficulty-weighted, derived from solved
      state on each render (never stored separately). */
@@ -983,6 +1057,7 @@
         setVerdict(card, 'error', '✗',
           'Your code raised an error.',
           'Read the message above, fix it, and run again.');
+        registerFail(card);
       }
       return;
     }
@@ -1013,7 +1088,17 @@
         'Not a match yet.',
         (ln ? 'First difference around line ' + ln + '. ' : '') +
         'Compare your output with the expected result above, or open a hint.');
+      registerFail(card);
     }
+  }
+
+  /* Auto-reveal the first hint after AUTO_HINT_AFTER failed checks, so a
+     stuck learner is nudged forward instead of bouncing (activation). */
+  function registerFail(card) {
+    card.fails = (card.fails || 0) + 1;
+    if (card.fails < AUTO_HINT_AFTER || card._autoHinted) return;
+    var link = card.section.querySelector('.xh-hint-link');
+    if (link && !link.disabled) { card._autoHinted = true; link.click(); }
   }
 
   function wireGrading(card) {
@@ -1110,6 +1195,7 @@
       card.solved = true;
       progressState.solved[card.id] = true;
       STORE.saveProgress(progressState);
+      STORE.bumpDaily();      // honest daily micro-goal (item 5)
       reportSolve(card);      // POSTs to /api/exercise/.../attempt when authed
     }
     card.section.classList.add('is-solved');
