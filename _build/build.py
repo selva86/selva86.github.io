@@ -601,9 +601,12 @@ def render_sidebar_html(sections, current_slug):
 
     parts.append(f'<div class="{posts_panel_class}" data-panel="posts">')
     parts.append('<ul class="sidebar-menu list-unstyled">')
-    _QUIZ_ICON = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-                  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-                  '<circle cx="12" cy="8" r="6"/><path d="M8.5 13.5 7 22l5-3 5 3-1.5-8.5"/></svg>')
+    # Single filled award badge (star medallion) - one coherent shape, centered
+    # in the marker box, so it doesn't read as a hollow node-ring + a ribbon.
+    _QUIZ_ICON = ('<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+                  '<path d="M12 5.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 2.7 '
+                  '1.45 2.94 3.25.47-2.35 2.29.55 3.23L12 15.58l-2.9 1.52.55-3.23'
+                  'L7.3 11.58l3.25-.47z"/></svg>')
     for secno, (i, section, items, section_active) in enumerate(rendered_sections, 1):
         # roadmap-jel: default-expand the first three sections (through
         # Statistics) plus any section holding the current page; collapse rest.
