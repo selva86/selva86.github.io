@@ -24,14 +24,14 @@
   function lessonRow(t,isFree){
     if(isFree){
       var h=postHref(t);
-      if(h) return '<a class="lsn free" href="'+h+'"><span class="lt">'+esc(t)+'</span><span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></a>';
-      return '<span class="lsn soon"><span class="lt">'+esc(t)+'</span><span class="go">Soon</span></span>';
+      if(h) return '<a class="lsn free" href="'+h+'"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span>'+RARR+'</a>';
+      return '<span class="lsn soon"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Soon</span></span>';
     }
-    return '<a class="lsn pro" href="/pricing.html"><span class="lt">'+esc(t)+'</span><span class="go">Pro</span></a>';
+    return '<a class="lsn pro" href="/pricing.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Pro</span></a>';
   }
   function secDetails(s,isFree,open,trackKey){
-    return '<details class="sec" data-track="'+(trackKey||'')+'" data-sec="'+s.n+'"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span><span class="st">'+esc(s.title)+'</span>'+
-      (isFree?'<span class="tag free">Free</span>':UNLOCK)+'<span class="cnt">'+s.items.length+'</span></summary>'+
+    return '<details class="sec '+(isFree?'free-sec':'pro-sec')+'" data-track="'+(trackKey||'')+'" data-sec="'+s.n+'"'+(open?' open':'')+'><summary><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span><span class="st">'+esc(s.title)+'<span class="so">'+esc(s.outcome||'')+'</span></span>'+
+      (isFree?'<span class="tag free">Free</span>':UNLOCK)+'<span class="car" aria-hidden="true"></span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,isFree);}).join('')+'</div></details>';
   }
   function milestone(key,opts){
@@ -100,17 +100,6 @@
   // pick up any lessons published since the last roadmap rebuild. Other tracks stay flat.
   (function(){
     var HYBRID={analyst:1,foundations:1};
-    var st=document.createElement('style');
-    st.textContent='.ilhy-row{display:block;padding:11px 9px;border-radius:9px;text-decoration:none;color:var(--ink,#1a1a1a)}'
-      +'.ilhy-row+.ilhy-row{border-top:1px solid var(--line,#e6e3da)}'
-      +'.ilhy-row:hover{background:color-mix(in srgb,var(--c) 7%,#fff)}'
-      +'.ilhy-head{display:flex;align-items:flex-start;gap:9px}'
-      +'.ilhy-a{color:var(--c);font-size:10px;flex:none;margin-top:4px}'
-      +'.ilhy-t{flex:1;min-width:0;font-size:14px;font-weight:600}'
-      +'.ilhy-g{flex:none;font:600 9px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}'
-      +'.ilhy-cov{display:block;margin:5px 0 0 19px;font-size:12px;color:var(--faint,#8a8a83);line-height:1.55}'
-      +'.ilhy-gq{background:var(--c);color:#fff;border-color:var(--c)}';
-    document.head.appendChild(st);
     function applyHybrid(cat){
       if(!cat||!cat.courses)return;
       var byTrack={};
@@ -127,9 +116,9 @@
             (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
               if(l.built===false)return; cnt++;
               var sub=(l.subtitle||'').trim();
-              var covHtml=sub?'<span class="ilhy-cov">'+esc(sub)+'</span>':'';
+              var covHtml=sub?'<span class="lsub">'+esc(sub)+'</span>':'';
               var isQ=l.kind==='quiz';
-              rows+='<a class="ilhy-row'+(isQ?' ilhy-quiz':'')+'" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">'+(isQ?'&#10003;':'&#9654;')+'</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g'+(isQ?' ilhy-gq':'')+'">'+(isQ?'Quiz':'Interactive')+'</span></span>'+covHtml+'</a>';
+              rows+='<a class="lsn inter" href="/'+l.slug+'.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span>'+covHtml+'</span><span class="itag'+(isQ?' quiz':'')+'">'+(isQ?'Quiz':'Interactive')+'</span>'+RARR+'</a>';
             });
           });
           if(!rows)return;

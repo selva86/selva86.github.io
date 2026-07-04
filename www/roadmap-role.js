@@ -119,19 +119,33 @@
     : 'Section 1 is free to read. The rest is the Program, ending in the '+L.cert+' certificate.';
 
   function postHref(t){return (RM2.links&&RM2.links[t])||(RM.STOP_LINKS&&RM.STOP_LINKS[t])||'';}
-  function lessonRow(t,free){
+  var ARR='<span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>';
+  // concept row (curriculum item with no interactive lesson yet)
+  function conceptRow(t,free){
     if(free){
       var h=postHref(t);
-      if(h) return '<a class="lsn free" href="'+h+'"><span class="lt">'+esc(t)+'</span><span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></a>';
-      return '<span class="lsn soon"><span class="lt">'+esc(t)+'</span><span class="go">Soon</span></span>';
+      if(h) return '<a class="lsn free" href="'+h+'"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span>'+ARR+'</a>';
+      return '<span class="lsn soon"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Soon</span></span>';
     }
-    return '<a class="lsn pro" href="/pricing.html"><span class="lt">'+esc(t)+'</span><span class="go">Pro</span></a>';
+    return '<a class="lsn pro" href="/pricing.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Pro</span></a>';
   }
-  function secDetails(s,free,open){
-    return '<details id="rm-s'+s.n+'" class="sec"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span>'+
+  // interactive step-player lesson row (dot + title + outcome subtitle + tag + arrow)
+  function interRow(l){
+    var isQ=l.kind==='quiz', sub=(l.subtitle||'').trim();
+    var subHtml=sub?'<span class="lsub">'+esc(sub)+'</span>':'';
+    var tag='<span class="itag'+(isQ?' quiz':'')+'">'+(isQ?'Quiz':'Interactive')+'</span>';
+    return '<a class="lsn inter" href="/'+l.slug+'.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span>'+subHtml+'</span>'+tag+ARR+'</a>';
+  }
+  // B6 section block: numbered chip + title + outcome + Free/Pro badge, then a
+  // hairline-ruled table of rows. Open by default (collapsible), concept rows are
+  // upgraded to interactive rows once courses.json loads.
+  function secBlock(s,free){
+    // free sections open by default (the browse-everything feel); Pro sections
+    // collapse so long tracks (DS = 29 sections) stay navigable. Both collapsible.
+    return '<details id="rm-s'+s.n+'" class="sec '+(free?'free-sec':'pro-sec')+'"'+(free?' open':'')+'><summary><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span>'+
       '<span class="st">'+esc(s.title)+'<span class="so">'+esc(s.outcome)+'</span></span>'+
-      (free?'<span class="tag free">Free</span>':UNLOCK)+'<span class="cnt">'+s.items.length+'</span></summary>'+
-      '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,free);}).join('')+'</div></details>';
+      (free?'<span class="tag free">Free</span>':UNLOCK)+'<span class="car" aria-hidden="true"></span></summary>'+
+      '<div class="lsns">'+s.items.map(function(t){return conceptRow(t,free);}).join('')+'</div></details>';
   }
 
   // Tier bands + the credential moment. Only tracks whose sections carry a `tier`
@@ -166,7 +180,7 @@
   (function(){var html='',prev=null;
     secs.forEach(function(s,i){var t=s.tier||null;
       if(t&&t!==prev){if(prev==='core')html+=certMile();html+=bandHead(t);prev=t;}
-      html+=secDetails(s,isFree(s),i===0);});
+      html+=secBlock(s,isFree(s));});
     document.getElementById('curric').innerHTML=html;})();
 
   // deep-link from a lesson player: /roadmap/<role>.html#rm-s<n>. #curric is built
@@ -212,79 +226,34 @@
   // option 3: "Unlock with Pro" pill lives inside <summary>; navigate without toggling the accordion
   document.addEventListener('click',function(e){var u=e.target.closest&&e.target.closest('.unlock');if(u){e.preventDefault();e.stopPropagation();window.location.href=u.getAttribute('href')||'/pricing.html';}},true);
 
-  // --- surface interactive step-player lessons on their roadmap sections ---
-  // Reads /courses.json (the generated catalog) and, for every course mapped to
-  // THIS track, injects its built lessons as launch links into the matching
-  // section's <details id="rm-s<n>">. So a reader can open the interactive player
-  // straight from the curriculum. Lights up automatically as lessons publish.
+  // --- upgrade sections that have interactive step-player lessons ---
+  // Reads /courses.json and, for every section on THIS track with built lessons,
+  // swaps its concept rows for B6 interactive rows (title + outcome + tag).
   (function(){
-    var st=document.createElement('style');
-    st.textContent='.ilsns{margin:2px 8px 12px;padding:11px 13px;border:1px solid var(--line,#e6e3da);border-radius:12px;background:color-mix(in srgb,var(--c) 5%,#fff)}'
-      +'.ilsns-h{font:600 10px/1 "JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--c);margin-bottom:8px}'
-      +'.ilsn{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;text-decoration:none;color:var(--ink,#1a1a1a);font-size:14px}'
-      +'.ilsn:hover{background:color-mix(in srgb,var(--c) 12%,#fff)}'
-      +'.ila{color:var(--c);font-size:10px;flex:none}.ilt{flex:1;min-width:0}'
-      +'.ilg{flex:none;font:600 9.5px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}'
-      +'.ilhy-row{display:block;padding:11px 9px;border-radius:9px;text-decoration:none;color:var(--ink,#1a1a1a)}'
-      +'.ilhy-row+.ilhy-row{border-top:1px solid var(--line,#e6e3da)}'
-      +'.ilhy-row:hover{background:color-mix(in srgb,var(--c) 7%,#fff)}'
-      +'.ilhy-head{display:flex;align-items:flex-start;gap:9px}'
-      +'.ilhy-a{color:var(--c);font-size:10px;flex:none;margin-top:4px}'
-      +'.ilhy-t{flex:1;min-width:0;font-size:14px;font-weight:600}'
-      +'.ilhy-g{flex:none;font:600 9px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}'
-      +'.ilhy-cov{display:block;margin:5px 0 0 19px;font-size:12px;color:var(--faint,#8a8a83);line-height:1.55}'
-      +'.ilhy-gq{background:var(--c);color:#fff;border-color:var(--c)}';
-    document.head.appendChild(st);
     fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(cat){
       if(!cat||!cat.courses)return;
       var bySec={};
       cat.courses.forEach(function(c){ if(!c.roadmap||c.roadmap.track!==role)return;
         (bySec[c.roadmap.section]=bySec[c.roadmap.section]||[]).push(c); });
-      // "Start free": prefer the first interactive lesson in section 1
+      // "Start free" -> first interactive lesson in section 1
       var s1n=secs[0]&&secs[0].n;
       if(s1n!=null&&bySec[s1n]){var first=null;
         bySec[s1n].forEach(function(c){(c.lessons||[]).forEach(function(l){if(l.built!==false&&(!first||(l.order||0)<(first.order||0)))first=l;});});
         if(first){var pr=document.querySelector('header.hero .primary');if(pr)pr.setAttribute('href','/'+first.slug+'.html');}}
       var grand=0;
-      Object.keys(bySec).forEach(function(n){
-        var det=document.getElementById('rm-s'+n); if(!det)return;
-        var lsns=det.querySelector('.lsns');
-        if(role==='analyst'||role==='foundations'){
-          // hybrid: on these all-free tracks the interactive lessons ARE the curriculum, so replace
-          // the flat concept list with one row per lesson plus the concepts it covers (no duplication).
-          var rows='',cnt=0;
-          bySec[n].forEach(function(c){
-            (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
-              if(l.built===false)return; cnt++;
-              var sub=(l.subtitle||'').trim();
-              var covHtml=sub?'<span class="ilhy-cov">'+esc(sub)+'</span>':'';
-              var isQ=l.kind==='quiz';
-              rows+='<a class="ilhy-row'+(isQ?' ilhy-quiz':'')+'" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">'+(isQ?'&#10003;':'&#9654;')+'</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g'+(isQ?' ilhy-gq':'')+'">'+(isQ?'Quiz':'Interactive')+'</span></span>'+covHtml+'</a>';
-            });
-          });
-          if(!rows||!lsns)return;
-          lsns.innerHTML=rows;
-          var cb=det.querySelector('.cnt'); if(cb)cb.textContent=String(cnt);
-          grand+=cnt;
-          return;
-        }
-        var html='',cnt=0;
-        bySec[n].forEach(function(c){
-          (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
-            if(l.built===false)return; cnt++;
-            html+='<a class="ilsn" href="/'+l.slug+'.html"><span class="ila">&#9654;</span><span class="ilt">'+esc(l.title)+'</span><span class="ilg">Interactive</span></a>';
-          });
-        });
-        if(!html)return;
-        var box=document.createElement('div'); box.className='ilsns';
-        box.innerHTML='<div class="ilsns-h">Interactive lessons</div>'+html;
-        // a section with interactive lessons (DS sections 1-5) shows ONLY them - drop the duplicate flat concept list
-        if(lsns){lsns.innerHTML='';lsns.appendChild(box);}else det.appendChild(box);
-        var cb=det.querySelector('.cnt'); if(cb)cb.textContent=String(cnt);
+      secs.forEach(function(s){
+        var det=document.getElementById('rm-s'+s.n); if(!det)return;
+        var lsns=det.querySelector('.lsns'); if(!lsns)return;
+        var ls=[];
+        (bySec[s.n]||[]).forEach(function(c){(c.lessons||[]).forEach(function(l){if(l.built!==false)ls.push(l);});});
+        ls.sort(function(a,b){return (a.order||0)-(b.order||0);});
+        if(!ls.length)return;
+        lsns.innerHTML=ls.map(interRow).join('');
+        det.classList.add('has-inter');
+        grand+=ls.length;
       });
-      // align the hero "lessons" count with the interactive-lesson rows now shown
       if((role==='analyst'||role==='foundations')&&grand){var rm=document.getElementById('roleMeta');
-        if(rm)rm.innerHTML='<span><b>'+secs.length+'</b> sections</span><span><b>'+grand+'</b> lessons</span><span>Certificate: <b>'+esc(L.cert)+'</b></span>';}
+        if(rm)rm.innerHTML='<span><b>'+secs.length+'</b> sections</span><span><b>'+grand+'</b> interactive lessons</span><span>Certificate: <b>'+esc(L.cert)+'</b></span>';}
     }).catch(function(){});
   })();
 })();
