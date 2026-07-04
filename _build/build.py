@@ -601,13 +601,20 @@ def render_sidebar_html(sections, current_slug):
 
     parts.append(f'<div class="{posts_panel_class}" data-panel="posts">')
     parts.append('<ul class="sidebar-menu list-unstyled">')
-    for i, section, items, section_active in rendered_sections:
-        sec_class = 'sidebar-section expanded' if section_active else 'sidebar-section'
+    _QUIZ_ICON = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+                  '<circle cx="12" cy="8" r="6"/><path d="M8.5 13.5 7 22l5-3 5 3-1.5-8.5"/></svg>')
+    for secno, (i, section, items, section_active) in enumerate(rendered_sections, 1):
+        # roadmap-jel: default-expand the first three sections (through
+        # Statistics) plus any section holding the current page; collapse rest.
+        expanded = section_active or secno <= 3
+        sec_class = 'sidebar-section expanded' if expanded else 'sidebar-section'
         title = _esc_html(section.get('title', ''))
         parts.append(f'<li class="{sec_class}">')
         parts.append('<div class="sidebar-section-header">')
         parts.append(
-            f'<span class="sidebar-chevron">&#9656;</span> {title}'
+            f'<span class="sidebar-chevron">&#9656;</span>'
+            f'<span class="sec-num">{secno}.</span> <span class="sec-title-t">{title}</span>'
             f'<span class="section-meta" data-section-meta></span>'
         )
         parts.append('</div>')
@@ -637,11 +644,20 @@ def render_sidebar_html(sections, current_slug):
             cur_sub_key = f'sec{i}sub{sub_idx}'
             is_active = item.get('href') == current_slug
             active_attr = ' class="active"' if is_active else ''
-            parts.append(f'<li data-subkey="{cur_sub_key}">')
-            parts.append(
-                f'<a href="{href}"{active_attr}>'
-                f'<span class="progress-dot"></span>{text}</a></li>'
-            )
+            if item.get('href', '').endswith('-quiz.html'):
+                # roadmap-jel: section-end quizzes show a medal marker + the
+                # short label "Quiz" (not the long per-section title).
+                parts.append(f'<li data-subkey="{cur_sub_key}" class="is-quiz">')
+                parts.append(
+                    f'<a href="{href}"{active_attr}>'
+                    f'<span class="quiz-marker" aria-hidden="true">{_QUIZ_ICON}</span>Quiz</a></li>'
+                )
+            else:
+                parts.append(f'<li data-subkey="{cur_sub_key}">')
+                parts.append(
+                    f'<a href="{href}"{active_attr}>'
+                    f'<span class="progress-dot"></span>{text}</a></li>'
+                )
         parts.append('</ul></li>')
     parts.append('</ul>')
 

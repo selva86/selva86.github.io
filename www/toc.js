@@ -176,7 +176,7 @@ function saveStarted(s) {
       if (!href) return;
       if (visited[href] || started[href] || href === currentPage) done++;
     });
-    if (done > 0) meta.textContent = done + ' / ' + total;
+    meta.textContent = done + ' / ' + total;
   });
 
   // Continue-reading chip + end-of-page block: both point to the page
