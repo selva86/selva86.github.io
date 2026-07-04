@@ -1,197 +1,130 @@
-# DS Track Lessons - "Rushed Pedagogy" Triage
+# DS Track Lessons - "Rushed Pedagogy" Triage (JUDGED)
 
-_Auto-generated. Verdicts PENDING a read-judge. Do NOT rewrite until the owner says go._
+_Verdicts by a FAIR read-judge (Sonnet; global CLAUDE.md excluded; graded on the R2/R12/R14 rubric with the reference lessons as anchors; every RUSHED/BORDERLINE cites a specific step). Validated: it rated `Quantile-Regression`=RUSHED and `Split-Conformal-Prediction`/`Quantile-Regression-2`=OK, matching the manual read. Do NOT rewrite until the owner says go._
 
-## What "rushed" means
+## Result
 
-The SAME failure as the original **`Quantile-Regression`** lesson: notation dropped fast, clever-cryptic code (`r * (tau - (r < 0))`), ideas asserted not shown, multiple ideas per step. Every DS lesson except **`Split-Conformal-Prediction`** was authored under the old pipeline (global CLAUDE.md persona + 12-step cap + no R14 care rules), so any CAN read rushed.
+| Verdict | Count | Meaning |
+|---|---|---|
+| **RUSHED** | 9 | clear rushing (leaps / crammed / cryptic code / asserted-not-shown) - rewrite |
+| BORDERLINE | 91 | mildly rushed - a step or two could breathe; polish or rewrite as you choose |
+| OK | 69 | reads carefully; leave as is |
 
-## Why cheap metrics CANNOT decide this (tested, and it failed)
+Total DS-track lessons: 169.
 
-I calibrated the only cheap signals (notation density = formulas/step, and a clever-golf code smell) against the two known reference lessons:
+## RUSHED (rewrite first) - verdict + the cited step
 
-- REFERENCE-RUSHED `Quantile-Regression`: **1.92** formulas/step (23 formulas / 12 steps), golf-smell 2
-- REFERENCE-GOOD  `Split-Conformal-Prediction`: **2.40** formulas/step (36 formulas / 15 steps), golf-smell 0
+| Sec | Slug | Kind | Steps | Conf | Cited evidence (rule @ step: quote) | Summary |
+|-----|------|------|-------|------|-------------------------------------|---------|
+| 4 | `LightGBM-and-CatBoost-in-R` | lesson | 12 | high | R14 @ *Native categorical handling*: "sorts the categories by their average target and finds the s" | One step crams four distinct ideas; LightGBM's split and the ordered-TS formula  |
+| 9 | `Principal-Component-Analysis` | lesson | 12 | high | R14 @ *The math, in one breath*: "They are the eigenvectors of the correlation matrix" | One step ('in one breath') crams formula, constraints, eigen-theory and pipeline |
+| 11 | `Global-vs-Local-Explanations` | lesson | 12 | high | R14 @ *The local explanation: why THIS predic*: "For a linear model each contribution has an exact form" | Second core concept crams two formulas into one step and asserts Ravi's 0.87 ins |
+| 13 | `Quantile-Regression` | lesson | 12 | high | R12 @ *Fitting a line to a percentile: the ch*: "the fitted line for that quantile is the one that minimizes " | Compensation-analyst example is carried well, but the check-loss formula and pin |
+| 9 | `Cluster-Validation-and-Stability` | lesson | 11 | medium | R14 @ *Check 3 / Stability: do the groups sur*: "outer(a, a, "==") builds the table... fraction of pairs that" | Two concept steps cram formulas or assert cryptic one-liners (outer/max.col, one |
+| 12 | `ML-Production-Quiz` | quiz | 10 | medium | R14 @ *Run it: a drift score*: "psi <- sum((o - e) * log(pmax(o, 1e-4) / pmax(e, 1e-4)))" | One step crams binning, proportions, and the PSI formula, asserting the result i |
+| 13 | `Lasso-and-Elastic-Net` | lesson | 12 | medium | R14 @ *The lasso: price coefficients by absol*: "For a single predictor this has a clean closed form called s" | Core mechanism step crams penalty formula, soft-thresholding, and geometric intu |
+| 13 | `Robust-Regression-M-Estimators` | lesson | 11 | medium | R14 @ *The fix / Down-weight, do not delete*: "minimizing sum rho(r_i/s) ... w_i = psi(u_i)/u_i ... psi = r" | One dense step crams the general M-estimator, Huber, and Tukey formulas together |
+| 14 | `Support-Vector-Machines-Maximum-Margin` | lesson | 11 | medium | R14 @ *The idea*: "the width of the street works out to 2/â€–wâ€–" | Mostly careful and concrete, but the core margin-derivation step crams rescaling |
 
-**The good lesson scores HIGHER density than the bad one.** So formula count / density does NOT separate rushed from careful - the difference is whether each formula is *explained patiently or dropped cold*, which no cheap metric can see. Conclusion: there is **no reliable token-free way** to flag "rushed like Quantile"; it needs a per-lesson READ. The metrics below are CONTEXT only (they help spot the most notation-heavy lessons to read first), NOT a verdict.
+## BORDERLINE (polish/optional) - verdict + the cited step
 
-## The reliable method: a cheap read-judge (does not burn the main context)
+| Sec | Slug | Kind | Steps | Conf | Cited evidence | Summary |
+|-----|------|------|-------|------|----------------|---------|
+| 2 | `Heteroskedasticity-and-Autocorrelation` | lesson | 12 | high | R14 @ *Detecting and fixing villain two*: "the meat simply grows to also include the products of nearby" | Villain one is taught with care; villain two compresses detect+fix int |
+| 4 | `RF-Course-Lesson-1` | lesson | 11 | high | R2 @ *How it chooses*: "scored by the size-weighted Gini of its two children" | Split-purity step crams definition+formula+weighting into one step and |
+| 7 | `Scoring-Rules-and-Regression-Metrics` | lesson | 11 | high | R14 @ *What makes a scoring rule "proper"*: "set the derivative to zero) and the answer is p = q" | Concrete-first and well-paced overall, but the properness step asserts |
+| 8 | `Thresholds-Under-Asymmetric-Costs` | lesson | 12 | high | R2 @ *The cost-optimal cutoff*: "Solve that for p and the cutoff falls out" | Mostly grounded and concrete, but the cost-optimal-cutoff step skips t |
+| 12 | `Batch-vs-Real-Time-Inference` | lesson | 11 | high | R14 @ *Where each bites, and the hybrid*: "Serving N predictions one request at a time costs about N(o " | Mostly careful and concrete; one step crams a cost formula, real-time  |
+| 13 | `Robust-Regression-MM-and-Breakdown` | lesson | 12 | high | R14 @ *MM-estimation: robust start, efficient*: "minimize a scale s solving (1/n)sum rho(r_i/s) = delta" | Lesson is careful and concrete everywhere except the MM mechanics step |
+| 19 | `A-Monitoring-and-Robustness-Playbook` | lesson | 12 | high | R14 @ *The layered alarm stack*: "M_t > UCL = Î¼0 + k Ïƒ0" | Concrete Nadia example and readable code throughout, but two formulas  |
+| 19 | `Adversarial-Robustness` | lesson | 12 | high | R14 @ *Threat models and adversarial training*: "link_ratio - eps * dir * (2 * spam - 1)" | Steps 1-8 are careful and concrete; the adversarial-training step cram |
+| 19 | `Kinds-of-Distribution-Shift` | lesson | 11 | high | R14 @ *Shift two / Label shift: the base rate*: "the model still ranks transactions by risk perfectly well" | Lesson is careful overall; label-shift step alone breaks pattern, asse |
+| 19 | `Robustness-and-Drift-Quiz` | quiz | 14 | high | R14 @ *DRO trades a little average for a lot *: "2 * fraud - 1, 1 - 2 * fraud  # reverses for the minority" | 9 of 10 quiz questions are concrete and well-paced; the DRO run-it ste |
+| 20 | `Anomaly-Detection-Quiz` | quiz | 14 | high | R14 @ *Run it: isolation forest*: "2*(log(m-1)+0.5772157) - 2*(m-1)/m else if (m == 2) 1 else 0" | Quiz options and 2nd demo (reconstruction error) are careful; isolatio |
+| 1 | `Framing-a-Problem-as-ML` | lesson | 12 | medium | R12 @ *Pick a metric that matches the decisio*: "the counts recount and the operating point slides along the " | Mostly careful, Lena-grounded pacing throughout; only the metric step  |
+| 1 | `Your-First-End-to-End-Model-in-R` | lesson | 12 | medium | R14 @ *Grade it honestly*: "From those four counts you compute three numbers" | Mostly careful and concrete (one running example, defined terms), but  |
+| 2 | `GLMs-Beyond-Logistic` | lesson | 12 | medium | R14 @ *The fix for counts | Poisson regressio*: "so we translate it back, just as you did with odds ratios" | Every term is defined and demonstrated on real numbers, but two steps  |
+| 2 | `Inference-and-Prediction-in-Regression` | lesson | 11 | medium | R2 @ *Is the slope real? Testing a coefficie*: "critical value from the t-distribution with n âˆ’ 2 degrees " | One dense step crams the t-test and slope CI together and asserts t*=2 |
+| 2 | `Influence-and-Leverage` | lesson | 11 | medium | R14 @ *Cook's distance*: "e_i is the plain residual and s the typical size of a residu" | Mostly careful with one running example, but the Cook's distance formu |
+| 2 | `Logistic-Regression-Done-Properly` | lesson | 12 | medium | R2 @ *Odds, log-odds, and the logit link*: "Solving for p gives the sigmoid (the S-curve):" | Mostly careful and concrete, but the logit-to-sigmoid algebra is asser |
+| 2 | `OLS-Regression-from-Scratch` | lesson | 11 | medium | R2 @ *Many lines, one best*: "Setting the slope of the SSE to zero" | Mostly careful with one strong running example, but the SSE/OLS/normal |
+| 3 | `Decision-Boundaries-and-Model-Geometry` | lesson | 12 | medium | R2 @ *Letting the line bend / Nonlinear boun*: "Logistic regression, LDA, linear SVM | a straight line" | Mostly careful (symbols defined, algebra shown, real output); step 3 c |
+| 3 | `Naive-Bayes-for-Tabular-and-Text` | lesson | 12 | medium | R14 @ *Count the clues*: "prior * prod(pw[names(email)] ^ email)" | Mostly careful, one-example throughout, but the score() one-liner pack |
+| 3 | `Reading-a-Classifier` | lesson | 11 | medium | R14 @ *The threshold, the ROC curve, and AUC*: "is the chance the model scores a random sick patient above a" | Mostly careful with concrete numbers throughout, but the ROC/AUC step  |
+| 4 | `Gradient-Boosting-Quiz` | quiz | 10 | medium | R2 @ *Run it: boosting by hand*: "each new tree targets the residual (the gradient of the loss" | Mostly careful recap quiz; one code demo claims a trend it never actua |
+| 4 | `Gradient-Boosting-from-Scratch` | lesson | 11 | medium | R14 @ *How boosting works*: "is literally doing gradient descent, one tree-shaped step at" | Lesson is carefully paced overall; one KEY INSIGHT aside asserts a cal |
+| 4 | `Quantile-Regression-Forests-and-Prediction-Intervals` | lesson | 12 | medium | R14 @ *In R / Build the interval from a fores*: "train$rentals[train_leaf[, t] == tmr_leaf[1, t]]" | Mostly careful buildup, but the core leaf-pooling code crams forest fi |
+| 4 | `RF-Course-Lesson-2` | lesson | 12 | medium | R14 @ *Trick 2, the motivation*: "rho\sigma^2 is a floor you cannot average away" | Mostly careful (concrete-before-abstract, one widget per idea) but bot |
+| 4 | `The-Hyperparameters-That-Matter` | lesson | 12 | medium | R14 @ *Regularization: the brakes*: "Min data per leaf, Subsample, Column sample, L2 penalty, Min" | Trees/rate/depth are carefully paced and shown on real numbers; the re |
+| 5 | `Define-Models-with-parsnip` | lesson | 12 | medium | R2 @ *Blueprint, then fit*: "risk <- with(loans, plogis(-1.1 + 1.4 * (income < 45000)" | Careful three-part framework and concrete demos throughout; one undefi |
+| 5 | `Measure-with-yardstick` | lesson | 11 | medium | R14 @ *The confusion matrix, and the two numb*: "which here is about 0.40, far less flattering than 0.66" | Careful lesson overall; one step asserts F1's value instead of showing |
+| 5 | `Tune-with-the-tune-package` | lesson | 11 | medium | R14 @ *A model with dials to turn*: "A tree is scored by R_alpha(T) = R(T) + alpha|T|" | Mostly careful (real outputs, worked 3^2=9 example, honest quiz explan |
+| 5 | `tidymodels-Quiz` | quiz | 10 | medium | R2 @ *Run it: the resampling idea*: "folds <- cut(sample(nrow(iris)), breaks = 5, labels = FALSE)" | Quiz MCQs are careful and well-explained; the CV-by-hand code line is  |
+| 6 | `Encoding-Categorical-Variables` | lesson | 12 | medium | R14 @ *The honest fix for nominal data*: "Every other column's weight is then read as a difference fro" | Mostly careful with one running example and shown output, but two conc |
+| 6 | `Feature-Selection-and-Spotting-Leakage` | lesson | 12 | medium | R14 @ *Family 3 / Embedded methods: selection*: "illustrative importance ranking for this trial data, the kin" | Filter/wrapper/leakage sections are carefully demonstrated on one runn |
+| 6 | `Features-from-Dates-Text-and-Geo` | lesson | 11 | medium | R14 @ *Two points, one distance*: "It is a few lines of base R, and it vectorizes over the whol" | Mostly careful (dates, cyclical hours, text all concrete-first); Haver |
+| 6 | `Imputing-Missing-Values-in-Features` | lesson | 11 | medium | R14 @ *Fill smarter / Borrow from similar row*: "finds the k nearest recorded flats most similar... and avera" | Careful through leakage steps; final 'Fill smarter' step crams group/k |
+| 6 | `Scaling-and-Transformations` | lesson | 11 | medium | R14 @ *Skew is a different problem, and stand*: "the procedure searches for the Î» that makes the feature mos" | Careful lesson overall, but the skew step crams skewness+log+Box-Cox+Y |
+| 6 | `Target-Encoding-Without-Leakage` | lesson | 12 | medium | R2 @ *The smoking gun*: "the out-of-fold method we build next" | Nearly all steps are careful and concrete, but one step previews the f |
+| 7 | `Cross-Validation-Strategies` | lesson | 12 | medium | R14 @ *Choosing k: the bias-variance of the e*: "the variance of the CV estimate looks like: rho*sigma^2 + (1" | Mostly careful (concrete numbers shown at every other step) but the k- |
+| 7 | `Grouped-Blocked-and-Time-Aware-CV` | lesson | 12 | medium | R2 @ *The trap / A score that looks too good*: "do.call(rbind, lapply(cafes, function(cf) { data.frame(...) " | Mostly careful (formulas shown on concrete values, one idea per step)  |
+| 7 | `Hyperparameter-Tuning-Strategies` | lesson | 12 | medium | R14 @ *Parameters the model learns, hyperpara*: "Here Î» is one combination, Î› is the whole set" | Mostly careful (terms defined, concrete numbers shown) but a few steps |
+| 7 | `Model-Evaluation-Quiz` | quiz | 10 | medium | R2 @ *Run it: log loss punishes confident mi*: "ll <- function(y, p) -mean(y * log(p) + (1 - y) * log(1 - p)" | Quiz stems and wrong-answer explanations are careful and concrete; the |
+| 8 | `Beyond-Binary-Multiclass-Classification` | lesson | 12 | medium | R14 @ *Per-class metrics, then averaged*: "there are three honest ways to do it: Macro... Micro... Weig" | Mostly careful (concrete-first, terms defined) but one step crams macr |
+| 8 | `Calibrating-Predicted-Probabilities` | lesson | 12 | medium | R14 @ *Put a number on it: Brier and ECE*: "The expected calibration error (ECE) targets calibration dir" | Mostly careful (analogies, shown numbers, quizzes), but Brier+ECE cram |
+| 8 | `Class-Imbalance-and-Resampling` | lesson | 11 | medium | R12 @ *When accuracy lies*: "here it is 1900/100 = 19 to one" | Mostly careful and concrete, but the SMOTE formula is asserted without |
+| 8 | `ROC-PR-Lift-and-Gains-Curves` | lesson | 12 | medium | R14 @ *Why ROC can flatter a rare-positive mo*: "sum(diff(roc[o,"FPR"]) * (head(roc[o,"TPR"],-1)+tail(...,-1)" | Mostly careful and concrete throughout; one dense, unexplained trapezo |
+| 9 | `Factor-Analysis` | lesson | 11 | medium | R2 @ *The factor model, in one equation*: "\Sigma = \Lambda \Lambda^\top + \Psi" | Mostly careful and concrete, but the model step crams equation+communa |
+| 9 | `Gaussian-Mixture-Models` | lesson | 12 | medium | R14 @ *The model / Where the probabilities co*: "a mixture can draw stretched, tilted ellipses, which is exac" | Mostly careful (E-step and log-likelihood shown on real values), but t |
+| 9 | `Hierarchical-and-Density-Clustering` | lesson | 11 | medium | R12 @ *Linkage: how far apart are two groups?*: "For two groups A and B: Single linkage uses the closest pair" | Mostly careful and concrete, but the linkage step stacks 4 formulas pl |
+| 9 | `k-Means-and-Choosing-k` | lesson | 12 | medium | R14 @ *What makes a grouping tight*: "Now the whole objective in one line." | Well-defined terms and a strong running example, but formulas (WCSS, s |
+| 9 | `t-SNE-and-UMAP` | lesson | 12 | medium | R14 @ *Under the hood â€” Distances become ne*: "Formally, perplexity is Perp(P_i) = 2^{H(P_i)}" | Mostly careful and concrete, but one step crams affinity, perplexity/e |
+| 10 | `Causal-Diagrams-with-DAGs` | lesson | 12 | medium | R14 @ *Three shapes / The three ways a third *: "There are exactly three shapes, and the widget below switche" | Mostly careful with one running example, but two steps stack multiple  |
+| 10 | `When-You-Cannot-Randomize` | lesson | 12 | medium | R14 @ *The first tool / Matching: compare lik*: "control$spend[which.min(abs(control$prior - p))]" | Mostly careful and concrete, but one vectorized matching line and the  |
+| 11 | `Fairness-Basics` | lesson | 12 | medium | R12 @ *Choose the harm, then fix the pipeline*: "Pre-processing reweights or relabels the training data to re" | Impossibility-result steps are careful and concrete throughout; only t |
+| 12 | `An-ML-System-Design-Checklist` | lesson | 12 | medium | R2 @ *Phase 3 - Evaluate / Question 3: is th*: "grid[which.min(sapply(grid, total_cost))]" | Mostly careful (baseline, leakage steps show concrete before/after num |
+| 13 | `Count-Models-Poisson-and-Negative-Binomial` | lesson | 12 | medium | R14 @ *Model the rate, on the log scale*: "mean and variance are the same number" | Mostly careful and concrete, but one crowded concept step and an undef |
+| 13 | `GAMs-Choosing-Smoothness` | lesson | 12 | medium | R14 @ *gam.check: is k big enough?*: "gam.check() does two jobs in one call: basis-size table... r" | Mostly careful and concrete, but the gam.check step crams function mec |
+| 13 | `Mixed-Models-Random-Intercepts` | lesson | 12 | medium | R14 @ *Partial pooling and shrinkage*: "When it is tiny (like R12's two accounts), Î»j is small" | Mostly careful with strong concrete grounding, but the shrinkage-weigh |
+| 13 | `Mixed-Models-Random-Slopes-and-GLMMs` | lesson | 12 | medium | R14 @ *The random-slope model*: "region R11's three accounts gave an OLS slope of -8.5" | Mostly careful, well-defined pacing, but several concrete numeric clai |
+| 13 | `Zero-Inflated-and-Hurdle-Models` | lesson | 11 | medium | R14 @ *Zero-inflated: one model, two parts*: "P(Y_i = 0) = pi_i + (1 - pi_i) e^{-lambda_i}" | ZIP and hurdle steps cram formula, link equations, code, and interpret |
+| 14 | `A-Tuned-Stacked-Model-End-to-End` | lesson | 12 | medium | R14 @ *Same recipe, other families*: "One dial, one honest curve, done. The forest brings its own " | Every formula/number is shown concretely and translated in plain words |
+| 14 | `Advanced-Supervised-Learning-Quiz` | quiz | 14 | medium | R14 @ *Run it: the winner's curse*: "mean(replicate(2000, min(1.30 + rnorm(J, 0, 0.12))))" | Quiz questions are clear and concrete; both live-R recap steps use den |
+| 14 | `Kernel-SVMs-and-the-Kernel-Trick` | lesson | 12 | medium | R2 @ *The shortcut*: "corresponds to a feature space with infinitely many dimensio" | Mostly careful and concrete, but 'The shortcut' step crams the decisio |
+| 14 | `Regularized-Discriminant-Analysis` | lesson | 12 | medium | R14 @ *The fix / Blend the two covariances*: "adds a second dial, gamma (gamma), that shrinks each blended" | Lesson is careful and concrete throughout except one step crams two di |
+| 14 | `Stacking-and-the-Super-Learner` | lesson | 12 | medium | R14 @ *The Super Learner / From stack to Supe*: "w <- exp(b) / sum(exp(b))  # all positive, summing to exactl" | Exceptionally concrete and well-defined throughout; one step (Super Le |
+| 15 | `Checking-Proportional-Hazards` | lesson | 11 | medium | R14 @ *Schoenfeld residuals: one dot per deat*: "s_i = x_i - \bar{x}(t_i)... rescaled to sum to one" | Mostly careful (great cox.zph walkthroughs), but Schoenfeld-residual f |
+| 15 | `Competing-Risks-and-Cumulative-Incidence` | lesson | 12 | medium | R14 @ *Two hazards, two questions*: "keeps them in the risk set (with a weight that decays over t" | Careful lesson overall (concrete running example, formulas translated  |
+| 15 | `Kaplan-Meier-and-the-Log-Rank-Test` | lesson | 12 | medium | R12 @ *The log-rank test: observed versus exp*: "e_{1i} = d_i \times \frac{n_{1i}}{n_i}" | Lesson is careful throughout except the log-rank concept step, which s |
+| 15 | `Parametric-and-AFT-Models` | lesson | 12 | medium | R14 @ *The second idea / Accelerated time: ef*: "Stretching time by TR is exactly the same curve as multiplyi" | Mostly careful (concrete running example, formulas shown on real numbe |
+| 15 | `Survival-Data-and-Censoring` | lesson | 12 | medium | R14 @ *The hazard: the risk of the moment*: "The two lenses are locked together: accumulate the hazard an" | Mostly careful and well-demonstrated, but the hazard step stacks two f |
+| 15 | `Survival-ML-and-Evaluation` | lesson | 11 | medium | R2 @ *The model / Let the forest learn the s*: "OOB prediction error (1-C): 0.362" | Mostly careful with concrete numbers throughout, but OOB is never defi |
+| 16 | `Bayesian-Regression-and-GLMs-End-to-End` | lesson | 12 | medium | R14 @ *The model / A line, a link, a family*: "Two bookkeeping moves first." | Every term is defined and shown on concrete values, but several steps  |
+| 16 | `LLM-Agents-in-R` | lesson | 14 | medium | R12 @ *The heart of it â€” The ReAct loop*: "More formally, let h_t be the history at step t" | Mostly careful pacing; ReAct step fronts formal notation before its co |
+| 16 | `MCMC-and-the-Metropolis-Sampler` | lesson | 12 | medium | R2 @ *The payoff / One new function, any mod*: "each such division owes a bookkeeping correction of - log(18" | Exceptionally careful throughout (defined terms, walker metaphor, trip |
+| 16 | `Posterior-Predictive-Checks` | lesson | 12 | medium | R2 @ *Four statistics, two models, one verdi*: "freq <- function(d) sapply(ks, function(k) mean(d == k))" | Nearly all steps are exemplary; one late step crams a stats table plus |
+| 17 | `Designing-Experiments-for-Power` | lesson | 12 | medium | R14 @ *The levers*: "power â‰ˆ Î¦(dâˆš(n/2) âˆ’ z_Î±/2)" | Mostly careful (simulation-before-formula pattern), but the levers ste |
+| 17 | `Multi-Armed-Bandits-Explore-vs-Exploit` | lesson | 12 | medium | R14 @ *The test you cannot size*: "wrong <- sapply(c(200, 2000), function(n) mean(replicate(200" | Lesson is careful overall; one step's crowning-rate code (sapply+repli |
+| 17 | `Variance-Reduction-with-CUPED` | lesson | 12 | medium | R14 @ *Same trick, other clothes*: "There is also a one-line version of CUPED that you already k" | Mostly careful and concrete throughout, but two steps each stack two d |
+| 18 | `Double-Debiased-Machine-Learning` | lesson | 11 | medium | R14 @ *The fix, and its trap*: "Regress the outcome residual on the raw perk instead and you" | Careful overall (concrete numbers, running example, one-idea steps) bu |
+| 18 | `Instrumental-Variables-and-2SLS` | lesson | 12 | medium | R14 @ *The keen students do both*: "The size of the damage has a clean formula" | Mostly careful with concrete numbers throughout, but the OMVB bias for |
+| 18 | `Matching-and-the-Propensity-Score` | lesson | 12 | medium | R14 @ *The comparison you wish you had*: "Adding and subtracting the term E[Y(0)|T=1] ... splits it cl" | Mostly careful and concrete, but the potential-outcomes step packs thr |
+| 18 | `Uplift-and-Heterogeneous-Effects` | lesson | 12 | medium | R14 @ *The +15 average hides who is hurt*: "Marketers have names for the four kinds of customer hiding i" | Mostly careful (one running example, worked numbers) but step 3 crams  |
+| 19 | `Detecting-Distribution-Shift` | lesson | 11 | medium | R14 @ *Detector three / The classifier two-sa*: "AUC = P(current row scores above reference row)" | PSI and KS are built with concrete worked numbers; the C2ST's rank-sum |
+| 19 | `Group-Robustness-and-DRO` | lesson | 12 | medium | R14 @ *Where it comes from / A shortcut that *: "2 * fraud - 1, 1 - 2 * fraud" | Mostly careful (concrete numbers, quizzes, weight=9 anchor) but the DR |
+| 19 | `Out-of-Distribution-and-Novelty-Detection` | lesson | 12 | medium | R2 @ *From a distance to a flag: the chi-squ*: "follows a chi-square distribution with degrees of freedom eq" | Nearly all careful (concrete running example, numbers-before-abstracti |
+| 20 | `Autoencoders-for-Anomaly-Detection` | lesson | 11 | medium | R2 @ *Reconstruction error, and why the line*: "W be a p Ã— k matrix whose columns are orthonormal direction" | Careful throughout (concrete Maya example, worked numbers, gated try-i |
+| 20 | `Isolation-Forest-and-Extended-Isolation-Forest` | lesson | 12 | medium | R14 @ *From cuts to a score*: "H(k) is the k-th harmonic number and 0.5772 is the Euler-Mas" | Mostly one-idea-per-step and concrete-first, but the scoring step cram |
+| 20 | `Kernel-PCA-Sparse-PCA-and-NMF` | lesson | 12 | medium | R14 @ *Build kernel PCA from scratch*: "ev$vectors[, 1:2] %*% diag(sqrt(pmax(ev$values[1:2], 0)))" | Mostly careful with one running example, but kernel-PCA and NMF each d |
+| 20 | `Local-Outlier-Factor-and-One-Class-SVM` | lesson | 12 | medium | R14 @ *LOF is a local density ratio*: "It is built in four small steps, each one plain once you see" | Four LOF formulas crammed into one step, well-explained but ungrounded |
+| 20 | `Self-Supervised-and-Contrastive-Learning` | lesson | 12 | medium | R14 @ *Pull the same item together, push othe*: "The contrastive loss, called InfoNCE, then says: for each an" | Mostly careful and concrete, but the contrastive-idea step stacks two  |
+| 20 | `Time-Series-Anomaly-Detection` | lesson | 12 | medium | R2 @ *Fix one: robust and local*: "roll_mad <- sapply(seq_len(n), function(i) mad(cups[max(1,i-" | Mostly careful with a concrete running example and shown values, but o |
+| 20 | `What-is-an-Anomaly` | lesson | 12 | medium | R14 @ *Why this is hard / The base-rate trap*: "and when the base rate P(fraud) is tiny, the denominator is " | Mostly careful (concrete Maya example, symbols defined, formulas demon |
+| 21 | `Prediction-Intervals-You-Can-Trust` | lesson | 11 | medium | R14 @ *The mean is not the home*: "t_{1-\alpha/2,n-2} s\sqrt{1+1/n+(x_0-\bar x)^2/S_{xx}}" | Nearly every step is concrete and gated well, but one step crams the C |
 
-Run one `claude -p --model haiku` per lesson (as a subprocess, so it costs cheap API tokens, not this session's context): give it the lesson + the rubric "is this rushed like `Quantile-Regression` (bad) or careful like `Split-Conformal-Prediction` (good)? verdict RUSHED / BORDERLINE / OK + one reason". Collect the verdicts into the `verdict` column. That is the accurate, efficient answer - ask and I will run it over the whole track (or advanced-tier first).
+## OK (leave as is)
 
-## All DS-track lessons (metrics = context; verdict PENDING a read-judge)
+`ML-Workflow-Quiz`, `The-Bias-Variance-Tradeoff`, `Train-Validation-Test-and-Data-Leakage`, `Multicollinearity-in-Regression`, `Regression-Assumptions-and-Residuals`, `Regression-Modeling-Quiz`, `Classification-Quiz`, `Decision-Trees-for-Classification`, `Discriminant-Analysis-LDA-and-QDA`, `kNN-and-the-Curse-of-Dimensionality`, `Early-Stopping-and-Learning-Curves`, `Monotonic-Constraints-for-Business-Rules`, `RF-Course-Lesson-3`, `Bundle-Steps-with-workflows`, `Compare-Many-Models-with-workflowsets`, `Preprocess-with-recipes`, `Resample-with-rsample`, `Feature-Engineering-Quiz`, `Interaction-and-Spline-Features`, `Comparing-Models-Statistically`, `From-Metrics-to-Money`, `Nested-Cross-Validation`, `Why-AUC-Is-Not-Enough`, `Association-Rules-and-Market-Basket`, `Unsupervised-Learning-Quiz`, `AB-Testing-and-Experiment-Design`, `Correlation-Causation-and-Potential-Outcomes`, `Reading-an-Experiment`, `Model-Cards-and-Documenting-a-Model`, `Partial-Dependence-ICE-and-ALE`, `Permutation-and-Drop-Column-Importance`, `SHAP-Values`, `Reproducible-Pipelines-with-targets`, `Serving-a-Model-with-plumber`, `Versioning-Models-with-vetiver-and-pins`, `Advanced-Regression-Quiz`, `Beta-and-Ordinal-Regression`, `GAMs-Splines-and-Smooths`, `Gamma-and-Tweedie-Regression`, `Ridge-Regression-and-Shrinkage`, `Approximate-Nearest-Neighbors-at-Scale`, `Bayesian-Optimization-for-Hyperparameters`, `Gaussian-Processes-for-Regression`, `Cox-Proportional-Hazards`, `Bayesian-Model-Comparison-LOO-and-WAIC`, `Bayesian-Modeling-Quiz`, `Conjugacy-and-Choosing-Priors`, `Hierarchical-Models-and-Partial-Pooling`, `The-Bayesian-Update`, `Contextual-Bandits-and-Off-Policy-Evaluation`, `Experiment-Pitfalls-Peeking-and-SRM`, `Experimentation-Quiz`, `Thompson-Sampling-and-Bayesian-Bandits`, `Difference-in-Differences-and-Parallel-Trends`, `Mediation-Analysis`, `Regression-Discontinuity`, `Sensitivity-Analysis-and-Placebo-Tests`, `Staggered-DiD-and-the-Negative-Weights-Problem`, `Synthetic-Control`, `Adapting-to-Drift-Reweighting-and-Retraining`, `Imbalanced-Classification-Quiz`, `Causal-Inference-Quiz`, `Model-Interpretability-Quiz`, `Monitoring-and-Drift`, `Survival-Analysis-Quiz`, `HMC-NUTS-and-MCMC-Diagnostics`, `Cluster-and-Switchback-Experiments`, `Causal-Inference-for-Decisions-Quiz`, `Inverse-Probability-Weighting-and-Doubly-Robust`
 
-| Sec | Slug | Kind | Steps | formulas | f/step | golf | w/step | verdict |
-|-----|------|------|-------|----------|--------|------|--------|---------|
-| 1 | `Framing-a-Problem-as-ML` | lesson | 12 | 1 | 0.08 | 0 | 222 | PENDING read-judge |
-| 1 | `ML-Workflow-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 90 | PENDING read-judge |
-| 1 | `The-Bias-Variance-Tradeoff` | lesson | 12 | 7 | 0.58 | 0 | 208 | PENDING read-judge |
-| 1 | `Train-Validation-Test-and-Data-Leakage` | lesson | 12 | 12 | 1.00 | 0 | 229 | PENDING read-judge |
-| 1 | `Your-First-End-to-End-Model-in-R` | lesson | 12 | 13 | 1.08 | 0 | 237 | PENDING read-judge |
-| 2 | `GLMs-Beyond-Logistic` | lesson | 12 | 19 | 1.58 | 0 | 269 | PENDING read-judge |
-| 2 | `Heteroskedasticity-and-Autocorrelation` | lesson | 12 | 39 | 3.25 | 0 | 274 | PENDING read-judge |
-| 2 | `Inference-and-Prediction-in-Regression` | lesson | 11 | 33 | 3.00 | 0 | 271 | PENDING read-judge |
-| 2 | `Influence-and-Leverage` | lesson | 11 | 33 | 3.00 | 0 | 249 | PENDING read-judge |
-| 2 | `Logistic-Regression-Done-Properly` | lesson | 12 | 19 | 1.58 | 0 | 234 | PENDING read-judge |
-| 2 | `Multicollinearity-in-Regression` | lesson | 11 | 14 | 1.27 | 0 | 254 | PENDING read-judge |
-| 2 | `OLS-Regression-from-Scratch` | lesson | 11 | 27 | 2.45 | 0 | 227 | PENDING read-judge |
-| 2 | `Regression-Assumptions-and-Residuals` | lesson | 12 | 25 | 2.08 | 0 | 224 | PENDING read-judge |
-| 2 | `Regression-Modeling-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 87 | PENDING read-judge |
-| 3 | `Classification-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 88 | PENDING read-judge |
-| 3 | `Decision-Boundaries-and-Model-Geometry` | lesson | 12 | 24 | 2.00 | 0 | 226 | PENDING read-judge |
-| 3 | `Decision-Trees-for-Classification` | lesson | 12 | 5 | 0.42 | 0 | 207 | PENDING read-judge |
-| 3 | `Discriminant-Analysis-LDA-and-QDA` | lesson | 12 | 44 | 3.67 | 0 | 265 | PENDING read-judge |
-| 3 | `Naive-Bayes-for-Tabular-and-Text` | lesson | 12 | 25 | 2.08 | 0 | 226 | PENDING read-judge |
-| 3 | `Reading-a-Classifier` | lesson | 11 | 10 | 0.91 | 0 | 202 | PENDING read-judge |
-| 3 | `kNN-and-the-Curse-of-Dimensionality` | lesson | 12 | 14 | 1.17 | 0 | 232 | PENDING read-judge |
-| 4 | `Early-Stopping-and-Learning-Curves` | lesson | 11 | 12 | 1.09 | 0 | 247 | PENDING read-judge |
-| 4 | `Gradient-Boosting-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 92 | PENDING read-judge |
-| 4 | `Gradient-Boosting-from-Scratch` | lesson | 11 | 17 | 1.55 | 0 | 226 | PENDING read-judge |
-| 4 | `LightGBM-and-CatBoost-in-R` | lesson | 12 | 22 | 1.83 | 0 | 230 | PENDING read-judge |
-| 4 | `Monotonic-Constraints-for-Business-Rules` | lesson | 11 | 7 | 0.64 | 0 | 231 | PENDING read-judge |
-| 4 | `Quantile-Regression-Forests-and-Prediction-Intervals` | lesson | 12 | 19 | 1.58 | 0 | 228 | PENDING read-judge |
-| 4 | `RF-Course-Lesson-1` | lesson | 11 | 6 | 0.55 | 1 | 126 | PENDING read-judge |
-| 4 | `RF-Course-Lesson-2` | lesson | 12 | 7 | 0.58 | 1 | 108 | PENDING read-judge |
-| 4 | `RF-Course-Lesson-3` | lesson | 11 | 3 | 0.27 | 1 | 111 | PENDING read-judge |
-| 4 | `The-Hyperparameters-That-Matter` | lesson | 12 | 39 | 3.25 | 0 | 267 | PENDING read-judge |
-| 5 | `Bundle-Steps-with-workflows` | lesson | 12 | 10 | 0.83 | 2 | 211 | PENDING read-judge |
-| 5 | `Compare-Many-Models-with-workflowsets` | lesson | 11 | 5 | 0.45 | 2 | 248 | PENDING read-judge |
-| 5 | `Define-Models-with-parsnip` | lesson | 12 | 5 | 0.42 | 2 | 198 | PENDING read-judge |
-| 5 | `Measure-with-yardstick` | lesson | 11 | 6 | 0.55 | 2 | 221 | PENDING read-judge |
-| 5 | `Preprocess-with-recipes` | lesson | 11 | 6 | 0.55 | 0 | 192 | PENDING read-judge |
-| 5 | `Resample-with-rsample` | lesson | 12 | 13 | 1.08 | 2 | 213 | PENDING read-judge |
-| 5 | `Tune-with-the-tune-package` | lesson | 11 | 12 | 1.09 | 2 | 245 | PENDING read-judge |
-| 5 | `tidymodels-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 83 | PENDING read-judge |
-| 6 | `Encoding-Categorical-Variables` | lesson | 12 | 16 | 1.33 | 0 | 220 | PENDING read-judge |
-| 6 | `Feature-Engineering-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 109 | PENDING read-judge |
-| 6 | `Feature-Selection-and-Spotting-Leakage` | lesson | 12 | 22 | 1.83 | 0 | 275 | PENDING read-judge |
-| 6 | `Features-from-Dates-Text-and-Geo` | lesson | 11 | 13 | 1.18 | 0 | 288 | PENDING read-judge |
-| 6 | `Imputing-Missing-Values-in-Features` | lesson | 11 | 17 | 1.55 | 0 | 301 | PENDING read-judge |
-| 6 | `Interaction-and-Spline-Features` | lesson | 12 | 24 | 2.00 | 0 | 228 | PENDING read-judge |
-| 6 | `Scaling-and-Transformations` | lesson | 11 | 22 | 2.00 | 0 | 271 | PENDING read-judge |
-| 6 | `Target-Encoding-Without-Leakage` | lesson | 12 | 35 | 2.92 | 0 | 250 | PENDING read-judge |
-| 7 | `Comparing-Models-Statistically` | lesson | 12 | 17 | 1.42 | 0 | 237 | PENDING read-judge |
-| 7 | `Cross-Validation-Strategies` | lesson | 12 | 16 | 1.33 | 0 | 210 | PENDING read-judge |
-| 7 | `From-Metrics-to-Money` | lesson | 10 | 25 | 2.50 | 0 | 280 | PENDING read-judge |
-| 7 | `Grouped-Blocked-and-Time-Aware-CV` | lesson | 12 | 16 | 1.33 | 0 | 264 | PENDING read-judge |
-| 7 | `Hyperparameter-Tuning-Strategies` | lesson | 12 | 22 | 1.83 | 0 | 264 | PENDING read-judge |
-| 7 | `Model-Evaluation-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 105 | PENDING read-judge |
-| 7 | `Nested-Cross-Validation` | lesson | 12 | 15 | 1.25 | 0 | 234 | PENDING read-judge |
-| 7 | `Scoring-Rules-and-Regression-Metrics` | lesson | 11 | 37 | 3.36 | 0 | 284 | PENDING read-judge |
-| 8 | `Beyond-Binary-Multiclass-Classification` | lesson | 12 | 39 | 3.25 | 1 | 214 | PENDING read-judge |
-| 8 | `Calibrating-Predicted-Probabilities` | lesson | 12 | 22 | 1.83 | 0 | 251 | PENDING read-judge |
-| 8 | `Class-Imbalance-and-Resampling` | lesson | 11 | 12 | 1.09 | 0 | 217 | PENDING read-judge |
-| 8 | `Imbalanced-Classification-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 101 | PENDING read-judge |
-| 8 | `ROC-PR-Lift-and-Gains-Curves` | lesson | 12 | 14 | 1.17 | 2 | 227 | PENDING read-judge |
-| 8 | `Thresholds-Under-Asymmetric-Costs` | lesson | 12 | 34 | 2.83 | 0 | 189 | PENDING read-judge |
-| 8 | `Why-AUC-Is-Not-Enough` | lesson | 11 | 10 | 0.91 | 0 | 214 | PENDING read-judge |
-| 9 | `Association-Rules-and-Market-Basket` | lesson | 12 | 53 | 4.42 | 3 | 238 | PENDING read-judge |
-| 9 | `Cluster-Validation-and-Stability` | lesson | 11 | 22 | 2.00 | 0 | 291 | PENDING read-judge |
-| 9 | `Factor-Analysis` | lesson | 11 | 22 | 2.00 | 0 | 207 | PENDING read-judge |
-| 9 | `Gaussian-Mixture-Models` | lesson | 12 | 30 | 2.50 | 0 | 268 | PENDING read-judge |
-| 9 | `Hierarchical-and-Density-Clustering` | lesson | 11 | 20 | 1.82 | 0 | 274 | PENDING read-judge |
-| 9 | `Principal-Component-Analysis` | lesson | 12 | 8 | 0.67 | 0 | 191 | PENDING read-judge |
-| 9 | `Unsupervised-Learning-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 103 | PENDING read-judge |
-| 9 | `k-Means-and-Choosing-k` | lesson | 12 | 22 | 1.83 | 0 | 210 | PENDING read-judge |
-| 9 | `t-SNE-and-UMAP` | lesson | 12 | 25 | 2.08 | 0 | 310 | PENDING read-judge |
-| 10 | `AB-Testing-and-Experiment-Design` | lesson | 13 | 62 | 4.77 | 0 | 288 | PENDING read-judge |
-| 10 | `Causal-Diagrams-with-DAGs` | lesson | 12 | 38 | 3.17 | 0 | 261 | PENDING read-judge |
-| 10 | `Causal-Inference-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 112 | PENDING read-judge |
-| 10 | `Correlation-Causation-and-Potential-Outcomes` | lesson | 12 | 32 | 2.67 | 0 | 267 | PENDING read-judge |
-| 10 | `Reading-an-Experiment` | lesson | 12 | 11 | 0.92 | 0 | 279 | PENDING read-judge |
-| 10 | `When-You-Cannot-Randomize` | lesson | 12 | 17 | 1.42 | 0 | 312 | PENDING read-judge |
-| 11 | `Fairness-Basics` | lesson | 12 | 15 | 1.25 | 0 | 232 | PENDING read-judge |
-| 11 | `Global-vs-Local-Explanations` | lesson | 12 | 17 | 1.42 | 0 | 204 | PENDING read-judge |
-| 11 | `Model-Cards-and-Documenting-a-Model` | lesson | 11 | 0 | 0.00 | 0 | 256 | PENDING read-judge |
-| 11 | `Model-Interpretability-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 100 | PENDING read-judge |
-| 11 | `Partial-Dependence-ICE-and-ALE` | lesson | 12 | 26 | 2.17 | 0 | 256 | PENDING read-judge |
-| 11 | `Permutation-and-Drop-Column-Importance` | lesson | 12 | 16 | 1.33 | 0 | 236 | PENDING read-judge |
-| 11 | `SHAP-Values` | lesson | 12 | 42 | 3.50 | 0 | 263 | PENDING read-judge |
-| 12 | `An-ML-System-Design-Checklist` | lesson | 12 | 6 | 0.50 | 0 | 283 | PENDING read-judge |
-| 12 | `Batch-vs-Real-Time-Inference` | lesson | 11 | 14 | 1.27 | 0 | 257 | PENDING read-judge |
-| 12 | `ML-Production-Quiz` | quiz | 10 | 0 | 0.00 | 0 | 106 | PENDING read-judge |
-| 12 | `Monitoring-and-Drift` | lesson | 12 | 23 | 1.92 | 0 | 262 | PENDING read-judge |
-| 12 | `Reproducible-Pipelines-with-targets` | lesson | 12 | 0 | 0.00 | 0 | 223 | PENDING read-judge |
-| 12 | `Serving-a-Model-with-plumber` | lesson | 12 | 0 | 0.00 | 0 | 234 | PENDING read-judge |
-| 12 | `Versioning-Models-with-vetiver-and-pins` | lesson | 11 | 0 | 0.00 | 0 | 220 | PENDING read-judge |
-| 13 | `Advanced-Regression-Quiz` | quiz | 14 | 0 | 0.00 | 0 | 152 | PENDING read-judge |
-| 13 | `Beta-and-Ordinal-Regression` | lesson | 12 | 29 | 2.42 | 1 | 303 | PENDING read-judge |
-| 13 | `Count-Models-Poisson-and-Negative-Binomial` | lesson | 12 | 36 | 3.00 | 0 | 224 | PENDING read-judge |
-| 13 | `GAMs-Choosing-Smoothness` | lesson | 12 | 4 | 0.33 | 0 | 254 | PENDING read-judge |
-| 13 | `GAMs-Splines-and-Smooths` | lesson | 12 | 23 | 1.92 | 0 | 261 | PENDING read-judge |
-| 13 | `Gamma-and-Tweedie-Regression` | lesson | 12 | 31 | 2.58 | 0 | 288 | PENDING read-judge |
-| 13 | `Lasso-and-Elastic-Net` | lesson | 12 | 25 | 2.08 | 1 | 241 | PENDING read-judge |
-| 13 | `Mixed-Models-Random-Intercepts` | lesson | 12 | 37 | 3.08 | 0 | 257 | PENDING read-judge |
-| 13 | `Mixed-Models-Random-Slopes-and-GLMMs` | lesson | 12 | 33 | 2.75 | 0 | 271 | PENDING read-judge |
-| 13 | `Quantile-Regression` | lesson | 12 | 23 | 1.92 | 2 | 229 | REFERENCE-RUSHED |
-| 13 | `Ridge-Regression-and-Shrinkage` | lesson | 12 | 26 | 2.17 | 0 | 239 | PENDING read-judge |
-| 13 | `Robust-Regression-M-Estimators` | lesson | 11 | 21 | 1.91 | 0 | 191 | PENDING read-judge |
-| 13 | `Robust-Regression-MM-and-Breakdown` | lesson | 12 | 13 | 1.08 | 0 | 216 | PENDING read-judge |
-| 13 | `Zero-Inflated-and-Hurdle-Models` | lesson | 11 | 27 | 2.45 | 0 | 290 | PENDING read-judge |
-| 14 | `A-Tuned-Stacked-Model-End-to-End` | lesson | 12 | 9 | 0.75 | 2 | 445 | PENDING read-judge |
-| 14 | `Advanced-Supervised-Learning-Quiz` | quiz | 14 | 0 | 0.00 | 0 | 175 | PENDING read-judge |
-| 14 | `Approximate-Nearest-Neighbors-at-Scale` | lesson | 12 | 15 | 1.25 | 0 | 420 | PENDING read-judge |
-| 14 | `Bayesian-Optimization-for-Hyperparameters` | lesson | 12 | 46 | 3.83 | 0 | 403 | PENDING read-judge |
-| 14 | `Gaussian-Processes-for-Regression` | lesson | 12 | 46 | 3.83 | 0 | 350 | PENDING read-judge |
-| 14 | `Kernel-SVMs-and-the-Kernel-Trick` | lesson | 12 | 30 | 2.50 | 0 | 241 | PENDING read-judge |
-| 14 | `Regularized-Discriminant-Analysis` | lesson | 12 | 61 | 5.08 | 0 | 286 | PENDING read-judge |
-| 14 | `Stacking-and-the-Super-Learner` | lesson | 12 | 30 | 2.50 | 1 | 385 | PENDING read-judge |
-| 14 | `Support-Vector-Machines-Maximum-Margin` | lesson | 11 | 34 | 3.09 | 0 | 251 | PENDING read-judge |
-| 15 | `Checking-Proportional-Hazards` | lesson | 11 | 26 | 2.36 | 0 | 279 | PENDING read-judge |
-| 15 | `Competing-Risks-and-Cumulative-Incidence` | lesson | 12 | 21 | 1.75 | 0 | 307 | PENDING read-judge |
-| 15 | `Cox-Proportional-Hazards` | lesson | 11 | 42 | 3.82 | 0 | 289 | PENDING read-judge |
-| 15 | `Kaplan-Meier-and-the-Log-Rank-Test` | lesson | 12 | 21 | 1.75 | 0 | 218 | PENDING read-judge |
-| 15 | `Parametric-and-AFT-Models` | lesson | 12 | 37 | 3.08 | 0 | 337 | PENDING read-judge |
-| 15 | `Survival-Analysis-Quiz` | quiz | 14 | 0 | 0.00 | 0 | 175 | PENDING read-judge |
-| 15 | `Survival-Data-and-Censoring` | lesson | 12 | 37 | 3.08 | 0 | 278 | PENDING read-judge |
-| 15 | `Survival-ML-and-Evaluation` | lesson | 11 | 23 | 2.09 | 0 | 336 | PENDING read-judge |
-| 16 | `Bayesian-Model-Comparison-LOO-and-WAIC` | lesson | 12 | 38 | 3.17 | 0 | 383 | PENDING read-judge |
-| 16 | `Bayesian-Modeling-Quiz` | quiz | 14 | 0 | 0.00 | 0 | 200 | PENDING read-judge |
-| 16 | `Bayesian-Regression-and-GLMs-End-to-End` | lesson | 12 | 28 | 2.33 | 0 | 368 | PENDING read-judge |
-| 16 | `Conjugacy-and-Choosing-Priors` | lesson | 12 | 44 | 3.67 | 0 | 312 | PENDING read-judge |
-| 16 | `HMC-NUTS-and-MCMC-Diagnostics` | lesson | 12 | 54 | 4.50 | 0 | 399 | PENDING read-judge |
-| 16 | `Hierarchical-Models-and-Partial-Pooling` | lesson | 12 | 64 | 5.33 | 1 | 357 | PENDING read-judge |
-| 16 | `LLM-Agents-in-R` | lesson | 14 | 13 | 0.93 | 0 | 191 | PENDING read-judge |
-| 16 | `MCMC-and-the-Metropolis-Sampler` | lesson | 12 | 23 | 1.92 | 0 | 343 | PENDING read-judge |
-| 16 | `Posterior-Predictive-Checks` | lesson | 12 | 28 | 2.33 | 0 | 368 | PENDING read-judge |
-| 16 | `The-Bayesian-Update` | lesson | 12 | 29 | 2.42 | 0 | 254 | PENDING read-judge |
-| 17 | `Cluster-and-Switchback-Experiments` | lesson | 12 | 28 | 2.33 | 0 | 338 | PENDING read-judge |
-| 17 | `Contextual-Bandits-and-Off-Policy-Evaluation` | lesson | 12 | 34 | 2.83 | 0 | 392 | PENDING read-judge |
-| 17 | `Designing-Experiments-for-Power` | lesson | 12 | 35 | 2.92 | 0 | 244 | PENDING read-judge |
-| 17 | `Experiment-Pitfalls-Peeking-and-SRM` | lesson | 12 | 22 | 1.83 | 0 | 324 | PENDING read-judge |
-| 17 | `Experimentation-Quiz` | quiz | 14 | 0 | 0.00 | 0 | 195 | PENDING read-judge |
-| 17 | `Multi-Armed-Bandits-Explore-vs-Exploit` | lesson | 12 | 33 | 2.75 | 0 | 331 | PENDING read-judge |
-| 17 | `Thompson-Sampling-and-Bayesian-Bandits` | lesson | 11 | 20 | 1.82 | 0 | 328 | PENDING read-judge |
-| 17 | `Variance-Reduction-with-CUPED` | lesson | 12 | 41 | 3.42 | 1 | 297 | PENDING read-judge |
-| 18 | `Causal-Inference-for-Decisions-Quiz` | quiz | 16 | 0 | 0.00 | 0 | 181 | PENDING read-judge |
-| 18 | `Difference-in-Differences-and-Parallel-Trends` | lesson | 12 | 12 | 1.00 | 0 | 262 | PENDING read-judge |
-| 18 | `Double-Debiased-Machine-Learning` | lesson | 11 | 42 | 3.82 | 0 | 293 | PENDING read-judge |
-| 18 | `Instrumental-Variables-and-2SLS` | lesson | 12 | 12 | 1.00 | 0 | 292 | PENDING read-judge |
-| 18 | `Inverse-Probability-Weighting-and-Doubly-Robust` | lesson | 12 | 23 | 1.92 | 0 | 313 | PENDING read-judge |
-| 18 | `Matching-and-the-Propensity-Score` | lesson | 12 | 21 | 1.75 | 0 | 242 | PENDING read-judge |
-| 18 | `Mediation-Analysis` | lesson | 12 | 41 | 3.42 | 0 | 260 | PENDING read-judge |
-| 18 | `Regression-Discontinuity` | lesson | 12 | 16 | 1.33 | 0 | 284 | PENDING read-judge |
-| 18 | `Sensitivity-Analysis-and-Placebo-Tests` | lesson | 12 | 26 | 2.17 | 0 | 269 | PENDING read-judge |
-| 18 | `Staggered-DiD-and-the-Negative-Weights-Problem` | lesson | 12 | 29 | 2.42 | 0 | 259 | PENDING read-judge |
-| 18 | `Synthetic-Control` | lesson | 12 | 14 | 1.17 | 0 | 326 | PENDING read-judge |
-| 18 | `Uplift-and-Heterogeneous-Effects` | lesson | 12 | 32 | 2.67 | 0 | 304 | PENDING read-judge |
-| 19 | `A-Monitoring-and-Robustness-Playbook` | lesson | 12 | 14 | 1.17 | 1 | 307 | PENDING read-judge |
-| 19 | `Adapting-to-Drift-Reweighting-and-Retraining` | lesson | 12 | 29 | 2.42 | 0 | 275 | PENDING read-judge |
-| 19 | `Adversarial-Robustness` | lesson | 12 | 37 | 3.08 | 8 | 295 | PENDING read-judge |
-| 19 | `Detecting-Distribution-Shift` | lesson | 11 | 20 | 1.82 | 0 | 268 | PENDING read-judge |
-| 19 | `Group-Robustness-and-DRO` | lesson | 12 | 29 | 2.42 | 0 | 238 | PENDING read-judge |
-| 19 | `Kinds-of-Distribution-Shift` | lesson | 11 | 30 | 2.73 | 0 | 202 | PENDING read-judge |
-| 19 | `Out-of-Distribution-and-Novelty-Detection` | lesson | 12 | 11 | 0.92 | 0 | 259 | PENDING read-judge |
-| 19 | `Robustness-and-Drift-Quiz` | quiz | 14 | 0 | 0.00 | 0 | 222 | PENDING read-judge |
-| 20 | `Anomaly-Detection-Quiz` | quiz | 14 | 0 | 0.00 | 0 | 211 | PENDING read-judge |
-| 20 | `Autoencoders-for-Anomaly-Detection` | lesson | 11 | 28 | 2.55 | 0 | 291 | PENDING read-judge |
-| 20 | `Isolation-Forest-and-Extended-Isolation-Forest` | lesson | 12 | 20 | 1.67 | 0 | 257 | PENDING read-judge |
-| 20 | `Kernel-PCA-Sparse-PCA-and-NMF` | lesson | 12 | 44 | 3.67 | 1 | 296 | PENDING read-judge |
-| 20 | `Local-Outlier-Factor-and-One-Class-SVM` | lesson | 12 | 45 | 3.75 | 0 | 278 | PENDING read-judge |
-| 20 | `Self-Supervised-and-Contrastive-Learning` | lesson | 12 | 23 | 1.92 | 0 | 296 | PENDING read-judge |
-| 20 | `Time-Series-Anomaly-Detection` | lesson | 12 | 16 | 1.33 | 0 | 286 | PENDING read-judge |
-| 20 | `What-is-an-Anomaly` | lesson | 12 | 16 | 1.33 | 0 | 192 | PENDING read-judge |
-| 21 | `Prediction-Intervals-You-Can-Trust` | lesson | 11 | 19 | 1.73 | 0 | 219 | PENDING read-judge |
-
-## Re-write mechanics (when the owner says go, per confirmed-rushed lesson)
-delete the lesson `.md`, reset its `lessons-status.json` row to `pending`, run `python Scripts/batch_lessons.py --slug <slug>` (now clean-room: no global CLAUDE.md, no cap, R14). STEP-C review each. Section by section.
+## Re-write mechanics (per lesson, when the owner says go)
+delete `lessons/<slug>.md`, reset its `lessons-status.json` row to `pending`, run `python Scripts/batch_lessons.py --slug <slug>` (clean-room: no global CLAUDE.md, no step cap, R14 care rules). STEP-C review each (WebR-exact #> + read). Suggested order: all RUSHED first, then BORDERLINE by section if desired.
