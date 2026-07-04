@@ -438,4 +438,18 @@
     window.removeEventListener('scroll', onScroll);
   }
   window.addEventListener('scroll', onScroll, { passive: true });
+
+  // 2-opened-lessons trigger: a reader who has already opened >=2 lessons is
+  // clearly engaged (and about to lose that progress) — nudge right away instead
+  // of waiting for the scroll/time engagement trigger. show() still self-guards
+  // against signed-in users and a prior dismissal.
+  (function () {
+    try {
+      var v = JSON.parse(localStorage.getItem('rstat_visited') || '{}');
+      var s = JSON.parse(localStorage.getItem('rstat_started') || '{}');
+      var n = Object.keys(v).length;
+      for (var k in s) { if (!v[k]) n++; }
+      if (n >= 2) show();
+    } catch (e) {}
+  })();
 })();
