@@ -2,12 +2,14 @@ import io, os, re, glob, importlib.util
 spec=importlib.util.spec_from_file_location('bp','_build/build.py'); bp=importlib.util.module_from_spec(spec); spec.loader.exec_module(bp)
 sections=bp.load_sidebar_sections()
 
-# refresh shared css from template critical CSS
+# refresh shared css from template critical CSS (both <style> blocks, found dynamically)
 tpl=io.open('_build/template.html',encoding='utf-8').read().split('\n')
 ded=lambda s:'\n'.join(x[6:] if x.startswith('      ') else x for x in s.split('\n'))
+idx=[i for i,l in enumerate(tpl) if l.strip() in ('<style>','</style>')]
+b1='\n'.join(tpl[idx[0]+1:idx[1]]); b2='\n'.join(tpl[idx[2]+1:idx[3]])
 io.open('www/tutorial-jel.css','w',encoding='utf-8',newline='\n').write(
   '/* tutorial-jel.css - full tutorial chrome (base + roadmap-jel) for legacy pages. Auto-extracted. */\n'
-  +ded('\n'.join(tpl[26:442]))+'\n'+ded('\n'.join(tpl[451:680]))+'\n')
+  +ded(b1)+'\n'+ded(b2)+'\n')
 
 MAST='''      <header class="site-masthead"><div class="site-masthead-inner">
           <button id="mobile-menu-btn" class="masthead-menu-btn" aria-label="Menu">&#9776;</button>
@@ -28,7 +30,7 @@ def transform(path):
     if 'tutorial-jel.css' in h: return 'already'
     m=re.search(r'<link href="css/main\.css\?v=\d+" rel="stylesheet">', h)
     if not m: return 'skip-nomaincss'
-    h=h.replace(m.group(0), m.group(0)+'\n    '+FONTS+'\n    <link href="/www/tutorial-jel.css?v=3" rel="stylesheet">',1)
+    h=h.replace(m.group(0), m.group(0)+'\n    '+FONTS+'\n    <link href="/www/tutorial-jel.css?v=4" rel="stylesheet">',1)
     h=h.replace('<body>','<body class="layout-v2" data-page="tutorial">\n'+DRAWER,1)
     h=re.sub(r'<div class="masthead">.*?</div>\s*(?=<div class="row">)',MAST+'\n\n      ',h,count=1,flags=re.S)
     side=bp.render_sidebar_html(sections,slug)
