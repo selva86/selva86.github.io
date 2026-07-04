@@ -566,6 +566,12 @@
             canvas.style.maxWidth = '100%';
             canvas.style.height = 'auto';
             const ctx = canvas.getContext('2d');
+            // Fill white first: R graphics devices emit plots with a transparent
+            // background, so on the dark plot panel the black axis text/labels
+            // were invisible (only coloured lines showed). White matches R's
+            // default plotting background and keeps all text legible.
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0);
             plotEl.appendChild(canvas);
           }
