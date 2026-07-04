@@ -151,14 +151,20 @@ function saveStarted(s) {
   var collapsed = getCollapsed();
   var currentPage = window.location.pathname.split('/').pop() || 'index.html';
 
+  // Progress is keyed on the bare filename (pathname.pop()), but sidebar hrefs
+  // carry a leading slash (/Foo.html). Normalize before every lookup, else the
+  // visited/started dot never matches and the green tick never appears.
+  function keyOf(href) { return href.replace(/^\//, ''); }
+
   // Paint visited / started dots
   sidebarEl.querySelectorAll('.sidebar-section-items a').forEach(function(a) {
     var href = a.getAttribute('href');
     if (!href) return;
+    var key = keyOf(href);
     var dot = a.querySelector('.progress-dot');
     if (!dot) return;
-    if (visited[href]) dot.classList.add('visited');
-    else if (started[href]) dot.classList.add('started');
+    if (visited[key]) dot.classList.add('visited');
+    else if (started[key]) dot.classList.add('started');
   });
 
   // Section meta: "started+visited / total" per section.
@@ -174,7 +180,8 @@ function saveStarted(s) {
     links.forEach(function(a) {
       var href = a.getAttribute('href');
       if (!href) return;
-      if (visited[href] || started[href] || href === currentPage) done++;
+      var key = keyOf(href);
+      if (visited[key] || started[key] || key === currentPage) done++;
     });
     meta.textContent = done + ' / ' + total;
   });
