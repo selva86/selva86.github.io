@@ -76,6 +76,10 @@
     'box-shadow:0 12px 32px rgba(10,13,20,.18);padding:18px 18px 15px;' +
     'transform:translateY(140%);opacity:0;transition:transform .35s cubic-bezier(.22,1,.36,1),opacity .35s}' +
     '.rs-nudge.show{transform:translateY(0);opacity:1}' +
+    '.rs-nudge-backdrop{position:fixed;inset:0;z-index:1098;background:rgba(10,13,20,.5);opacity:0;transition:opacity .3s ease}' +
+    '.rs-nudge-backdrop.show{opacity:1}' +
+    '.rs-nudge.center{right:auto;bottom:auto;top:50%;left:50%;width:384px;max-height:calc(100vh - 44px);overflow-y:auto;z-index:1101;box-shadow:0 24px 64px rgba(10,13,20,.4);transform:translate(-50%,-46%) scale(.96);transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .32s}' +
+    '.rs-nudge.center.show{transform:translate(-50%,-50%) scale(1)}' +
     '.rs-nudge-head{display:flex;align-items:center;gap:9px;margin:0 0 4px;padding-right:20px}' +
     '.rs-nudge-ico{flex:0 0 auto;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;' +
     'background:#e9efff;color:#2056d2;font-size:16px}' +
@@ -113,7 +117,7 @@
     '.rs-nudge-oauth:hover:not(:disabled){background:#f6f8fc;border-color:#c2c9d6}' +
     '.rs-nudge-oauth:disabled{opacity:.6;cursor:wait}' +
     '.rs-nudge-oauth svg{width:17px;height:17px;flex:0 0 auto}' +
-    '.rs-nudge-or{display:flex;align-items:center;gap:10px;margin:11px 0;color:#8a909c;font-size:11.5px}' +
+    '.rs-nudge-or{display:flex;align-items:center;gap:10px;margin:10px 0;color:#8a909c;font-size:11.5px}' +
     '.rs-nudge-or::before,.rs-nudge-or::after{content:"";flex:1;height:1px;background:#e4e8ef}' +
     '.rs-nudge-gsi{display:flex;justify-content:center;min-height:40px}' +
     // dark theme
@@ -127,8 +131,31 @@
     'html.dark .rs-nudge-oauth:hover:not(:disabled){background:#161b22;border-color:#3d444d}' +
     'html.dark .rs-nudge-or{color:#6b7280}' +
     'html.dark .rs-nudge-or::before,html.dark .rs-nudge-or::after{background:#262a31}' +
-    '@media (prefers-reduced-motion:reduce){.rs-nudge{transition:opacity .2s}.rs-nudge.show{transform:none}}' +
-    '@media (max-width:480px){.rs-nudge{left:16px;right:16px;width:auto}}';
+    '@media (prefers-reduced-motion:reduce){.rs-nudge{transition:opacity .2s}.rs-nudge.show{transform:none}.rs-nudge.center{transition:opacity .2s;transform:translate(-50%,-50%)}.rs-nudge.center.show{transform:translate(-50%,-50%)}}' +
+    '.rs-nudge{padding:18px 19px 15px}' +
+    '.rs-nudge-badge{display:inline-flex;align-items:center;gap:5px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#137a3e;background:#e7f3ea;border-radius:999px;padding:4px 10px 4px 8px;margin:1px 0 11px}' +
+    '.rs-nudge-badge svg{width:11px;height:11px}' +
+    '.rs-nudge-title{font-size:18.5px;line-height:1.2;letter-spacing:-.015em;color:#0a0d14}' +
+    '.rs-nudge-body{font-size:13px;margin:6px 0 12px;color:#4b5260}' +
+    '.rs-nudge-benefits{list-style:none;margin:0 0 13px;padding:0;display:flex;flex-direction:column;gap:7px}' +
+    '.rs-nudge-benefit{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:#3a4048;line-height:1.38}' +
+    '.rs-nudge-benefit>svg{flex:0 0 auto;width:17px;height:17px;margin-top:1px;color:#178a4e}' +
+    '.rs-nudge-benefit b{font-weight:600;color:#14161b}' +
+    '.rs-nudge-auth{display:flex;flex-direction:column;gap:8px}' +
+    '.rs-nudge-oauth{padding:11px 14px;border-radius:9px;font-size:14px}' +
+    '.rs-nudge-oauth.gh{background:#1f2328;color:#fff;border-color:#1f2328}' +
+    '.rs-nudge-oauth.gh:hover:not(:disabled){background:#0d1117;border-color:#0d1117}' +
+    '.rs-nudge-oauth.gh svg{color:#fff;fill:#fff}' +
+    '.rs-nudge-email{border-radius:9px}.rs-nudge-submit{border-radius:9px}' +
+    '.rs-nudge-trust{display:flex;align-items:center;flex-wrap:wrap;gap:4px 13px;margin:11px 0 0;font-size:11px;color:#5b6270;font-weight:500}' +
+    '.rs-nudge-trust span{display:inline-flex;align-items:center;gap:4px}' +
+    '.rs-nudge-trust svg{width:12px;height:12px;color:#178a4e}' +
+    'html.dark .rs-nudge-title{color:#e6edf3}' +
+    'html.dark .rs-nudge-badge{background:#0e2a1c;color:#7ee8a0}' +
+    'html.dark .rs-nudge-benefit{color:#c9d1d9}html.dark .rs-nudge-benefit b{color:#fff}' +
+    'html.dark .rs-nudge-oauth.gh{background:#21262d;border-color:#30363d}html.dark .rs-nudge-oauth.gh:hover:not(:disabled){background:#30363d;border-color:#3d444d}' +
+    'html.dark .rs-nudge-trust{color:#8a909c}' +
+    '@media (max-width:480px){.rs-nudge{left:16px;right:16px;width:auto}.rs-nudge.center{width:auto;left:16px;right:16px;transform:translateY(-46%) scale(.97);padding:16px 17px 14px}.rs-nudge.center.show{transform:translateY(-50%) scale(1)}.rs-nudge-benefits{gap:6px}.rs-nudge-benefit{font-size:12px}}';
 
   // ---- Auth callback target + lazy Supabase client -------------------------
 
@@ -199,7 +226,7 @@
 
   var shown = false;
   var waitingForConsent = false;
-  var el = null;
+  var el = null, backdrop = null, escHandler = null;
 
   // GA4 funnel events. gtag is the inline stub on every template page, so
   // events queue even before the GA library loads; no-op where GA is absent.
@@ -212,8 +239,13 @@
   function dismiss() {
     track('nudge_dismissed');
     if (el) el.classList.remove('show');
+    if (backdrop) backdrop.classList.remove('show');
+    if (escHandler) { document.removeEventListener('keydown', escHandler); escHandler = null; }
     try { localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_DAYS * 864e5)); } catch (_) {}
-    if (el) setTimeout(function () { if (el) el.remove(); el = null; }, 400);
+    setTimeout(function () {
+      if (el) { el.remove(); el = null; }
+      if (backdrop) { backdrop.remove(); backdrop = null; }
+    }, 400);
   }
 
   function msg(kind, text) {
@@ -222,57 +254,70 @@
     m.textContent = text;
   }
 
+  var CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+  var GOOGLE_SVG = '<svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58A9 9 0 0 0 9 0 9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>';
+  var GITHUB_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.05-.02-2.06-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58A12.01 12.01 0 0 0 24 12.5C24 5.87 18.63.5 12 .5z"/></svg>';
+
   // Two-state render. mode = 'signup' | 'signin'.
   function render(mode) {
     var signup = mode === 'signup';
-    var inner =
-      '<button class="rs-nudge-x" type="button" aria-label="Dismiss">&times;</button>' +
-      '<div class="rs-nudge-head">' +
-        '<span class="rs-nudge-ico">' + (signup ? '&#9993;' : '&#128075;') + '</span>' +
-        '<h3 class="rs-nudge-title">' + (signup ? 'Save your progress across devices' : 'Welcome back!') + '</h3>' +
-      '</div>' +
-      '<p class="rs-nudge-body">' +
-        (signup
-          ? 'Never lose your code, challenges, or XP. Sign up free, no password needed.'
-          : 'Sign in to pick up where you left off.') +
-      '</p>';
+    var inner = '<button class="rs-nudge-x" type="button" aria-label="Close">&times;</button>';
 
-    // Google one-click (same signInWithOAuth flow as signin.html). Shown in
-    // both modes; one tap for the ~1-in-4 users who prefer social over email.
+    if (signup) {
+      inner +=
+        '<span class="rs-nudge-badge">' + CHECK + 'Free account</span>' +
+        '<h3 class="rs-nudge-title">Save your progress and keep what you earn</h3>' +
+        '<p class="rs-nudge-body">You are getting into it. Create a free account so your work, XP and streak follow you on every device.</p>' +
+        '<ul class="rs-nudge-benefits">' +
+          '<li class="rs-nudge-benefit">' + CHECK + '<span><b>Pick up on any device</b> — your lessons and code stay saved</span></li>' +
+          '<li class="rs-nudge-benefit">' + CHECK + '<span><b>Keep your XP and daily streak</b> as you go</span></li>' +
+          '<li class="rs-nudge-benefit">' + CHECK + '<span><b>Auto-graded practice</b> with instant, step-by-step hints</span></li>' +
+          '<li class="rs-nudge-benefit">' + CHECK + '<span><b>Earn a verifiable certificate</b> to share on LinkedIn</span></li>' +
+        '</ul>';
+    } else {
+      inner +=
+        '<div class="rs-nudge-head"><span class="rs-nudge-ico">&#128075;</span><h3 class="rs-nudge-title">Welcome back</h3></div>' +
+        '<p class="rs-nudge-body">Sign in to pick up right where you left off — your progress, XP and streak are waiting.</p>';
+    }
+
+    // Social sign-in: Google + GitHub (same signInWithOAuth flow as signin.html).
     inner +=
-      '<button class="rs-nudge-oauth" type="button" data-google>' +
-        '<svg viewBox="0 0 18 18" aria-hidden="true">' +
-          '<path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>' +
-          '<path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>' +
-          '<path fill="#FBBC05" d="M3.97 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/>' +
-          '<path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58A9 9 0 0 0 9 0 9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>' +
-        '</svg>' +
-        '<span>Continue with Google</span>' +
-      '</button>' +
+      '<div class="rs-nudge-auth">' +
+        '<button class="rs-nudge-oauth" type="button" data-google>' + GOOGLE_SVG + '<span>Continue with Google</span></button>' +
+        '<button class="rs-nudge-oauth gh" type="button" data-github>' + GITHUB_SVG + '<span>Continue with GitHub</span></button>' +
+      '</div>' +
       '<div class="rs-nudge-or">or</div>';
 
     inner +=
       '<form class="rs-nudge-form">' +
         '<div class="rs-nudge-row">' +
-          '<input class="rs-nudge-email" type="email" required autocomplete="email" placeholder="your@email.com" aria-label="Email address">' +
+          '<input class="rs-nudge-email" type="email" required autocomplete="email" placeholder="you@email.com" aria-label="Email address">' +
           '<button class="rs-nudge-submit" type="submit">' + (signup ? 'Sign up' : 'Send link') + '</button>' +
         '</div>';
-
     if (signup) {
       inner +=
         '<label class="rs-nudge-optin"><input type="checkbox" data-optin>' +
-        '<span>Send me R tips &amp; updates</span></label>';
+        '<span>Send me R tips &amp; new lessons (optional)</span></label>';
     }
     inner += '</form>';
+
+    if (signup) {
+      inner +=
+        '<div class="rs-nudge-trust">' +
+          '<span>' + CHECK + 'Free forever</span>' +
+          '<span>' + CHECK + 'No credit card</span>' +
+          '<span>' + CHECK + 'Takes 20 seconds</span>' +
+        '</div>';
+    }
 
     inner +=
       '<p class="rs-nudge-foot">' +
         (signup
-          ? 'Already have an account? <a data-to-signin>Send magic link</a>'
-          : 'New here? <a data-to-signup>Sign up free</a>') +
+          ? 'Already have an account? <a data-to-signin>Sign in</a>'
+          : 'New here? <a data-to-signup>Create a free account</a>') +
       '</p>' +
       (signup
-        ? '<p class="rs-nudge-legal">By signing up you agree to our <a href="/terms-of-service.html">Terms</a> and <a href="/privacy.html">Privacy Policy</a>.</p>'
+        ? '<p class="rs-nudge-legal">By continuing you agree to our <a href="/terms-of-service.html">Terms</a> and <a href="/privacy.html">Privacy Policy</a>.</p>'
         : '') +
       '<div class="rs-nudge-msg" role="alert"></div>';
 
@@ -286,6 +331,9 @@
 
     var gbtn = el.querySelector('[data-google]');
     if (gbtn) gbtn.addEventListener('click', function () { doGoogle(mode); });
+
+    var ghbtn = el.querySelector('[data-github]');
+    if (ghbtn) ghbtn.addEventListener('click', function () { doGithub(mode); });
 
     var toSignin = el.querySelector('[data-to-signin]');
     if (toSignin) toSignin.addEventListener('click', function () { render('signin'); });
@@ -331,6 +379,30 @@
       reset();
       track('nudge_error', { mode: mode, reason: String((err && err.message) || 'exception').slice(0, 80) });
       msg('err', (err && err.message) || 'Something went wrong. Try again.');
+    }
+  }
+
+  // GitHub one-click via Supabase hosted OAuth (identical mechanism to Google).
+  async function doGithub(mode) {
+    var btn = el.querySelector('[data-github]');
+    var label = btn ? btn.querySelector('span') : null;
+    var optin = el.querySelector('[data-optin]');
+    if (optin && optin.checked) recordOptinSignal();
+    track('nudge_github_click', { mode: mode });
+    if (btn) { btn.disabled = true; if (label) label.textContent = 'Redirecting...'; }
+    function reset() { if (btn) { btn.disabled = false; if (label) label.textContent = 'Continue with GitHub'; } }
+    try {
+      var supa = await getSupa();
+      var res = await supa.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: CALLBACK_URL } });
+      if (res.error) {
+        reset();
+        track('nudge_error', { mode: mode, reason: String(res.error.message || 'oauth_error').slice(0, 80) });
+        msg('err', res.error.message || 'Could not start GitHub sign-in. Try again.');
+      }
+    } catch (err) {
+      reset();
+      track('nudge_error', { mode: mode, reason: String((err && err.message) || 'exception').slice(0, 80) });
+      msg('err', (err && err.message) || 'Could not start GitHub sign-in. Try again.');
     }
   }
 
@@ -386,8 +458,11 @@
     }
   }
 
-  function show() {
+  function show(centered) {
     if (shown) return;
+    // Never nudge inside an interactive lesson / quiz / roadmap player - it would
+    // interrupt the learning flow. body.lesson-mode marks every such page.
+    if (document.body.classList.contains('lesson-mode')) return;
     if (isSignedIn()) return; // authoritative by now (post /api/me hydration)
     // Cookie consent banner (#rs-cc, EU/UK first visit) owns the bottom of the
     // viewport; both fixed-bottom elements overlap on mobile. Defer the nudge
@@ -410,16 +485,28 @@
     style.textContent = CSS;
     document.head.appendChild(style);
 
+    if (centered) {
+      // dimmed backdrop behind a centered modal (2-opened-lessons trigger)
+      backdrop = document.createElement('div');
+      backdrop.className = 'rs-nudge-backdrop';
+      backdrop.addEventListener('click', dismiss);
+      document.body.appendChild(backdrop);
+      escHandler = function (e) { if (e.key === 'Escape' || e.keyCode === 27) dismiss(); };
+      document.addEventListener('keydown', escHandler);
+    }
+
     el = document.createElement('div');
-    el.className = 'rs-nudge';
+    el.className = 'rs-nudge' + (centered ? ' center' : '');
     el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', centered ? 'true' : 'false');
     el.setAttribute('aria-label', 'Save your progress by signing in');
     document.body.appendChild(el);
     render('signup');
 
-    void el.offsetWidth; // reflow so the slide-in transition runs
+    void el.offsetWidth; // reflow so the transition runs
     el.classList.add('show');
-    track('nudge_shown');
+    if (backdrop) backdrop.classList.add('show');
+    track('nudge_shown', { placement: centered ? 'center' : 'corner' });
   }
 
   // ---- Engagement triggers: SCROLL_TRIGGER_PCT scroll OR TIME_TRIGGER_MS --
@@ -449,7 +536,12 @@
       var s = JSON.parse(localStorage.getItem('rstat_started') || '{}');
       var n = Object.keys(v).length;
       for (var k in s) { if (!v[k]) n++; }
-      if (n >= 2) show();
+      // >=2 lessons opened -> a prominent centered modal, but only once per
+      // session (so it does not reappear on every page nav; dismissal = 30 days).
+      if (n >= 2 && !sessionStorage.getItem('rs-nudge-center-seen')) {
+        try { sessionStorage.setItem('rs-nudge-center-seen', '1'); } catch (_) {}
+        show(true);
+      }
     } catch (e) {}
   })();
 })();
