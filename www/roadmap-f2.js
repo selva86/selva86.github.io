@@ -39,7 +39,7 @@
     function isFree(s){return allFree||s.free;}
     var total=secs.reduce(function(a,s){return a+s.items.length;},0);
     var meta=allFree?(secs.length+' sections / '+total+' lessons / all free'):('Section 1 free / '+(secs.length-1)+' with Pro / '+total+' lessons');
-    var body=secs.map(function(s,i){return secDetails(s,isFree(s),i===0,key);}).join('');
+    var body=secs.map(function(s,i){return secDetails(s,isFree(s),i<2,key);}).join('');
     var acts=opts.role?'<div class="acts"><a class="open" href="'+roleHref(key)+'">Open full page <span class="a">&rarr;</span></a><a class="enroll" href="/pricing.html">Enroll</a></div>':'';
     var node=opts.step?opts.step:'<span class="dot"></span>';
     return '<div class="ms '+(opts.step?'step':'branch')+' reveal" style="--c:var('+CV[key]+')"><div class="node">'+node+'</div><div class="panel">'+
@@ -99,7 +99,7 @@
   // paint with no runtime-fetch dependency; the async /courses.json fetch then refreshes to
   // pick up any lessons published since the last roadmap rebuild. Other tracks stay flat.
   (function(){
-    var HYBRID={analyst:1,foundations:1};
+    var HYBRID={analyst:1,foundations:1,ds:1};
     function applyHybrid(cat){
       if(!cat||!cat.courses)return;
       var byTrack={};
@@ -127,7 +127,8 @@
           grand+=cnt;
         });
         if(grand){var m=document.querySelector('.meta[data-track="'+track+'"]');
-          if(m&&RM2.sections[track])m.textContent=RM2.sections[track].length+' sections / '+grand+' lessons / all free';}
+          if(m&&RM2.sections[track]){var af=(track==='analyst'||track==='foundations');
+            m.textContent=RM2.sections[track].length+' sections / '+grand+(af?' lessons / all free':' lessons / Section 1 free');}}
       });
     }
     // 1) synchronous first paint from inline-baked data (no fetch dependency, every browser)
