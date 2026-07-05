@@ -76,6 +76,10 @@
     'box-shadow:0 12px 32px rgba(10,13,20,.18);padding:18px 18px 15px;' +
     'transform:translateY(140%);opacity:0;transition:transform .35s cubic-bezier(.22,1,.36,1),opacity .35s}' +
     '.rs-nudge.show{transform:translateY(0);opacity:1}' +
+    '.rs-nudge-backdrop{position:fixed;inset:0;z-index:1098;background:rgba(10,13,20,.5);opacity:0;transition:opacity .3s ease}' +
+    '.rs-nudge-backdrop.show{opacity:1}' +
+    '.rs-nudge.center{right:auto;bottom:auto;top:50%;left:50%;width:384px;z-index:1101;box-shadow:0 24px 64px rgba(10,13,20,.4);transform:translate(-50%,-46%) scale(.96);transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .32s}' +
+    '.rs-nudge.center.show{transform:translate(-50%,-50%) scale(1)}' +
     '.rs-nudge-head{display:flex;align-items:center;gap:9px;margin:0 0 4px;padding-right:20px}' +
     '.rs-nudge-ico{flex:0 0 auto;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;' +
     'background:#e9efff;color:#2056d2;font-size:16px}' +
@@ -127,7 +131,7 @@
     'html.dark .rs-nudge-oauth:hover:not(:disabled){background:#161b22;border-color:#3d444d}' +
     'html.dark .rs-nudge-or{color:#6b7280}' +
     'html.dark .rs-nudge-or::before,html.dark .rs-nudge-or::after{background:#262a31}' +
-    '@media (prefers-reduced-motion:reduce){.rs-nudge{transition:opacity .2s}.rs-nudge.show{transform:none}}' +
+    '@media (prefers-reduced-motion:reduce){.rs-nudge{transition:opacity .2s}.rs-nudge.show{transform:none}.rs-nudge.center{transition:opacity .2s;transform:translate(-50%,-50%)}.rs-nudge.center.show{transform:translate(-50%,-50%)}}' +
     '@media (max-width:480px){.rs-nudge{left:16px;right:16px;width:auto}}';
 
   // ---- Auth callback target + lazy Supabase client -------------------------
@@ -199,7 +203,7 @@
 
   var shown = false;
   var waitingForConsent = false;
-  var el = null;
+  var el = null, backdrop = null, escHandler = null;
 
   // GA4 funnel events. gtag is the inline stub on every template page, so
   // events queue even before the GA library loads; no-op where GA is absent.
@@ -212,8 +216,13 @@
   function dismiss() {
     track('nudge_dismissed');
     if (el) el.classList.remove('show');
+    if (backdrop) backdrop.classList.remove('show');
+    if (escHandler) { document.removeEventListener('keydown', escHandler); escHandler = null; }
     try { localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_DAYS * 864e5)); } catch (_) {}
-    if (el) setTimeout(function () { if (el) el.remove(); el = null; }, 400);
+    setTimeout(function () {
+      if (el) { el.remove(); el = null; }
+      if (backdrop) { backdrop.remove(); backdrop = null; }
+    }, 400);
   }
 
   function msg(kind, text) {
@@ -386,7 +395,7 @@
     }
   }
 
-  function show() {
+  function show(centered) {
     if (shown) return;
     if (isSignedIn()) return; // authoritative by now (post /api/me hydration)
     // Cookie consent banner (#rs-cc, EU/UK first visit) owns the bottom of the
@@ -410,16 +419,28 @@
     style.textContent = CSS;
     document.head.appendChild(style);
 
+    if (centered) {
+      // dimmed backdrop behind a centered modal (2-opened-lessons trigger)
+      backdrop = document.createElement('div');
+      backdrop.className = 'rs-nudge-backdrop';
+      backdrop.addEventListener('click', dismiss);
+      document.body.appendChild(backdrop);
+      escHandler = function (e) { if (e.key === 'Escape' || e.keyCode === 27) dismiss(); };
+      document.addEventListener('keydown', escHandler);
+    }
+
     el = document.createElement('div');
-    el.className = 'rs-nudge';
+    el.className = 'rs-nudge' + (centered ? ' center' : '');
     el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', centered ? 'true' : 'false');
     el.setAttribute('aria-label', 'Save your progress by signing in');
     document.body.appendChild(el);
     render('signup');
 
-    void el.offsetWidth; // reflow so the slide-in transition runs
+    void el.offsetWidth; // reflow so the transition runs
     el.classList.add('show');
-    track('nudge_shown');
+    if (backdrop) backdrop.classList.add('show');
+    track('nudge_shown', { placement: centered ? 'center' : 'corner' });
   }
 
   // ---- Engagement triggers: SCROLL_TRIGGER_PCT scroll OR TIME_TRIGGER_MS --
@@ -449,7 +470,12 @@
       var s = JSON.parse(localStorage.getItem('rstat_started') || '{}');
       var n = Object.keys(v).length;
       for (var k in s) { if (!v[k]) n++; }
-      if (n >= 2) show();
+      // >=2 lessons opened -> a prominent centered modal, but only once per
+      // session (so it does not reappear on every page nav; dismissal = 30 days).
+      if (n >= 2 && !sessionStorage.getItem('rs-nudge-center-seen')) {
+        try { sessionStorage.setItem('rs-nudge-center-seen', '1'); } catch (_) {}
+        show(true);
+      }
     } catch (e) {}
   })();
 })();
