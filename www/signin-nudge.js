@@ -78,7 +78,7 @@
     '.rs-nudge.show{transform:translateY(0);opacity:1}' +
     '.rs-nudge-backdrop{position:fixed;inset:0;z-index:1098;background:rgba(10,13,20,.5);opacity:0;transition:opacity .3s ease}' +
     '.rs-nudge-backdrop.show{opacity:1}' +
-    '.rs-nudge.center{right:auto;bottom:auto;top:50%;left:50%;width:384px;z-index:1101;box-shadow:0 24px 64px rgba(10,13,20,.4);transform:translate(-50%,-46%) scale(.96);transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .32s}' +
+    '.rs-nudge.center{right:auto;bottom:auto;top:50%;left:50%;width:384px;max-height:calc(100vh - 44px);overflow-y:auto;z-index:1101;box-shadow:0 24px 64px rgba(10,13,20,.4);transform:translate(-50%,-46%) scale(.96);transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .32s}' +
     '.rs-nudge.center.show{transform:translate(-50%,-50%) scale(1)}' +
     '.rs-nudge-head{display:flex;align-items:center;gap:9px;margin:0 0 4px;padding-right:20px}' +
     '.rs-nudge-ico{flex:0 0 auto;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;' +
@@ -397,6 +397,9 @@
 
   function show(centered) {
     if (shown) return;
+    // Never nudge inside an interactive lesson / quiz / roadmap player - it would
+    // interrupt the learning flow. body.lesson-mode marks every such page.
+    if (document.body.classList.contains('lesson-mode')) return;
     if (isSignedIn()) return; // authoritative by now (post /api/me hydration)
     // Cookie consent banner (#rs-cc, EU/UK first visit) owns the bottom of the
     // viewport; both fixed-bottom elements overlap on mobile. Defer the nudge
