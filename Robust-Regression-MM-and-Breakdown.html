@@ -4,7 +4,7 @@
     <title>Advanced Regression Lesson 2: MM-Estimation and the Breakdown Point</title>
     <meta charset="utf-8">
     <meta name="Description" content="A batch of bad high-leverage rows can fool Huber and break an M-estimator. Learn what the breakdown point means, then fit MM-estimators in R with rlm and lmrob.">
-    <meta name="Keywords" content="robust regression, MM-estimation, breakdown point, S-estimator, high leverage, lmrob, robustbase, rlm, MASS, Huber, outliers, R">
+    <meta name="Keywords" content="robust regression, MM-estimation, breakdown point, S-estimator, high leverage, lmrob, robustbase, rlm, MASS, Huber, masking, outliers, R">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -572,8 +572,8 @@
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Robust-Regression-MM-and-Breakdown.html",
-      "datePublished": "2026-07-02",
-      "dateModified": "2026-07-02",
+      "datePublished": "2026-07-07",
+      "dateModified": "2026-07-07",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -595,7 +595,7 @@
 
     
     
-        <link rel="stylesheet" href="www/lesson-mode.min.css?h=5f5f1fcb">
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
     <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
   </head>
 
@@ -679,23 +679,25 @@
 <div class="lesson-step-eyebrow">Lesson 2 of 13</div>
 <h2>MM-Estimation and the Breakdown Point</h2>
 
-<p>Last lesson, a clerk at the rental agency mistyped one flat's rent, and a Huber M-estimator quietly caught it: the bad row lost its weight and the line snapped back to the honest trend. Huber wins when the bad value sits in the <strong>middle</strong> of the data.</p>
+<p>In Lesson 1, the rental agency had one mistyped rent, and a robust fit shrugged it off. Toggle the buttons below from OLS to Huber and watch the least-squares line snap back off the single bad point. That is the win we are building on.</p>
 
-<p>This week the trouble is worse. The agency's data feed imported a batch of large commercial units, and every one of their rents came in as the same wrong placeholder. These bad rows are not just off-trend, they are also far out on the size axis. That combination, as you are about to see, walks straight past Huber. To beat it you need a stronger idea: the breakdown point, and the MM-estimator built to reach it.</p>
+<p>But it has a blind spot. Lesson 1's outlier sat in the <strong>middle</strong> of the size range, a plain vertical mistake. What happens when the bad rows sit far out along the x-axis, and there are many of them? In this lesson a batch of fraudulent listings will fool not just OLS but Huber and Tukey too, and we will build the estimator that still holds.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Explain how a bad <strong>high-leverage</strong> point drags the line onto itself and hides in a small residual</li>
+<li>Explain how a bad high-leverage row keeps a small residual and so hides from a residual-based robust fit (masking)</li>
 
-<li>Define an estimator's <strong>breakdown point</strong> and rank OLS, M-estimators, and MM-estimators by it</li>
+<li>Define an estimator's breakdown point and say why 50% is the hard ceiling</li>
 
-<li>Fit an <strong>MM-estimator</strong> in R with <code>rlm(method = &quot;MM&quot;)</code> and <code>lmrob()</code>, and read the weights it assigns</li>
+<li>Explain how S-estimation reaches that ceiling, and how MM-estimation keeps the robustness while regaining precision</li>
+
+<li>Fit an MM regression in R with <code>lmrob()</code>, read its weights, and know when to reach for it over <code>rlm()</code></li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> Lesson 1 of this course (M-estimators, Huber and Tukey weights, <code>rlm()</code>, and telling leverage apart from influence).</p>
+<p><strong>Prerequisites:</strong> Lesson 1, <a href="Robust-Regression-M-Estimators.html">Robust Regression with M-Estimators</a>. You should know what an M-estimator, the Huber and Tukey weights, and <code>rlm()</code> are, and be comfortable telling leverage apart from influence.</p>
 <div class="lesson-widget" data-widget-type="robust-weights" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
@@ -703,38 +705,39 @@
 <div class="lesson-step-eyebrow">The new villain</div>
 <h2>A bad row that hides in plain sight</h2>
 
-<p>In Lesson 1 the mistyped flat sat in the middle of the size range, so when it pulled the line down it still ended up far from that line: a big residual, which is exactly the signal Huber watches for. A <strong>high-leverage</strong> point is different. Leverage measures how unusual a row's x value is: a listing whose floor area is far larger than every other sits at the end of a long see-saw, so it can swing the line hard.</p>
+<p>Lesson 1's typo was a <strong>vertical</strong> outlier: an ordinary floor area with a wrong rent, sitting well above or below the line in the thick of the data. Its large residual made it easy for Huber to spot.</p>
 
-<p>Here is the trap. When a far-out point is also off-trend, the least-squares line <strong>tips toward it</strong> to shave down its huge squared residual. Once the line has tipped, the point is no longer far from the line. Its residual \(r_i = y_i - \hat{y}_i\) shrinks toward zero even though the row is badly wrong. Statisticians call this <strong>masking</strong>: the outlier hides inside the fit it just corrupted.</p>
+<p>This lesson's danger is different. A <strong>bad high-leverage point</strong> is unusual in <strong>two</strong> ways at once: its floor area is far from every other listing (high leverage, so it sits at the end of a long see-saw), <strong>and</strong> its rent is off the true trend. Drag the far-right point in the plot below down and away from the line. Notice what the solid "with the point" line does: instead of ignoring the stray point, it <strong>swings to chase it</strong>. And once the line has chased it, look at the point's residual, the vertical gap from the point to the line. It is <strong>small</strong>, because the line came to meet it.</p>
 
-<p>Drag the far-right point below the trend and watch it happen. The solid "with the point" line chases it down, so the vertical gap between the point and that solid line, its residual, stays far smaller than such a wrong value should ever produce. Any method that decides who to trust by looking at residual size is now blind.</p>
+<p>That small residual is the whole problem. A robust method that judges a row by its residual will look at this chased-after point and see nothing wrong at all.</p>
 <div class="lesson-widget" data-widget-type="leverage-point" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The shock</div>
-<h2>Watch Huber break</h2>
+<div class="lesson-step-eyebrow">Build the mess</div>
+<h2>One fraudulent batch, and OLS flips</h2>
 
-<p>Let us rebuild the agency's data and add the broken import: twelve clean listings on the true trend, then four large commercial units (150 to 165 square metres) whose rents all arrived as a low placeholder near 600.</p>
+<p>Let us make it concrete. The agency's honest data is 24 listings where rent climbs about 11.8 euros per square metre. Then a scammer injects 10 fake "luxury" listings: enormous flats of 150 to 175 square metres (far beyond the honest 30 to 95 range, so high leverage) all priced at a suspicious 700 to 900 euros. Each lesson runs in a fresh R session, so we build the data right here.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
-<span class="cl">size <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">30</span>, <span class="m">35</span>, <span class="m">40</span>, <span class="m">45</span>, <span class="m">50</span>, <span class="m">55</span>, <span class="m">60</span>, <span class="m">65</span>, <span class="m">70</span>, <span class="m">75</span>, <span class="m">80</span>, <span class="m">85</span>)   <span class="c1"># floor area, square metres</span></span>
-<span class="cl">rent <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="m">250</span> <span class="o">+</span> <span class="m">11</span> <span class="o">*</span> size <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">12</span>, <span class="m">0</span>, <span class="m">45</span>))           <span class="c1"># clean listings, monthly euros</span></span>
-<span class="cl">apartments <span class="o">&lt;-</span> <span class="nf">data.frame</span>(size, rent)</span>
+<span class="cl">size <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">runif</span>(<span class="m">24</span>, <span class="m">30</span>, <span class="m">95</span>))                    <span class="c1"># 24 honest listings, floor area</span></span>
+<span class="cl">rent <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="m">250</span> <span class="o">+</span> <span class="m">11.8</span> <span class="o">*</span> size <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">24</span>, <span class="m">0</span>, <span class="m">40</span>)) <span class="c1"># rent rises ~11.8 euros per sq m</span></span>
+<span class="cl">clean <span class="o">&lt;-</span> <span class="nf">data.frame</span>(size, rent)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># a broken import: four big units, each rent mis-fed as a ~600 placeholder</span></span>
-<span class="cl">bad <span class="o">&lt;-</span> <span class="nf">data.frame</span>(size <span class="o">=</span> <span class="nf">c</span>(<span class="m">150</span>, <span class="m">155</span>, <span class="m">160</span>, <span class="m">165</span>), rent <span class="o">=</span> <span class="nf">c</span>(<span class="m">600</span>, <span class="m">640</span>, <span class="m">610</span>, <span class="m">660</span>))</span>
-<span class="cl">apartments <span class="o">&lt;-</span> <span class="nf">rbind</span>(apartments, bad)</span>
+<span class="cl"><span class="c1"># 10 fraudulent luxury listings: huge flats, all cheaply mispriced</span></span>
+<span class="cl">fraud <span class="o">&lt;-</span> <span class="nf">data.frame</span>(size <span class="o">=</span> <span class="nf">round</span>(<span class="nf">runif</span>(<span class="m">10</span>, <span class="m">150</span>, <span class="m">175</span>)),</span>
+<span class="cl">                    rent <span class="o">=</span> <span class="nf">round</span>(<span class="nf">runif</span>(<span class="m">10</span>, <span class="m">700</span>, <span class="m">900</span>)))</span>
+<span class="cl">listings <span class="o">&lt;-</span> <span class="nf">rbind</span>(clean, fraud)                     <span class="c1"># 34 rows; 10 of them (29%) are fake</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">lm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> apartments)), <span class="m">2</span>)          <span class="c1"># OLS, WITH the bad batch</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">lm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> clean)), <span class="m">2</span>)       <span class="c1"># the honest trend, for reference</span></span>
 <span class="cl"><span class="c1">#&gt; (Intercept)        size</span></span>
-<span class="cl"><span class="c1">#&gt;      920.06       -1.12</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">lm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> apartments[<span class="m">1</span><span class="o">:</span><span class="m">12</span>, ])), <span class="m">2</span>)  <span class="c1"># the clean rows only</span></span>
+<span class="cl"><span class="c1">#&gt;      209.97       12.39</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">lm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> listings)), <span class="m">2</span>)    <span class="c1"># OLS on the contaminated data</span></span>
 <span class="cl"><span class="c1">#&gt; (Intercept)        size</span></span>
-<span class="cl"><span class="c1">#&gt;      217.97       11.77</span></span></div>
+<span class="cl"><span class="c1">#&gt;     1031.72       -0.93</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -744,19 +747,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The honest slope is <strong>11.77</strong> euros per square metre. With the bad batch, ordinary least squares reports <strong>-1.12</strong>: it now claims bigger flats rent for <em>less</em>. No surprise, we know OLS trusts every row. The real question is whether Huber, which saved us last time, rescues this. Fit it and read the per-row weights.</p>
+<p>On the clean data the slope is a healthy <strong>12.39</strong>: bigger flats cost more, as they should. Add the fraud and OLS reports a slope of <strong>-0.93</strong>. Not just wrong in size, wrong in <strong>sign</strong>: least squares now claims that bigger flats are <strong>cheaper</strong>. The 10 high-leverage fakes formed their own little downward trend and OLS, trusting every row equally, followed them off a cliff.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The hero fails</div>
+<h2>Huber cannot save this one</h2>
+
+<p>In Lesson 1, Huber's <code>rlm()</code> was the fix. Let us point it at exactly the same contaminated data and see.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(MASS)</span>
-<span class="cl">fit_huber <span class="o">&lt;-</span> <span class="nf">rlm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> apartments, psi <span class="o">=</span> psi.huber, maxit <span class="o">=</span> <span class="m">50</span>)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(fit_huber), <span class="m">2</span>)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">rlm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> listings, psi <span class="o">=</span> psi.huber)), <span class="m">2</span>)</span>
 <span class="cl"><span class="c1">#&gt; (Intercept)        size</span></span>
-<span class="cl"><span class="c1">#&gt;      915.58       -1.17</span></span>
-<span class="cl"><span class="nf">round</span>(fit_huber<span class="o">$</span>w, <span class="m">2</span>)   <span class="c1"># the weight Huber gave each row (rows 13-16 are the bad batch)</span></span>
-<span class="cl"><span class="c1">#&gt;  [1] 0.91 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 0.79 0.77 1.00 1.00 1.00</span></span>
-<span class="cl"><span class="c1">#&gt; [16] 1.00</span></span></div>
+<span class="cl"><span class="c1">#&gt;     1024.06       -0.93</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -766,135 +772,214 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Huber failed. Its slope is <strong>-1.17</strong>, no better than OLS, and look at the weights: the four bad rows (13 to 16) each got <strong>1.00</strong>, full trust. Worse, two honest rows (11 and 12) were down-weighted to 0.79 and 0.77. The bad cluster tipped the line onto itself, masking its own residuals, and then framed the good rows for the crime.</div></div>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Why did Huber trust the bad rows?</h2>
-
-<p>The four mistyped commercial units are obviously wrong, yet the Huber fit handed each of them a weight of 1.00. What happened?</p>
-<section class="exercise" data-exercise-id="Robust-Regression-MM-and-Breakdown-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Huber decided the four rows were clean because their rents are close together</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Their rents are small numbers, and small numbers get small weights</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The four points dragged the line down onto themselves, so their residuals became small, and Huber weights by residual size</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. That is masking. A high-leverage cluster tips the fit toward itself until its residuals look tiny, and any residual-based method, Huber included, is fooled into full trust.</div><div class="lesson-qfb lesson-qfb-no">Weight has nothing to do with the size of the value. It depends on the residual, the gap from the fitted line, standardized by the residual spread.</div></div>
-</section>
+<p>Slope <strong>-0.93</strong>. The robust estimator that rescued us last lesson lands in the same wrong place as plain OLS, sign flip and all. The hero of Lesson 1 walked right past a fraud that makes up nearly a third of the data. To see why, we have to look at what weight it gave those fake rows.</p>
 </section>
 
 <section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">The measure that matters</div>
+<div class="lesson-step-eyebrow">The mechanism</div>
+<h2>Masking: the fraud looks perfectly normal</h2>
+
+<p>Recall the M-estimator's rule from Lesson 1: a row's weight depends only on its standardized residual, big residual gets a small weight. So let us read the weights Huber assigned to the 10 fraudulent rows (they are rows 25 through 34).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">fit_h <span class="o">&lt;-</span> <span class="nf">rlm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> listings, psi <span class="o">=</span> psi.huber)</span>
+<span class="cl"><span class="nf">round</span>(fit_h<span class="o">$</span>w[<span class="m">25</span><span class="o">:</span><span class="m">34</span>], <span class="m">2</span>)     <span class="c1"># weight given to each of the 10 fake rows</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 1 1 1 1 1 1 1 1 1 1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every fake row got a weight of <strong>1.00</strong>, full trust. Huber never flagged a single one. This is exactly the trap the far-right point showed you two steps ago, now multiplied by a cluster.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">This is <strong>masking</strong>. Because the fraud cluster has high leverage, it dragged the fitted line down onto itself. Sitting on the line, each fake row has a <strong>tiny</strong> residual, and a residual-based estimator judges tiny residuals as excellent fits. The outliers hide behind the very damage they caused. Huber's breakdown point against leverage is essentially 0%, which is precisely the warning Lesson 1 ended on.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did Huber miss it?</h2>
+
+<p>Huber handed all 10 fraudulent rows a weight of 1.00, the same full trust it gave the honest listings. Why did a robust M-estimator fail to down-weight them?</p>
+<section class="exercise" data-exercise-id="Robust-Regression-MM-and-Breakdown-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because the tuning constant k = 1.345 was set too high; a smaller k would have caught them</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because the line was pulled onto the fraud cluster, so each fake row had a small residual, and Huber weights a row only by its residual size</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because the fraud rows were added after the honest ones, so rlm ran out of iterations before reaching them</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. This is masking. High leverage lets the cluster tilt the line toward itself, shrinking its own residuals, and a residual-based estimator is then blind to it.</div><div class="lesson-qfb lesson-qfb-no">Row order and iteration count are not the issue. Even fit to convergence, rlm keeps the fraud at full weight because their residuals are small.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">A tempting fix that fails</div>
+<h2>Even Tukey cannot escape</h2>
+
+<p>You might reach for Tukey's bisquare, which in Lesson 1 <strong>redescended</strong> to a weight of exactly 0 and rejected a gross outlier outright. Surely that rejects the cluster? Try it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">rlm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> listings, psi <span class="o">=</span> psi.bisquare)), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)        size</span></span>
+<span class="cl"><span class="c1">#&gt;     1031.08       -1.01</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Slope <strong>-1.01</strong>. Just as broken. And the reason is the subtle heart of this whole lesson.</p>
+
+<p><code>rlm()</code> <strong>starts</strong> from the ordinary least-squares fit and then reweights from there. But OLS is already sitting on the fraud. From that starting line the fake rows have small residuals, so Tukey sees nothing to reject, and the iteration settles into the same bad answer. A redescending loss can throw a point out only if it starts far enough away to recognize it as an outlier in the first place.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The shape of the loss function is not enough. To survive a high-leverage cluster you also need a <strong>starting line that is not already captured by the bad rows</strong>. Fixing that starting point is the entire idea behind the estimators in the rest of this lesson.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The measuring stick</div>
 <h2>The breakdown point</h2>
 
-<p>Lesson 1 hinted at this, now we make it precise. An estimator's <strong>breakdown point</strong> \(\varepsilon^*\) is the smallest fraction of the rows that, if replaced by arbitrarily bad values, can drag the estimate arbitrarily far from the truth. It answers a blunt question: how much of my data can be garbage before my fit is meaningless?</p>
+<p>We keep saying an estimator "breaks." Let us make that precise, because it is the number that separates the methods that survive this lesson from the ones that do not.</p>
 
-<p>For ordinary least squares, \(\varepsilon^<em> = 0\): a single row taken to infinity takes the slope with it. A monotone M-estimator like Huber protects against a bad <strong>y</strong>, but against bad <strong>leverage</strong> its breakdown point is still essentially \(0\), because one well-placed cluster can mask itself, exactly what you just saw. The most any estimator can hope for is \(\varepsilon^</em> = 0.5\): past half your rows being bad, no method can tell the real trend from the contamination, because the contamination <em>is</em> the majority.</p>
+<p><strong>Intuition first.</strong> Imagine an adversary who is allowed to replace some fraction of your rows with any values they like. How large a fraction can they control before they can make your estimate say <strong>anything</strong>, including nonsense off at infinity? That tipping fraction is the estimator's limit.</p>
+
+<p><strong>The definition.</strong> The <strong>breakdown point</strong> \(\varepsilon^<em>\) of an estimator is the largest fraction of the \(n\) rows that can be replaced by arbitrary values while the estimate still stays bounded (cannot be forced off to \(\pm\infty\)). Below \(\varepsilon^</em>\) the estimator is safe; at or above it, a determined adversary wins.</p>
+
+<p>For <strong>OLS</strong>, a single bad high-leverage row can send the slope toward infinity, so \(\varepsilon^*_{\text{OLS}} = 1/n\), which shrinks to \(0\) as the data grows. A <strong>monotone M-estimator like Huber</strong> is no better against leverage: masking lets one leverage cluster dominate, so its breakdown against bad leverage points is also essentially \(0\).</p>
+
+<p><strong>The ceiling.</strong> No estimator can do better than</p>
+
+<p>\[ \varepsilon^* \le \tfrac{1}{2} = 50\%. \]</p>
+
+<p>Why? Once <strong>more than half</strong> the rows are bad, the fraud <strong>is</strong> the majority. The contamination can be arranged to look like a perfectly clean dataset with its own tidy trend, and no procedure on earth can tell which half is the real signal. Fifty percent is a hard wall for everyone.</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Method</th>
-<th>In R</th>
-<th>What it minimizes</th>
+<th>Estimator</th>
 <th>Breakdown point</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Least squares</td>
-<td><code>lm()</code></td>
-<td>the sum of squared residuals</td>
-<td>0% (one bad row is enough)</td>
+<td>OLS (least squares)</td>
+<td>0%</td>
 </tr>
 <tr>
-<td>M-estimator</td>
-<td><code>rlm()</code>, Huber</td>
-<td>a gentler loss of each residual</td>
-<td>about 0% against bad leverage</td>
+<td>Huber / Tukey M-estimator, started from OLS, with leverage</td>
+<td>~0%</td>
 </tr>
 <tr>
-<td>S-estimator</td>
-<td>(the engine inside MM)</td>
-<td>a robust <strong>spread</strong> of the residuals</td>
+<td>S-estimator and MM-estimator (<code>lmrob</code>)</td>
 <td>up to 50%</td>
-</tr>
-<tr>
-<td>MM-estimator</td>
-<td><code>rlm(method = &quot;MM&quot;)</code>, <code>lmrob()</code></td>
-<td>an S-fit, then an efficient M-step</td>
-<td>up to 50%, high efficiency</td>
 </tr>
 </tbody>
 </table>
-
-<p>Our bad batch is 4 of 16 rows, 25%. Under 50%, so an estimator with a 50% breakdown point should shrug it off completely. That estimator is the MM-estimator.</p>
 </section>
 
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">The fix</div>
-<h2>MM-estimation: robust start, efficient finish</h2>
-
-<p>Huber breaks because it starts from the OLS line, which the leverage cluster has already poisoned, and then judges residuals against that poisoned fit. MM-estimation refuses to trust the starting point. The name is literally "M applied twice, with an S in the middle," and it runs in three moves.</p>
-
-<p><strong>Stage 1, the S-estimator.</strong> Instead of minimizing the sum of squared residuals, search for the line whose residuals have the smallest <em>robust spread</em>. Formally the S-estimator picks the coefficients that minimize a scale \(\hat{s}\) solving \(\frac{1}{n}\sum_i \rho\!\left(\frac{r_i}{\hat{s}}\right) = \delta\), where \(\rho\) is a <strong>bounded</strong> loss (each residual can add only so much, no matter how huge) and \(\delta\) is a constant tuned for a 50% breakdown point. Because \(\rho\) is capped, a far-off cluster cannot inflate \(\hat{s}\), so the S-line ignores the bad rows from the very start.</p>
-
-<p><strong>Stage 2, the efficient M-step.</strong> An S-estimator has the 50% breakdown we want but is noisy on clean data (it throws away efficiency, the share of least-squares precision you keep when the data really are clean). So we polish: run one redescending M-estimate (a weighting that lets a wild residual fall all the way to zero weight, the way the Tukey loss did in Lesson 1) starting from the robust S-line and holding its robust scale \(\hat{s}\) fixed, tuned so efficiency \(\approx 0.95\). The result <strong>inherits</strong> the 50% breakdown point from Stage 1 and <strong>recovers</strong> near-OLS precision from Stage 2. Best of both.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Robust start: S-estimator","sub":"find the line whose residuals have the smallest robust spread"},{"title":"Lock the robust scale","sub":"keep that spread s; a far cluster cannot inflate it"},{"title":"Efficient M-step","sub":"polish from the robust start; keep near-OLS precision"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>What the S-stage buys</h2>
+<h2>What does 50% buy you?</h2>
 
-<p>Huber and MM both finish with an M-step. The difference is that MM runs an S-estimator first. What does that first stage give the MM-estimator that a plain Huber fit never has?</p>
-<section class="exercise" data-exercise-id="Robust-Regression-MM-and-Breakdown-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A starting line and a residual scale built to ignore high-leverage contamination, so the M-step never judges residuals against a poisoned fit</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Faster convergence, because the S-estimator needs fewer iterations</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Higher efficiency on clean data than the M-step alone could reach</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. The S-estimator has a 50% breakdown point, so its line and its scale survive the bad cluster. The M-step then refines from safe ground, which is why MM catches what Huber masks.</div><div class="lesson-qfb lesson-qfb-no">It is the other way around: the S-estimator is inefficient. Efficiency comes from the second stage, the M-step. The S-stage contributes the breakdown point, not the efficiency.</div></div>
+<p>An estimator has a breakdown point of 50%. What does that actually guarantee about the fit it returns?</p>
+<section class="exercise" data-exercise-id="Robust-Regression-MM-and-Breakdown-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It stays bounded and can recover the honest trend as long as fewer than half the rows are bad; once half or more are bad, no method can tell the real trend from the fraud</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It will return the correct line even if 50% or more of the rows are contaminated</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It always discards exactly half of the rows as outliers before fitting</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. 50% is the best any estimator can achieve, because past a bad majority the contamination can perfectly imitate clean data. Below half, a 50%-breakdown method holds.</div><div class="lesson-qfb lesson-qfb-no">Breakdown is not a fixed rejection quota. On clean data a good high-breakdown estimator down-weights almost nothing; 50% is the worst-case contamination it can tolerate, not how much it throws away.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The robust start</div>
+<h2>S-estimation: make the spread small, robustly</h2>
+
+<p>Here is the fix for the starting-point problem. OLS chooses the line that makes the residuals' <strong>standard deviation</strong> as small as possible, but the standard deviation is itself wrecked by a single outlier (its own breakdown point is 0). An <strong>S-estimator</strong> (the "S" is for <em>scale</em>, another word for spread) keeps the idea, "make the residual spread small," but measures the spread with a <strong>robust</strong> ruler.</p>
+
+<p>Formally, an S-estimator picks the coefficients \(\beta\) that minimize a robust scale \(\hat{s}\) of the residuals:</p>
+
+<p>\[ \hat{\beta}^{S} = \arg\min_{\beta}\; \hat{s}\big(r_1(\beta), \dots, r_n(\beta)\big), \]</p>
+
+<p>where \(r_i(\beta)\) is row \(i\)'s residual for a candidate line \(\beta\), and the robust scale \(\hat{s}\) is defined implicitly by</p>
+
+<p>\[ \frac{1}{n}\sum_{i=1}^{n} \rho\!\left(\frac{r_i}{\hat{s}}\right) = \tfrac{1}{2}, \]</p>
+
+<p>with \(\rho\) (rho) a <strong>bounded</strong> function, scaled so its largest value is 1. Because \(\rho\) is bounded, no single residual, however enormous, can inflate the scale, and the constant \(\tfrac{1}{2}\) on the right is exactly what pins the breakdown point at 50%.</p>
+
+<p>The other half of the trick is <strong>how</strong> it searches. It cannot start from OLS, which is already captured. Instead it draws <strong>many small random subsets</strong> of rows, fits a quick line to each, and keeps the candidate whose robust scale is smallest. Enough random subsets will eventually land on one that is entirely honest, and that subset reveals the true trend. This global search is why an S-estimator escapes the bad local minimum that trapped Tukey.</p>
+
+<p>The catch: an S-estimator is very robust but statistically <strong>inefficient</strong>. On clean data it is noisier than OLS, throwing away precision it did not need to. That is the one thing MM-estimation fixes next.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="widget">
+<div class="lesson-step-eyebrow">Best of both</div>
+<h2>MM-estimation: robust start, sharp finish</h2>
+
+<p><strong>MM-estimation</strong> (Yohai, 1987) stitches the two ideas together in a sequence: use an S-estimator to get a starting line and a scale that no leverage cluster can corrupt, then polish it with an efficient M-step that starts from that safe place. Follow the stages below.</p>
+
+<p>The M-step alone (Lesson 1) had the efficiency but no robust start; the S-step alone has the robustness but poor efficiency. MM inherits the 50% breakdown from stage 1 and climbs back to roughly 95% efficiency in stage 2. This two-stage estimator is what R's <code>lmrob()</code> computes by default.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Stage 1: a high-breakdown S-estimate","sub":"randomly search many candidate lines and keep the one whose residuals have the smallest robust spread; this ignores up to half the rows, so the fraud cluster cannot capture it"},{"title":"Lock in the robust scale s","sub":"the S-fit also measures how spread out the honest residuals are, giving the yardstick s that later judges every row"},{"title":"Stage 2: an efficient M-refinement","sub":"start from the safe S-line and run Tukey reweighting, tuned to recover about 95% of OLS precision when the data are clean"},{"title":"Result: 50% breakdown AND high efficiency","sub":"robustness comes from stage 1, sharpness from stage 2; you do not have to choose"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">In R</div>
-<h2>Fit an MM-estimator in two words</h2>
+<h2>Fit an MM-estimator with lmrob</h2>
 
-<p>You already know <code>rlm()</code>. To make it an MM-estimator instead of a plain Huber M-estimator, pass <code>method = &quot;MM&quot;</code>, which tells <code>rlm</code> to run the S-stage first and then the efficient M-step. Fill in the blank.</p>
-<section class="exercise" data-exercise-id="Robust-Regression-MM-and-Breakdown-step8" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="method\s*=\s*\W*MM"><textarea class="lesson-tryit-input" spellcheck="false">library(MASS)
-set.seed(7)   # the S-stage resamples; a seed makes the fit reproducible
-fit_mm &lt;- rlm(rent ~ size, data = apartments, method = ____)
-round(coef(fit_mm), 2)
-round(fit_mm$w, 2)   # rows 13-16 (the bad batch) should collapse toward 0</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. Passing the method MM runs the S-stage first, then the efficient M-step: the slope returns to 11.79 and the bad batch drops to weight 0.</span><span class="lesson-tryit-fb lesson-tryit-no">Set the method to the string MM (in quotes). That switches rlm from a plain Huber M-estimator to a full MM-estimator.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(MASS)
-set.seed(7)
-fit_mm &lt;- rlm(rent ~ size, data = apartments, method = &quot;MM&quot;)
+<p>The <code>lmrob()</code> function lives in the <code>robustbase</code> package and, like <code>rlm()</code>, works just like <code>lm()</code>, but it runs the full MM procedure for you. We seed first because stage 1's random subset search uses the random number generator, and a seed makes the fit reproducible. Fill in the blank with the MM-estimator's function name.</p>
+<section class="exercise" data-exercise-id="Robust-Regression-MM-and-Breakdown-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="lmrob"><textarea class="lesson-tryit-input" spellcheck="false">library(robustbase)
+set.seed(1)
+fit_mm &lt;- ____(rent ~ size, data = listings)
+round(coef(fit_mm), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the MM-estimator. It recovers a slope near the honest 12.4 and gives every fraud row a weight of 0.</span><span class="lesson-tryit-fb lesson-tryit-no">Use lmrob(), robustbase's MM-estimator: fit_mm <- lmrob(rent ~ size, data = listings).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(robustbase)
+set.seed(1)
+fit_mm &lt;- lmrob(rent ~ size, data = listings)
 round(coef(fit_mm), 2)
 #&gt; (Intercept)        size
-#&gt;      216.50       11.79
-round(fit_mm$w, 2)
-#&gt;  [1] 0.99 1.00 0.97 0.89 1.00 0.95 1.00 0.99 1.00 0.96 0.96 0.99 0.00 0.00 0.00
-#&gt; [16] 0.00</code></pre></details></div>
+#&gt;      211.49       12.38
+round(fit_mm$rweights[25:34], 2)   # weight given to each of the 10 fake rows
+#&gt; 25 26 27 28 29 30 31 32 33 34
+#&gt;  0  0  0  0  0  0  0  0  0  0</code></pre></details></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="concept">
-<div class="lesson-step-eyebrow">Two tools, one idea</div>
-<h2>rlm versus lmrob</h2>
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">Feel the ceiling</div>
+<h2>How much bad data can it really take?</h2>
 
-<p><code>rlm(method = &quot;MM&quot;)</code> works, but the modern reference implementation of MM-estimation lives in the <strong>robustbase</strong> package, in <code>lmrob()</code>. It uses a fast, well-tuned S-stage by default and returns proper robust standard errors and diagnostics, which is why practitioners reach for it on real work.</p>
+<p>The breakdown point is a promise about the worst case. Let us watch it hold, and then watch it give out. This function rebuilds the data with a chosen number of fraudulent rows, then compares OLS against <code>lmrob</code>.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(robustbase)</span>
-<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
-<span class="cl">fit_lmrob <span class="o">&lt;-</span> <span class="nf">lmrob</span>(rent <span class="o">~</span> size, data <span class="o">=</span> apartments)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(fit_lmrob), <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt; (Intercept)        size</span></span>
-<span class="cl"><span class="c1">#&gt;      216.50       11.79</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">weights</span>(fit_lmrob, type <span class="o">=</span> <span class="s">&quot;robustness&quot;</span>), <span class="m">2</span>)   <span class="c1"># rows 13-16 = 0, the bad batch</span></span>
-<span class="cl"><span class="c1">#&gt;    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16</span></span>
-<span class="cl"><span class="c1">#&gt; 0.99 1.00 0.97 0.89 1.00 0.95 1.00 0.99 1.00 0.96 0.96 0.99 0.00 0.00 0.00 0.00</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl">contaminate <span class="o">&lt;-</span> <span class="kr">function</span>(k) {</span>
+<span class="cl">  <span class="nf">set.seed</span>(<span class="m">1</span>)</span>
+<span class="cl">  size <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">runif</span>(<span class="m">30</span>, <span class="m">30</span>, <span class="m">95</span>))</span>
+<span class="cl">  rent <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="m">250</span> <span class="o">+</span> <span class="m">11.8</span> <span class="o">*</span> size <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">30</span>, <span class="m">0</span>, <span class="m">40</span>))</span>
+<span class="cl">  <span class="kr">if</span> (k <span class="o">&gt;</span> <span class="m">0</span>) {                                   <span class="c1"># overwrite k rows with fraud</span></span>
+<span class="cl">    hit <span class="o">&lt;-</span> (<span class="m">30</span> <span class="o">-</span> k <span class="o">+</span> <span class="m">1</span>)<span class="o">:</span><span class="m">30</span></span>
+<span class="cl">    size[hit] <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">runif</span>(k, <span class="m">150</span>, <span class="m">175</span>))</span>
+<span class="cl">    rent[hit] <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">runif</span>(k, <span class="m">700</span>, <span class="m">900</span>))</span>
+<span class="cl">  }</span>
+<span class="cl">  <span class="nf">data.frame</span>(size, rent)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="kr">for</span> (k <span class="kr">in</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">6</span>, <span class="m">12</span>)) {                         <span class="c1"># 0%, 20%, 40% contamination</span></span>
+<span class="cl">  d <span class="o">&lt;-</span> <span class="nf">contaminate</span>(k)</span>
+<span class="cl">  <span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">  ols <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">lm</span>(rent <span class="o">~</span> size, data <span class="o">=</span> d))[<span class="m">2</span>], <span class="m">2</span>)</span>
+<span class="cl">  mm  <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">lmrob</span>(rent <span class="o">~</span> size, data <span class="o">=</span> d))[<span class="m">2</span>], <span class="m">2</span>)</span>
+<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%2.0f%% bad:  OLS %6.2f   lmrob %6.2f\n&quot;</span>, <span class="m">100</span> <span class="o">*</span> k <span class="o">/</span> <span class="m">30</span>, ols, mm))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="c1">#&gt;  0% bad:  OLS  11.76   lmrob  11.89</span></span>
+<span class="cl"><span class="c1">#&gt; 20% bad:  OLS  -0.01   lmrob  11.72</span></span>
+<span class="cl"><span class="c1">#&gt; 40% bad:  OLS  -1.08   lmrob  11.97</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -904,68 +989,33 @@ round(fit_mm$w, 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Same slope, same rejection of the bad batch. Here is how to choose between them.</p>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th></th>
-<th><code>MASS::rlm</code></th>
-<th><code>robustbase::lmrob</code></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Ships with R</td>
-<td>yes</td>
-<td>no (<code>install.packages(&quot;robustbase&quot;)</code>)</td>
-</tr>
-<tr>
-<td>Default estimator</td>
-<td>Huber M (low breakdown)</td>
-<td>MM (50% breakdown)</td>
-</tr>
-<tr>
-<td>Handles bad leverage</td>
-<td>only with <code>method = &quot;MM&quot;</code></td>
-<td>yes, by default</td>
-</tr>
-<tr>
-<td>Robust inference and diagnostics</td>
-<td>limited</td>
-<td>full (<code>summary()</code>, standard errors, tests)</td>
-</tr>
-<tr>
-<td>Reach for it when</td>
-<td>a quick down-weighting of vertical outliers</td>
-<td>leverage is possible, or you need to report the fit</td>
-</tr>
-</tbody>
-</table>
-
-<p>The one-line rule: if bad rows might be extreme in x, or you have to defend the model, use <code>lmrob()</code>.</p>
+<p>Read the two columns. OLS is already dead at <strong>20%</strong> contamination (slope near 0) and stays wrong. <code>lmrob</code> holds the honest slope near <strong>11.8</strong> all the way through <strong>40%</strong> bad data, just as its 50% breakdown point promises. Push past half, though, and even <code>lmrob</code> must follow the majority, because at that point the fraud is no longer distinguishable from a real trend. High breakdown is a large safety margin, not a magic wand.</p>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="concept">
-<div class="lesson-step-eyebrow">Stay honest</div>
-<h2>When robustness runs out</h2>
+<section class="lesson-step" data-step="14" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>rlm or lmrob?</h2>
 
-<p>MM-estimation is powerful, not magic. Three habits keep you out of trouble.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">No estimator survives past a 50% breakdown point. If <strong>more than half</strong> your rows are contaminated, a high-breakdown fit will happily lock onto the bad majority and call the honest rows outliers. Robustness buys you tolerance up to half, not immunity.</div></div>
-
-<ul>
-
-<li><strong>A weight of 0 is a flag, not a verdict.</strong> MM told you those four rows do not fit; it did not tell you why. That is your cue to investigate, where you would find the broken import and could fix it at the source. Sometimes the "outlier" is the most important real signal, do not delete it on the model's say-so.</li>
-
-<li><strong>Report robust standard errors.</strong> A robust slope deserves robust uncertainty. <code>summary(lmrob(...))</code> gives standard errors and tests that are not distorted by the rows you just down-weighted, so your confidence intervals stay honest.</li>
-
-<li><strong>Mind the small efficiency cost.</strong> On genuinely clean data, an MM fit is a touch noisier than OLS (that is the roughly 5% you trade for the 95% efficiency). It is cheap insurance, but it is not free: when you are certain the data are clean, plain <code>lm()</code> is still the most precise choice.</li>
-
-</ul>
+<p>On clean data with a single vertical outlier, both <code>rlm()</code> with Huber and <code>lmrob()</code> recover the honest slope. Given that, when is <code>lmrob()</code> the clearly safer choice?</p>
+<section class="exercise" data-exercise-id="Robust-Regression-MM-and-Breakdown-step14" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">When bad rows may also be extreme in x (high leverage), or when a large share of rows could be bad, the cases where a residual-based M-estimator gets masked</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Whenever the dataset is large, because lmrob is faster than rlm on many rows</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Never, since rlm and lmrob always return the same coefficients</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Those are exactly the situations that broke Huber and Tukey in this lesson. lmrob's high-breakdown S-start survives them; a plain M-estimator does not.</div><div class="lesson-qfb lesson-qfb-no">They do not. On this lesson's data rlm gave a slope of -0.93 and lmrob gave 12.38. When leverage and masking are in play they can disagree completely.</div></div>
+</section>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="15" data-step-type="widget">
+<div class="lesson-step-eyebrow">Trust, but verify</div>
+<h2>A robust fit still owes you a residual check</h2>
+
+<p>MM-estimation defends the coefficients against bad rows. It does <strong>not</strong> relieve you of the ordinary duty of checking the model on the rows it kept. After fitting robustly, still plot the residuals of the honest majority: are they a flat, even band, or do they fan out or bend? Toggle the shapes below to recall what healthy versus troubled residuals look like.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Three habits keep an MM fit honest. <strong>Investigate, do not just delete:</strong> a weight-0 row is a flag to go look, and sometimes the "outlier" is the most important real signal. <strong>Report robust standard errors:</strong> <code>summary(lmrob(...))</code> gives inference that is not distorted by the rows you down-weighted, so trust its uncertainty, not OLS's. <strong>Mind the small efficiency cost:</strong> on genuinely clean data MM is marginally noisier than OLS, a cheap insurance premium against contamination you cannot rule out.</div></div>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"healthy"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
@@ -973,23 +1023,23 @@ round(fit_mm$w, 2)
 
 <ul>
 
-<li><a href="https://doi.org/10.1214/aos/1176350366">Yohai (1987), High Breakdown-Point and High Efficiency Robust Estimates for Regression, Annals of Statistics</a> - the paper that defined MM-estimation, combining both goals in one estimator.</li>
+<li><a href="https://doi.org/10.1214/aos/1176350366">Yohai (1987), High Breakdown-Point and High Efficiency Robust Estimates for Regression</a> - the paper that introduced MM-estimation, the method <code>lmrob</code> runs.</li>
 
-<li><a href="https://doi.org/10.1007/978-1-4615-7821-5_15">Rousseeuw and Yohai (1984), Robust Regression by Means of S-Estimators</a> - the high-breakdown S-estimator that MM starts from.</li>
+<li><a href="https://doi.org/10.1007/978-1-4615-7821-5_15">Rousseeuw and Yohai (1984), Robust Regression by Means of S-Estimators</a> - where the high-breakdown S-estimator that seeds MM comes from.</li>
 
-<li><a href="https://cran.r-project.org/web/packages/robustbase/robustbase.pdf">robustbase reference manual (CRAN)</a> - the documentation for <code>lmrob()</code>, the MM-estimator you fit here.</li>
+<li><a href="https://cran.r-project.org/package=robustbase">robustbase on CRAN</a> - the package providing <code>lmrob()</code>; the reference manual documents the S-step, tuning, and diagnostics.</li>
 
-<li><a href="https://cran.r-project.org/package=MASS">MASS on CRAN (Venables and Ripley)</a> - provides <code>rlm()</code>; the manual documents <code>method = &quot;MM&quot;</code> and every <code>psi</code> option.</li>
+<li><a href="https://doi.org/10.1214/aoms/1177693054">Hampel (1971), A General Qualitative Definition of Robustness</a> - the paper that introduced the breakdown point, the measuring stick at the heart of this lesson.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="17" data-step-type="complete">
 <h2>Lesson 2 complete</h2>
 
-<p>You saw a bad high-leverage cluster mask itself and walk past a Huber M-estimator, learned to measure protection with the breakdown point, and used MM-estimation, a robust S-start polished by an efficient M-step, to recover the honest slope with <code>rlm(method = &quot;MM&quot;)</code> and <code>lmrob()</code> while the bad batch fell to weight 0.</p>
+<p>You saw a high-leverage fraud cluster fool not only OLS but Huber and even redescending Tukey, because masking shrinks a bad row's residual and a residual-based estimator is then blind to it. You learned to measure that fragility with the breakdown point, why 50% is the hard ceiling, and how S-estimation reaches it by minimizing a robust scale from a global random search. Then you fit an MM-estimator with <code>lmrob()</code>, which pairs that robust start with an efficient finish to recover the honest slope and reject the fraud outright.</p>
 
-<p>Next, Lesson 3: Quantile Regression. So far every method has modeled the <strong>mean</strong> rent. But when the spread of rents grows with floor area, the average stops telling the whole story. You will learn to model the median and the tails directly, and see when that is exactly what a decision needs.</p>
+<p>Next, Lesson 3: Quantile Regression. Robust regression protects the <strong>mean</strong> trend from bad rows. But sometimes the spread itself is the story, and you want to model the median and the tails directly, especially when the variability grows with x.</p>
 </section>
 
 
@@ -1077,7 +1127,7 @@ round(fit_mm$w, 2)
     }
   })();
   </script>
-  <script src="www/toc.min.js?h=db578404"></script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
   <!-- MathJax Script -->
   
   <script type="text/x-mathjax-config">
@@ -1095,11 +1145,11 @@ round(fit_mm$w, 2)
 
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
-  <script src="www/webr-init.min.js?h=92549f4e"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=946dceef"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
   <script src="www/lesson-mode.min.js?h=7923c824"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
