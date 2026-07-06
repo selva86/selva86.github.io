@@ -30,7 +30,7 @@ def transform(path):
     if 'tutorial-jel.css' in h: return 'already'
     m=re.search(r'<link href="css/main\.css\?v=\d+" rel="stylesheet">', h)
     if not m: return 'skip-nomaincss'
-    h=h.replace(m.group(0), m.group(0)+'\n    '+FONTS+'\n    <link href="/www/tutorial-jel.css?v=5" rel="stylesheet">',1)
+    h=h.replace(m.group(0), m.group(0)+'\n    '+FONTS+'\n    <link href="/www/tutorial-jel.css?v=7" rel="stylesheet">',1)
     h=h.replace('<body>','<body class="layout-v2" data-page="tutorial">\n'+DRAWER,1)
     h=re.sub(r'<div class="masthead">.*?</div>\s*(?=<div class="row">)',MAST+'\n\n      ',h,count=1,flags=re.S)
     side=bp.render_sidebar_html(sections,slug)

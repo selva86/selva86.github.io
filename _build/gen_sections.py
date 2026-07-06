@@ -138,7 +138,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 <meta name="twitter:image" content="{SITE}{og_image}">{jsonld_blocks}
 {FOUC}
 {FONTS}
-<link rel="stylesheet" href="/www/sections-v3.css?v=2">
+<link rel="stylesheet" href="/www/sections-v3.css?v=3">
 <style>
 {page_css}
 </style>
