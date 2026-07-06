@@ -1,13 +1,11 @@
 ---
 title: "Imbalanced Classification Lesson 3: Thresholds Under Asymmetric Costs"
-catalog_blurb: "Set the cutoff by what each error costs, not a default 0.5."
 description: "A missed fraud costs far more than a false alarm, so leave the data alone and move the decision threshold. Find the cost-optimal cutoff in R, step by step."
 keywords: "classification threshold, asymmetric costs, cost-sensitive classification, decision threshold, false negative cost, expected cost, imbalanced classification, R"
-post_type: "LESSON"
-curriculum_id: "6.80.3"
-webr: true
 mathjax: true
-lesson_access: "free"
+webr: true
+curriculum_id: "6.80.3"
+post_type: "LESSON"
 course_id: "ds-imbalanced-classification"
 course_title: "Imbalanced Classification in R"
 course_lesson: "3"
@@ -15,6 +13,8 @@ course_total: "6"
 course_landing: "R-Imbalanced-Classification-Course.html"
 course_next: "ROC-PR-Lift-and-Gains-Curves.html"
 course_prev: "Class-Imbalance-and-Resampling.html"
+lesson_access: "free"
+catalog_blurb: "Set the cutoff by what each error costs, not a default 0.5."
 ---
 
 === step === cover
@@ -48,7 +48,7 @@ That is the decision rule, and it is the whole game:
 
 \[ \hat{y} = 1 \iff p \ge t \]
 
-Here \(p\) is the model's predicted probability of the positive class (fraud), \(t\) is the **threshold** you choose, and \(\hat{y} = 1\) means "predict fraud". Most software defaults to \(t = 0.5\), so people forget it is a choice at all. It is not a law of the model; it is a knob. Slide the threshold on the curve in the previous step and the same fixed S-curve keeps its shape while the cutoff line, and the set of flagged transactions, moves.
+Read that as: predict fraud exactly when the probability is at least the cutoff. Here \(p\) is the model's predicted probability of the positive class (fraud), \(t\) is the **threshold** you choose, \(\hat{y} = 1\) means "predict fraud" (the little hat marks it as the model's guess, not the truth), and the \(\iff\) symbol means "exactly when". Most software defaults to \(t = 0.5\), so people forget it is a choice at all. It is not a law of the model; it is a knob. Slide the threshold on the curve in the previous step and the same fixed S-curve keeps its shape while the cutoff line, and the set of flagged transactions, moves.
 
 [KEY INSIGHT]
 Training fixes the probabilities. The threshold is a separate, after-the-fact decision. You can change it in one line, with no retraining, and it is the single lever that trades missed fraud against false alarms.
@@ -77,7 +77,7 @@ A missed fraud costs SecureBank $500; a false alarm costs $100. You are still us
 
 ::quiz {"correct":1,"gate":true,"difficulty":"beginner"}
 - Lower it, so the model flags more transactions ::ok Right. A miss is five times costlier than a false alarm, so you accept more false alarms to catch more fraud. Lowering the cutoff flags anything above a smaller probability.
-- Raise it, so the model flags fewer transactions ::no That flags fewer transactions and misses even more fraud, the expensive mistake. You raise the cutoff only when false alarms are the costly error.
+- Raise it, so the model flags fewer transactions ::no That moves the wrong way: raising the bar flags fewer transactions, so you catch LESS fraud and make more of the expensive misses.
 - Leave it at 0.5; the threshold has nothing to do with costs ::no 0.5 is only a default. The threshold is exactly the knob that trades false alarms against missed fraud, so the costs are what should set it.
 
 === step === widget
@@ -86,9 +86,9 @@ A missed fraud costs SecureBank $500; a false alarm costs $100. You are still us
 
 There is no cutoff that makes both errors disappear. Lowering the threshold catches more real positives (fewer false negatives) but flags more negatives too (more false positives). Drag the threshold below. The confusion matrix on the right recounts, and the operating point slides along the curve of every possible threshold at once.
 
-::widget roc-curve {}
-
 Each position is one confusion matrix. Choosing a threshold means choosing one point on that curve, and the costs tell you which point is worth standing on.
+
+::widget roc-curve {}
 
 === step === concept
 ::eyebrow Put a number on it
@@ -214,7 +214,7 @@ A hospital screens for a serious disease. A missed case (false negative) is cata
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - Toward 0, so you flag almost everyone for follow-up ::ok Exactly. As \(C_{FN}\) dwarfs \(C_{FP}\), the fraction \(C_{FP}/(C_{FP}+C_{FN})\) shrinks toward 0. You set a very low bar: catch every possible case and accept many false alarms, because a miss is the disaster.
-- Toward 1, so you flag almost no one ::no That is backwards. A high cutoff flags fewer people and misses the costly cases. \(t^*\) moves toward 1 only when false alarms are the expensive error.
+- Toward 1, so you flag almost no one ::no That is the opposite of what the costs demand. Flagging almost no one maximizes the catastrophic misses. The huge \(C_{FN}\) pushes \(t^*\) DOWN, not up.
 - It stays at 0.5 regardless of the costs ::no 0.5 is optimal only when the two errors cost the same. Here they differ by a huge factor, so \(t^*\) moves far off 0.5.
 
 === step === concept
@@ -223,7 +223,7 @@ A hospital screens for a serious disease. A missed case (false negative) is cata
 
 Threshold-moving is the cheapest tool in the imbalance toolkit: no retraining, no new data, one number. But it rests on assumptions worth stating out loud.
 
-1. **It needs trustworthy probabilities.** \(t^*\) is only truly optimal if the model's scores are *calibrated*, so a 0.2 really means a 20% chance. Resampling (Lesson 2) and many models distort that. When the probabilities are off, the sweep still finds a good cutoff empirically, but the formula's value can be wrong. Fixing the probabilities themselves is Lesson 5.
+1. **It needs trustworthy probabilities.** \(t^*\) is only truly optimal if the model's scores are calibrated, so a predicted 0.2 really does mean a 20% chance. Resampling (Lesson 2) and many models distort that. When the probabilities are off, the sweep still finds a good cutoff empirically, but the formula's value can be wrong. Fixing the probabilities themselves is Lesson 5.
 2. **It needs known, stable costs.** If a chargeback is $500 today and $50 next quarter, so is the optimal cutoff. Revisit \(t^*\) when the costs change.
 3. **Pick the threshold on validation data, never the test set.** Sweeping thresholds is a form of tuning. Choose the cutoff on a validation split, then report performance on an untouched test set, exactly the discipline from Lesson 2.
 
