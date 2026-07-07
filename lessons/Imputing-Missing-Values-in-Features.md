@@ -31,7 +31,7 @@ By the end you will be able to:
 - Explain why imputation **leaks** unless the fill is learned on the training set alone, and do it leak-free
 - Fill smarter by borrowing from similar rows (a group, the nearest neighbours, a small model)
 
-**Prerequisites:** you can write a `mutate()` and a pipe ([The dplyr Verbs](The-dplyr-Verbs.html)), you know what a train/test split and data leakage are ([Train/Validation/Test and Data Leakage](Train-Validation-Test-and-Data-Leakage.html)), and you have met `NA` and the three missingness mechanisms ([Missing Value Treatment](Missing-Value-Treatment.html)). The new ideas are taught from scratch.
+**Prerequisites:** you can write a `mutate()` and a pipe ([The dplyr Verbs](The-dplyr-Verbs.html)), you know what a train/test split and data leakage are ([Train, Validation, Test, and Data Leakage](Train-Validation-Test-and-Data-Leakage.html)), and you have met `NA` and the three missingness mechanisms ([Missing Value Treatment](Missing-Value-Treatment.html)). The new ideas are taught from scratch.
 
 Press Run on the table below: each blank floor area is filled with the column median, the simplest possible stand-in.
 
@@ -86,7 +86,7 @@ filled <- ifelse(is.na(flats$area_sqft),
 c(sd_observed = round(sd(flats$area_sqft, na.rm = TRUE)),
   sd_filled   = round(sd(filled)))
 #> sd_observed   sd_filled
-#>         320         296
+#>         344         317
 ```
 
 The standard deviation (the typical distance of a value from the average, our measure of spread) drops once the gaps collapse onto one point. The fill also weakens the real area-to-rent correlation, because 36 listings now carry an area that ignores everything else about them.
@@ -110,7 +110,7 @@ flats_imp <- flats %>%
   )
 sum(flats_imp$area_was_missing)   # how many we filled
 ```
-::check {"regex":"median\\s*\\(\\s*area_sqft\\s*,\\s*na\\.rm\\s*=\\s*TRUE","gate":true,"difficulty":"beginner","ok":"That is mean's sturdier cousin: median(area_sqft, na.rm = TRUE) is computed from the recorded areas and dropped into every gap, while area_was_missing quietly remembers which 36 rows were guessed.","no":"Inside ifelse() put the median of the recorded areas: median(area_sqft, na.rm = TRUE). The na.rm = TRUE tells it to ignore the blanks when computing that middle value."}
+::check {"regex":"median\\s*\\(\\s*area_sqft\\s*,\\s*na\\.rm\\s*=\\s*TRUE","gate":true,"difficulty":"beginner","ok":"That is the mean's sturdier cousin: median(area_sqft, na.rm = TRUE) is computed from the recorded areas and dropped into every gap, while area_was_missing quietly remembers which 36 rows were guessed.","no":"Inside ifelse() put the median of the recorded areas: median(area_sqft, na.rm = TRUE). The na.rm = TRUE tells it to ignore the blanks when computing that middle value."}
 ::solution
 ```r
 flats_imp <- flats %>%
@@ -130,7 +130,7 @@ sum(flats_imp$area_was_missing)
 Floor area in your listings is right-skewed: most flats are small to mid-sized, but a handful of luxury units run very large. You are about to fill the blanks with one central value. Why is the **median** the safer default than the **mean** here?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The mean cannot be computed when a column has any NA values. ::no It can, with `mean(x, na.rm = TRUE)`, just as the median uses `na.rm = TRUE`. Computability is not the issue; what the fill value represents is.
+- The mean cannot be computed when a column has any NA values. ::no Not the issue: mean(area_sqft, na.rm = TRUE) computes fine even with gaps, exactly as the median does. The real reason to prefer the median here is that on right-skewed data its central value is more representative, while the mean gets pulled toward the few very large flats.
 - The few very large flats drag the mean upward, so it overstates a typical area; the median sits at the middle and is barely moved by those outliers. ::ok Right. On right-skewed data the mean is pulled toward the long tail, so mean-imputing makes every blank flat look larger than a typical one. The median stays at the centre of the data and gives a sturdier stand-in.
 - The median changes the column's spread less than the mean does. ::no Both replace the gaps with a single constant, so both shrink the spread by the same amount. The reason to prefer the median is that its central value is more representative on skewed data, not that it preserves spread.
 
@@ -142,13 +142,13 @@ Look again at what you just did: you computed `median(area_sqft, na.rm = TRUE)` 
 
 If you compute the median over the *whole* dataset, including the test listings, and then split, the fill value has already peeked at the test rows. Your test score gets a small, invisible boost it would never get on genuinely new listings, where no test median exists. That is **leakage**: information from outside the training fold sneaking into the model. Drag the toggle below to feel how a leaked feature inflates a test score to something too good to be true.
 
-::widget data-split {}
-
 The fix is a discipline, not a function. Split first. Then learn the fill on the training rows alone:
 
 \[ m_{\text{train}} = \text{median}(x_{\text{train, obs}}) \]
 
 where \(x_{\text{train, obs}}\) are the recorded areas **in the training set**. Store that one number, and use the same \(m_{\text{train}}\) to fill the gaps in the training set and in the test set. The test rows never get a vote in what the fill is; they only receive it.
+
+::widget data-split {}
 
 === step === tryit
 ::eyebrow Your turn
@@ -183,28 +183,14 @@ fill_value <- median(train$area_sqft, na.rm = TRUE)
 train$area_sqft[is.na(train$area_sqft)] <- fill_value
 test$area_sqft[is.na(test$area_sqft)]   <- fill_value
 fill_value
-#> [1] 820
-```
-
-Doing this by hand for every feature and every fold gets old fast, and it is easy to slip. The production answer is a **recipe**: you declare the imputation once, and `prep()` learns each fill on the training data while `bake()` re-applies the stored values to any new batch. It is leak-free by construction.
-
-```r-static
-library(recipes)
-
-# Declare it once; prep() learns on train, bake() applies to new data automatically.
-rec <- recipe(rent ~ ., data = train) %>%
-  step_impute_median(area_sqft) %>%   # learns the TRAINING median, stores it
-  step_dummy(all_nominal_predictors())
-
-prepped <- prep(rec)                  # estimates every fill on the training rows only
-bake(prepped, new_data = test)        # re-applies the stored train median to test
+#> [1] 851
 ```
 
 === step === concept
 ::eyebrow Fill smarter
 ## Borrow from similar rows
 
-A single median ignores everything else you know about a flat. A blank 1-bedroom studio and a blank 4-bedroom both get the same 820 sq ft, which is too big for one and too small for the other. The smarter fills use the **other columns** to make a tailored guess.
+A single median ignores everything else you know about a flat. A blank 1-bedroom studio and a blank 4-bedroom both get the same 851 sq ft, which is too big for one and too small for the other. The smarter fills use the **other columns** to make a tailored guess.
 
 The simplest version groups by a key feature and fills from that group. Fill a blank with the median area of flats with the **same number of bedrooms**, and a studio gets a studio-sized guess. Press Run:
 
@@ -233,10 +219,10 @@ train$area_sqft[miss] <- round(predict(area_model, train[miss, ]))
 
 round(coef(area_model), 1)
 #> (Intercept)    bedrooms       floor
-#>       186.2       321.4         0.9
+#>       148.1       332.3         0.0
 ```
 
-The bedrooms coefficient near 320 is exactly the relationship we built into the data: each extra bedroom adds about 320 sq ft, while floor barely moves area (coefficient near zero, as it should be). A model-based fill hands each gap a value that honours that relationship instead of one flat number.
+The bedrooms coefficient, about 332, is close to the 320 we built into the data: each extra bedroom adds roughly 320 sq ft, while floor barely moves area (its coefficient is essentially zero, exactly as it should be). A model-based fill hands each gap a value that honours that relationship instead of one flat number.
 
 [NOTE]
 Two cautions. First, these smarter fills still **learn from the rows**, so the same leak rule applies: fit the group medians, the neighbours, or the regression on the training fold only (a recipe's `step_impute_knn()` or `step_impute_linear()` does this for you). Second, filling with a single best guess pretends you are certain about a value you are not. When that uncertainty matters for inference, **multiple imputation** (the `mice` package) fills each gap several times to carry the doubt forward, rather than hiding it.
@@ -249,7 +235,7 @@ A teammate reports a great cross-validation score on the rent model. Their pipel
 
 ::quiz {"correct":1,"gate":true,"difficulty":"advanced"}
 - The median was computed over all rows before splitting, so every fold's validation rows helped set the fill they are later scored on: leakage. Move the imputation inside the fold (learn the median on each fold's training part only). ::ok Exactly. Imputing before the split lets validation data influence the fill, so the score is optimistic. The fix is to make imputation part of the resampled pipeline (a recipe inside the fold), so each fill is learned on training rows alone.
-- Nothing is wrong: the median is a single number, so it cannot carry enough information to leak. ::no Even one learned number leaks. That median was nudged by the validation rows' areas, so the model is scored partly on data that shaped its own inputs. The optimism is small per fold but real and systematic.
+- Nothing is wrong: the median is a single number, so it cannot carry enough information to leak. ::no The statistic is not the problem; the timing is. A mean computed over the full dataset before splitting leaks in exactly the same way. Any fill learned before the split, mean, median, kNN or model, sees the validation rows.
 - The mistake is using the median at all; a mean computed the same way would not leak. ::no The statistic is not the problem; the timing is. A mean computed over the full dataset before splitting leaks in exactly the same way. Any fill learned before the split, mean, median, kNN or model, sees the validation rows.
 
 === step === concept
@@ -258,8 +244,8 @@ A teammate reports a great cross-validation score on the rent model. Their pipel
 
 A few authoritative places to take this further:
 
-- [Kuhn & Johnson, *Feature Engineering and Selection* (free online)](https://www.feat.engineering/) - the chapter on missing data and imputation, written for the modeling pipeline you are building here.
-- [van Buuren, *Flexible Imputation of Missing Data* (free online)](https://stefvanbuuren.name/fimd/) - the standard modern text; explains why a single imputed value understates uncertainty and how multiple imputation (`mice`) fixes it.
+- [Kuhn and Johnson, Feature Engineering and Selection (free online)](https://www.feat.engineering/) - the chapter on missing data and imputation, written for the modeling pipeline you are building here.
+- [van Buuren, Flexible Imputation of Missing Data (free online)](https://stefvanbuuren.name/fimd/) - the standard modern text; explains why a single imputed value understates uncertainty and how multiple imputation (`mice`) fixes it.
 - [tidymodels recipes: step_impute_knn() reference](https://recipes.tidymodels.org/reference/step_impute_knn.html) - the leak-free way to impute inside a pipeline, with `step_impute_median`, `step_impute_linear` and friends alongside it.
 - [scikit-learn user guide: Common pitfalls and recommended practices](https://scikit-learn.org/stable/common_pitfalls.html) - the clearest short write-up of why fitting any preprocessing (including imputation) on all the data leaks, with the train-only fix.
 
