@@ -1,7 +1,7 @@
 ---
 title: "Regression Modeling Lesson 7: Logistic Regression Done Properly"
-description: "Model a yes/no outcome in R with logistic regression: the logit link and S-curve, fit glm(), read odds ratios, predict probabilities, and pick a threshold."
-keywords: "logistic regression, glm binomial, logit link, odds ratio, log-odds, sigmoid, predict probability, classification threshold, confusion matrix, logistic regression in R"
+description: "Predict a yes-or-no outcome the right way: why linear regression fails, the logit link and odds ratios, and fitting and reading glm(family = binomial) in R."
+keywords: "logistic regression, glm, binomial, logit, log-odds, odds ratio, probability, binary outcome, sigmoid, decision threshold, classification, R"
 mathjax: true
 webr: true
 curriculum_id: "6.20.7"
@@ -23,139 +23,136 @@ catalog_blurb: "Model a yes-or-no outcome as a probability and read what drives 
 <div class="lesson-step-eyebrow">Lesson 7 of 8</div>
 <h2>Logistic Regression Done Properly</h2>
 
-<p>In Lesson 6 you put honest error bars on a regression's two jobs, explaining and predicting. But every model in this course so far has predicted a <em>number</em>: how many cups Priya sells. Now she has a question that is not a number at all.</p>
+<p>In Lesson 6 you separated the two jobs a regression can do: <em>explaining</em> which predictors matter, and <em>predicting</em> a number for a new day, each with its own kind of interval. Every one of those models answered a question whose answer was a number: how many cups will Priya sell?</p>
 
-<p>A customer walks up to the cart. <strong>Will this one person buy an iced coffee, yes or no?</strong> The answer is not 30 or 49, it is a probability between 0 and 1, and that probability climbs with the temperature, near zero on a freezing morning, near certainty in a heatwave. A straight line is the wrong tool for that S-shaped story. Logistic regression is the right one.</p>
+<p>This lesson changes the question. Priya, still running her iced-coffee cart, no longer wants a cup count. She wants to know one yes-or-no thing each morning: <strong>will I sell out today?</strong> On a freezing day, almost never. On a scorcher, almost certainly. The honest answer is not "yes" or "no" but a <strong>probability</strong>, a number between 0 and 1 that slides smoothly from one to the other as the day heats up. The curve below is exactly that answer, and building it correctly is what this lesson is about.</p>
 
-<p>By the end of this lesson you will be able to:</p>
+<p>By the end you will be able to:</p>
 
 <ul>
 
-<li>Explain why a straight line cannot model a yes/no probability, and how the logit link fixes it</li>
+<li>Explain why ordinary linear regression is the wrong tool for a yes/no outcome</li>
 
-<li>Fit a logistic regression with <code>glm()</code> and read its coefficients as odds ratios</li>
+<li>Turn a probability into odds and log-odds, and back again through the S-shaped logistic curve</li>
 
-<li>Turn the model into predicted probabilities, then pick a threshold to make a decision, and know where it breaks</li>
+<li>Fit a logistic regression in R with <code>glm()</code>, and read its coefficients as odds ratios</li>
+
+<li>Turn the model into a probability, pick a decision threshold, and judge whether it was done properly</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> Lessons 1 to 6 (you can fit a line with <code>lm()</code> and read its coefficients, standard errors and p-values). You can run R. Every new term, odds, log-odds, logit, odds ratio, threshold, is defined as it appears.</p>
-
-<p>The curve above is the whole lesson in one picture: a probability that bends smoothly from 0 to 1, with a cutoff you can slide. By the end you will know exactly where it comes from and how to read it.</p>
+<p><strong>Prerequisites:</strong> Lessons 1 to 6 (you can fit a line with <code>lm()</code>, read its coefficient table, and you know a probability is a number between 0 and 1). Every new term is defined as it appears.</p>
 <div class="lesson-widget" data-widget-type="logistic-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The problem</div>
-<h2>Why a straight line can't model a yes/no</h2>
+<div class="lesson-step-eyebrow">The new question</div>
+<h2>The outcome is now yes or no</h2>
 
-<p>Priya logs a stretch of single customers: the day's temperature and whether that person bought. The outcome is coded 1 for "bought" and 0 for "did not." Plotted against temperature, every point sits on one of two rails, the bottom (0) or the top (1), with cold days mostly on the floor and hot days mostly on the ceiling.</p>
+<p>For six lessons the thing on the left of the <code>~</code> was a <em>count</em>: cups sold, a number that could be 48 or 63 or 71. Now it is a <em>label</em>: <code>soldout</code> is 1 on days Priya ran out and 0 on days she had cups left over. There is no in-between. You cannot sell out 0.6 of the way.</p>
 
-<p>Now imagine fitting an ordinary least-squares line through those rails, the kind from Lesson 1. It would slope up, which feels right, but it cannot stop at the rails. Extended to a frosty 2 degrees it predicts a <em>negative</em> probability of buying; pushed to a blazing 40 it predicts a probability above 1. Both are nonsense: a probability has to live between 0 and 1, and a line does not know that.</p>
+<p>A fresh R session starts empty, so we build four weeks and a bit of her trading right here. Each row is one day: its high temperature, whether it was a weekend, and whether she sold out.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The target is a probability, which is trapped between 0 and 1. A straight line is unbounded, so it will always eventually predict impossible probabilities. We need a model whose output is squeezed into [0, 1] by construction.</div></div>
-<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":6,"y":0},{"x":8,"y":0},{"x":11,"y":0},{"x":13,"y":0},{"x":15,"y":1},{"x":17,"y":0},{"x":19,"y":1},{"x":21,"y":0},{"x":23,"y":1},{"x":25,"y":1},{"x":27,"y":1},{"x":29,"y":1},{"x":31,"y":1},{"x":33,"y":1}],"geoms":["point"],"x":"temp","y":"bought"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n &lt;- 60
+temp    &lt;- round(runif(n, 16, 34), 1)          # each day's high, in Celsius
+weekend &lt;- rbinom(n, 1, 2/7)                    # 1 on Saturdays and Sundays
+# nature's hidden rule: hotter days (and weekends) are likelier to sell out
+lp      &lt;- -14 + 0.5 * temp + 1.2 * weekend     # the true log-odds, which we never see
+soldout &lt;- rbinom(n, 1, 1 / (1 + exp(-lp)))     # 1 = sold out, 0 = cups left over
+coffee  &lt;- data.frame(temp, weekend, soldout)
+table(coffee$soldout)
+#&gt; 
+#&gt;  0  1 
+#&gt; 36 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Twenty-four sell-out days, thirty-six with cups to spare. Our whole job is to turn a day's temperature into the <em>probability</em> of that <code>1</code>. The rule that generated the data is hidden inside <code>lp</code> (do not worry about it yet; that expression is precisely what the lesson will teach you to read). What matters now is the shape of the target: a column of 0s and 1s, nothing else.</p>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The fix</div>
-<h2>Odds, log-odds, and the logit link</h2>
+<div class="lesson-step-eyebrow">The tempting mistake</div>
+<h2>Why you can't just fit a line</h2>
 
-<p>The trick is to not model the probability directly. We bend it through two steps first, so that a straight line can do its work on a scale that has no ceiling.</p>
+<p>The obvious move is the tool you already own: fit a straight line with <code>lm()</code>, treating <code>soldout</code> as if it were a number. Watch what it does at the cold end of the range.</p>
 
-<p><strong>Step one: odds.</strong> Gamblers never say "70% chance," they say "7 to 3." That is the <strong>odds</strong>: the chance it happens divided by the chance it does not,</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">straight &lt;- lm(soldout ~ temp, data = coffee)
+round(coef(straight), 3)
+#&gt; (Intercept)        temp 
+#&gt;      -1.178       0.062 
+round(predict(straight, data.frame(temp = c(16, 18, 33, 34))), 3)
+#&gt;      1      2      3      4 
+#&gt; -0.179 -0.054  0.883  0.946</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>\[ \text{odds} = \frac{p}{1-p} \]</p>
+<p>Read the first prediction and stop. For a 16-degree day the line forecasts a probability of <strong>-0.179</strong>. A negative probability is not just unlikely, it is <em>meaningless</em>: a probability lives between 0 and 1 and cannot leave that box. But a straight line has no floor and no ceiling. Push the temperature low enough and it dives below 0; push it high enough and it climbs past 1. The scatter makes the mismatch obvious: the data sit in two flat rows at 0 and 1, and no single straight line can hug both while staying inside the box between them.</p>
 
-<p>where \(p\) is the probability of the "yes" outcome (buying). At \(p = 0.5\) the odds are 1 (even money); as \(p\) climbs toward 1 the odds shoot off to infinity; as \(p\) falls toward 0 the odds sink toward 0. So odds live in \([0, \infty)\). We have removed the upper ceiling, but there is still a floor at 0.</p>
-
-<p><strong>Step two: take the logarithm.</strong> The natural log of the odds is called the <strong>log-odds</strong>, or the <strong>logit</strong>:</p>
-
-<p>\[ \operatorname{logit}(p) = \ln\!\left(\frac{p}{1-p}\right) \]</p>
-
-<p>where \(\ln\) is the natural logarithm. The log stretches \([0, \infty)\) across the <em>entire</em> number line \((-\infty, \infty)\): a tiny probability gives a large negative log-odds, \(p = 0.5\) gives 0, a near-certain probability gives a large positive one. Now there is no ceiling and no floor, so a straight line can finally fit without breaking any rules. That is exactly what logistic regression does:</p>
-
-<p>\[ \ln\!\left(\frac{p}{1-p}\right) = \beta_0 + \beta_1\,\text{temp} + \beta_2\,\text{member} \]</p>
-
-<p>Here \(\beta_0\) is the intercept (the log-odds when every predictor is 0), and \(\beta_1, \beta_2\) are the slopes, the change in log-odds per unit of each predictor. To turn that linear part back into a probability, invert the two steps. Solving for \(p\) gives the <strong>sigmoid</strong> (the S-curve):</p>
-
-<p>\[ p = \frac{1}{1 + e^{-(\beta_0 + \beta_1\,\text{temp} + \beta_2\,\text{member})}} \]</p>
-
-<p>where \(e\) is Euler's number (about 2.718). No matter how large or how negative the linear part gets, this curve is mathematically pinned between 0 and 1. That is the "logistic" in logistic regression. Drag the slider below to feel the S-curve in action.</p>
-<div class="lesson-widget" data-widget-type="logistic-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">There are two separate problems with fitting <code>lm()</code> to a 0/1 outcome. The visible one is impossible predictions (below 0, above 1). The quieter one is that a yes/no outcome cannot possibly have the constant-variance, bell-shaped errors that <code>lm()</code> assumes, so its standard errors and p-values are untrustworthy even where the predictions happen to land inside the box. We need a model built for probabilities from the start.</div></div>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":33.8,"y":1},{"x":23.2,"y":0},{"x":18.1,"y":0},{"x":17.3,"y":0},{"x":20.4,"y":0},{"x":30.3,"y":1},{"x":22.1,"y":0},{"x":33.5,"y":1},{"x":19,"y":0},{"x":24.3,"y":0},{"x":19.1,"y":0},{"x":20.2,"y":0},{"x":29.9,"y":1},{"x":17.7,"y":0},{"x":24.2,"y":1},{"x":17.5,"y":0},{"x":26.1,"y":1},{"x":16.2,"y":0},{"x":33.7,"y":1},{"x":21.7,"y":0},{"x":27.5,"y":1},{"x":21.3,"y":0},{"x":33.9,"y":1},{"x":32.3,"y":1},{"x":33.8,"y":1},{"x":17.2,"y":0},{"x":27.3,"y":0},{"x":24.8,"y":1},{"x":33.5,"y":1},{"x":22.5,"y":1},{"x":28.2,"y":1},{"x":20.7,"y":0},{"x":19.3,"y":0},{"x":19.3,"y":0},{"x":22.8,"y":0},{"x":31.2,"y":1},{"x":25,"y":0},{"x":30.2,"y":0},{"x":31.1,"y":0},{"x":24.2,"y":0},{"x":30.4,"y":1},{"x":22.9,"y":0},{"x":29.7,"y":1},{"x":23.9,"y":0},{"x":32.3,"y":1},{"x":21.8,"y":0},{"x":17.5,"y":0},{"x":30.7,"y":0},{"x":32.2,"y":1},{"x":33.4,"y":1},{"x":26.3,"y":0},{"x":29,"y":0},{"x":29.9,"y":1},{"x":27.3,"y":0},{"x":29,"y":1},{"x":23,"y":0},{"x":18.9,"y":0},{"x":19.4,"y":0},{"x":23,"y":0},{"x":20.9,"y":1}],"geoms":["point"],"x":"temp","y":"sold_out"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="4" data-step-type="concept">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Fit it with glm() and read the table</h2>
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What actually broke?</h2>
 
-<p>A fresh R session starts empty, so we build Priya's log of single visits first: 200 customers, each with the day's <code>temp</code>, whether they are a loyalty <code>member</code> (1) or not (0), and whether they <code>bought</code> (1) or not (0). Run this once.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">set.seed(1)
-n &lt;- 200
-visits &lt;- data.frame(
-  temp   = round(runif(n, 5, 35), 1),     # the day's high temperature (deg C)
-  member = rbinom(n, 1, 0.4)              # 1 = loyalty member, 0 = not
-)
-# the true buying probability rises with temp and for members; we draw a yes/no from it
-visits$bought &lt;- rbinom(n, 1, plogis(-6 + 0.25 * visits$temp + 0.9 * visits$member))
-table(bought = visits$bought)
-#&gt; bought
-#&gt;   0   1
-#&gt; 105  95</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Fitting is one call. It is <code>glm()</code> (generalized linear model), the sibling of <code>lm()</code>, with one extra argument: <code>family = binomial</code> tells R the outcome is a yes/no count, so it should fit on the logit scale instead of the straight-line scale.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">fit &lt;- glm(bought ~ temp + member, data = visits, family = binomial)
-round(coef(summary(fit)), 4)
-#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
-#&gt; (Intercept)  -5.4457     0.7600 -7.1652    0e+00
-#&gt; temp          0.2280     0.0315  7.2314    0e+00
-#&gt; member        1.6429     0.4215  3.8981    1e-04</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The table reads almost exactly like <code>lm()</code>'s, with one crucial difference: <strong>the estimates are on the log-odds scale, not the cup scale.</strong> The <code>temp</code> coefficient of 0.228 means each extra degree adds 0.228 to the log-odds of buying. That is real, the <code>z value</code> (the logistic cousin of the t-value) is 7.2 with a vanishingly small p-value, so temperature genuinely drives buying. But "adds 0.228 to the log-odds" is not something you can say out loud to Priya. The next step fixes that.</p>
+<p>Priya's <code>lm()</code> predicted -0.179 for a cold day. A friend shrugs: "A negative number just means very unlikely, round it up to 0 and the model is fine." Is the friend right?</p>
+<section class="exercise" data-exercise-id="Logistic-Regression-Done-Properly-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes: -0.179 just means "very unlikely", so clip it to 0 and move on</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: a straight line has no floor or ceiling, so it predicts impossible probabilities, and a yes/no outcome also breaks the equal-variance error assumption <code>lm()</code> relies on</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No: the temperature signal is simply too weak for any model to fit</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Both problems are baked into using a line for a bounded, binary outcome. That is why we switch to a model designed to output a probability between 0 and 1.</div><div class="lesson-qfb lesson-qfb-no">The signal is strong, hot days really do sell out. The trouble is the shape of the model (an unbounded line for a bounded outcome), not the strength of the relationship.</div></div>
+</section>
 </section>
 
 <section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">Done properly</div>
-<h2>Read the coefficients as odds ratios</h2>
+<div class="lesson-step-eyebrow">The key trick</div>
+<h2>Odds, and the log-odds</h2>
 
-<p>Log-odds are the scale the math likes; odds ratios are the scale humans understand. Exponentiate a coefficient and it stops <em>adding</em> on the log scale and starts <em>multiplying</em> on the odds scale:</p>
+<p>Here is the idea that rescues everything. We cannot let a line loose on a probability, because a probability is trapped between 0 and 1 and a line is not. So instead of modeling the probability directly, we first <em>stretch</em> it onto a scale that runs the whole number line, model that with a line, and stretch back at the end. The stretching happens in two steps.</p>
 
-<p>\[ e^{\beta_1} = \frac{\text{odds at } x+1}{\text{odds at } x} \]</p>
+<p><strong>Step one: odds.</strong> The <strong>odds</strong> of selling out is the probability it happens divided by the probability it does not:</p>
 
-<p>So \(e^{\beta_1}\) is the <strong>odds ratio</strong>: the factor by which the odds of buying are multiplied for a one-unit rise in that predictor, holding the others fixed. Exponentiate the whole table, with its confidence interval, in one line.</p>
+<p>\[ \text{odds} = \frac{p}{1-p} \]</p>
+
+<p>where \(p\) is the probability of selling out. This is the language of betting. If \(p = 0.75\), the odds are \(0.75 / 0.25 = 3\): three sell-out days for every one quiet day, "3 to 1 on". Odds fix the ceiling problem: as \(p\) climbs toward 1 the odds shoot off toward infinity. But odds still cannot go below 0.</p>
+
+<p><strong>Step two: the log-odds, or logit.</strong> Take the natural logarithm of the odds:</p>
+
+<p>\[ \operatorname{logit}(p) = \log\frac{p}{1-p} \]</p>
+
+<p>The log is the final stretch. A log turns a number between 0 and 1 into a <em>negative</em> number, and a number above 1 into a positive one, so the log-odds runs all the way from minus infinity to plus infinity. See the two transformations on five example probabilities:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(exp(cbind(OR = coef(fit), confint.default(fit))), 3)
-#&gt;                OR  2.5 % 97.5 %
-#&gt; (Intercept) 0.004  0.001  0.019
-#&gt; temp        1.256  1.181  1.336
-#&gt; member      5.170  2.263 11.810</div>
+    <div class="webr-editor" data-language="r">p &lt;- c(0.05, 0.25, 0.5, 0.75, 0.95)            # five example probabilities
+data.frame(p, odds = round(p / (1 - p), 2), log_odds = round(log(p / (1 - p)), 2))
+#&gt;      p  odds log_odds
+#&gt; 1 0.05  0.05    -2.94
+#&gt; 2 0.25  0.33    -1.10
+#&gt; 3 0.50  1.00     0.00
+#&gt; 4 0.75  3.00     1.10
+#&gt; 5 0.95 19.00     2.94</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -165,67 +162,67 @@ round(coef(summary(fit)), 4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Now it speaks plainly. Each extra degree multiplies the odds of buying by <strong>1.256</strong>, about a 26% rise in the odds per degree, and we are 95% confident that multiplier is between 1.18 and 1.34. A loyalty <code>member</code> has about <strong>5.2 times</strong> the odds of buying that a non-member has at the same temperature. Because the interval for each runs entirely above 1, both effects are clearly positive.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">An odds ratio multiplies the <em>odds</em>, not the <em>probability</em>. Doubling the odds does not double the probability: going from odds 1 to 2 lifts probability from 0.50 to 0.67, but going from odds 0.01 to 0.02 barely moves probability at all. Always translate back to a probability (next step) before you make a real decision.</div></div>
+<p>Notice the symmetry. A fifty-fifty day (\(p = 0.5\)) has odds of exactly 1 and log-odds of exactly 0, the natural centre. Probabilities below a half give negative log-odds, above a half give positive, and the scale has no top and no bottom. That unbounded log-odds is the thing we are finally allowed to fit a straight line to.</p>
 </section>
 
 <section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>What does the member coefficient mean?</h2>
+<h2>Odds are not probability</h2>
 
-<p>The fitted model reports a <code>member</code> coefficient of <strong>1.643</strong> on the log-odds scale (its exponential is about 5.2). A customer asks Priya what that means. Which statement is correct?</p>
+<p>On a warm afternoon the model reports the odds of selling out as 3. Priya's new hire writes "probability = 3" on the whiteboard. What is the actual probability of selling out?</p>
 <section class="exercise" data-exercise-id="Logistic-Regression-Done-Properly-step6" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Members are 1.643 times as likely to buy as non-members</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The probability of buying goes up by 1.643 for a member</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A member has about 5.2 times the odds of buying that a non-member has, at the same temperature</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The odds ratio is exp(1.643) = 5.17. It multiplies the odds, holds temperature fixed, and is a statement about odds, which you would still convert to a probability for any single customer.</div><div class="lesson-qfb lesson-qfb-no">A probability can never rise by 1.643, it cannot even exceed 1. Logistic coefficients are not added to a probability; they are added to the log-odds, then turned back into a probability through the S-curve.</div></div>
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">3, or 300 percent: the odds are the probability</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">0.75: odds of 3 mean three sell-out days for every one quiet day, so p = 3 / (3 + 1)</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">0.3: just shift the decimal point on the odds</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. To convert odds back to a probability, use \(p = \text{odds}/(1+\text{odds}) = 3/4 = 0.75\). Three-to-one on is a 75 percent chance.</div><div class="lesson-qfb lesson-qfb-no">There is no shift-the-decimal rule. Convert odds to probability with \(p = \text{odds}/(1+\text{odds})\), which gives \(3/4 = 0.75\), not 0.3.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
-<div class="lesson-step-eyebrow">Your turn</div>
-<h2>Predict probabilities for new customers</h2>
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The S-curve</div>
+<h2>The logistic function turns a line back into a probability</h2>
 
-<p>Priya wants the actual probability of a sale for four situations, not the log-odds. <code>predict()</code> defaults to the log-odds scale; you have to ask for <code>type = &quot;response&quot;</code> to get a probability back. Fill in the blank, then check it.</p>
-<section class="exercise" data-exercise-id="Logistic-Regression-Done-Properly-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="[&quot;&#x27;]response[&quot;&#x27;]"><textarea class="lesson-tryit-input" spellcheck="false">new &lt;- data.frame(temp = c(12, 25, 25, 32),
-                  member = c(0, 0, 1, 1))
-new$p_buy &lt;- round(predict(fit, newdata = new, type = ____), 3)   # we want a probability
-new</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. type = response returns probabilities: 0.062 on a cold non-member day, 0.563 for a non-member at 25 degrees, 0.870 for a member at 25, and 0.971 for a member on a hot day. Same model, finally on a scale Priya can act on.</span><span class="lesson-tryit-fb lesson-tryit-no">Ask for the probability scale: type = "response" (in quotes). The default, type = "link", returns the log-odds, which Priya cannot use directly.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">new &lt;- data.frame(temp = c(12, 25, 25, 32),
-                  member = c(0, 0, 1, 1))
-new$p_buy &lt;- round(predict(fit, newdata = new, type = &quot;response&quot;), 3)
-new
-#&gt;   temp member p_buy
-#&gt; 1   12      0 0.062
-#&gt; 2   25      0 0.563
-#&gt; 3   25      1 0.870
-#&gt; 4   32      1 0.971</code></pre></details></div>
+<p>Now we can state logistic regression in one line. We fit a straight line to the <strong>log-odds</strong> of selling out:</p>
+
+<p>\[ \log\frac{p}{1-p} = \eta, \qquad \eta = \beta_0 + \beta_1 x \]</p>
+
+<p>Here \(\eta\) (the Greek letter eta) is the log-odds, \(x\) is the day's temperature, \(\beta_0\) is the intercept and \(\beta_1\) is the slope, exactly the two numbers <code>lm()</code> gives you, except now they live on the log-odds scale instead of the cups scale.</p>
+
+<p>That equation predicts a log-odds, but Priya wants a probability. So we run \(\eta\) back through the inverse of the logit, the <strong>logistic function</strong> (also called the sigmoid):</p>
+
+<p>\[ p = \frac{1}{1 + e^{-\eta}} \]</p>
+
+<p>This is the S-curve on the cover, and it is doing one job: taking any number the line produces, from a very negative \(\eta\) to a very positive one, and gently squashing it into the interval between 0 and 1. A huge negative \(\eta\) gives \(p\) near 0; \(\eta = 0\) gives exactly \(p = 0.5\); a huge positive \(\eta\) gives \(p\) near 1. The bound can never be broken, because the sigmoid physically cannot output a number outside 0 to 1. Drag the threshold on the curve below and watch how a smooth probability, not a straight line, tracks the data.</p>
+<div class="lesson-widget" data-widget-type="logistic-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Fit it with glm()</h2>
+
+<p>You do not fit this by least squares. R has a dedicated function, <code>glm()</code> (generalized linear model), which fits by <strong>maximum likelihood</strong>: it searches for the coefficients that make the exact pattern of 0s and 1s Priya actually observed as probable as possible. One argument switches <code>glm()</code> from ordinary regression into logistic regression: <code>family = binomial</code>. "Binomial" is the distribution of a yes/no outcome, so it tells <code>glm()</code> to expect 0s and 1s and to fit on the log-odds scale. Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Logistic-Regression-Done-Properly-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="binomial"><textarea class="lesson-tryit-input" spellcheck="false">fit &lt;- glm(soldout ~ temp, data = coffee, family = ____)
+round(coef(fit), 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. family = binomial is the single switch that makes glm() fit a logistic regression: a straight line on the log-odds scale, squashed through the sigmoid into a probability.</span><span class="lesson-tryit-fb lesson-tryit-no">Set family = binomial. That one argument is what turns glm() from ordinary least squares into logistic regression for a 0/1 outcome.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">fit &lt;- glm(soldout ~ temp, data = coffee, family = binomial)
+round(coef(fit), 3)
+#&gt; (Intercept)        temp 
+#&gt;     -10.642       0.392</code></pre></details></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="widget">
-<div class="lesson-step-eyebrow">From probability to decision</div>
-<h2>Pick a threshold, then read the confusion matrix</h2>
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the output</div>
+<h2>What the coefficient table says</h2>
 
-<p>A probability is an answer to "how likely," but a decision needs a yes or a no. To get there you choose a <strong>threshold</strong>: predict "will buy" when the probability is at or above it, "will not" below. The obvious choice is 0.5, but it is just a dial, and where you set it changes who you get right and who you get wrong.</p>
-
-<p>Slide the threshold below. Watch the <strong>operating point</strong> (where your current cutoff lands) travel along the <strong>ROC curve</strong>, the path traced by every possible cutoff, plotting the share of real buyers you catch against the share of non-buyers you wrongly flag, while the <strong>confusion matrix</strong> (the four-way tally of predicted-versus-actual) re-counts. Lower the cutoff and you catch more true buyers (fewer false negatives) at the cost of more false alarms (more false positives); raise it and the trade reverses.</p>
-
-<p>Here is that same tally for Priya's real fitted model at the default 0.5 cutoff, with its overall accuracy.</p>
+<p><code>summary()</code> gives the same shape of table you have read since Lesson 1, an estimate, a standard error, and a test for each coefficient. The only change is the scale.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">p_hat &lt;- predict(fit, type = &quot;response&quot;)     # P(buy) for every visit in the data
-pred  &lt;- ifelse(p_hat &gt;= 0.5, 1, 0)          # classify at the 0.5 cutoff
-table(predicted = pred, actual = visits$bought)
-#&gt;          actual
-#&gt; predicted  0  1
-#&gt;         0 84 19
-#&gt;         1 21 76
-mean(pred == visits$bought)                  # accuracy at this threshold
-#&gt; [1] 0.8</div>
+    <div class="webr-editor" data-language="r">round(summary(fit)$coef, 3)
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  -10.642      2.471  -4.306        0
+#&gt; temp           0.392      0.091   4.282        0</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -235,45 +232,174 @@ mean(pred == visits$bought)                  # accuracy at this threshold
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The model is right 80% of the time, but the 19 false negatives (real buyers it missed) and 21 false positives (no-shows it flagged) are not equally costly to Priya, and the threshold is the knob that balances them.</p>
-<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
+<p>The <code>temp</code> estimate is <strong>0.392</strong>. Read it exactly as you would a linear slope, but on the log-odds scale: <strong>each extra degree adds 0.392 to the log-odds</strong> of selling out. The sign is what you check first, and it is positive, so hotter days really do raise the chance of selling out, just as the scatter promised.</p>
 
-<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Choosing the cutoff</h2>
-
-<p>Priya would rather slightly over-prepare than miss a real customer, so missing a true buyer (a false negative) costs her more than a false alarm. Starting from the default 0.5 cutoff, what should she do, and what is the side effect?</p>
-<section class="exercise" data-exercise-id="Logistic-Regression-Done-Properly-step9" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Lower the threshold below 0.5: she will catch more true buyers, but flag more non-buyers as well</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Raise the threshold above 0.5: a stricter cutoff is always the safer, more accurate choice</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Leave it at 0.5, because 0.5 is the statistically correct threshold for any logistic model</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. A lower cutoff classifies more customers as "will buy," which raises the true-positive rate (fewer missed buyers) and unavoidably raises the false-positive rate too. That is the threshold trade, and it is the right call when a miss costs more than a false alarm.</div><div class="lesson-qfb lesson-qfb-no">0.5 is a default, not a law. The right threshold depends on the relative cost of the two errors. Logistic regression gives you a probability; the cutoff is a business decision layered on top.</div></div>
-</section>
+<p>The test column is labelled <code>z value</code> and <code>Pr(&gt;|z|)</code> rather than <code>t value</code> and <code>Pr(&gt;|t|)</code>, because logistic regression uses a normal (z) approximation instead of the t distribution, but you read it the same way: a z of 4.28 with a p-value of essentially 0 says this slope is very unlikely to be a fluke of these 60 days. The temperature effect is real. What the 0.392 is <em>worth</em> in plain language is the next step.</p>
 </section>
 
 <section class="lesson-step" data-step="10" data-step-type="concept">
-<div class="lesson-step-eyebrow">Done properly</div>
-<h2>Where logistic regression breaks</h2>
+<div class="lesson-step-eyebrow">Making it readable</div>
+<h2>Odds ratios: exponentiate the coefficient</h2>
 
-<p>Logistic regression is sturdy, but "done properly" means knowing its limits as well as its formulas.</p>
+<p>A change of "0.392 in log-odds per degree" means nothing to Priya. To make it speak, undo the logarithm: raise \(e\) to the coefficient. Because the log-odds is a <em>log</em> of the odds, exponentiating a slope turns an <em>addition</em> on the log-odds scale into a <em>multiplication</em> on the odds scale. That multiplier, \(e^{\beta_1}\), is called the <strong>odds ratio</strong>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(exp(coef(fit)), 3)
+#&gt; (Intercept)        temp 
+#&gt;       0.000       1.479</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The odds ratio for <code>temp</code> is <strong>1.479</strong>. Read it as: <em>each extra degree multiplies the odds of selling out by about 1.48</em>, a 48 percent increase in the odds per degree. Ten degrees warmer is not ten times 48 percent; it is 1.48 multiplied by itself ten times (\(1.48^{10} \approx 50\)), because the effect compounds on the odds scale. That single number, "warmer by a degree, roughly one-and-a-half times the odds", is how a logistic model is reported in practice.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Ignore the intercept's odds ratio of 0.000 here. The intercept is the log-odds at <code>temp = 0</code>, a zero-degree day far below any temperature in Priya's data, so exponentiating it just gives the (astronomically small) odds of selling out in the freezing cold. It is a mathematical anchor for the line, not a number to interpret on its own.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Turn the model into a probability</h2>
+
+<p>The coefficients live on the log-odds scale, so to get a probability you push the log-odds back through the sigmoid. <code>plogis()</code> is R's name for that logistic function \(1/(1+e^{-\eta})\). Here is the whole round trip by hand for a 30-degree day:</p>
+<section class="exercise" data-exercise-id="Logistic-Regression-Done-Properly-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="[&quot;&#x27;]response[&quot;&#x27;]"><textarea class="lesson-tryit-input" spellcheck="false">b &lt;- unname(coef(fit))                 # b[1] = intercept, b[2] = the temp slope
+round(b[1] + b[2] * 30, 3)             # the log-odds for a 30-degree day
+#&gt; [1] 1.107
+round(plogis(b[1] + b[2] * 30), 3)     # the same thing as a probability
+#&gt; [1] 0.752</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. type = response runs the log-odds through the sigmoid and returns probabilities: 0.057 on a 20-degree day, 0.580 at 28, 0.935 at 34. The default (type = link) would hand back the raw log-odds instead.</span><span class="lesson-tryit-fb lesson-tryit-no">Use type = "response". Without it, predict() returns the log-odds (the linear predictor); "response" applies the sigmoid so you get a probability between 0 and 1.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">newday &lt;- data.frame(temp = c(20, 28, 34))
+round(predict(fit, newday, type = &quot;response&quot;), 3)
+#&gt;     1     2     3 
+#&gt; 0.057 0.580 0.935</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="widget">
+<div class="lesson-step-eyebrow">Probability to decision</div>
+<h2>Choosing a threshold</h2>
+
+<p>The model outputs a probability, but Priya's actual decision is binary: brew an extra batch, or don't. To get from a probability to a yes/no call you pick a <strong>threshold</strong> and predict "sold out" whenever the probability clears it. The default is 0.5, but 0.5 is a choice, not a law. Every threshold produces a <strong>confusion matrix</strong>, a 2 by 2 count of how the predictions line up against what really happened.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prob &lt;- predict(fit, type = &quot;response&quot;)    # a fitted probability for each of the 60 days
+table(prediction = ifelse(prob &gt;= 0.5, &quot;sold out&quot;, &quot;cups left&quot;),
+      actual     = coffee$soldout)
+#&gt;            actual
+#&gt; prediction   0  1
+#&gt;   cups left 30  5
+#&gt;   sold out   6 19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 0.5 the model misses <strong>5</strong> real sell-out days (it said "cups left" when she actually sold out, the <strong>false negatives</strong>) and cries wolf on <strong>6</strong> quiet days (<strong>false positives</strong>). Lower the bar to 0.3 and it flags more days as "sold out":</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(prediction = ifelse(prob &gt;= 0.3, &quot;sold out&quot;, &quot;cups left&quot;),
+      actual     = coffee$soldout)
+#&gt;            actual
+#&gt; prediction   0  1
+#&gt;   cups left 29  4
+#&gt;   sold out   7 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The false negatives drop from 5 to 4, but the false positives rise from 6 to 7. That is the whole trade: a lower threshold catches more real sell-outs at the price of more false alarms. Which way Priya leans depends on her costs, not on statistics: a wasted batch is cheap, a sold-out disappointed queue is not, so she might well set the bar below 0.5. Drag the threshold below and watch the false positives and false negatives trade off against each other.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The full picture of "the model at every threshold at once" is the ROC curve, and the single number that summarizes it is the AUC. Those belong to reading a <em>classifier</em>, which you study in the Classification track; here the point is narrower and important: the fitted probability is fixed by the model, but the yes/no decision is a separate dial you set by hand.</div></div>
+<div class="lesson-widget" data-widget-type="logistic-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which way does the threshold move?</h2>
+
+<p>Priya lowers her decision threshold from 0.5 to 0.3 so she is quicker to brew a backup batch. What happens to the <strong>false negatives</strong>, the sell-out days her model fails to flag?</p>
+<section class="exercise" data-exercise-id="Logistic-Regression-Done-Properly-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Fewer false negatives: a lower bar flags more days as "sold out", so the model misses fewer real sell-out days, at the cost of more false alarms</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">More false negatives: a lower threshold is stricter, so it flags fewer days</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing changes: the threshold only affects the fitted probabilities, not the predictions</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Lowering the threshold makes the model quicker to shout "sold out", so more genuine sell-out days get caught (fewer false negatives) while more quiet days get flagged by mistake (more false positives).</div><div class="lesson-qfb lesson-qfb-no">The fitted probabilities are fixed by the model. The threshold is precisely the dial that turns those probabilities into yes/no predictions, so moving it changes every count in the confusion matrix.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">Done properly</div>
+<h2>Is the coefficient even real?</h2>
+
+<p>"Done properly" is the difference between fitting a model and trusting one. The commonest mistake is to read a big odds ratio as a big discovery. Add <code>weekend</code> to the model and see the trap.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit2 &lt;- glm(soldout ~ temp + weekend, data = coffee, family = binomial)
+round(summary(fit2)$coef, 3)
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  -10.983      2.562  -4.287    0.000
+#&gt; temp           0.399      0.093   4.291    0.000
+#&gt; weekend        0.591      0.879   0.672    0.501
+round(exp(coef(fit2)), 3)
+#&gt; (Intercept)        temp     weekend 
+#&gt;       0.000       1.490       1.806</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>weekend</code> odds ratio is <strong>1.806</strong>: on this reading a weekend nearly <em>doubles</em> the odds of selling out. It is tempting to announce that weekends drive sales. But look one column over: its p-value is <strong>0.501</strong>. With only a handful of weekend days in 60, the estimate is so uncertain that the data cannot tell this "doubling" apart from no effect at all. The size of an odds ratio is a claim; the p-value is the evidence for it, and here the evidence is absent. A coefficient is only real when both agree.</p>
+
+<p>Three more checks separate a proper logistic model from a careless one:</p>
 
 <ul>
 
-<li><strong>It is linear on the logit, not on the probability.</strong> A constant odds ratio per degree does not mean a constant change in probability per degree. Near the steep middle of the S-curve a degree moves the probability a lot; out at the flat tails it barely registers. Read effects as odds ratios, but make decisions from predicted probabilities.</li>
+<li><strong>The line is linear on the log-odds, not on the probability.</strong> The straight-line assumption still applies, just one scale up. If temperature's effect bends (say it barely matters until a heat threshold, then jumps), a single <code>temp</code> slope will miss it, exactly as a straight line misses a curve in ordinary regression.</li>
 
-<li><strong>Perfect separation blows it up.</strong> If some predictor splits the classes flawlessly (say every customer above 30 degrees bought and every one below did not), the best-fit coefficients run to infinity and their standard errors explode. R will often warn that fitted probabilities of 0 or 1 occurred; that is the symptom, and penalized methods (such as Firth's correction, via the <code>logistf</code> package) are the fix.</li>
+<li><strong>Watch for perfect separation.</strong> If some temperature split the days perfectly (every hot day sold out, every cool day did not), the maximum-likelihood fit tries to push a coefficient to infinity and the estimates and standard errors blow up. R warns about "fitted probabilities numerically 0 or 1"; treat it as a red flag, not a triumph.</li>
 
-<li><strong>A probability is calibrated uncertainty, not certainty.</strong> A predicted 0.62 does not promise this customer buys; it says that across many identical-looking customers, about 62% do. Treat it as a bet with a known edge, never as a verdict.</li>
-
-<li><strong>Significance is not size, and neither is causation.</strong> As in Lesson 6, a tiny p-value on a coefficient means the effect is <em>real</em>, not that it is <em>large</em> (read size from the odds ratio) and not that it is <em>causal</em> (that comes from how the data was gathered).</li>
+<li><strong>A probability is calibrated uncertainty, not a verdict.</strong> A predicted 0.75 means she should sell out on about three of every four such days, not that she <em>will</em> sell out. Model deviance (<code>fit$deviance</code>, the logistic stand-in for residual sum of squares) and AIC (a model-fit score that rewards a good fit but penalizes each extra predictor) let you compare models on how well those probabilities fit, without ever pretending a probability is a certainty.</li>
 
 </ul>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Done properly, logistic regression is four habits: model the log-odds, <em>report</em> coefficients as odds ratios, <em>decide</em> from predicted probabilities, and choose the threshold from the cost of each error, not from the number 0.5.</div></div>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="15" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>A big ratio, weak evidence</h2>
+
+<p>The two-predictor model gives <code>weekend</code> an odds ratio of 1.81 (weekends nearly double the odds of selling out) but a p-value of 0.50. Should Priya conclude that weekends drive her sell-outs?</p>
+<section class="exercise" data-exercise-id="Logistic-Regression-Done-Properly-step15" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes: an odds ratio of 1.81 is a large effect, so weekends clearly matter</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: a p-value of 0.50 means the data cannot tell this odds ratio apart from 1 (no effect), so the apparent weekend boost may well be noise</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, because any odds ratio above 1 always means the predictor has no effect</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. "Done properly" means reading the ratio and its evidence together. A large odds ratio with a p-value of 0.50 is a shrug, not a discovery; she would need far more weekend data before trusting it.</div><div class="lesson-qfb lesson-qfb-no">An odds ratio above 1 points to a positive effect, not "no effect". The reason to hold off is the weak evidence (p = 0.50), not the direction of the ratio.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
@@ -281,23 +407,23 @@ mean(pred == visits$bought)                  # accuracy at this threshold
 
 <ul>
 
-<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - the gentlest rigorous treatment of logistic regression, the logit, and reading the coefficients.</li>
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - section 4.3 builds logistic regression from the odds and the logit exactly as we did here, with the same <code>glm()</code> output.</li>
 
-<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 4 (free PDF)</a> - the full maximum-likelihood math behind how <code>glm</code> actually fits the model.</li>
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 4 (free PDF)</a> - the rigorous treatment: maximum likelihood, the logit link, and how logistic regression sits inside the wider GLM family you meet next.</li>
 
-<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">R documentation: glm()</a> - the function you used, with the meaning of the <code>family = binomial</code> argument.</li>
+<li><a href="https://stats.oarc.ucla.edu/r/dae/logit-regression/">Logistic Regression in R (UCLA OARC)</a> - a worked, copy-and-run R walkthrough of fitting <code>glm()</code>, reading coefficients, and turning them into odds ratios and predicted probabilities.</li>
 
-<li><a href="https://stats.oarc.ucla.edu/r/dae/logit-regression/">UCLA OARC: Logit regression in R</a> - a careful worked example of fitting, then interpreting odds ratios and predicted probabilities.</li>
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">R documentation: glm()</a> - the reference for the exact function you used, including every <code>family</code> and link option, the doorway to Lesson 8.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="17" data-step-type="complete">
 <h2>Lesson 7 complete</h2>
 
-<p>You can now model a yes/no outcome the right way. A probability is trapped in [0, 1], so logistic regression models its <strong>log-odds</strong> as a straight line and bends the result back through the <strong>S-curve</strong>, keeping every prediction between 0 and 1. You fit it with <code>glm(..., family = binomial)</code>, <em>report</em> its coefficients as <strong>odds ratios</strong> (<code>exp(beta)</code>, a multiplier on the odds), <em>predict</em> with <code>type = &quot;response&quot;</code> to get probabilities Priya can act on, and turn those probabilities into decisions by choosing a <strong>threshold</strong> from the cost of each error rather than defaulting to 0.5. And you know where it breaks: separation, the logit-not-probability scale, and probability as calibrated uncertainty.</p>
+<p>You can now model a yes-or-no outcome the right way. The chain is worth holding in one piece: a straight line cannot stay inside 0 and 1, so logistic regression models the <strong>log-odds</strong> with a line, \(\log\frac{p}{1-p} = \beta_0 + \beta_1 x\); the <strong>logistic (sigmoid)</strong> function squashes that line back into a probability; <code>glm(family = binomial)</code> fits it; <strong>exponentiating</strong> a coefficient turns it into an <strong>odds ratio</strong> you can say out loud; <code>predict(type = &quot;response&quot;)</code> returns probabilities; a <strong>threshold</strong> turns those probabilities into decisions; and "properly" means weighing an effect's size against its evidence, not reading a big odds ratio as proof.</p>
 
-<p>Next, Lesson 8: GLMs Beyond Logistic. Logistic regression is one member of a whole family. When the outcome is a <em>count</em> (how many complaints this week) or a <em>rate</em>, a different link and family fit better. You will meet Poisson and the wider generalized linear model, and learn to match the model to the response.</p>
+<p>Next, Lesson 8: GLMs Beyond Logistic. Logistic regression is one member of a whole family. Swap the yes/no outcome for a <em>count</em> (how many cups) or a <em>skewed positive amount</em> (how much revenue) and the same recipe, a link function plus a matching distribution, gives you Poisson and Gamma regression. Once you see logistic as a special case, the rest of the family falls into place.</p>
 </section>
 
 {% endraw %}
