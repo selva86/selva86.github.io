@@ -1,8 +1,8 @@
 ---
 title: "Gradient Boosting Lesson 6: Quantile Regression Forests and Prediction Intervals"
 catalog_blurb: "Predict a range of likely outcomes, not just one number."
-description: "Go past a single prediction: use quantiles and a quantile regression forest to predict a low-to-high interval in R, and check that the interval actually holds."
-keywords: "quantile regression forest, prediction interval, quantile loss, pinball loss, quantregForest, ranger quantreg, confidence vs prediction interval, randomForest in R"
+description: "A single forecast is not a plan. Turn a random forest into prediction intervals in R: read quantiles from the outcomes stored in each leaf, then check the coverage."
+keywords: "quantile regression forest, prediction interval, quantile loss, pinball loss, random forest, coverage, conditional quantile, uncertainty, ranger, quantregForest, R"
 post_type: "LESSON"
 curriculum_id: "6.40.6"
 webr: true
@@ -13,7 +13,7 @@ course_title: "Gradient Boosting in R"
 course_lesson: "6"
 course_total: "6"
 course_landing: "R-Gradient-Boosting-Course.html"
-course_next: ""
+course_next: "Gradient-Boosting-Quiz.html"
 course_prev: "Monotonic-Constraints-for-Business-Rules.html"
 ---
 
@@ -21,243 +21,279 @@ course_prev: "Monotonic-Constraints-for-Business-Rules.html"
 ::eyebrow Lesson 6 of 6
 ## Quantile Regression Forests and Prediction Intervals
 
-In Lesson 5 you fixed the DIRECTION of a model's prediction. This last lesson fixes something every model so far has quietly ignored: a single number hides how UNSURE the model is.
+In Lesson 5 you forced a model's predictions to move in a sensible DIRECTION. This last lesson fixes a different gap, one that every model in this course has left open: they all hand back a single number.
 
-Sam, who runs the bike-rental kiosks, asks his model how many bikes will go out tomorrow. It answers "210." Helpful, until Sam has to act on it. Stock exactly 210 and a busy day leaves customers turned away; stock 210 on a quiet day and dozens sit unused. What Sam actually needs is a range: "almost certainly between 175 and 245, most likely around 210." That low-to-high range is a **prediction interval**, and by the end of this lesson you will build one from a forest.
+Sam, who runs the bike-rental kiosks, asks his forecast one honest question the morning before a warm day: "How many bikes will go out tomorrow?" The model answers "about 210." But Sam does not run on a point estimate. He has to decide how many bikes to have serviced and how many staff to call in. "About 210" gives him no way to plan for a slow day or a rush. What he actually needs is a RANGE he can trust: "very likely somewhere between 130 and 279, and here is how sure I am."
 
-By the end you will be able to:
+That range is a **prediction interval**, and by the end of this lesson you will be able to:
 
-- Say what a prediction interval is, and why one point prediction is not enough
-- Read quantiles of past outcomes in R, and turn "a 90% interval" into the right cut points
-- Build a prediction interval from a quantile regression forest, and check that it actually holds
+- Say what a prediction interval is, and why it is not the same as a confidence interval
+- Read a quantile of past outcomes in R, and turn "a 90% interval" into the right pair of quantiles
+- Explain the quantile (pinball) loss and see, on real numbers, why its minimizer is a quantile
+- Build a prediction interval from a random forest in R, and check that it actually covers
 
-**Prerequisites:** you can run R, and you know what a random forest is (it averages many decision trees; the [Random Forests course](Random-Forest-Course.html) covers it). Lesson 1, [Gradient Boosting from Scratch](Gradient-Boosting-from-Scratch.html), helps but is not required. The chart below is the shape of the answer Sam wants: a band, not a line. The orange band is a prediction interval.
+**Prerequisites:** you can run R, and you know what a random forest is: an ensemble that averages many decision trees (the [Random Forests course](Random-Forest-Course.html) builds one from scratch). Lesson 1 of this course ([Gradient Boosting from Scratch](Gradient-Boosting-from-Scratch.html)) helps but is not required. The band below is the shape of the answer we are after: not a single line, but a range around it.
 
 ::widget regression-intervals {}
 
 === step === concept
 ::eyebrow The building block
-## A quantile is just a cut point in your outcomes
+## A quantile is a cut point in your outcomes
 
-Before intervals, one idea everything rests on: a **quantile**. Line up a set of numbers from smallest to largest. The 0.9 quantile (the 90th percentile) is the value that 90% of them fall below; the 0.5 quantile is the middle value, the **median**; the 0.05 quantile is the value only 5% fall below. A quantile is nothing more than a cut point in a sorted list of outcomes.
+Before we touch a forest, let us nail down the one word the whole lesson rests on: **quantile**.
 
-Here are Sam's rentals from his last 21 comparable days. Notice they do not pile up on one number, they spread out, and that spread is exactly what a single prediction throws away.
-
-::widget chart-plotter {"data":[{"x":206},{"x":162},{"x":247},{"x":190},{"x":275},{"x":184},{"x":220},{"x":150},{"x":231},{"x":204},{"x":258},{"x":178},{"x":212},{"x":195},{"x":238},{"x":170},{"x":201},{"x":225},{"x":198},{"x":216},{"x":209}],"geoms":["histogram"],"x":"rentals"}
-
-In R, `quantile()` reads those cut points straight off the data. Run it:
+Sam pulls the 21 most similar warm days from his records, the rentals on each:
 
 ```r
-past <- c(206, 162, 247, 190, 275, 184, 220, 150, 231, 204, 258,
-          178, 212, 195, 238, 170, 201, 225, 198, 216, 209)
-
-quantile(past, c(0.05, 0.50, 0.95))
-#>    5%   50%   95%
-#>   162   206   258
+past <- c(150, 162, 170, 176, 182, 188, 193, 197, 200, 203, 206,
+          210, 214, 219, 225, 231, 238, 246, 252, 258, 270)
 ```
 
-Read that as: on a day like these, the middle outcome is **206** bikes, 5% of days fell below **162**, and 5% rose above **258**. Those three numbers already sketch Sam's answer.
+A quantile is just a value that a given FRACTION of these outcomes fall below. The **median** is the 0.5 quantile: half the days came in under it. The 0.9 quantile is the value that 90% of days stayed below, and 10% beat. In R, `quantile()` reads them straight off the data:
+
+```r
+quantile(past, c(0.05, 0.50, 0.95))
+#>  5% 50% 95%
+#> 162 206 258
+```
+
+So on a day like these, half the time Sam rents fewer than 206 bikes; only the busiest 5% of days top 258; and only the slowest 5% fall below 162.
+
+[KEY INSIGHT]
+Write \(q_\tau\) for the quantile at level \(\tau\) (a fraction between 0 and 1). It is defined by \(P(Y \le q_\tau) = \tau\): the outcome \(Y\) lands at or below \(q_\tau\) a fraction \(\tau\) of the time. The median is \(q_{0.5}\); the two ends of a 90% interval are \(q_{0.05}\) and \(q_{0.95}\).
+
+Those three numbers, 162 / 206 / 258, already ARE a forecast with a range attached. The rest of the lesson is about getting them from a model, for any day, without hand-picking "similar days."
+
+::widget chart-plotter {"data":[{"x":150},{"x":162},{"x":170},{"x":176},{"x":182},{"x":188},{"x":193},{"x":197},{"x":200},{"x":203},{"x":206},{"x":210},{"x":214},{"x":219},{"x":225},{"x":231},{"x":238},{"x":246},{"x":252},{"x":258},{"x":270}],"geoms":["histogram"],"x":"rentals"}
 
 === step === concept
-::eyebrow Two ranges people confuse
-## Confidence interval vs prediction interval
+::eyebrow Two very different intervals
+## Where is the average, vs where will one day land
 
-Now a trap that catches even experienced analysts. There are two completely different "ranges," and using the wrong one quietly understates risk.
+A 90% prediction interval like [162, 258] answers Sam's real question: where will ONE new day land? That is different from a question people often confuse it with: where is the AVERAGE of warm days?
 
-- A **confidence interval** answers: where is the AVERAGE outcome? Where does the true mean demand sit? Collect more days and you pin the average down tighter and tighter.
-- A **prediction interval** answers: where will ONE NEW outcome land? How many bikes go out TOMORROW, a single noisy day?
+- A **confidence interval** is about the mean. "The average warm day rents 206 bikes, give or take a few." With more data, we pin the average down tighter and tighter, so this interval shrinks toward the line.
+- A **prediction interval** is about a single new outcome. "Tomorrow, one specific warm day, will very likely land between 162 and 258." It stays wide no matter how much data you gather, because a single day carries its own irreducible day-to-day noise.
 
-Sam needs the second. He is stocking for one specific day, not estimating a long-run average. Written with quantiles, an 80% prediction interval is just the pair
+Formally, a symmetric \(1 - 2\alpha\) prediction interval is \([\,q_\alpha,\ q_{1-\alpha}\,]\). For a 90% interval you set \(\alpha = 0.05\) and read \([\,q_{0.05},\ q_{0.95}\,]\), leaving 5% of outcomes to spill out each side.
 
-\[ \left[\,q_{0.10},\; q_{0.90}\,\right], \]
-
-where \(q_{\tau}\) is the \(\tau\)-quantile of the outcomes (the cut point a fraction \(\tau\) fall below). The interval runs from the 10th percentile to the 90th, so 80% of outcomes land inside it. Widen to \([q_{0.05}, q_{0.95}]\) and you have a 90% interval.
-
-The widget below makes the difference physical. Drag the sample size. The green confidence band collapses onto the line as data piles up, but the orange prediction band barely moves.
+Slide the sample size below. The green confidence band (about the mean) collapses onto the line as data grows. The orange prediction band (where a new point lands) barely budges. Sam needs the orange one.
 
 ::widget regression-intervals {}
 
-[KEY INSIGHT]
-More data shrinks a confidence interval toward zero, because you are only locating a mean. A prediction interval never shrinks to zero: tomorrow is still a single noisy day, and that irreducible spread is the floor. Confusing the two makes you far more confident than you should be.
-
 === step === quiz
 ::eyebrow Check yourself
-## Which range answers Sam's question?
+## Which interval does Sam need?
 
-Sam asks: "How many bikes will actually go out tomorrow?" He is stocking for that one day. Which interval answers him?
+Sam is stocking the kiosk for tomorrow, one specific warm day, and wants to know how many bikes could realistically go out. Which interval answers that?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- A confidence interval, because it pins down the demand he should plan around ::no That locates the long-run AVERAGE day. Tomorrow is one specific, noisy day; a confidence interval is far too narrow for it and would leave Sam short on busy days.
-- A prediction interval, because it covers where a single new day's rentals will land ::ok Exactly. A prediction interval is built for one new outcome, noise and all, which is exactly the day Sam has to stock for.
-- Neither; the point prediction of 210 already tells him enough ::no 210 is the middle guess with no sense of risk. Plan on exactly 210 and you are wrong-sided on roughly half your days.
+- A confidence interval, because it is the standard way to report uncertainty ::no A confidence interval is about the AVERAGE warm day. It shrinks as data grows and would be far too narrow for a single day, so Sam would under-stock. He needs the interval for one new outcome.
+- A prediction interval, because he is asking about one new day's outcome ::ok Right. Stocking is a decision about a single day, so he needs the range a new outcome could fall in, not the range for the mean.
+- Neither, a single point prediction is enough to stock the kiosk ::no A point prediction gives no sense of a slow day or a rush, so it cannot tell Sam how much slack to keep. A range is exactly what the decision needs.
 
 === step === concept
-::eyebrow How you target one quantile
-## The quantile loss is lopsided on purpose
+::eyebrow How you aim at a quantile
+## The check loss: penalise under and over differently
 
-To predict the median you minimize squared error and out comes the mean-ish middle. But how do you aim a model at the 90th percentile instead of the middle? You change what counts as a mistake, using the **quantile loss** (also called the pinball loss).
+To get quantiles from a model we need a way to TELL a model "aim at the 90th percentile, not the average." That job is done by the **quantile loss**, also called the **check** or **pinball** loss.
 
-Pick a quantile level \(\tau\) (say \(\tau = 0.9\) for the 90th percentile). For an actual outcome \(y\) and a guess \(q\), the loss is
-
-\[ L_{\tau}(y, q) \;=\; \max\!\big(\tau\,(y - q),\; (\tau - 1)\,(y - q)\big), \]
-
-where \(y\) is the real number of rentals, \(q\) is the model's guess, and \(\tau\) is the quantile level between 0 and 1. The `max` just selects between two cases: when you UNDER-guess (\(q < y\)) the penalty grows at rate \(\tau\); when you OVER-guess (\(q > y\)) it grows at rate \(1 - \tau\). For \(\tau = 0.9\) that is a heavy 0.9 for under-guessing and a light 0.1 for over-guessing, so the cheapest place to sit is high up, right at the 90th percentile.
-
-The chart is that loss as a function of your guess: a lopsided V, steep on the left, shallow on the right, with its low point near the 0.9 quantile.
-
-::widget chart-plotter {"data":[{"x":150,"y":52.2},{"x":170,"y":35.6},{"x":190,"y":21.3},{"x":210,"y":11.2},{"x":230,"y":6.9},{"x":250,"y":5.8},{"x":270,"y":6.4},{"x":290,"y":8.2}],"geoms":["line","point"],"x":"guess","y":"loss","code":{"line":"ggplot(loss_df, aes(guess, loss)) +\n  geom_line()","point":"ggplot(loss_df, aes(guess, loss)) +\n  geom_point()"}}
-
-Watch the loss prefer a high guess over the middle, on Sam's same 21 days:
+The idea is simple: penalise guessing too low and guessing too high by DIFFERENT amounts. Here it is in R, written out plainly:
 
 ```r
-past <- c(206, 162, 247, 190, 275, 184, 220, 150, 231, 204, 258,
-          178, 212, 195, 238, 170, 201, 225, 198, 216, 209)
-
-# Average quantile (pinball) loss of a single guess q against all outcomes y.
-pinball <- function(q, y, tau) mean(ifelse(y >= q, tau * (y - q), (1 - tau) * (q - y)))
-
-# Guess the median (206) vs a high value (247), scored at the 0.9 level.
-c(guess_206 = pinball(206, past, 0.9),
-  guess_247 = pinball(247, past, 0.9))
-#> guess_206 guess_247
-#>  12.70000  5.752381
+check_loss <- function(error, tau) {
+  ifelse(error > 0, tau * error, (tau - 1) * error)
+}
 ```
 
-The high guess scores less than half the loss of the middle guess. Minimize this loss fully and the best guess is exactly `quantile(past, 0.9)` = 247. The lopsided penalty turns a prediction problem into a quantile.
+Here `error` is the actual value minus our guess, and `tau` is the quantile level we are aiming at. Let us watch it on concrete numbers with `tau = 0.9`, which cares about the 90th percentile:
+
+```r
+check_loss(15,  0.9)   # we guessed 15 UNDER the actual
+#> [1] 13.5
+check_loss(-15, 0.9)   # we guessed 15 OVER the actual
+#> [1] 1.5
+```
+
+Being 15 under costs 13.5, but being 15 over costs only 1.5, nine times cheaper. To dodge that steep under-guess penalty, the best guess is pushed UP, toward a high value the actual rarely exceeds: a high quantile. At `tau = 0.5` the two penalties are equal, so nothing is pushed either way and you land on the middle:
+
+```r
+check_loss(15,  0.5)   #> [1] 7.5
+check_loss(-15, 0.5)   #> [1] 7.5
+```
+
+In symbols, with residual \(e = y - \hat q\) (the actual \(y\) minus the guess \(\hat q\)):
+
+\[ L_\tau(e) = \begin{cases} \tau\, e & \text{if } e \ge 0 \\ (\tau - 1)\, e & \text{if } e < 0 \end{cases} \]
+
+Both branches come out positive: guess too low (\(e > 0\)) and you pay \(\tau\, e\); guess too high (\(e < 0\)) and you pay \((\tau - 1)\, e\), which is positive because both factors are negative.
+
+Now the payoff. Search for the single guess that makes the AVERAGE check loss over `past` smallest, and it lands exactly on the quantile:
+
+```r
+mean_pinball <- function(guess, tau) mean(check_loss(past - guess, tau))
+guesses <- 150:270
+
+guesses[which.min(sapply(guesses, mean_pinball, tau = 0.5))]   #> [1] 206
+guesses[which.min(sapply(guesses, mean_pinball, tau = 0.9))]   #> [1] 252
+quantile(past, c(0.5, 0.9))
+#>  50%  90%
+#>  206  252
+```
+
+The best guess at `tau = 0.5` is 206 (the median); at `tau = 0.9` it is 252 (the 90th percentile). Minimising the check loss IS a way of computing a quantile. That is the definition we will lean on next.
+
+::widget chart-plotter {"data":[{"x":-30,"y":3},{"x":-20,"y":2},{"x":-10,"y":1},{"x":0,"y":0},{"x":10,"y":9},{"x":20,"y":18},{"x":30,"y":27}],"geoms":["line"],"x":"error","y":"penalty","code":{"line":"ggplot(loss, aes(error, penalty)) +\n  geom_line()"}}
 
 === step === tryit
 ::eyebrow Your turn
-## Pick the cut points for a 90% interval
+## Turn "90% interval" into two quantiles
 
-A prediction interval is a pair of quantiles. For a **90% interval** you want the middle 90% of outcomes, so you trim 5% off each end. Fill in the two quantile levels that give a 90% interval of Sam's past rentals.
+A 90% prediction interval leaves 5% of outcomes below it and 5% above it. So its two ends are the 0.05 and the 0.95 quantiles of Sam's past days. Fill in the two levels below to read the 90% interval off `past`.
 
 ```r
-past <- c(206, 162, 247, 190, 275, 184, 220, 150, 231, 204, 258,
-          178, 212, 195, 238, 170, 201, 225, 198, 216, 209)
-
-quantile(past, ____)   # the low and high cut points of a 90% interval
+quantile(past, c(____, ____))
 ```
-::check {"regex":"c\\(\\s*0?\\.05\\s*,\\s*0?\\.95\\s*\\)","gate":true,"difficulty":"beginner","ok":"Right. A 90% interval trims 5% off each tail, so it runs from the 0.05 quantile to the 0.95 quantile: c(0.05, 0.95) gives 162 to 258.","no":"For 90% in the middle you leave 5% in each tail, not 10%. Use the 0.05 and 0.95 quantiles: c(0.05, 0.95)."}
+::check {"regex":"quantile.*past.*0\\.05.*0\\.95","gate":true,"difficulty":"intermediate","ok":"That is the 90% interval: 162 to 258. A 90% interval always splits the leftover 10% evenly, 5% into each tail.","no":"A 90% interval leaves 5% in each tail, so the ends are the 0.05 and 0.95 quantiles. (0.10 and 0.90 would give an 80% interval.)"}
 ::solution
 ```r
 quantile(past, c(0.05, 0.95))
-#>   5%  95%
-#>  162  258
+#>  5% 95%
+#> 162 258
 ```
 
 === step === concept
-::eyebrow The forest already knows
-## Quantile regression forests: read the leaf, not the average
+::eyebrow The idea
+## A forest already stores every outcome you need
 
-Here is the elegant part. You do not need a special model or a loss function to get every quantile. A plain regression forest already has what you need sitting in its leaves.
+Here is the quiet fact that makes this easy. A regression forest is built from trees, and every tree sorts a new day down into a **leaf**, a small group of training days that ended up together. The ordinary forest prediction is just the AVERAGE of the outcomes in those leaves.
 
-Recall how a forest predicts: a new day drops down each tree to a leaf, and that leaf holds the training days that landed there too. An ordinary forest **averages** those leaf outcomes to get one number. Leo Breiman's student Nicolai Meinshausen noticed you can keep the whole pool instead and take any **quantile** of it. Same forest, same fit, but now it reports a full distribution of likely outcomes rather than a single mean. That is a **quantile regression forest**.
+But averaging throws information away. Before it computes that average, each leaf is holding a whole BAG of training outcomes, the actual rentals of every day that landed there. That bag already describes the spread of what happens on days like tomorrow. So:
 
-::widget process-flow {"steps":[{"title":"Grow a forest","sub":"fit an ordinary regression forest; each leaf keeps the training outcomes that fall in it"},{"title":"Gather the leaf outcomes","sub":"for a new day, find its leaf in every tree and pool all of those outcomes"},{"title":"Read the quantiles","sub":"take the 5th, 50th and 95th percentile of the pool - that pair is your interval"}]}
+- **Average** the outcomes in the matching leaves, and you get the usual point prediction.
+- **Take a quantile** of those same outcomes instead, and you get a quantile prediction.
 
-[KEY INSIGHT]
-One fit gives you every quantile at once. You never train a separate model per quantile; you just ask the same pooled outcomes a different question. The interval also adapts to the data: in a noisy region the leaf pool is wide, so the interval is wide; in a calm region it is tight.
+That is the entire trick behind a **quantile regression forest** (Meinshausen, 2006): grow one perfectly ordinary forest, then read percentiles of the outcomes its leaves collected instead of collapsing them to a mean. One fit gives you every quantile, and therefore any prediction interval you like. The recipe is three steps:
+
+::widget process-flow {"steps":[{"title":"Drop the day down every tree","sub":"tomorrow lands in one leaf per tree in the forest"},{"title":"Pool the neighbours","sub":"gather the training outcomes sharing those leaves"},{"title":"Read the quantiles","sub":"percentiles of that pool are the interval"}]}
 
 === step === concept
-::eyebrow In R
-## Build the interval from a forest
+::eyebrow Build it in R
+## A prediction interval from an ordinary forest
 
-Let us do exactly that for Sam. We grow an ORDINARY `randomForest` (no quantile package), then ask each tree which leaf every day lands in. For tomorrow, we pool every training day that shared its leaf across all the trees and read the quantiles of that pool. Each lesson runs in a fresh R session, so we build Sam's season right here.
+Let us build it on a full season of Sam's data. The key twist we bake in on purpose: the SPREAD of rentals grows with temperature, so warm days are genuinely harder to call than cold ones. We grow a plain `randomForest`, nothing special about it.
 
 ```r
 library(randomForest)
 set.seed(1)
+n <- 600
+temp    <- round(runif(n, 5, 35), 1)                          # daily high, Celsius
+rentals <- round(rnorm(n, mean = 40 + 6 * temp, sd = 8 + 1.6 * temp))
+bikes   <- data.frame(temp, rentals)
 
-# One season of Sam's kiosk: 400 days. Demand falls as price rises, climbs with
-# nicer weather, and is higher at weekends - plus ordinary day-to-day noise.
-n <- 400
-season <- data.frame(
-  price   = round(runif(n, 3, 9), 1),
-  temp    = round(runif(n, 5, 30), 1),
-  weekend = rbinom(n, 1, 2 / 7)
-)
-season$rentals <- round(180 - 14 * season$price + 4 * season$temp +
-                        25 * season$weekend + rnorm(n, 0, 18))
+train <- bikes[1:450, ]     # days to learn from
+test  <- bikes[451:600, ]   # held out, to check our intervals later
 
-train <- season[1:300, ]
-test  <- season[301:400, ]
-
-# An ordinary regression forest - nothing special, no quantile setting.
-rf <- randomForest(rentals ~ price + temp + weekend, data = train,
-                   ntree = 200, nodesize = 20)
-
-# For every training day, the leaf it lands in, in each of the 200 trees.
-train_leaf <- attr(predict(rf, train, nodes = TRUE), "nodes")   # 300 x 200
-
-# Tomorrow: a $6.50 price, 24 degrees, a weekend.
-tomorrow <- data.frame(price = 6.5, temp = 24, weekend = 1)
-tmr_leaf <- attr(predict(rf, tomorrow, nodes = TRUE), "nodes")  # 1 x 200
-
-# Pool every training day's rentals that shared tomorrow's leaf, across all trees.
-neighbours <- unlist(lapply(seq_len(ncol(train_leaf)),
-                     function(t) train$rentals[train_leaf[, t] == tmr_leaf[1, t]]))
-
-# The forest's full predictive distribution for tomorrow - read off any quantiles.
-quantile(neighbours, c(0.05, 0.50, 0.95))
-#>      5%     50%     95%
-#>  176.0   208.0   243.0
+rf <- randomForest(rentals ~ temp, data = train, ntree = 150, nodesize = 25)
+predict(rf, data.frame(temp = 30))     # the usual single-number forecast
+#>        1
+#> 224.8302
 ```
 
-There it is: Sam should expect about **208** bikes tomorrow, almost surely between **176 and 243**. He stocks for the high end and staffs for the middle, with the risk made explicit instead of hidden inside a single "210."
-
-[NOTE]
-The same trick works for a booster. Train a gradient-boosting model on this exact pinball loss (for example XGBoost's `reg:quantileerror`) and it predicts one chosen quantile per fit. The forest's advantage is that ONE fit hands you every quantile, because the leaf outcomes are already there to read.
-
-=== step === concept
-::eyebrow Does it hold up?
-## Check the coverage, and know the edges
-
-A prediction interval is only as good as its honesty. A 90% interval should contain the real outcome about 90% of the time, no more, no less. We can test that on the held-out days the forest never trained on: build each day's interval and count how often the actual rentals fall inside.
+That 224.8 is the average the forest reports for a 30C day. Now we do NOT collapse the leaves. We ask which leaf a 30C day falls into on each tree with `nodes = TRUE`, then pool every training day that shares one of those leaves, and read its quantiles.
 
 ```r
-# Reuse the forest and leaves from the previous block.
-test_leaf <- attr(predict(rf, test, nodes = TRUE), "nodes")   # 100 x 200
+# which leaf each TRAINING day falls into, in every tree  (450 x 150)
+leaf_train <- attr(predict(rf, train, nodes = TRUE), "nodes")
 
-covered <- logical(nrow(test))
-for (i in seq_len(nrow(test))) {
-  pool <- unlist(lapply(seq_len(ncol(train_leaf)),
-                 function(t) train$rentals[train_leaf[, t] == test_leaf[i, t]]))
-  band <- quantile(pool, c(0.05, 0.95))      # a 90% prediction interval
-  covered[i] <- test$rentals[i] >= band[1] & test$rentals[i] <= band[2]
+new_day  <- data.frame(temp = 30)
+leaf_new <- attr(predict(rf, new_day, nodes = TRUE), "nodes")   # 1 x 150
+
+# pool every training rental that shared the new day's leaf, tree by tree
+pool <- c()
+for (t in 1:ncol(leaf_train)) {
+  shares_leaf <- leaf_train[, t] == leaf_new[1, t]
+  pool <- c(pool, train$rentals[shares_leaf])
 }
-mean(covered)        # share of real outcomes inside the 90% interval
-#> [1] 0.91
+length(pool)
+#> [1] 2497
+quantile(pool, c(0.05, 0.50, 0.95))
+#>  5% 50% 95%
+#> 130 208 279
 ```
 
-About 91% of held-out days landed inside their 90% interval, almost bang on target. That single number is how you earn trust in an interval: not by eye, but by checking it covers what it claims.
+There it is: for a 30C day, a median of 208 and a 90% prediction interval of **130 to 279**, all from one ordinary forest. The point prediction (224.8) is the forest's average and sits inside the interval; the median (208) is just a different summary of the same leaves, so the two do not have to line up. Either way, Sam now has the range, not just one number.
 
-In production you would not hand-pool leaves. The `quantregForest` and `ranger` packages do it for you (run this one in your own R session; these packages are not available in the interactive R here):
+[NOTE]
+This ties back to the whole course. A forest gets quantiles by STORING outcomes and reading them back. A booster gets them a different way: train it to minimise the exact check loss from earlier (LightGBM calls this `objective = "quantile"`), fit once per quantile, and it predicts that quantile directly. Two roads, same destination: a prediction interval.
+
+=== step === concept
+::eyebrow Does it hold up
+## Check that the interval actually covers
+
+A 90% interval is only honest if, on fresh data, the truth really does land inside it about 90% of the time. That is called **coverage**, and it is the one check that separates a real interval from a decorative one. Let us measure it on the held-out days we set aside, building each day's interval exactly as before.
+
+```r
+check_days <- test[1:40, ]
+leaf_check <- attr(predict(rf, check_days, nodes = TRUE), "nodes")
+
+inside <- logical(nrow(check_days))
+for (i in 1:nrow(check_days)) {
+  pool_i <- c()
+  for (t in 1:ncol(leaf_train)) {
+    pool_i <- c(pool_i, train$rentals[leaf_train[, t] == leaf_check[i, t]])
+  }
+  band <- quantile(pool_i, c(0.05, 0.95))
+  inside[i] <- check_days$rentals[i] >= band[1] && check_days$rentals[i] <= band[2]
+}
+mean(inside)
+#> [1] 0.925
+```
+
+92.5% of held-out days fell inside their own 90% interval, right where a 90% interval should land. The forest is not just guessing a range; the range is calibrated.
+
+And because the spread was built to grow with temperature, the interval WIDTH adapts on its own. Compare a cold day to the warm one:
+
+```r
+leaf_cold <- attr(predict(rf, data.frame(temp = 8), nodes = TRUE), "nodes")
+pool_cold <- c()
+for (t in 1:ncol(leaf_train)) {
+  pool_cold <- c(pool_cold, train$rentals[leaf_train[, t] == leaf_cold[1, t]])
+}
+quantile(pool_cold, c(0.05, 0.50, 0.95))
+#>  5% 50% 95%
+#>  53  88 118
+```
+
+A cold 8C day: interval 53 to 118, only 65 bikes wide. The warm day spanned 149. The forest is honestly less certain when demand is more variable, and says so.
+
+In a real project you would not hand-roll the pooling loop. Two packages do exactly this, and you run them outside the browser:
 
 ```r-static
-library(ranger)
+# The production shortcuts (run these locally, not in this lesson):
+library(quantregForest)                       # Meinshausen's own implementation
+qrf <- quantregForest(x = train["temp"], y = train$rentals)
+predict(qrf, data.frame(temp = 30), what = c(0.05, 0.5, 0.95))
 
-# Fit once with quantreg = TRUE, then read any quantiles you like.
-qrf <- ranger(rentals ~ price + temp + weekend, data = train,
-              quantreg = TRUE)
-
-predict(qrf, tomorrow, type = "quantiles",
-        quantiles = c(0.05, 0.50, 0.95))$predictions
-# quantregForest::quantregForest(x, y) + predict(qrf, newdata, what = ...) is the original.
+library(ranger)                               # a fast forest for large data
+rf2 <- ranger(rentals ~ temp, data = train, quantreg = TRUE)
+predict(rf2, data.frame(temp = 30), type = "quantiles",
+        quantiles = c(0.05, 0.5, 0.95))$predictions
 ```
 
 [WARNING]
-Two real limits. A forest cannot extrapolate: every quantile it reports is built from training outcomes it has actually seen, so for a day far outside the training range (a price or temperature it never saw) the interval is unreliable, not magically wide. And the pool needs enough neighbours: with tiny leaves the quantiles get jumpy, which is why we set `nodesize = 20` to keep a decent number of outcomes in each leaf.
+A quantile forest can only report ranges it has seen. Ask about a 45C day when your training data stops at 35C and it has no neighbours to pool, so the interval is unreliable: no extrapolation past the training range. And each interval needs enough training days per leaf to estimate a tail, so do not set `nodesize` too small, or the leaves hold too few days to read a reliable range.
 
 === step === quiz
 ::eyebrow Check yourself
-## How a quantile forest makes its interval
+## What is a quantile forest, really?
 
-An ordinary random forest predicts tomorrow's rentals as a single 210. A quantile regression forest is the SAME forest. To produce the interval instead of that one number, it...
+An ordinary random forest predicts 224 bikes for tomorrow. You want a 90% prediction interval instead. How does a quantile regression forest produce it?
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
-- Keeps all the training outcomes sitting in each leaf and reads their 5th-to-95th percentiles, instead of averaging them ::ok Exactly. The leaf outcomes are already there; averaging them gives the point prediction, taking their quantiles gives the interval. One fit, every quantile.
-- Refits a separate forest for each quantile you want, one model for the 5th and another for the 95th ::no That is the thing a quantile forest avoids. A single fit holds every quantile, because the pooled leaf outcomes answer any percentile you ask of them.
-- Adds a fixed plus-or-minus band around 210, sized from the overall noise level ::no A constant-width band ignores that uncertainty varies by region. The forest's interval is wide where the leaf pool is spread out and tight where it is concentrated.
+- It uses the SAME forest, but reads the 5th and 95th percentiles of the training outcomes stored in the matching leaves, instead of averaging them ::ok Exactly. Same forest, no refit. The leaves already hold every neighbouring outcome; you just read their percentiles instead of collapsing them to a mean.
+- It refits a brand-new forest separately for each quantile you want ::no No refit is needed. The single ordinary forest already stores the leaf outcomes, so every quantile comes from that one fit, which is what makes it cheap.
+- It takes the point prediction and adds a fixed plus-or-minus band of constant width ::no A fixed band cannot widen on volatile days and shrink on calm ones. The whole point is that the interval is read from the actual spread of leaf outcomes, so its width adapts (149 wide on a warm day, 65 on a cold one).
 
 === step === concept
 ::eyebrow Go deeper
@@ -265,14 +301,14 @@ An ordinary random forest predicts tomorrow's rentals as a single 210. A quantil
 
 A few authoritative places to take this further:
 
-- [Meinshausen (2006), Quantile Regression Forests, JMLR 7](https://www.jmlr.org/papers/v7/meinshausen06a.html) - the paper that introduced reading quantiles from a forest's leaves, exactly what you built here.
-- [Koenker & Bassett (1978), Regression Quantiles, Econometrica 46(1)](https://doi.org/10.2307/1913643) - the origin of the quantile (pinball) loss that defines a quantile as a minimizer.
-- [quantregForest (CRAN package)](https://cran.r-project.org/package=quantregForest) - Meinshausen's own R implementation; fit once, predict any quantile.
-- [Wright & Ziegler (2017), ranger: A Fast Implementation of Random Forests, JSS 77(1)](https://doi.org/10.18637/jss.v077.i01) - the fast forest you would reach for in practice, with `quantreg = TRUE` built in.
+- [Meinshausen (2006), Quantile Regression Forests, JMLR 7](https://www.jmlr.org/papers/v7/meinshausen06a.html) - the paper that introduced reading quantiles from a forest's stored leaf outcomes.
+- [Koenker and Bassett (1978), Regression Quantiles, Econometrica 46(1)](https://doi.org/10.2307/1913643) - the origin of the check loss and quantile regression.
+- [quantregForest on CRAN](https://cran.r-project.org/package=quantregForest) - Meinshausen's own R package, the production shortcut for what you built by hand.
+- [ranger (Wright and Ziegler, 2017, JSS 77)](https://www.jstatsoft.org/article/view/v077i01) - a fast forest whose `quantreg = TRUE` gives these intervals on large data.
 
 === step === complete
-## Module complete
+## Lesson 6 complete
 
-You can now predict a range, not just a point. You met the quantile as a cut point in your outcomes, separated a confidence interval (about the average) from a prediction interval (about one new day), saw how the lopsided quantile loss targets a quantile, and built a real prediction interval by reading the pooled leaf outcomes of an ordinary random forest. Then you did the thing most people skip: you checked that the 90% interval actually covered about 90% of held-out days.
+You turned a point prediction into a prediction interval you can actually plan around. A quantile is a cut point in the outcomes; the check loss is how you aim at one; and a forest, without any refitting, already stores every outcome you need, so reading percentiles of its leaves gives you a calibrated range that widens exactly where the world is less predictable.
 
-That completes Gradient Boosting in R. You went from boosting one tree onto another, through the knobs that matter, monotonic business rules, and now to predictions that carry their own uncertainty. A model that says "210, almost surely 176 to 243" is one a real decision can lean on.
+That is the capstone of this course: from a single number, to a number with an honest range around it. Next up is the section **Quiz**, a short graded check across everything in Gradient Boosting, from how boosting corrects its own errors to the intervals you just built.
