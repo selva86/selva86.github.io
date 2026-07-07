@@ -908,7 +908,11 @@ MATHJAX_BLOCK = """
       tex2jax: {
         inlineMath: [['$','$'], ['\\\\(','\\\\)']],
         displayMath: [['$$','$$'], ['\\\\[','\\\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
