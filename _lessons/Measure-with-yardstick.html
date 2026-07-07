@@ -1,7 +1,7 @@
 ---
 title: "tidymodels Lesson 5: Measure with yardstick"
-description: "Accuracy can hide a weak classifier. Read a confusion matrix, choose precision, recall and ROC AUC with yardstick, and read each metric across your resampling folds."
-keywords: "yardstick, classification metrics in R, confusion matrix, precision and recall, ROC AUC, metric_set, collect_metrics, accuracy paradox, tidymodels, imbalanced classes"
+description: "Choose the right metrics for an R model with yardstick: confusion matrix, precision, recall, F1, ROC and AUC, metric sets, and reading them across resampling folds."
+keywords: "yardstick, tidymodels metrics, confusion matrix in R, precision and recall, roc_auc, metric_set, sensitivity specificity, f_meas, collect_metrics, classification metrics R"
 mathjax: true
 webr: true
 curriculum_id: "6.50.5"
@@ -14,7 +14,7 @@ course_landing: "R-tidymodels-Course.html"
 course_next: "Tune-with-the-tune-package.html"
 course_prev: "Resample-with-rsample.html"
 lesson_access: "free"
-catalog_blurb: "How to score a classifier honestly when accuracy alone misleads you."
+catalog_blurb: "Pick metrics that fit your goal and read them across folds."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
@@ -23,36 +23,39 @@ catalog_blurb: "How to score a classifier honestly when accuracy alone misleads 
 <div class="lesson-step-eyebrow">Lesson 5 of 7</div>
 <h2>Measure with yardstick</h2>
 
-<p>In Lesson 4 you cross-validated the lender's loan-default model and reported a steady accuracy of about 0.65. The risk team nods. Then someone asks the awkward question: of the applicants who actually defaulted, how many did the model catch?</p>
+<p>In Lesson 4 you handed the risk committee a number: the loan-default model scores <strong>0.648 accuracy</strong>, cross-validated, give or take a little. It felt solid. Then someone at the table tries something lazy: a "model" that simply stamps <strong>no default</strong> on every single applicant. On this loan book that scores about <strong>63%</strong> too, higher than a fair few real models, and it catches exactly <strong>zero</strong> defaulters. If a do-nothing rule can match your model on accuracy, then accuracy was never the yardstick that mattered.</p>
 
-<p>Hold that thought, because a model that flags <strong>nobody</strong> as risky scores almost as high: 63% accuracy, by doing nothing at all. Accuracy, it turns out, can be the wrong yardstick. This lesson is about picking the right one.</p>
+<p>This lesson is about choosing the yardstick on purpose. The <code>yardstick</code> package gives you a whole toolbox of metrics; the skill is knowing which one answers your question.</p>
 
 <p>By the end you will be able to:</p>
 
 <ul>
 
-<li>Explain why accuracy misleads when one class is rarer than the other</li>
+<li>Read a confusion matrix and say why accuracy alone can flatter a useless model</li>
 
-<li>Read a confusion matrix and compute precision and recall for the class you care about</li>
+<li>Compute precision, recall and specificity, and pick the one that matches the business cost</li>
 
-<li>Choose a set of metrics, compute them at once, and read each one across your resampling folds</li>
+<li>Tell a hard-class metric from a probability metric, and read an ROC curve and its AUC</li>
+
+<li>Bundle your chosen metrics into a metric set and read them across every resample</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can run R and use the <code>|&gt;</code> pipe, and you can <a href="Bundle-Steps-with-workflows.html">bundle a recipe and a model into a workflow</a> (Lesson 3) and <a href="Resample-with-rsample.html">score it across resamples</a> (Lesson 4). We reuse that exact loan-default workflow here.</p>
+<p><strong>Prerequisites:</strong> you can run R and use the <code>|&gt;</code> pipe, and you can <a href="Resample-with-rsample.html">bundle a recipe and a model into a workflow and resample it</a> (Lesson 4).</p>
 <div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
 <div class="lesson-step-eyebrow">The trap</div>
-<h2>When accuracy lies</h2>
+<h2>When accuracy flatters a useless model</h2>
 
-<p>Here is the lender's loan book again, rebuilt right here so this page runs on its own. Each row is one applicant; <code>defaulted</code> is what we are trying to predict.</p>
+<p>Here is the lender's loan book again, rebuilt right here so this page runs on its own. Each row is one applicant; <code>defaulted</code> is what we are trying to predict. We set the factor levels so that <strong>yes</strong> (a default) comes first, because that is the outcome the bank cares about catching.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">set.seed(7)
+    <div class="webr-editor" data-language="r">library(dplyr)
+set.seed(7)
 n &lt;- 240
 loans &lt;- data.frame(
   income   = round(runif(n, 22000, 98000)),   # annual income, dollars
@@ -62,11 +65,11 @@ loans &lt;- data.frame(
 )
 risk &lt;- with(loans, plogis(-1.1 + 1.4 * (income &lt; 45000) +
              1.0 * (employed &lt; 20) + 0.6 * (home == &quot;rent&quot;)))
-loans$defaulted &lt;- factor(ifelse(runif(n) &lt; risk, &quot;yes&quot;, &quot;no&quot;))
+loans$defaulted &lt;- factor(ifelse(runif(n) &lt; risk, &quot;yes&quot;, &quot;no&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;))
 table(loans$defaulted)
 #&gt;
-#&gt;  no yes
-#&gt; 151  89</div>
+#&gt; yes  no
+#&gt;  89 151</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -76,18 +79,13 @@ table(loans$defaulted)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Of 240 applicants, 151 paid back and only 89 defaulted. The classes are <strong>imbalanced</strong>: "no" is almost twice as common as "yes". Drawn out, the lopsidedness is obvious.</p>
-
-<p>Now watch the trap spring. Build the laziest possible model, one that ignores every feature and just predicts "no" (will not default) for everyone:</p>
+<p>Of 240 applicants, <strong>89 defaulted</strong> and <strong>151 did not</strong>. The classes are lopsided: only about 37% of applicants are defaulters. That imbalance is exactly what lets accuracy lie. Watch what the do-nothing rule scores:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">naive &lt;- rep(&quot;no&quot;, nrow(loans))
-round(mean(naive == loans$defaulted), 3)   # its accuracy
-#&gt; [1] 0.629
-sum(loans$defaulted == &quot;yes&quot;)              # real defaulters it lets straight through
-#&gt; [1] 89</div>
+    <div class="webr-editor" data-language="r">mean(loans$defaulted == &quot;no&quot;)   # accuracy if we predict &quot;no default&quot; for everyone
+#&gt; [1] 0.629</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -97,67 +95,53 @@ sum(loans$defaulted == &quot;yes&quot;)              # real defaulters it lets s
   <div class="webr-plot-output"></div>
 </div>
 
-<p>This model is useless to the bank: it approves every loan and catches <strong>zero</strong> of the 89 defaulters. Yet it is right 63% of the time, because being right on the common class is easy. Any real model has to beat 63% just to look better than doing nothing. Accuracy alone would never tell you that.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">On imbalanced data, accuracy is graded on a curve set by the majority class. A high number can hide a model that completely fails at the rare outcome, which is usually the outcome you built the model to find.</div></div>
-
-<p>One bookkeeping step before we measure properly. yardstick, like the rest of tidymodels, treats the <strong>first</strong> level of the outcome factor as the event you are trying to detect. Our event is a default, the "yes", so we move it to the front.</p>
+<p>Predicting "no default" for everybody is right 62.9% of the time, purely because most applicants really do repay. It is a model with zero skill and a respectable-looking score. Now fit a genuine model, a logistic regression, on a training split and measure its accuracy on held-out applicants:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">loans$defaulted &lt;- relevel(loans$defaulted, ref = &quot;yes&quot;)
-levels(loans$defaulted)
-#&gt; [1] &quot;yes&quot; &quot;no&quot;</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"no","y":151},{"x":"yes","y":89}],"geoms":["bar"],"x":"status","y":"applicants"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Which model should the bank ship?</h2>
-
-<p>A defaulted loan costs the bank far more than the interest on a good one. You have two candidates. Model A flags no one: 63% accuracy, catches 0 of 89 defaulters. Model B flags the risky-looking applicants and catches most defaulters, but its overall accuracy is only 58%. Which should the bank prefer?</p>
-<section class="exercise" data-exercise-id="Measure-with-yardstick-step3" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Model A, because 63% is the higher accuracy</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Model B, because catching defaulters is the decision the model exists to support, even though its accuracy is lower</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">They are equivalent, since the two accuracies are within a few points</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The right metric follows the decision. The bank loses money on missed defaults, so a model that catches them is worth more than one with a prettier accuracy that catches none.</div><div class="lesson-qfb lesson-qfb-no">Accuracy being close hides a night-and-day difference: 0 defaulters caught versus most of them. The numbers that matter here are not close at all.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="concept">
-<div class="lesson-step-eyebrow">Reading a classifier</div>
-<h2>The confusion matrix, and the two numbers that matter</h2>
-
-<p>To measure a classifier honestly, stop counting "right vs wrong" and count the <strong>four</strong> outcomes separately. Fit the loan-default workflow from Lessons 3 and 4, get its predictions on the held-out test rows, and lay them in a confusion matrix.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">library(rsample); library(recipes); library(parsnip); library(workflows); library(yardstick)
+    <div class="webr-editor" data-language="r">library(rsample)
+library(parsnip)
+library(yardstick)
 
 set.seed(1)
 split &lt;- initial_split(loans, prop = 0.75, strata = defaulted)
 train &lt;- training(split)
 test  &lt;- testing(split)
 
-rec  &lt;- recipe(defaulted ~ ., data = train) |&gt;
-  step_normalize(all_numeric_predictors()) |&gt;
-  step_dummy(all_nominal_predictors())
-spec &lt;- logistic_reg() |&gt; set_engine(&quot;glm&quot;) |&gt; set_mode(&quot;classification&quot;)
-wf   &lt;- workflow() |&gt; add_recipe(rec) |&gt; add_model(spec)
-fit  &lt;- fit(wf, train)
+logit_spec &lt;- logistic_reg() |&gt; set_engine(&quot;glm&quot;) |&gt; set_mode(&quot;classification&quot;)
+fit        &lt;- logit_spec |&gt; fit(defaulted ~ ., data = train)
 
-preds &lt;- augment(fit, test)   # adds .pred_class, .pred_yes, .pred_no to the test rows
-conf_mat(preds, truth = defaulted, estimate = .pred_class)
+preds &lt;- augment(fit, new_data = test)   # adds .pred_class, .pred_yes, .pred_no
+accuracy(preds, truth = defaulted, estimate = .pred_class)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 accuracy binary         0.656</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The real model scores <strong>0.656</strong>. It beat the do-nothing rule (0.629) by barely two points. If you reported only that number, the committee would think the model is roughly as good as guessing "no" every time. Accuracy is not wrong here, it is just answering the wrong question. To see what the model is really doing, we have to look at <em>which</em> applicants it gets right and wrong.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>augment()</code> takes a fitted model and a data frame and adds the model's predictions as new columns: <code>.pred_class</code> (the predicted label at the usual 0.5 cutoff) and <code>.pred_yes</code> / <code>.pred_no</code> (the predicted probability of each class). Every yardstick metric reads one or more of those columns.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The four outcomes</div>
+<h2>The confusion matrix</h2>
+
+<p>A classifier can be right or wrong in two different ways each, so there are four possible outcomes. Laying them in a 2-by-2 table is called a <strong>confusion matrix</strong>. <code>yardstick::conf_mat()</code> builds it from the truth column and the predicted-class column:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">conf_mat(preds, truth = defaulted, estimate = .pred_class)
 #&gt;           Truth
 #&gt; Prediction yes no
 #&gt;        yes   7  5
@@ -171,39 +155,81 @@ conf_mat(preds, truth = defaulted, estimate = .pred_class)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read that 2x2 in plain English. The test set held 61 applicants, 23 of whom truly defaulted. Naming the event "yes" (a default) the positive class:</p>
+<p>Read it in plain loan terms. Down the rows is what the model <em>predicted</em>; across the columns is the <em>truth</em>:</p>
 
 <ul>
 
-<li><strong>True positives (7):</strong> real defaulters the model flagged. Caught.</li>
+<li><strong>7</strong> applicants it flagged as "yes" who really did default. A caught default. We call this a <strong>true positive (TP)</strong>.</li>
 
-<li><strong>False negatives (16):</strong> real defaulters the model cleared. The expensive misses, the bank lends to them and loses money.</li>
+<li><strong>5</strong> it flagged as "yes" who actually repaid. A false alarm, a <strong>false positive (FP)</strong>: the bank hassles or declines a good customer.</li>
 
-<li><strong>False positives (5):</strong> good applicants the model wrongly flagged. Annoying, possibly lost business.</li>
+<li><strong>16</strong> it cleared as "no" who went on to default. A missed default, a <strong>false negative (FN)</strong>: the bank makes a loan it never gets back.</li>
 
-<li><strong>True negatives (33):</strong> good applicants the model correctly cleared.</li>
+<li><strong>33</strong> it cleared as "no" who really repaid. A correct approval, a <strong>true negative (TN)</strong>.</li>
 
 </ul>
 
-<p>Two summaries of that table answer two different questions. Writing \(TP\), \(FP\), \(FN\), \(TN\) for the four counts:</p>
+<p>Those two mistakes are not equal. A false positive costs a little goodwill and a lost loan. A false negative, the 16 missed defaults, costs real money on loans that go bad. The whole reason accuracy misled us is that it treats all four cells as interchangeable and adds up only the diagonal.</p>
 
-<p>\[ \text{recall} = \frac{TP}{TP + FN}, \qquad \text{precision} = \frac{TP}{TP + FP} \]</p>
+<p>The widget below is a small generic classifier so you can <em>feel</em> how the four cells work. Slide the threshold and watch every count re-tally. Your loan model's own matrix above is just one snapshot of this, taken at the 0.5 cutoff.</p>
 
-<p><strong>Recall</strong> (also called sensitivity) asks: of all the applicants who actually defaulted, what fraction did we catch? <strong>Precision</strong> asks: of all the applicants we flagged, what fraction really defaulted? <code>yardstick</code> computes each one straight from the predictions.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">yardstick treats the <strong>first</strong> level of the outcome factor as the "positive" class, the event you are trying to detect. That is why we built <code>defaulted</code> with <code>levels = c(&quot;yes&quot;, &quot;no&quot;)</code>: it makes a default the positive class, so precision and recall below measure catching defaulters, not clearing good applicants.</div></div>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which mistake costs the bank?</h2>
+
+<p>The loan model made two kinds of error: 5 false positives (good applicants it flagged) and 16 false negatives (defaulters it cleared). Which one is the expensive mistake, the one that actually loses money on a bad loan?</p>
+<section class="exercise" data-exercise-id="Measure-with-yardstick-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A non-defaulter predicted to default (a false positive)</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A defaulter predicted not to default (a false negative)</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A non-defaulter predicted not to default (a true negative)</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The bank approves a loan that is never repaid. The missed default, the false negative, is usually far more expensive than a false alarm, which is exactly why we will not settle for accuracy.</div><div class="lesson-qfb lesson-qfb-no">That is a correct call: a good applicant approved. Nothing goes wrong in that cell.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Two honest questions</div>
+<h2>Precision and recall</h2>
+
+<p>Once you have the four cells, you can ask two very different questions, and each has its own metric. Let \(TP\), \(FP\) and \(FN\) be the true-positive, false-positive and false-negative counts from the confusion matrix.</p>
+
+<p><strong>Precision</strong> answers "when the model flags an applicant as a default, how often is it right?"</p>
+
+<p>\[ \text{precision} = \frac{TP}{TP + FP} = \frac{7}{7 + 5} = 0.583 \]</p>
+
+<p><strong>Recall</strong> (also called <strong>sensitivity</strong>) answers the opposite: "of all the applicants who really defaulted, how many did the model catch?"</p>
+
+<p>\[ \text{recall} = \frac{TP}{TP + FN} = \frac{7}{7 + 16} = 0.304 \]</p>
+
+<p>There is a third that watches the other class. <strong>Specificity</strong> answers "of all the applicants who really repaid, how many did the model correctly clear?", using \(TN\) (true negatives) and \(FP\):</p>
+
+<p>\[ \text{specificity} = \frac{TN}{TN + FP} = \frac{33}{33 + 5} = 0.868 \]</p>
+
+<p>yardstick has a function for each, and they read the same two columns <code>conf_mat</code> did:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">recall(preds, truth = defaulted, estimate = .pred_class)
+    <div class="webr-editor" data-language="r">precision(preds, truth = defaulted, estimate = .pred_class)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric   .estimator .estimate
+#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 precision binary         0.583
+
+recall(preds, truth = defaulted, estimate = .pred_class)   # same as sens()
 #&gt; # A tibble: 1 x 3
 #&gt;   .metric .estimator .estimate
 #&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
 #&gt; 1 recall  binary         0.304
-precision(preds, truth = defaulted, estimate = .pred_class)
+
+spec(preds, truth = defaulted, estimate = .pred_class)
 #&gt; # A tibble: 1 x 3
-#&gt;   .metric   .estimator .estimate
-#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
-#&gt; 1 precision binary         0.583</div>
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 spec    binary         0.868</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -213,18 +239,93 @@ precision(preds, truth = defaulted, estimate = .pred_class)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>So the model's accuracy is a respectable 0.656, but its recall is <strong>0.30</strong>: it catches only 7 of the 23 real defaulters and waves the other 16 through. The single accuracy number hid that completely. When you need one figure that balances the two, the <strong>F1 score</strong> is their harmonic mean, \( F_1 = \dfrac{2 \cdot \text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}} \), which here is about 0.40, far less flattering than 0.66.</p>
+<p>Now the model's real behaviour is visible. Its <strong>specificity is 0.868</strong>, so it clears good applicants well, and its <strong>precision is 0.583</strong>, so a bit more than half its flags are genuine. But its <strong>recall is only 0.304</strong>: it catches under a third of the applicants who actually default. That failure was completely hidden inside the 0.656 accuracy. The chart makes the gap obvious, accuracy and specificity stand tall while recall sits on the floor.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"accuracy","y":0.656},{"x":"precision","y":0.583},{"x":"recall","y":0.304},{"x":"specificity","y":0.868}],"geoms":["bar"],"x":"metric","y":"score"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="5" data-step-type="widget">
-<div class="lesson-step-eyebrow">The dial behind the metrics</div>
-<h2>The threshold and the ROC curve</h2>
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute the metric that matters</h2>
 
-<p>Where did "yes" and "no" even come from? The model outputs a probability of default, and a rule turns it into a label: flag the applicant if that probability clears a <strong>threshold</strong>, by default 0.5. That threshold is a dial you can turn.</p>
+<p>For a lender, the number that keeps the risk team awake is recall: the share of real defaulters the model actually catches. Complete the call so it computes recall on the test predictions.</p>
+<section class="exercise" data-exercise-id="Measure-with-yardstick-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="recall\s*\(|sens\s*\("><textarea class="lesson-tryit-input" spellcheck="false">library(yardstick)
+____(preds, truth = defaulted, estimate = .pred_class)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Recall is 0.304: the model catches about three of every ten real defaulters. That, not accuracy, is the number the risk team should track.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the recall() function: recall(preds, truth = defaulted, estimate = .pred_class). (sens() gives the same value.)</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">recall(preds, truth = defaulted, estimate = .pred_class)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 recall  binary         0.304</code></pre></details></div>
+</section>
+</section>
 
-<p>Drag it below. Lower the threshold and you flag more applicants: recall climbs (you catch more defaulters) but precision falls (more good applicants get swept up). Raise it and the trade reverses. No single cutoff is "correct"; it depends on what a miss costs you versus a false alarm.</p>
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">One number, honestly</div>
+<h2>F1: balancing precision and recall</h2>
 
-<p>The <strong>ROC curve</strong> plots that whole trade at once: each point is one threshold, its true-positive rate (recall) against its false-positive rate. A model that ranks defaulters above non-defaulters hugs the top-left corner; random guessing rides the diagonal. The <strong>AUC</strong> (area under the curve) squeezes the entire curve into one threshold-free number between 0.5 (useless) and 1.0 (perfect). For our loan model:</p>
+<p>Sometimes you want a single score that rewards a model only when precision <em>and</em> recall are both decent. Averaging them the usual way is too forgiving: a model with precision 0.95 and recall 0.05 would average to a cosy 0.50 while catching almost nothing. The <strong>F1 score</strong> fixes this by taking the <em>harmonic</em> mean, which is dragged down hard by the smaller of the two:</p>
+
+<p>\[ F_1 = \frac{2 \cdot \text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}} = \frac{2 \cdot 0.583 \cdot 0.304}{0.583 + 0.304} = 0.400 \]</p>
+
+<p>Because recall (0.304) is so weak, F1 lands at 0.400, well below the halfway point between the two. yardstick computes it with <code>f_meas()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_meas(preds, truth = defaulted, estimate = .pred_class)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 f_meas  binary           0.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>F1 is the go-to single number when the positive class is rare and both error types matter, which is precisely the loan-default situation. It refuses to be fooled by a high score on one side alone.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading precision, recall and F1</h2>
+
+<p>The loan model scores precision <strong>0.58</strong>, recall <strong>0.30</strong>, and F1 <strong>0.40</strong>. In plain terms, what is it doing?</p>
+<section class="exercise" data-exercise-id="Measure-with-yardstick-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">When it does flag an applicant it is right more often than not, but it flags far too few of the real defaulters</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It catches almost every defaulter but raises a flood of false alarms</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is a strong model overall, since F1 (0.40) is close to its precision</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Precision 0.58 means a slim majority of flags are genuine; recall 0.30 means it misses about seven of every ten defaulters. F1 stays low because the harmonic mean is pulled toward that weak recall.</div><div class="lesson-qfb lesson-qfb-no">F1 0.40 sits well below precision 0.58; the harmonic mean is dragged toward the smaller value (recall), which is a warning sign, not reassurance.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<div class="lesson-step-eyebrow">The hidden dial</div>
+<h2>Every hard-class metric hides a threshold</h2>
+
+<p>Here is something the metrics so far quietly assumed. Accuracy, precision, recall and F1 all read <code>.pred_class</code>, the predicted <em>label</em>. But that label was not handed down from on high: it was made by cutting the predicted probability at <strong>0.5</strong>. Score above 0.5, call it "yes"; below, call it "no". Move that cutoff and every one of those metrics changes.</p>
+
+<p>Slide the threshold in the widget below. Push it down and the model flags more applicants: recall climbs (you catch more defaulters) but precision falls (more false alarms). Push it up and the trade reverses. The single operating point traces out a curve as you sweep, and that curve is the subject of the next step.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">There is no universally correct threshold. A bank chasing missed defaults would lower it to raise recall; a lender worried about rejecting good customers would raise it to protect precision. The right cutoff is a business decision, not a statistical one.</div></div>
+<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Score every threshold at once</div>
+<h2>The ROC curve and AUC</h2>
+
+<p>If the "best" threshold depends on the business, it would be useful to have a metric that does not commit to any single one. That is the <strong>ROC curve</strong>. As you sweep the threshold from high to low, you plot the <strong>true-positive rate</strong> (recall, the defaulters you catch) against the <strong>false-positive rate</strong> (the good applicants you wrongly flag). Each threshold is one point; the whole sweep is the curve you just watched form.</p>
+
+<p>The single number that summarizes the whole curve is the <strong>AUC</strong>, the area under it. It has a clean interpretation. If \(\hat{p}_+\) is the model's predicted default-probability for a randomly chosen real defaulter and \(\hat{p}_-\) the same for a randomly chosen non-defaulter, then</p>
+
+<p>\[ \text{AUC} = P(\hat{p}_+ > \hat{p}_-) \]</p>
+
+<p>the probability that the model scores a true defaulter higher than a true non-defaulter. An AUC of 1.0 is a perfect ranker; 0.5 is a coin flip. Crucially, it never fixes a threshold, so it measures how well the model <em>ranks</em> applicants by risk, not how it labels them.</p>
+
+<p>Here is the vital yardstick detail. A hard-class metric like <code>accuracy</code> reads the label column <code>.pred_class</code>. A probability metric like <code>roc_auc</code> must read the <em>probability</em> column, <code>.pred_yes</code>, because it needs a score to sweep, not a pre-made label:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
@@ -243,41 +344,41 @@ precision(preds, truth = defaulted, estimate = .pred_class)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>An AUC of 0.625 says the model ranks a random defaulter above a random non-defaulter only 63% of the time: better than a coin flip, but not by much. Note that <code>roc_auc</code> reads the probability column <code>.pred_yes</code>, not the hard <code>yes/no</code> label, because it needs the scores it sweeps the threshold over.</p>
-<div class="lesson-widget" data-widget-type="roc-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The loan model's AUC is <strong>0.625</strong>: better than a coin flip, but only modestly. Notice we passed <code>.pred_yes</code>, not <code>.pred_class</code>. Hand <code>roc_auc</code> the label column instead and it errors, because a fixed 0/1 label has no ranking left to sweep.</p>
 </section>
 
-<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>You turn the dial down</h2>
+<h2>Which column does AUC need?</h2>
 
-<p>The loan model at the default 0.5 cutoff catches just 7 of 23 defaulters. You lower the threshold to 0.3 so more applicants get labelled "yes". What happens to recall and precision?</p>
-<section class="exercise" data-exercise-id="Measure-with-yardstick-step6" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Recall usually goes up (you catch more defaulters), and precision usually goes down (more of your flags are false alarms)</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Both recall and precision go up, because a lower threshold is strictly better</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing changes, because the threshold only affects accuracy</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. A lower bar flags more applicants, so more true defaulters get caught (recall up), but more good applicants get caught too (precision down). You buy recall with precision; the ROC curve is the map of that trade.</div><div class="lesson-qfb lesson-qfb-no">The threshold changes which applicants are called "yes", so it moves every count in the confusion matrix, and therefore recall, precision and accuracy all shift.</div></div>
+<p>You want to score the loan model with <code>roc_auc</code>. Which column does yardstick need, and why?</p>
+<section class="exercise" data-exercise-id="Measure-with-yardstick-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The predicted class <code>.pred_class</code>, because AUC compares predicted labels against the truth</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The predicted probability <code>.pred_yes</code>, because AUC sweeps every threshold and needs a score to rank applicants by</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Either column works; yardstick figures out what you meant</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. AUC is threshold-free: it ranks applicants by predicted probability and asks how often a real defaulter outranks a non-defaulter, so it needs the probability column, not the 0.5-thresholded label.</div><div class="lesson-qfb lesson-qfb-no">It does not guess. Class metrics (accuracy, recall) take <code>.pred_class</code>; probability metrics (roc_auc, log-loss) take a probability column. Mixing them up is a common error.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="7" data-step-type="concept">
+<section class="lesson-step" data-step="12" data-step-type="concept">
 <div class="lesson-step-eyebrow">Compute them together</div>
-<h2>A metric set, not a metric</h2>
+<h2>Bundle metrics into a metric set</h2>
 
-<p>You rarely want one metric in isolation; you want a small, fixed panel reported the same way every time. <code>metric_set</code> bundles several yardstick metrics into a single function you can call once.</p>
+<p>You rarely want one metric in isolation; you want a small dashboard of them. <code>metric_set()</code> bundles any mix of metrics into a single function you can call once. Because our set mixes hard-class metrics (accuracy, sensitivity, specificity) with a probability metric (roc_auc), we hand the resulting function <em>both</em> the class column and the probability column, and it routes each metric to the one it needs:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">loan_metrics &lt;- metric_set(accuracy, precision, recall, f_meas)
-loan_metrics(preds, truth = defaulted, estimate = .pred_class)
+    <div class="webr-editor" data-language="r">loan_metrics &lt;- metric_set(accuracy, sens, spec, roc_auc)
+
+loan_metrics(preds, truth = defaulted, estimate = .pred_class, .pred_yes)
 #&gt; # A tibble: 4 x 3
-#&gt;   .metric   .estimator .estimate
-#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
-#&gt; 1 accuracy  binary         0.656
-#&gt; 2 precision binary         0.583
-#&gt; 3 recall    binary         0.304
-#&gt; 4 f_meas    binary         0.4</div>
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 accuracy binary         0.656
+#&gt; 2 sens     binary         0.304
+#&gt; 3 spec     binary         0.868
+#&gt; 4 roc_auc  binary         0.625</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -287,35 +388,40 @@ loan_metrics(preds, truth = defaulted, estimate = .pred_class)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>One call, one tidy table, the whole story side by side: decent accuracy, mediocre precision, poor recall. A set can even mix label metrics with probability metrics like <code>roc_auc</code>; you just hand it both the predicted class and the probability column, and yardstick routes each metric to the column it needs.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Decide your metric set <strong>before</strong> you look at the scores, and let the decision pick it: recall when misses are costly (defaults, disease, fraud), precision when false alarms are costly (spam filters), ROC AUC when you want to judge the ranking independently of any one threshold. Choosing the metric after seeing the numbers is just picking the one that makes the model look best.</div></div>
+<p>One call, four numbers, chosen on purpose: overall accuracy, how many defaulters we catch (sens), how many good applicants we clear (spec), and how well we rank risk (roc_auc). That <code>loan_metrics</code> object is now a reusable yardstick you can point at any set of predictions.</p>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<div class="lesson-step-eyebrow">The payoff</div>
-<h2>Read every metric across the resamples</h2>
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">The honest picture</div>
+<h2>Read the metrics across every resample</h2>
 
-<p>One test split gives one draw of each metric, and Lesson 4 showed how much a single split can swing. The honest move is the same one as before: hand your metric set to <code>fit_resamples</code>, and it scores <strong>every</strong> metric on <strong>every</strong> fold. <code>collect_metrics</code> then returns each metric's average and its standard error across the folds.</p>
+<p>A metric set truly earns its keep when you combine it with the resampling from Lesson 4. One test split gave the numbers above, but you already know one split is a roll of the dice. So hand your metric set to <code>fit_resamples</code>, which scores the workflow on every fold, and <code>collect_metrics</code> averages each metric with its standard error. This is the same loan workflow you built in Lesson 4, now measured with the yardstick we chose:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">library(tune)
+    <div class="webr-editor" data-language="r">library(recipes)
+library(workflows)
+library(tune)
+
+rec &lt;- recipe(defaulted ~ ., data = train) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_dummy(all_nominal_predictors())
+wf  &lt;- workflow() |&gt; add_recipe(rec) |&gt; add_model(logit_spec)
+
 set.seed(1)
 folds &lt;- vfold_cv(train, v = 5, strata = defaulted)
 
 set.seed(3)
-cv &lt;- fit_resamples(wf, folds,
-                    metrics = metric_set(accuracy, precision, recall, roc_auc))
+cv &lt;- fit_resamples(wf, folds, metrics = loan_metrics)
 collect_metrics(cv)
 #&gt; # A tibble: 4 x 6
-#&gt;   .metric   .estimator  mean     n std_err .config
-#&gt;   &lt;chr&gt;     &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
-#&gt; 1 accuracy  binary     0.681     5  0.0501 pre0_mod0_post0
-#&gt; 2 precision binary     0.644     5  0.127  pre0_mod0_post0
-#&gt; 3 recall    binary     0.333     5  0.0747 pre0_mod0_post0
-#&gt; 4 roc_auc   binary     0.624     5  0.0462 pre0_mod0_post0</div>
+#&gt;   .metric  .estimator  mean     n std_err .config
+#&gt;   &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 accuracy binary     0.648     5  0.0275 pre0_mod0_post0
+#&gt; 2 roc_auc  binary     0.613     5  0.0481 pre0_mod0_post0
+#&gt; 3 sens     binary     0.258     5  0.0400 pre0_mod0_post0
+#&gt; 4 spec     binary     0.876     5  0.0259 pre0_mod0_post0</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -325,28 +431,70 @@ collect_metrics(cv)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Now the verdict is trustworthy and complete: across five folds the model averages 68% accuracy but only 33% recall, confirming the one-split story rather than relying on it. Look at the <code>std_err</code> column too. Precision wobbles hugely (standard error 0.127, because each small fold flags only a handful of applicants), so its 0.644 is a soft number, while recall and AUC are far steadier. Reading the spread, not just the mean, is what keeps you from over-trusting a lucky fold.</p>
+<p>Now the committee gets the honest story, all four metrics at once, each with a mean and a spread. Accuracy holds at <strong>0.648</strong> (exactly the figure from Lesson 4). But look at <strong>sensitivity: 0.258</strong>. Averaged across five folds, the model catches barely a quarter of defaulters. That is the finding accuracy was hiding all along, and now it comes with a standard error so you know how firm it is.</p>
+
+<p>The standard error matters because the per-fold scores swing. Here are the AUC values fold by fold; the 0.0481 standard error is summarizing that spread, from a weak 0.52 up to a much healthier 0.78:</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Choose the metric that matches the decision <em>before</em> you look at the scores. Fishing through a metric set for the one that makes the model look best, and reporting only that, is a quiet way to lie to yourself. Here the decision (catch defaulters) points to recall, and recall says the model needs work.</div></div>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"Fold1","y":0.571},{"x":"Fold2","y":0.538},{"x":"Fold3","y":0.779},{"x":"Fold4","y":0.661},{"x":"Fold5","y":0.517}],"geoms":["bar"],"x":"fold","y":"roc_auc"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<section class="lesson-step" data-step="14" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Build the set the bank needs</h2>
+<h2>Build the report's metric set</h2>
 
-<p>The risk team cares most about catching defaulters, so recall has to be in the panel. Complete the metric set so it reports accuracy, precision, <strong>and</strong> recall, then score the test predictions with it.</p>
-<section class="exercise" data-exercise-id="Measure-with-yardstick-step9" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="recall"><textarea class="lesson-tryit-input" spellcheck="false">catch_metrics &lt;- metric_set(accuracy, precision, ____)
-catch_metrics(preds, truth = defaulted, estimate = .pred_class)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the panel: accuracy, precision and recall in one call, with recall front and centre because the misses are what cost the bank.</span><span class="lesson-tryit-fb lesson-tryit-no">Add recall to the set: metric_set(accuracy, precision, recall).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">catch_metrics &lt;- metric_set(accuracy, precision, recall)
-catch_metrics(preds, truth = defaulted, estimate = .pred_class)
+<p>The risk team has decided the report will lead with recall (catching defaulters) and back it with AUC (how well the model ranks risk). Complete the metric set so it bundles exactly those two, then it is scored on the test predictions.</p>
+<section class="exercise" data-exercise-id="Measure-with-yardstick-step14" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="metric_set\s*\(\s*recall\s*,\s*roc_auc\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">report_metrics &lt;- metric_set(recall, ____)
+report_metrics(preds, truth = defaulted, estimate = .pred_class, .pred_yes)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the report's yardstick: recall for how many defaulters you catch, roc_auc for how well you rank risk. One object, reusable on any predictions.</span><span class="lesson-tryit-fb lesson-tryit-no">Add roc_auc as the second metric: metric_set(recall, roc_auc). roc_auc is the probability metric, which is why the call also passes the .pred_yes column.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">report_metrics &lt;- metric_set(recall, roc_auc)
+report_metrics(preds, truth = defaulted, estimate = .pred_class, .pred_yes)
+#&gt; # A tibble: 2 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 recall  binary         0.304
+#&gt; 2 roc_auc binary         0.625</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">The other half of yardstick</div>
+<h2>And it measures regression too</h2>
+
+<p>Everything so far has been classification, but yardstick uses the exact same grammar for a numeric outcome. Predicting a house price instead of a yes/no label? The metrics change to <code>rmse</code> (root mean squared error, in the units of the outcome), <code>mae</code> (mean absolute error) and <code>rsq</code> (R-squared, the share of variance explained), but <code>metric_set</code> and the truth-and-estimate call are identical:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+set.seed(10)
+homes &lt;- tibble(
+  area  = round(runif(60, 700, 2600)),                       # square feet
+  price = round(40000 + 95 * area + rnorm(60, 0, 25000))     # sale price, dollars
+)
+home_fit    &lt;- lm(price ~ area, data = homes)
+home_scored &lt;- homes |&gt; mutate(.pred = predict(home_fit))
+
+reg_metrics &lt;- metric_set(rmse, mae, rsq)
+reg_metrics(home_scored, truth = price, estimate = .pred)
 #&gt; # A tibble: 3 x 3
-#&gt;   .metric   .estimator .estimate
-#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
-#&gt; 1 accuracy  binary         0.656
-#&gt; 2 precision binary         0.583
-#&gt; 3 recall    binary         0.304</code></pre></details></div>
-</section>
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rmse    standard   22998.
+#&gt; 2 mae     standard   19422.
+#&gt; 3 rsq     standard       0.838</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same idea, different yardsticks: on average the price predictions are off by about 19,400 dollars (mae), and the model explains 84% of the variation in price (rsq). You will lean on these in the regression course; the point here is that the yardstick workflow you just learned, choose, bundle, resample, carries straight over.</p>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="concept">
+<section class="lesson-step" data-step="16" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
@@ -354,23 +502,27 @@ catch_metrics(preds, truth = defaulted, estimate = .pred_class)
 
 <ul>
 
-<li><a href="https://yardstick.tidymodels.org/">yardstick package documentation (tidymodels)</a> - the reference for <code>accuracy()</code>, <code>precision()</code>, <code>recall()</code>, <code>roc_auc()</code> and <code>metric_set()</code>, including the event-level convention.</li>
+<li><a href="https://yardstick.tidymodels.org/">yardstick package documentation (tidymodels)</a> - the reference for every metric used here, with its formula and required columns.</li>
 
-<li><a href="https://www.tmwr.org/performance">Tidy Modeling with R, ch. 9: Judging model effectiveness</a> - Kuhn and Silge on choosing metrics that match the problem and reporting them across resamples.</li>
+<li><a href="https://yardstick.tidymodels.org/articles/metric-types.html">yardstick: Metric types</a> - the class-metric vs probability-metric distinction, and why a mixed metric set needs both columns.</li>
 
-<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - the confusion matrix, sensitivity and specificity, and the ROC curve, with the underlying statistics.</li>
+<li><a href="https://www.tmwr.org/performance">Tidy Modeling with R, ch. 9: Judging model effectiveness</a> - Kuhn and Silge on choosing metrics and reading them across resamples, end to end.</li>
 
-<li><a href="https://developers.google.com/machine-learning/crash-course/classification/roc-and-auc">Google ML Crash Course: ROC and AUC</a> - a clear, visual walk-through of the threshold sweep and what AUC measures.</li>
+<li><a href="https://doi.org/10.1016/j.patrec.2005.10.010">Fawcett (2006), An introduction to ROC analysis</a> - the canonical, readable explanation of ROC curves and AUC.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - sensitivity, specificity and the ROC curve in the wider context of classification.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="complete">
+<section class="lesson-step" data-step="17" data-step-type="complete">
 <h2>Lesson 5 complete</h2>
 
-<p>You stopped trusting a single accuracy number. You can read a confusion matrix, compute precision and recall for the class that actually matters, summarize the whole threshold trade with an ROC curve and its AUC, and report a chosen metric set across every resampling fold with <code>collect_metrics</code>. That is what "evaluating a model honestly" really means.</p>
+<p>You no longer report a single accuracy number and hope. You read the confusion matrix, choose precision, recall, specificity or F1 to match the actual cost of each mistake, tell a hard-class metric from a threshold-free probability metric like AUC, and bundle your choices into a metric set you can read across every resample, with an honest spread.</p>
 
-<p>Next, Lesson 6: Tune with the tune package. You have a fair yardstick now, so you can finally use it to choose between models. You will search a grid of hyperparameters, score each candidate across resamples on the metric you care about, and let the winner finalize your workflow.</p>
+<p>The loan model told you as much: 0.65 accuracy looked fine until recall of 0.26 revealed it catches barely a quarter of defaulters. Knowing that is the difference between a model that scores well and one that does its job.</p>
+
+<p>Next, Lesson 6: Tune with the tune package. A weak recall is often a tuning problem. You will search over a model's hyperparameters with resampling, use a metric set exactly like this one to score every candidate, and let the data pick the settings that lift the number you actually care about.</p>
 </section>
 
 {% endraw %}
