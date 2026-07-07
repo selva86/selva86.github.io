@@ -23,7 +23,7 @@ course_prev: "Hierarchical-and-Density-Clustering.html"
 
 In Lesson 4, hierarchical clustering and DBSCAN gave Maria clean neighbourhoods on her coffee-shop map. But every method so far, k-means included, has handed back a **hard** answer: each customer belongs to exactly one group, full stop.
 
-Meet Dan. He comes into Maria's shop about **17 times a month**, right in the gap between her regulars (who average around 13 visits) and her devotees (around 20). k-means had to shove Dan fully into one tier, even though he honestly sits on the fence. A Gaussian mixture refuses to pretend. It can say Dan is, say, **60% regular and 40% devotee**, and that fraction is a real, computed probability, not a hand-wave.
+Meet Dan. He comes into Maria's shop about **17 times a month**, right in the gap between her regulars (who average around 13 visits) and her devotees (around 20). k-means had to shove Dan fully into one tier, even though he honestly sits on the fence. A Gaussian mixture refuses to pretend. It can say Dan is, say, **60% regular and 40% devotee**, and that fraction is a real, computed probability, not a hand-wave. The panel below is that idea in miniature: flip it to soft and watch the fence-sitters take an in-between colour.
 
 By the end of this lesson you will be able to:
 
@@ -35,11 +35,13 @@ By the end of this lesson you will be able to:
 
 ::widget gmm-clusters {}
 
-=== step === concept
+=== step === widget
 ::eyebrow The idea
 ## Hard labels throw away what you know
 
-Toggle the panel above between **hard** and **soft**. In hard mode every dot is painted fully blue or fully gold, exactly what k-means does: each point is assigned to its single nearest group. In soft mode the dots in the overlap turn an in-between colour, because the model reports a *probability* of belonging to each group instead of forcing a choice.
+Toggle the panel between **hard** and **soft**. In hard mode every dot is painted fully blue or fully gold, exactly what k-means does: each point is assigned to its single nearest group. In soft mode the dots in the overlap turn an in-between colour, because the model reports a *probability* of belonging to each group instead of forcing a choice.
+
+::widget gmm-clusters {}
 
 That probability has a name. For each customer and each group, the model gives a **responsibility**: a number between 0 and 1 saying how much that group "owns" the customer, with the responsibilities across all groups adding up to 1. A responsibility of 0.95 means "almost certainly this tier"; 0.55 versus 0.45 means "leaning one way, but genuinely close."
 
@@ -55,9 +57,9 @@ In fact, hard assignment is a mixture model with the confidence deleted: k-means
 The model reports that one customer has responsibility **0.5 for "regular"** and **0.5 for "devotee"**. What is it telling you?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"beginner"}
-- That the customer's visit count sits exactly halfway between the two tiers' average visits ::no Not necessarily. Responsibility is a probability of membership, not a position on the visits axis. The mixing weights and the two spreads can pull the 50/50 point away from the plain midpoint, so equal responsibility does not require equal distance.
-- That the model is genuinely undecided: this customer is equally consistent with both tiers ::ok Right. Equal responsibilities mean the two bells explain this customer equally well, so the model reports honest uncertainty instead of a forced label.
-- That something is wrong, because a responsibility has to be 0 or 1 ::no That is hard assignment (k-means). A mixture's responsibilities are real numbers between 0 and 1 on purpose; 0.5 / 0.5 is a perfectly valid, informative answer.
+- The customer's visit count sits exactly halfway between the two tiers' average visits ::no A responsibility is a probability of membership, not a position on the number line. Equal shares mean the two bells explain this customer equally well, whatever the exact count.
+- The model is genuinely undecided: this customer is equally consistent with both tiers ::ok Right. Equal responsibilities mean the two bells explain this customer equally well, so the model reports honest uncertainty instead of a forced label.
+- Something is wrong, because a responsibility has to be 0 or 1 ::no That is hard assignment (k-means). A mixture's responsibilities are real numbers between 0 and 1 on purpose; 0.5 / 0.5 is a perfectly valid, informative answer.
 
 === step === concept
 ::eyebrow The model
@@ -133,8 +135,6 @@ round(resp, 3)
 #> [1] 0.599 0.401
 ```
 
-There is Dan: about **60% regular, 40% devotee**. That single computation, done for every customer, is the **E-step** (E for expectation) of the algorithm that fits the whole model.
-
 === step === concept
 ::eyebrow The algorithm
 ## EM: guess, blame, re-fit, repeat
@@ -180,7 +180,18 @@ data.frame(tier   = c("regular", "devotee"),
 #> 2 devotee    0.2        20.7 1.5
 ```
 
-Two tiers, one centred near 14 visits and one near 21, pulled out of a single lumpy histogram with no labels. That is the payoff.
+Two tiers, one centred near 14 visits and one near 21, pulled out of a single lumpy histogram with no labels. Draw those recovered bells back over the data and you can see the fit for yourself, the two curves EM found without ever being shown who was who:
+
+```r
+hist(visits, breaks = 18, freq = FALSE, col = "grey90", border = "white",
+     main = "What EM recovered, from unlabelled visits alone",
+     xlab = "visits per month")
+grid <- seq(1, 31, length.out = 300)
+lines(grid, pri[1] * dnorm(grid, mu[1], sg[1]), col = "#2980b9", lwd = 2)  # recovered regular bell
+lines(grid, pri[2] * dnorm(grid, mu[2], sg[2]), col = "#c0392b", lwd = 2)  # recovered devotee bell
+```
+
+That is the payoff: the model reconstructed both bells, and now every customer, Dan included, gets a responsibility from them.
 
 [WARNING]
 Each EM pass can only raise the log-likelihood or leave it flat, so the loop always converges, exactly like k-means always settled in Lesson 3. But it converges to a **local** optimum, the best fit near wherever you started. A bad start lands on a worse fit. The cure is the same as k-means `nstart`: run EM from several random starts and keep the one with the highest log-likelihood.
@@ -192,7 +203,7 @@ Each EM pass can only raise the log-likelihood or leave it flat, so the loop alw
 You run your hand-coded EM twice, from two different random starting guesses, and get two different sets of bells with slightly different final log-likelihoods. What is happening?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- One of the runs has a bug: EM is deterministic, so the same data must give the same fit ::no EM is not a bug here. Its result depends on the starting guess, so different starts legitimately reach different fits. That is a property of the algorithm, not an error.
+- One of the runs has a bug: EM is deterministic, so the same data must give the same fit ::no EM is deterministic given a start, but the start is random here. Same data plus a different starting guess can climb to a different local optimum.
 - EM climbs to whichever local optimum is nearest its start, so different starts can settle on different fits; keep the one with the higher log-likelihood ::ok Exactly. The log-likelihood surface has more than one peak; EM finds the nearest, not the tallest. Running several starts and keeping the best is how you guard against a poor one.
 - The data must have changed between the two runs ::no The data is identical; the only thing that differed was the starting guess. Same data, different start, different local optimum.
 
@@ -221,8 +232,8 @@ A colleague clusters Maria's customers two ways: k-means with `centers = 2`, and
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - When Maria wants to treat confident and borderline customers differently, for example emailing a "become a devotee" offer only to the fence-sitters who are, say, 40 to 60% devotee ::ok Right. The responsibilities let her target the ambiguous middle that a hard label hides. That is precisely the information k-means throws away.
-- Never: the hard k-means labels already contain strictly more information than the soft ones ::no It is the other way around. A responsibility carries more information than a hard label, since the hard label is just the responsibility rounded to its larger side. You can always recover the hard label from the soft one, but not the reverse.
-- Only when the two tiers do not overlap at all ::no Backwards. If the tiers do not overlap, every responsibility is near 0 or 1 and soft adds little. The soft output earns its keep exactly when the groups *do* overlap and some customers sit on the border.
+- Never: the hard k-means labels already contain strictly more information than the soft ones ::no Backwards. The hard label is the soft answer with the doubt deleted, so it holds strictly less information, not more.
+- Only when the two tiers do not overlap at all ::no If the tiers do not overlap, every responsibility is near 0 or 1 and soft adds little. The soft output earns its keep exactly when the groups *do* overlap and some customers sit on the border.
 
 === step === concept
 ::eyebrow Know your tool
