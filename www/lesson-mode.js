@@ -303,6 +303,14 @@
     });
     contBtn.addEventListener('click', function () { go(1); });
     document.addEventListener('keydown', function (e) {
+      // Never hijack arrow keys while the reader is typing in a code editor,
+      // input, or any editable field - there the arrows must move the caret.
+      var t = e.target;
+      if (t && (t.isContentEditable ||
+                (t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) ||
+                (t.closest && t.closest('.webr-container, .webr-editor, .webr-editor-input, [contenteditable="true"]')))) {
+        return;
+      }
       if (e.key === 'ArrowRight' && !contBtn.disabled) go(1);
       else if (e.key === 'ArrowLeft' && !backBtn.disabled) go(-1);
     });
