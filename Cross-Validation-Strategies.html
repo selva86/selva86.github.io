@@ -3,8 +3,8 @@
   <head>
     <title>Model Evaluation Lesson 1: Cross-Validation Strategies</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Learn cross-validation in R: why one train/test split gives an unreliable score, and how k-fold, repeated k-fold and LOOCV give an honest estimate of accuracy.">
-    <meta name="Keywords" content="cross-validation, k-fold cross-validation, LOOCV, repeated cross-validation, resampling, model evaluation, train test split, bias variance, mtcars, R">
+    <meta name="Description" content="Cross-validation in R from scratch: why one train/test split misleads, how k-fold, repeated CV and LOOCV work, and how to choose the number of folds.">
+    <meta name="Keywords" content="cross-validation, k-fold cross-validation, LOOCV, repeated cross-validation, resampling, model evaluation, RMSE, bias variance, choosing k, R">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Model Evaluation Lesson 1: Cross-Validation Strategies">
-    <meta property="og:description" content="Learn cross-validation in R: why one train/test split gives an unreliable score, and how k-fold, repeated k-fold and LOOCV give an honest estimate of accuracy.">
+    <meta property="og:description" content="Cross-validation in R from scratch: why one train/test split misleads, how k-fold, repeated CV and LOOCV work, and how to choose the number of folds.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Cross-Validation-Strategies.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Cross-Validation-Strategies.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Model Evaluation Lesson 1: Cross-Validation Strategies">
-    <meta name="twitter:description" content="Learn cross-validation in R: why one train/test split gives an unreliable score, and how k-fold, repeated k-fold and LOOCV give an honest estimate of accuracy.">
+    <meta name="twitter:description" content="Cross-validation in R from scratch: why one train/test split misleads, how k-fold, repeated CV and LOOCV work, and how to choose the number of folds.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Cross-Validation-Strategies.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Model Evaluation Lesson 1: Cross-Validation Strategies",
-      "description": "Learn cross-validation in R: why one train/test split gives an unreliable score, and how k-fold, repeated k-fold and LOOCV give an honest estimate of accuracy.",
+      "description": "Cross-validation in R from scratch: why one train/test split misleads, how k-fold, repeated CV and LOOCV work, and how to choose the number of folds.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Cross-Validation-Strategies.html",
-      "datePublished": "2026-07-01",
-      "dateModified": "2026-07-01",
+      "datePublished": "2026-07-07",
+      "dateModified": "2026-07-07",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -595,7 +595,7 @@
 
     
     
-        <link rel="stylesheet" href="www/lesson-mode.min.css?h=5f5f1fcb">
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
     <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
   </head>
 
@@ -679,23 +679,23 @@
 <div class="lesson-step-eyebrow">Lesson 1 of 7</div>
 <h2>Cross-Validation Strategies</h2>
 
-<p>You have data on 32 cars, and you want to predict a car's fuel economy (its miles per gallon) from its weight. You fit a model on 24 of them, test it on the other 8, and get an average error of about 3.4 mpg. Good enough? A colleague reruns it with a different random 8 cars in the test set and gets 5.2 mpg. Same model, same 32 cars. Which number is real?</p>
+<p>You already know the golden rule of honest evaluation: never judge a model on the data it trained on. Hold out a test set, and its score stands in for how the model will do on the future. But there is a crack in that plan.</p>
 
-<p>Neither, quite. The score you get from one train/test split is part skill, part luck of the draw. This lesson shows you how to take the luck out, so the number you report is one you can trust.</p>
+<p>Sam, an analyst at a used-car marketplace, is checking a model that predicts a car's fuel economy from its weight and horsepower. He holds out a quarter of his cars, scores the model, and gets a typical error of <strong>3.3 mpg</strong>. He reshuffles, holds out a different quarter, and gets <strong>1.6 mpg</strong>. Same cars, same model, and the verdict just doubled. Which number does he report? Cross-validation is the fix, and this lesson builds it straight out of that problem.</p>
 
 <p>By the end you will be able to:</p>
 
 <ul>
 
-<li>Explain why a single train/test split gives an unreliable score</li>
+<li>Explain why a single train/test split gives a luck-of-the-draw score</li>
 
-<li>Run k-fold cross-validation and know why its average is more honest</li>
+<li>Run <strong>k-fold cross-validation</strong> and read its result</li>
 
-<li>Choose k wisely, and know where repeated CV and leave-one-out fit in</li>
+<li>Weigh <strong>LOOCV</strong> and <strong>repeated k-fold</strong>, and choose a sensible number of folds</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can fit a model with <code>lm()</code> and call <code>predict()</code>, you know what a train/test split is, and you have met the idea that an estimate can be biased or noisy.</p>
+<p><strong>Prerequisites:</strong> you can fit a model with <code>lm()</code> and call <code>predict()</code>, and you know what a held-out test set is (Lesson: <a href="Train-Validation-Test-and-Data-Leakage.html">Train, Validation, Test, and Data Leakage</a>).</p>
 <div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
@@ -703,26 +703,19 @@
 <div class="lesson-step-eyebrow">The problem</div>
 <h2>One split is a coin flip</h2>
 
-<p>Let us make the luck visible. We will predict <code>mpg</code> from a car's weight (<code>wt</code>) using <code>mtcars</code> (32 real cars, built into R), but instead of splitting once, we will split 200 different ways and look at the test error each time.</p>
+<p>Let us watch Sam's problem happen for real. The data is <code>mtcars</code>: 32 cars that Motor Trend road-tested in 1974, each with its fuel economy (<code>mpg</code>), weight (<code>wt</code>, in thousands of pounds) and horsepower (<code>hp</code>).</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Predict a car&#39;s fuel economy (mpg) from its weight, using mtcars (32 cars).</span></span>
-<span class="cl">rmse_split <span class="o">&lt;-</span> <span class="kr">function</span>(seed) {</span>
-<span class="cl">  <span class="nf">set.seed</span>(seed)</span>
-<span class="cl">  i   <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">nrow</span>(mtcars), <span class="m">24</span>)          <span class="c1"># 24 cars to train, 8 held out to test</span></span>
-<span class="cl">  fit <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt, data <span class="o">=</span> mtcars[i, ])</span>
-<span class="cl">  <span class="nf">sqrt</span>(<span class="nf">mean</span>((mtcars<span class="o">$</span>mpg[<span class="o">-</span>i] <span class="o">-</span> <span class="nf">predict</span>(fit, mtcars[<span class="o">-</span>i, ]))<span class="o">^</span><span class="m">2</span>))   <span class="c1"># test error, in mpg</span></span>
-<span class="cl">}</span>
-<span class="cl"></span>
-<span class="cl">errs <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">200</span>, rmse_split)          <span class="c1"># the SAME model on 200 different splits</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">range</span>(errs), <span class="m">2</span>)                       <span class="c1"># the smallest and largest score we could report</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 1.12 5.23</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">sd</span>(errs), <span class="m">2</span>)                          <span class="c1"># how much the score wobbles, in mpg</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 0.79</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">mean</span>(errs), <span class="m">2</span>)                        <span class="c1"># the average across all 200 splits</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 3.18</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">head</span>(mtcars[, <span class="nf">c</span>(<span class="s">&quot;mpg&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;hp&quot;</span>)])</span>
+<span class="cl"><span class="c1">#&gt;                    mpg    wt  hp</span></span>
+<span class="cl"><span class="c1">#&gt; Mazda RX4         21.0 2.620 110</span></span>
+<span class="cl"><span class="c1">#&gt; Mazda RX4 Wag     21.0 2.875 110</span></span>
+<span class="cl"><span class="c1">#&gt; Datsun 710        22.8 2.320  93</span></span>
+<span class="cl"><span class="c1">#&gt; Hornet 4 Drive    21.4 3.215 110</span></span>
+<span class="cl"><span class="c1">#&gt; Hornet Sportabout 18.7 3.440 175</span></span>
+<span class="cl"><span class="c1">#&gt; Valiant           18.1 3.460 105</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -732,88 +725,129 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read those numbers slowly. The exact same model on the exact same 32 cars scores anywhere from <strong>1.12 to 5.23 mpg</strong>, purely depending on which 8 cars happened to land in the test set. With only 8 cars judging the model, one lucky (or unlucky) draw swings the verdict. Report a single split and you are quoting one spin of that wheel.</p>
+<p>Sam holds out 8 of the 32 cars (a quarter), fits an ordinary regression on the other 24, and measures the typical prediction error on the 8 he held out. That error is the <strong>RMSE</strong> (root-mean-square error), reported in mpg: an RMSE of 2.5 means the model is off by about 2.5 mpg on a typical car. Then he does it again with a different random 8, and again, six times over:</p>
 
-<p>Notice, though, that the <em>average</em> of all those splits, 3.18, is rock steady. That average is the whole idea behind cross-validation.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">rmse_of <span class="o">&lt;-</span> <span class="kr">function</span>(actual, predicted) <span class="nf">sqrt</span>(<span class="nf">mean</span>((actual <span class="o">-</span> predicted)<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl"></span>
+<span class="cl">split_rmse <span class="o">&lt;-</span> <span class="kr">function</span>(seed) {</span>
+<span class="cl">  <span class="nf">set.seed</span>(seed)</span>
+<span class="cl">  holdout <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">nrow</span>(mtcars), <span class="m">8</span>)                 <span class="c1"># 8 cars set aside to test on</span></span>
+<span class="cl">  fit     <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars[<span class="o">-</span>holdout, ])</span>
+<span class="cl">  <span class="nf">rmse_of</span>(mtcars<span class="o">$</span>mpg[holdout], <span class="nf">predict</span>(fit, mtcars[holdout, ]))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">6</span>, split_rmse), <span class="m">2</span>)                    <span class="c1"># six different random hold-out sets</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 2.52 3.28 1.60 2.23 2.36 1.99</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every number came from the same 32 cars and the same model. The only thing that changed was which 8 cars happened to land in the hold-out set, yet the estimated error swings from <strong>1.60</strong> to <strong>3.28</strong> mpg, more than double. With only 8 cars deciding the score, one unlucky pair of gas-guzzlers can wreck it. A single split does not really measure the model; it measures the model plus the luck of the draw.</p>
 </section>
 
-<section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The idea</div>
-<h2>Rotate the holdout: k-fold CV</h2>
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did the score change?</h2>
 
-<p>Here is the fix. Instead of holding out one test set and wasting the rest, k-fold cross-validation gives every car a turn in the test seat.</p>
+<p>Sam ran the exact same model on the exact same 32 cars six times and got six different error estimates, from 1.60 to 3.28 mpg. What is the main reason the number moved?</p>
+<section class="exercise" data-exercise-id="Cross-Validation-Strategies-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model learned something different each time, so it really is a different model</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Each run held out a different random 8 cars, so the score reflects which cars happened to be in the test set</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The test set of 8 cars is simply too small to fit a model on</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. With only 8 cars judging the model, the estimate rides on the luck of the draw: an easy hold-out flatters it, a hard one punishes it.</div><div class="lesson-qfb lesson-qfb-no">The model is fit on the other 24 cars, not the 8. The 8 are only for scoring. The trouble is that 8 scoring cars give a noisy estimate, not that they are too few to train on.</div></div>
+</section>
+</section>
 
-<p>Shuffle the 32 cars and deal them into k equal piles, called folds. Then loop k times: hold out one fold as the validation set, train on the other k-1 folds, and record the error. After k rounds every car has been validated exactly once, and you have k scores. Average them, and that average is your cross-validated error.</p>
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Rotate the holdout: k-fold cross-validation</h2>
 
-<p>For \(k\) folds with validation error \(e_i\) on fold \(i\), the cross-validated error is their mean:</p>
+<p>The wobble comes from letting one small hold-out set decide everything. So do not let it. <strong>k-fold cross-validation</strong> splits the cars into <code>k</code> equal groups, called <em>folds</em>. Then it takes turns: fold 1 is held out while folds 2 to <code>k</code> train the model and score it; then fold 2 is held out while the rest train; and so on, until every fold has been the hold-out exactly once. That gives <code>k</code> scores, and their average is the cross-validated error.</p>
 
-<p>\[ \text{CV}_k = \frac{1}{k} \sum_{i=1}^{k} e_i \]</p>
+<p>The beauty is that nothing is wasted and nothing is special. Every car trains the model in <code>k - 1</code> of the rounds and tests it in exactly one. No single lucky or unlucky split can dominate, because you average over all of them.</p>
 
-<p>Averaging is what buys the stability. A single fold's score \(e_i\) is noisy, just like our coin-flip split. But the noise in the k folds partly cancels when you average, so \(\text{CV}_k\) wobbles far less than any one \(e_i\) does.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A single split throws away most of your data to test on a handful of rows. k-fold reuses every row for both training and testing, once each, then averages. You get an estimate that uses all the data and stops depending on one lucky draw.</div></div>
-
-<p>Step through the widget below: watch each fold take its turn as the validation slice while the rest train, and see the k scores collect into one steady average.</p>
+<p>Step through the folds below. Watch the hold-out fold (highlighted) rotate through the data while the rest train, and see the <code>k</code> fold-scores collapse into one steadier average.</p>
 <div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":5}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Where does each car end up?</h2>
-
-<p>You run 5-fold cross-validation on the 32 cars. How many times does each individual car sit in a validation fold?</p>
-<section class="exercise" data-exercise-id="Cross-Validation-Strategies-step4" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Exactly once</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Five times, once in every fold</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Four times, once per training round</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. The folds partition the cars, so each car is held out for validation in exactly one round, and helps train the model in the other four.</div><div class="lesson-qfb lesson-qfb-no">Four is how often each car helps TRAIN. It is validated exactly once, in the single round when its own fold is the holdout.</div></div>
-</section>
-</section>
-
 <section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">The real trade-off</div>
-<h2>Choosing k: the bias-variance of the estimate itself</h2>
+<div class="lesson-step-eyebrow">The math</div>
+<h2>The cross-validated error, precisely</h2>
 
-<p>So which k should you use? This is the subtle part, and it is what separates people who run CV from people who understand it. The choice of k is itself a bias-variance trade-off, not about the model, but about the error estimate.</p>
+<p>Here is that idea written exactly. Number the rows \(1\) to \(n\) (for Sam, \(n = 32\) cars). Split them into \(k\) folds \(F_1, F_2, \dots, F_k\) of roughly equal size, so \(|F_j|\) is the number of cars in fold \(j\).</p>
 
-<ul>
+<p>For each fold \(j\), train the model on every car <em>except</em> those in \(F_j\); call that fitted model \(\hat f_{-j}\), where the \(-j\) means "fold \(j\) left out." Score it on the held-out fold with the root-mean-square error</p>
 
-<li><strong>Small k (say k = 2).</strong> Each model trains on only half the data, so it is weaker than the model you will finally ship on all the data. Its errors read a bit too high: the estimate is <strong>pessimistically biased</strong>. Upside: the two folds are large, so the estimate is stable (low variance).</li>
+<p>\[ \mathrm{RMSE}_j \;=\; \sqrt{\frac{1}{|F_j|}\sum_{i \in F_j}\big(y_i - \hat f_{-j}(x_i)\big)^2}, \]</p>
 
-<li><strong>Large k (say k = n).</strong> Each model trains on almost all the data, so it behaves like your final model: <strong>low bias</strong>. Downside: the k training sets overlap almost completely, so the k models are nearly identical and their scores move together. Averaging correlated scores removes little noise, so the estimate is <strong>higher variance</strong>. It also costs k separate fits.</li>
+<p>where \(y_i\) is car \(i\)'s true mpg, \(x_i\) its weight and horsepower, and \(\hat f_{-j}(x_i)\) the prediction from the model that never saw car \(i\). The cross-validated error is simply the average of the \(k\) fold scores:</p>
 
-</ul>
+<p>\[ \mathrm{CV}_k \;=\; \frac{1}{k}\sum_{j=1}^{k}\mathrm{RMSE}_j. \]</p>
 
-<p>With per-fold variance \(\sigma^2\) and average correlation \(\rho\) between the fold scores, the variance of the CV estimate looks like:</p>
-
-<p>\[ \rho\,\sigma^2 + \frac{1-\rho}{k}\,\sigma^2 \]</p>
-
-<p>More folds shrink the second term but not the first, and larger k pushes \(\rho\) up. That tug-of-war is why the extremes both disappoint and the middle wins.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">More folds is not automatically better. Past k = 5 or 10 you pay more compute for an estimate that can actually get noisier, not cleaner. Decades of practice land on <strong>k = 5 or k = 10</strong> as the sweet spot for most problems.</div></div>
-
-<p>Toggle the widget between 4, 5 and 10 folds and watch the validation slice shrink as k climbs: fewer cars judge each round, which is exactly the extra variance the math warns about.</p>
-<div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":10}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">One number, \(\mathrm{CV}_k\), built from \(k\) honest hold-out scores. Because every car is a test case exactly once, the estimate no longer hangs on a single lucky split.</div></div>
 </section>
 
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">The extreme</div>
-<h2>LOOCV: when k equals n</h2>
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Build 5-fold CV by hand</h2>
 
-<p>Push k all the way to n and you get leave-one-out cross-validation (LOOCV): with 32 cars, that is 32 folds of one car each. Train on 31, predict the 1 you left out, repeat 32 times, average the 32 errors.</p>
+<p>Let us turn that formula into code and pin down Sam's real number. The setup gives each of the 32 cars a random fold label from 1 to 5. Inside the loop, the held-out fold is <code>fold == f</code>; the training set is <em>everything else</em>. Fill in the blank so the model trains on the other four folds.</p>
+<section class="exercise" data-exercise-id="Cross-Validation-Strategies-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="fold\s*!=\s*f"><textarea class="lesson-tryit-input" spellcheck="false">n    &lt;- nrow(mtcars)
+set.seed(7)
+k    &lt;- 5
+fold &lt;- sample(rep(1:k, length.out = n))     # give each car a fold label 1..5
+scores &lt;- numeric(k)
+
+for (f in 1:k) {
+  train &lt;- mtcars[____, ]                     # the other four folds
+  valid &lt;- mtcars[fold == f, ]                # this fold, held out
+  fit   &lt;- lm(mpg ~ wt + hp, data = train)
+  scores[f] &lt;- rmse_of(valid$mpg, predict(fit, valid))
+}
+round(mean(scores), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: the training set is every car whose fold label is NOT f, the complement of the hold-out. Sam's honest error comes out to 2.77 mpg, one number instead of a range.</span><span class="lesson-tryit-fb lesson-tryit-no">The training set is everything the hold-out is not: mtcars[fold != f, ]. Using fold == f would train on the very rows you are trying to score.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">n    &lt;- nrow(mtcars)
+set.seed(7)
+k    &lt;- 5
+fold &lt;- sample(rep(1:k, length.out = n))
+scores &lt;- numeric(k)
+
+for (f in 1:k) {
+  train &lt;- mtcars[fold != f, ]
+  valid &lt;- mtcars[fold == f, ]
+  fit   &lt;- lm(mpg ~ wt + hp, data = train)
+  scores[f] &lt;- rmse_of(valid$mpg, predict(fit, valid))
+}
+round(scores, 2)          # one RMSE per fold
+#&gt; [1] 3.73 1.79 2.61 2.67 3.07
+round(mean(scores), 2)    # the cross-validated RMSE
+#&gt; [1] 2.77</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The extreme</div>
+<h2>LOOCV: hold out just one car</h2>
+
+<p>What if you push <code>k</code> as far as it will go, all the way to <code>k = n</code>? Then each fold is a single car: train on the other 31, predict that one, record the error, and repeat 32 times. This is <strong>leave-one-out cross-validation (LOOCV)</strong>, the <code>k = n</code> extreme. Because each model trains on almost all the data (31 of 32 cars), LOOCV wrings the most out of a small dataset.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Leave-one-out CV: n = 32 fits, each leaving out exactly one car.</span></span>
-<span class="cl">n   <span class="o">&lt;-</span> <span class="nf">nrow</span>(mtcars)</span>
+    <div class="webr-editor" data-language="r"><span class="cl">n   <span class="o">&lt;-</span> <span class="nf">nrow</span>(mtcars)</span>
 <span class="cl">loo <span class="o">&lt;-</span> <span class="nf">numeric</span>(n)</span>
 <span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="m">1</span><span class="o">:</span>n) {</span>
-<span class="cl">  fit    <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt, data <span class="o">=</span> mtcars[<span class="o">-</span>i, ])          <span class="c1"># train on the other 31 cars</span></span>
-<span class="cl">  loo[i] <span class="o">&lt;-</span> mtcars<span class="o">$</span>mpg[i] <span class="o">-</span> <span class="nf">predict</span>(fit, mtcars[i, ])  <span class="c1"># error on the 1 held-out car</span></span>
+<span class="cl">  fit    <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars[<span class="o">-</span>i, ])    <span class="c1"># train on all but car i</span></span>
+<span class="cl">  loo[i] <span class="o">&lt;-</span> mtcars<span class="o">$</span>mpg[i] <span class="o">-</span> <span class="nf">predict</span>(fit, mtcars[i, ]) <span class="c1"># its held-out residual</span></span>
 <span class="cl">}</span>
-<span class="cl"><span class="nf">sqrt</span>(<span class="nf">mean</span>(loo<span class="o">^</span><span class="m">2</span>))          <span class="c1"># LOOCV RMSE, in mpg</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 3.201673</span></span></div>
+<span class="cl"><span class="nf">round</span>(<span class="nf">sqrt</span>(<span class="nf">mean</span>(loo<span class="o">^</span><span class="m">2</span>)), <span class="m">2</span>)                           <span class="c1"># LOOCV RMSE, from 32 fits</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 2.78</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -823,19 +857,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>LOOCV trains on almost the full dataset every time, so it is nearly unbiased. But those 32 training sets differ by only one car, so the 32 models are almost identical and their errors are highly correlated, exactly the high-variance case from the last step. And it costs n fits, which hurts on large data.</p>
+<p>That is <strong>2.78 mpg</strong>, right next to the 2.77 the 5-fold run gave. But notice the cost: LOOCV refit the model 32 times, once per car. With 32 cars that is nothing; with 320,000 rows it is 320,000 fits.</p>
 
-<p>For a linear model there is a beautiful shortcut: you can read LOOCV straight off a single fit, using each point's leverage \(h_i\) (how much that row pulls the fitted line toward itself). The leave-one-out error for row \(i\) is just its ordinary residual \(e_i\) inflated by \(1 - h_i\):</p>
+<p>For a plain linear model there is a lovely shortcut that needs no refitting at all. Fit once, then car \(i\)'s leave-one-out residual is its ordinary residual \(e_i\) divided by \(1 - h_{ii}\), where \(h_{ii}\) is the car's <em>leverage</em> (how unusual its weight and horsepower are, read straight off the fit with <code>hatvalues()</code>):</p>
 
-<p>\[ \text{CV}_{(n)} = \sqrt{\frac{1}{n}\sum_{i=1}^{n} \left(\frac{e_i}{1 - h_i}\right)^2} \]</p>
+<p>\[ e_{i}^{\,\text{LOO}} \;=\; \frac{e_i}{1 - h_{ii}}. \]</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">full <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt, data <span class="o">=</span> mtcars)           <span class="c1"># one fit on all 32 cars</span></span>
-<span class="cl">h    <span class="o">&lt;-</span> <span class="nf">hatvalues</span>(full)                        <span class="c1"># leverage of each car</span></span>
-<span class="cl"><span class="nf">sqrt</span>(<span class="nf">mean</span>((<span class="nf">residuals</span>(full) <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> h))<span class="o">^</span><span class="m">2</span>))      <span class="c1"># same LOOCV RMSE, no loop</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 3.201673</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl">full  <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars)</span>
+<span class="cl">short <span class="o">&lt;-</span> <span class="nf">residuals</span>(full) <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">hatvalues</span>(full))   <span class="c1"># each car&#39;s LOO residual, no refit</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">sqrt</span>(<span class="nf">mean</span>(short<span class="o">^</span><span class="m">2</span>)), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 2.78</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -845,52 +879,47 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Same 3.201673, from a single fit instead of 32. The shortcut only exists for linear models, but it is a lovely reminder that LOOCV is a real, computable quantity, not a black box.</p>
+<p>The same <strong>2.78</strong>, from a single fit. The shortcut is exact for linear models; most other models have no such trick and really must refit <code>n</code> times.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">LOOCV is k-fold taken to its limit, \(k = n\). It trains on nearly all the data every time, but pays for it with \(n\) model fits (unless a shortcut like the linear one exists).</div></div>
 </section>
 
-<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Is more always better?</h2>
+<h2>Is LOOCV always the best choice?</h2>
 
-<p>A teammate says: "Always use leave-one-out CV. It trains on the most data, so it gives the most accurate error estimate." Are they right?</p>
-<section class="exercise" data-exercise-id="Cross-Validation-Strategies-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes, more training data always means a more accurate estimate</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No, LOOCV has low bias but high variance and high cost; 5- or 10-fold usually estimates test error at least as well, far more cheaply</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, LOOCV is biased because it only ever tests one point at a time</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The near-identical training sets make the fold scores highly correlated, so their average stays noisy. Empirically 5- or 10-fold matches or beats LOOCV for a fraction of the compute.</div><div class="lesson-qfb lesson-qfb-no">Testing one point at a time is fine, every point does get tested, and LOOCV is actually nearly UNBIASED. Its weakness is variance and cost, not bias.</div></div>
+<p>A colleague argues: "LOOCV trains on almost all the data every time, so it is nearly unbiased. It must give the best error estimate, always use it." Where does that reasoning fall short?</p>
+<section class="exercise" data-exercise-id="Cross-Validation-Strategies-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is correct: LOOCV is nearly unbiased, so it is always the best estimator of test error</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">LOOCV is actually badly biased, because training on n-1 rows is far too little data</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nearly unbiased, yes, but its n near-identical models make the estimate high-variance, and it costs n fits; 5- or 10-fold often estimates test error at least as well, for far less compute</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. LOOCV's n training sets differ by a single row, so their scores are highly correlated and averaging them barely reduces variance. Moderate k is the usual sweet spot.</div><div class="lesson-qfb lesson-qfb-no">Training on n-1 of n rows is barely less than the full set, so LOOCV's bias is tiny. Its bias is not the weakness; its variance and cost are.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<div class="lesson-step-eyebrow">Squeeze out the last of the luck</div>
-<h2>Repeated k-fold CV</h2>
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Squeezing out the last wobble</div>
+<h2>Repeated k-fold cross-validation</h2>
 
-<p>One run of 5-fold CV still made one random choice: how it dealt the cars into folds. A different shuffle gives slightly different folds and a slightly different answer. Repeated k-fold removes that last wrinkle by running the whole procedure several times with fresh shuffles and averaging everything.</p>
+<p>k-fold already tamed the wild single-split swing. But one small thing still nudges the answer: the <em>random</em> assignment of cars to folds. Shuffle the cars into folds a different way and you get a slightly different \(\mathrm{CV}_k\). Watch:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">cv_once <span class="o">&lt;-</span> <span class="kr">function</span>(k <span class="o">=</span> <span class="m">5</span>) {</span>
+    <div class="webr-editor" data-language="r"><span class="cl">cv_rmse <span class="o">&lt;-</span> <span class="kr">function</span>(seed, k <span class="o">=</span> <span class="m">5</span>) {</span>
 <span class="cl">  n    <span class="o">&lt;-</span> <span class="nf">nrow</span>(mtcars)</span>
-<span class="cl">  fold <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">rep</span>(<span class="m">1</span><span class="o">:</span>k, length.out <span class="o">=</span> n))      <span class="c1"># deal a random fold label to each car</span></span>
-<span class="cl">  err  <span class="o">&lt;-</span> <span class="nf">numeric</span>(k)</span>
+<span class="cl">  <span class="nf">set.seed</span>(seed)</span>
+<span class="cl">  fold <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">rep</span>(<span class="m">1</span><span class="o">:</span>k, length.out <span class="o">=</span> n))</span>
+<span class="cl">  scores <span class="o">&lt;-</span> <span class="nf">numeric</span>(k)</span>
 <span class="cl">  <span class="kr">for</span> (f <span class="kr">in</span> <span class="m">1</span><span class="o">:</span>k) {</span>
-<span class="cl">    fit    <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt, data <span class="o">=</span> mtcars[fold <span class="o">!=</span> f, ])   <span class="c1"># train on the other folds</span></span>
-<span class="cl">    va     <span class="o">&lt;-</span> mtcars[fold <span class="o">==</span> f, ]                         <span class="c1"># validate on fold f</span></span>
-<span class="cl">    err[f] <span class="o">&lt;-</span> <span class="nf">sqrt</span>(<span class="nf">mean</span>((va<span class="o">$</span>mpg <span class="o">-</span> <span class="nf">predict</span>(fit, va))<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl">    fit <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars[fold <span class="o">!=</span> f, ])</span>
+<span class="cl">    scores[f] <span class="o">&lt;-</span> <span class="nf">rmse_of</span>(mtcars<span class="o">$</span>mpg[fold <span class="o">==</span> f], <span class="nf">predict</span>(fit, mtcars[fold <span class="o">==</span> f, ]))</span>
 <span class="cl">  }</span>
-<span class="cl">  <span class="nf">mean</span>(err)                                       <span class="c1"># this run&#39;s 5-fold CV score</span></span>
+<span class="cl">  <span class="nf">mean</span>(scores)</span>
 <span class="cl">}</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
-<span class="cl"><span class="nf">cv_once</span>()      <span class="c1"># one 5-fold run</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 3.159606</span></span>
-<span class="cl"><span class="nf">cv_once</span>()      <span class="c1"># run it again: different shuffle, different number</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 3.266468</span></span>
-<span class="cl"></span>
-<span class="cl">reps <span class="o">&lt;-</span> <span class="nf">replicate</span>(<span class="m">50</span>, <span class="nf">cv_once</span>())    <span class="c1"># repeat the whole 5-fold CV 50 times</span></span>
-<span class="cl"><span class="nf">mean</span>(reps)                           <span class="c1"># repeated 5-fold CV: the steady estimate</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 3.107866</span></span></div>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(split_a <span class="o">=</span> <span class="nf">cv_rmse</span>(<span class="m">1</span>), split_b <span class="o">=</span> <span class="nf">cv_rmse</span>(<span class="m">2</span>), split_c <span class="o">=</span> <span class="nf">cv_rmse</span>(<span class="m">3</span>)), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; split_a split_b split_c</span></span>
+<span class="cl"><span class="c1">#&gt;    2.68    2.37    2.84</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -900,52 +929,145 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Two single runs gave 3.16 and 3.27, close but not identical, because the fold shuffle differs. Averaging 50 runs settles on 3.11, and would barely move if you ran it again. Repeated CV is cheap insurance on small or noisy datasets, where the fold shuffle matters most.</p>
-</section>
+<p>Three different fold shufflings, three answers from 2.37 to 2.84. Much smaller than the single-split swing, but still there. <strong>Repeated k-fold</strong> removes it the same way k-fold removed the single-split luck: run the whole k-fold procedure many times, each with a fresh shuffling, and average.</p>
 
-<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
-<div class="lesson-step-eyebrow">Your turn</div>
-<h2>Split the folds correctly</h2>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">reps <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">50</span>, cv_rmse)          <span class="c1"># 50 whole 5-fold runs, each shuffled differently</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(repeated_mean <span class="o">=</span> <span class="nf">mean</span>(reps), sd_between_splits <span class="o">=</span> <span class="nf">sd</span>(reps)), <span class="nf">c</span>(<span class="m">2</span>, <span class="m">3</span>))</span>
+<span class="cl"><span class="c1">#&gt; repeated_mean sd_between_splits</span></span>
+<span class="cl"><span class="c1">#&gt;         2.680             0.125</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>Here is the heart of every k-fold loop: for the current fold <code>f</code>, the validation set is the rows <em>in</em> fold f, and the training set is everything <em>else</em>. Fill in the blank so <code>tr</code> holds the training cars (every row NOT in fold f).</p>
-<section class="exercise" data-exercise-id="Cross-Validation-Strategies-step9" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="fold\s*!=\s*f"><textarea class="lesson-tryit-input" spellcheck="false"># Fill the blank: train on every fold EXCEPT the current one.
-k    &lt;- 5
-fold &lt;- sample(rep(1:k, length.out = nrow(mtcars)))
-f    &lt;- 1
-tr &lt;- mtcars[____, ]        # rows NOT in fold f  -&gt;  the training set
-va &lt;- mtcars[fold == f, ]   # rows IN fold f      -&gt;  the validation set
-c(train = nrow(tr), validation = nrow(va))</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: fold != f selects every car whose fold is not the current one, which is exactly the training set.</span><span class="lesson-tryit-fb lesson-tryit-no">The training set is the complement of the holdout. Use fold != f (not fold == f) to keep every row that is NOT in fold f.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">k    &lt;- 5
-fold &lt;- sample(rep(1:k, length.out = nrow(mtcars)))
-f    &lt;- 1
-tr &lt;- mtcars[fold != f, ]   # rows NOT in fold f  -&gt;  the training set
-va &lt;- mtcars[fold == f, ]
-c(train = nrow(tr), validation = nrow(va))
-#&gt;      train validation
-#&gt;         25          7</code></pre></details></div>
-</section>
+<p>The average over 50 runs, <strong>2.68 mpg</strong>, barely changes if you do it all again: the spread between individual runs is only 0.125 mpg. Repeated k-fold earns its keep on small datasets like this one, where a single shuffling can still swing the estimate.</p>
 </section>
 
 <section class="lesson-step" data-step="10" data-step-type="concept">
-<div class="lesson-step-eyebrow">In practice</div>
-<h2>Let a package build the folds</h2>
+<div class="lesson-step-eyebrow">The estimate has its own bias and variance</div>
+<h2>Choosing k: the estimate's own tradeoff</h2>
 
-<p>You now understand k-fold from the inside, which is the point. In real projects you do not hand-roll the loop, you let a resampling package deal the folds, respect grouping, and keep everything reproducible. In the tidymodels world that is <code>rsample</code>:</p>
+<p>You now have three schemes, 5-fold, 10-fold, and LOOCV. Which <code>k</code> should you actually pick? The surprising answer is that the <em>error estimate itself</em> has a bias and a variance, and \(k\) trades one against the other.</p>
 
-<pre><code class="language-r">library(rsample)
+<p><strong>Bias of the estimate.</strong> With \(k\) folds, each model trains on a fraction \((k-1)/k\) of the data. Small \(k\) means smaller training sets: 2-fold trains on only half the cars. If the model would clearly do better with more data, its cross-validated error comes out slightly <em>pessimistic</em>, an over-estimate, because every fold's model was handicapped. As \(k\) rises toward \(n\) (LOOCV), each model trains on nearly the full dataset, so that bias shrinks almost to nothing.</p>
 
-# 10-fold CV, repeated 5 times, in one line
-folds &lt;- vfold_cv(mtcars, v = 10, repeats = 5)
+<p><strong>Variance of the estimate.</strong> Here it flips. \(\mathrm{CV}_k\) is an average of \(k\) fold scores. For an average of \(k\) scores that each have variance \(\sigma^2\) and share an average pairwise correlation \(\rho\),</p>
 
-# For classification: keep each fold's class balance with strata
-folds &lt;- vfold_cv(diamonds, v = 10, strata = cut)</code></pre>
+<p>\[ \mathrm{Var}\!\left(\mathrm{CV}_k\right) \;=\; \frac{\sigma^2}{k} \;+\; \frac{k-1}{k}\,\rho\,\sigma^2. \]</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">For classification, use <strong>stratified folds</strong> (the <code>strata</code> argument): each fold keeps the same class proportions as the whole dataset. Without it, a rare class can vanish from a fold entirely and wreck that fold's score, especially on imbalanced data.</div></div>
+<p>Read the two terms. The first, \(\sigma^2/k\), is the familiar "averaging shrinks noise" term. The second is the catch: when the fold scores are <em>correlated</em> (\(\rho > 0\)), averaging cannot drive the variance to zero. LOOCV is the worst case, its \(n\) models are each trained on datasets that differ by a single row, so they are almost identical and their scores are highly correlated (\(\rho\) close to 1). The second term takes over and the estimate stays noisy, no matter how large \(n\) is. A moderate \(k\) keeps the folds more different from one another, so \(\rho\) is lower and the average is steadier.</p>
 
-<p>One caution before you trust any of this: plain k-fold assumes the rows are independent and interchangeable. When rows are grouped (many readings from the same patient) or ordered in time (yesterday predicts today), a random split leaks information across folds and flatters your score. That is a whole strategy of its own, and it is exactly where Lesson 2 goes next.</p>
+<p>Put the two ideas together with the cost of running it:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Scheme</th>
+<th>Data each model sees</th>
+<th>Bias of estimate</th>
+<th>Variance of estimate</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small k (2 to 3)</td>
+<td>little (1/2 to 2/3)</td>
+<td>higher (pessimistic)</td>
+<td>lower</td>
+<td>cheap (k fits)</td>
+</tr>
+<tr>
+<td><strong>k = 5 or 10</strong></td>
+<td><strong>most (80 to 90%)</strong></td>
+<td><strong>low</strong></td>
+<td><strong>low</strong></td>
+<td><strong>moderate</strong></td>
+</tr>
+<tr>
+<td>LOOCV (k = n)</td>
+<td>nearly all</td>
+<td>lowest</td>
+<td>higher</td>
+<td>expensive (n fits)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The middle row wins in practice. <strong>5- or 10-fold</strong> sits where the bias is already small, the variance is low, and the cost is reasonable. That is why they are the near-universal defaults.</div></div>
+
+<p>One honest caveat, plain in Sam's own numbers: for a <em>stable</em> model with <em>enough</em> data, the schemes barely disagree (you will see all three side by side in a moment). The tradeoff above bites hardest when data is scarce or the model is flexible and unstable, exactly when getting the estimate right matters most.</p>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which scheme fits the job?</h2>
+
+<p>One teammate is tuning a slow-to-train gradient boosting model on 200,000 rows and needs a trustworthy error estimate without waiting all week. Another has a tiny pilot dataset of 45 patients and one quick logistic model. Which resampling choice suits each?</p>
+<section class="exercise" data-exercise-id="Cross-Validation-Strategies-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Big slow model: 5- or 10-fold (a handful of fits, low-variance estimate). Tiny dataset: repeated k-fold or LOOCV (use every row and average away the shuffle luck)</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Big slow model: LOOCV, because it is most accurate. Tiny dataset: a single 80/20 split, since it is fast enough</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Both: a single train/test split, since cross-validation only works for linear models</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Fold count is a compute budget: few folds for an expensive model on ample data; and on tiny data, repeated k-fold or LOOCV squeezes the most from scarce rows and steadies the estimate.</div><div class="lesson-qfb lesson-qfb-no">Cross-validation is model-agnostic, it just refits and scores, and a single split is the least reliable option for both, especially the 45-row set.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">In practice</div>
+<h2>Putting it to work, and where it breaks</h2>
+
+<p>A small reusable helper turns cross-validation into a one-liner. Here is the whole family on Sam's cars, side by side:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">loocv_rmse <span class="o">&lt;-</span> <span class="kr">function</span>() {</span>
+<span class="cl">  n <span class="o">&lt;-</span> <span class="nf">nrow</span>(mtcars); r <span class="o">&lt;-</span> <span class="nf">numeric</span>(n)</span>
+<span class="cl">  <span class="kr">for</span> (i <span class="kr">in</span> <span class="m">1</span><span class="o">:</span>n) {</span>
+<span class="cl">    fit  <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars[<span class="o">-</span>i, ])</span>
+<span class="cl">    r[i] <span class="o">&lt;-</span> mtcars<span class="o">$</span>mpg[i] <span class="o">-</span> <span class="nf">predict</span>(fit, mtcars[i, ])</span>
+<span class="cl">  }</span>
+<span class="cl">  <span class="nf">sqrt</span>(<span class="nf">mean</span>(r<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(five_fold <span class="o">=</span> <span class="nf">cv_rmse</span>(<span class="m">1</span>, <span class="m">5</span>), ten_fold <span class="o">=</span> <span class="nf">cv_rmse</span>(<span class="m">1</span>, <span class="m">10</span>), loocv <span class="o">=</span> <span class="nf">loocv_rmse</span>()), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; five_fold  ten_fold     loocv</span></span>
+<span class="cl"><span class="c1">#&gt;      2.68      2.55      2.78</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three honest estimates, all within about 0.2 mpg of each other, just as the last step promised for a stable model with enough data. In everyday work you rarely hand-roll the loop: <code>rsample::vfold_cv()</code> builds the folds for you, and <code>caret</code> or <code>tidymodels</code> run the whole resample-and-score cycle, but the loop above is exactly what they do underneath.</p>
+
+<p>A few rules of thumb to carry away:</p>
+
+<ul>
+
+<li><strong>Default to 5- or 10-fold.</strong> It is the bias-variance-cost sweet spot for almost every problem.</li>
+
+<li><strong>Repeat it on small data.</strong> A few repeats of 10-fold steady the estimate when a single shuffle still swings it.</li>
+
+<li><strong>Reach for LOOCV only when data is precious</strong> (you cannot spare a 20% fold) or the model has a cheap leave-one-out shortcut, like the linear one you saw.</li>
+
+<li><strong>Stratify for classification</strong>, so every fold keeps the same class balance, which is vital when the positive class is rare.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Every scheme here shuffled cars into folds <em>at random</em>, which quietly assumes the rows are independent. They often are not: repeated measurements on the same patient, sales from the same store, or readings ordered in time all break that assumption. Random folds then leak information across the split and hand you an estimate that is too good to be true. Fixing that, grouped, blocked, and time-aware cross-validation, is Lesson 2.</div></div>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
@@ -953,23 +1075,23 @@ folds &lt;- vfold_cv(diamonds, v = 10, strata = cut)</code></pre>
 
 <ul>
 
-<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 5 (free PDF)</a> - the clearest first read on the validation-set approach, LOOCV and k-fold, with the bias-variance of the estimate.</li>
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 5 (free PDF)</a> - the clearest first treatment of the validation set, LOOCV, and k-fold, including why LOOCV is higher-variance than k-fold.</li>
 
-<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 7.10 (free PDF)</a> - the rigorous treatment of cross-validation and why it estimates test error.</li>
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 7.10 (free PDF)</a> - cross-validation inside the full model-assessment picture, with the bias-variance-of-the-estimate argument in detail.</li>
 
-<li><a href="https://www.ijcai.org/Proceedings/95-2/Papers/016.pdf">Kohavi (1995), A Study of Cross-Validation and Bootstrap for Accuracy Estimation and Model Selection (IJCAI)</a> - the classic experiments behind "use stratified 10-fold."</li>
+<li><a href="http://ai.stanford.edu/~ronnyk/accEst.pdf">Kohavi (1995), A Study of Cross-Validation and Bootstrap for Accuracy Estimation and Model Selection</a> - the classic empirical study that made stratified 10-fold the default.</li>
 
-<li><a href="https://rsample.tidymodels.org/">rsample (tidymodels) documentation</a> - how to build folds, repeats and stratified resamples in real R code.</li>
+<li><a href="https://rsample.tidymodels.org/">rsample (tidymodels) documentation</a> - the R tooling for folds: <code>vfold_cv</code>, <code>loo_cv</code>, and repeated CV, so you never hand-roll the loop in production.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="14" data-step-type="complete">
 <h2>Lesson 1 complete</h2>
 
-<p>You can now take the luck out of a model's score. A single split is a coin flip; k-fold rotates the holdout so every row is tested once, then averages for a steady estimate. You know the choice of k is a bias-variance trade in the estimate itself, why 5 or 10 usually beats leave-one-out, and how repeated k-fold squeezes out the last of the shuffle luck.</p>
+<p>You can now explain why a single train/test split is a coin flip, run k-fold cross-validation to turn <code>k</code> honest hold-out scores into one steady estimate, weigh LOOCV and repeated k-fold, and choose \(k\) from the bias-variance-cost tradeoff of the estimate itself. Sam has a number he can trust: about 2.7 mpg, not a range from 1.6 to 3.3.</p>
 
-<p>Next, Lesson 2: Grouped, blocked and time-aware CV. When rows share a group or sit in time order, a random split quietly leaks the answer across folds. You will learn to resample so the score you report is the score you will actually get.</p>
+<p>Next, Lesson 2: Grouped, Blocked, and Time-Aware Cross-Validation. Every scheme here assumed the rows were independent and shuffled them freely. When cars share a factory, patients repeat visits, or readings march through time, that shuffle leaks the answer across the split. You will learn to resample so the estimate stays honest even when the rows are not.</p>
 </section>
 
 
@@ -1057,7 +1179,7 @@ folds &lt;- vfold_cv(diamonds, v = 10, strata = cut)</code></pre>
     }
   })();
   </script>
-  <script src="www/toc.min.js?h=db578404"></script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
   <!-- MathJax Script -->
   
   <script type="text/x-mathjax-config">
@@ -1065,7 +1187,11 @@ folds &lt;- vfold_cv(diamonds, v = 10, strata = cut)</code></pre>
       tex2jax: {
         inlineMath: [['$','$'], ['\\(','\\)']],
         displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
@@ -1075,13 +1201,13 @@ folds &lt;- vfold_cv(diamonds, v = 10, strata = cut)</code></pre>
 
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
-  <script src="www/webr-init.min.js?h=92549f4e"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=0f30f7dd"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
-  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <script src="www/lesson-mode.min.js?h=378afac5"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
        scripting doesn't compete with the critical path. Events fired before
        the loader lands get buffered on window.dataLayer and flushed once
