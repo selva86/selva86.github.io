@@ -1,8 +1,8 @@
 ---
 title: "Survival Analysis Lesson 4: Checking Proportional Hazards"
-catalog_blurb: "Check whether a hazard ratio holds over time, and fix it when it drifts."
-description: "Test the proportional hazards assumption in R with cox.zph and Schoenfeld residuals: see what a violation looks like and repair a model whose effect changes over time."
-keywords: "proportional hazards assumption, cox.zph, Schoenfeld residuals, checking proportional hazards in R, PH assumption test, time-varying covariates, coxph diagnostics, survival analysis in R, hazard ratio over time"
+catalog_blurb: "How to tell whether one hazard ratio holds for the whole follow-up."
+description: "Test the proportional hazards assumption behind a Cox model in R: read Schoenfeld residuals and cox.zph, spot a violation, and fit time-varying hazard ratios."
+keywords: "proportional hazards assumption, Schoenfeld residuals, cox.zph, checking proportional hazards in R, time-varying covariates, non-proportional hazards, survival analysis, Cox model diagnostics"
 post_type: "LESSON"
 curriculum_id: "6.150.4"
 webr: true
@@ -21,218 +21,375 @@ course_prev: "Cox-Proportional-Hazards.html"
 ::eyebrow Lesson 4 of 7
 ## Checking Proportional Hazards
 
-In Lesson 3, Dr. Rao's Cox model handed back a single, confident number: a hazard ratio of 0.36 for the new drug, holding age fixed. One number for the whole two-year trial. It is a beautifully compact summary, and it hides a promise in the fine print: that the drug's edge is exactly the same in month 1 and in month 23. The new arm cannot pull ahead early and fade late; the ratio of the two hazards must stay pinned near 0.36 the entire time.
+In Lesson 3 Dr. Rao's Cox model handed her one clean number: a hazard ratio of 0.36 for her new drug, still protective after adjusting for age. One number for the whole two years. It was only trustworthy because of a quiet promise buried in the model: that the drug's edge stays a fixed multiple of the baseline risk at every moment of follow-up.
 
-That promise has a name, **proportional hazards**, and it is an assumption, not a fact. This lesson holds it to account.
+This lesson tests that promise. You will see what happens when it fails, learn the residual that makes the failure visible, run the one-line test that puts a p-value on it, and repair a broken model so it tells the truth about time.
 
 By the end of this lesson you will be able to:
 
-- Say exactly what the proportional-hazards assumption commits you to, and what a violation looks like
-- Read a Schoenfeld residual plot and run `cox.zph()` to test the assumption, then reach an honest verdict
-- Repair a model whose effect changes over time, turning one misleading hazard ratio into an early one and a late one
+- Say what proportional hazards actually claims, and recognize a violation when you see one
+- Read a Schoenfeld residual plot and run `cox.zph()` to get an honest verdict, covering which variable is at fault
+- Fix a violation by letting a hazard ratio change over time, and know when to stratify instead
 
-**Prerequisites:** [Lesson 3](Cox-Proportional-Hazards.html) (the Cox model, the hazard ratio, and reading `coxph` output) and [Lesson 1](Survival-Data-and-Censoring.html) (the hazard h(t) and right-censoring). You can run R and read a coefficient table.
-
-Move the slider below: under proportional hazards the two survival curves pull apart but never cross. That single unbroken gap is the promise you are about to test.
+**Prerequisites:** [Lesson 3](Cox-Proportional-Hazards.html) (the Cox model \(h(t\mid x)=h_0(t)\exp(\beta'x)\), the hazard ratio \(\exp(\beta)\), and reading `coxph` output), plus [Lesson 1](Survival-Data-and-Censoring.html) (the hazard, censoring, `Surv()`) and [Lesson 2](Kaplan-Meier-and-the-Log-Rank-Test.html) (the at-risk set). You can run R and read a coefficient table.
 
 ::widget hazard-ratio {}
 
 === step === concept
-::eyebrow The promise
-## The promise you have to keep
+::eyebrow The promise you are about to test
+## What proportional hazards really claims
 
-Write the assumption down so we can test it. Dr. Rao has two hazards, the risk-of-the-moment for each arm, \(h_{\text{new}}(t)\) and \(h_{\text{std}}(t)\). Proportional hazards says their ratio is a single constant, the same at every time \(t\):
+Start with the assumption itself, stated plainly. A hazard ratio compares two groups' risk-of-the-moment. **Proportional hazards** is the claim that this ratio is one fixed number that never changes with time. Surgery patients, say, might carry \(\text{HR}=1.5\) times the hazard of medical patients, and the claim is that it is 1.5 at month 1, at month 12, and at month 30, forever.
 
-\[ \frac{h_{\text{new}}(t)}{h_{\text{std}}(t)} = \text{HR} \quad\text{for every } t. \]
+Written with the two hazards, for a covariate value that raises the log-hazard by \(\beta\):
 
-There is no \(t\) left on the right-hand side. The number 0.36 is meant to hold in the first week and the last month alike. On the log scale it says the gap between the two log-hazards is a flat horizontal line, \(\log h_{\text{new}}(t) - \log h_{\text{std}}(t) = \log(\text{HR})\), constant forever.
+\[ \frac{h_1(t)}{h_0(t)} = e^{\beta} \quad\text{for every time } t. \]
 
-So what does a **violation** look like? It is any effect that changes with time. A drug that works wonders early and wears off. A surgery that is dangerous in the first month (the operation itself) but protective for years after. In each, the hazard ratio drifts: it might start at 0.3 and climb past 1. When that happens the two survival curves can **cross**, and no single number can honestly describe an effect that begins protective and ends harmful.
+The \(t\) has dropped out of the right side. That is the whole assumption: the ratio has no \(t\) in it. And it has a clean visual consequence for survival curves, the one you toggled on the cover. If one hazard is a constant multiple of the other, then one survival curve is the other raised to a power:
 
-Toggle the widget: every setting pulls the solid curve away from the dashed baseline by one fixed multiple, and the curves never touch. That never-crossing picture is exactly what proportional hazards assumes. Real data does not always agree.
+\[ S_1(t) = S_0(t)^{\text{HR}}. \]
 
-::widget hazard-ratio {}
+Raising a curve that lives between 0 and 1 to a power pulls it up (if \(\text{HR}<1\)) or down (if \(\text{HR}>1\)), but it can never make the two curves touch or swap places. Under proportional hazards, **the survival curves never cross.**
 
 [KEY INSIGHT]
-Proportional hazards is a claim about time: one fixed multiplier for the entire follow-up. If the true effect grows, shrinks, or reverses as the months pass, a single hazard ratio is a comfortable fiction. Everything in this lesson is machinery for catching that fiction.
+Proportional hazards is a promise about time: one group's risk stays the same multiple of the other's from start to finish. The single hazard ratio you report in a paper is only meaningful if that promise holds. If it does not, the number is an average over a story that changed, and this lesson is about catching exactly that.
 
 === step === concept
-::eyebrow The diagnostic
-## Schoenfeld residuals: one dot per death
+::eyebrow A treatment whose benefit flips
+## When the assumption breaks
 
-How do you test a promise about every instant of time? You cannot reliably eyeball two hazard curves; real data is too noisy. David Schoenfeld's 1982 trick turns the question into a scatter you *can* read.
+Dr. Rao's next question is not about a drug. Her registry compares **surgery** against **medical therapy** for the same heart condition, and here the promise is in real danger. Surgery is dangerous up front: the operation itself kills some patients in the first few months. But the patients who come through it do very well for years afterward. Medical therapy is the mirror image: gentle at first, but the underlying disease keeps taking a steady toll.
 
-Go back to the at-risk set from Lesson 2. At each moment a patient dies, look at the covariate you care about, say the treatment arm, and ask: given who was still at risk right then and the risk each of them carried under the model, what covariate value did we *expect* the person who died to have? The **Schoenfeld residual** is the observed value minus that risk-weighted expected value, computed at each death time \(t_i\):
-
-\[ s_i = x_i - \bar{x}(t_i), \qquad \bar{x}(t_i) = \sum_{j \in R(t_i)} x_j\,\pi_j(t_i), \]
-
-where \(x_i\) is the covariate of the patient who died, \(R(t_i)\) is the at-risk set, and \(\pi_j(t_i)\) is patient \(j\)'s model-given share of the risk (the same \(\exp(\beta' x_j)\) weights from the partial likelihood, rescaled to sum to one). One residual per death, one dot on a plot.
-
-Here is the payoff. If the hazard ratio really is constant, these residuals carry **no information about time**: plotted against \(t\), they scatter in a flat, patternless band around zero. But if the effect drifts, the residuals drift with it, so the band **tilts or bends**. The formal test regresses the (scaled) residuals on a function of time \(g(t)\) and asks whether the slope is zero. A flat band means the slope is zero means the assumption holds.
-
-Toggle the three shapes below to train your eye on what a residual band can do. A flat, even band around zero is a model behaving itself; read against time, that steady band is what a healthy proportional-hazards model produces. A band that fans out or bends is structure the model missed, and for Schoenfeld residuals against time that structure is an effect drifting, the exact signature of a violation.
-
-::widget residual-plot {"start":"curved"}
-
-=== step === quiz
-::eyebrow Check yourself
-## Reading the residuals
-
-You fit a Cox model and plot the Schoenfeld residuals for the treatment covariate against time. Instead of a flat band around zero, the dots start clearly below zero and climb steadily to well above zero by the end of follow-up. What does that upward trend tell you?
-
-::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
-- The treatment's effect is drifting over time, so proportional hazards is violated for that covariate ::ok Right. A Schoenfeld residual that trends with time means the covariate's effect is not constant: it grows (or shrinks) as follow-up goes on. That is a proportional-hazards violation for that term, and the single hazard ratio no longer tells the whole story.
-- The model fits well; a rising line is what a healthy Schoenfeld plot looks like ::no A HEALTHY Schoenfeld plot is a flat, patternless band around zero. A clear trend is the opposite of healthy, it is the signal that the effect changes over time.
-- The residuals are non-normal, so you should transform the survival times ::no Schoenfeld residuals say nothing about the normality of the outcome. The question they answer is whether the effect is constant over time; a trend flags drift, not non-normality.
-- There is one influential outlier dragging the line up ::no A single outlier moves one dot, not the whole band from below zero to above it. A steady climb across every death is a systematic time trend in the effect, not one stray point.
-
-=== step === concept
-::eyebrow In R
-## cox.zph on Dr. Rao's trial
-
-Enough theory; run the test. The `survival` package folds the whole Schoenfeld machinery into one function, `cox.zph()`. You hand it a fitted Cox model and it returns the trend test for every covariate plus a GLOBAL test for the model as a whole. Each lesson starts a fresh R session, so we rebuild Dr. Rao's trial and refit the adjusted model from Lesson 3 first:
+So surgery's hazard is *higher* than medical therapy's early on and *lower* than it later. The ratio flips. That is a proportional-hazards violation in its purest form, and it shows up as survival curves that cross. Let us build that cohort and look. We create all 320 patients right here, in this session:
 
 ```r
 library(survival)
+set.seed(101)
 
-# Dr. Rao's 30 patients, exactly as Lesson 3 built them.
-std_months <- c(2.7, 3.2, 4.5, 5.5, 6.1, 7.0, 8.3, 9.4, 11.5, 12.6, 13.5, 15.8, 18.0, 24.0, 24.0)
-std_status <- c(1,1,1,1,1,1,1,0,1,1,1,1,0,0,0)
-std_age    <- c(67,71,69,74,66,75,65,65,71,63,66,55,62,61,56)
-new_months <- c(9.0,24.0,19.2,24.0,13.0,22.5,24.0,16.4,24.0,20.8,15.0,24.0,18.0,21.0,23.0)
-new_status <- c(1,0,1,0,1,1,0,1,0,1,0,0,1,1,1)
-new_age    <- c(57,63,68,53,58,63,69,62,55,63,68,59,60,57,57)
-trial <- data.frame(
-  months = c(std_months, new_months),
-  status = c(std_status, new_status),
-  arm    = factor(rep(c("standard","new"), each = 15), levels = c("standard","new")),
-  age    = c(std_age, new_age))
+# 320 patients, surgery vs medical therapy. Surgery is risky in the first
+# 6 months (the operation), then protective; medical therapy has a lower,
+# steadier hazard. Age raises the hazard in both periods, proportionally.
+n        <- 320
+age      <- round(rnorm(n, 63, 9))
+surgery  <- rbinom(n, 1, 0.5)                          # 1 = surgery, 0 = medical
+age_mult <- exp(0.045 * (age - 63))
+h_early  <- ifelse(surgery == 1, 0.070, 0.022) * age_mult   # hazard, months 0 to 6
+h_late   <- ifelse(surgery == 1, 0.006, 0.028) * age_mult   # hazard, after month 6
 
-cox_adj <- coxph(Surv(months, status) ~ arm + age, data = trial)
-cox.zph(cox_adj)
-#>        chisq df     p
-#> arm     4.44  1 0.035
-#> age     1.14  1 0.287
-#> GLOBAL  5.82  2 0.055
+# draw a survival time from this two-piece (piecewise-exponential) hazard
+target  <- -log(runif(n))                              # a unit-exponential threshold
+cum6    <- h_early * 6                                  # cumulative hazard by month 6
+event_t <- ifelse(target <= cum6,
+                  target / h_early,                     # death within the early window
+                  6 + (target - cum6) / h_late)         # death later
+time    <- pmin(event_t, 36)                            # follow-up capped at 36 months
+status  <- as.integer(event_t <= 36)                   # 1 = died, 0 = censored
+
+cohort <- data.frame(
+  time   = round(time, 1),
+  status = status,
+  arm    = factor(ifelse(surgery == 1, "surgery", "medical"), levels = c("medical", "surgery")),
+  age    = age
+)
+table(cohort$arm, cohort$status)                        # deaths (1) and censored (0) per arm
+#>          
+#>            0   1
+#>   medical  58 115
+#>   surgery  83  64
 ```
 
-Read it like any diagnostic table, from the bottom up:
-
-- **GLOBAL** is the one-line verdict for the whole model: chi-square 5.82 on 2 degrees of freedom, p = 0.055. The null hypothesis is "proportional hazards holds", so a small p is evidence *against* it. Here p sits just above the usual 0.05 line, so the global test does not quite reject.
-- **arm** on its own has p = 0.035, a whisker below 0.05, hinting the drug's effect may drift a little across the two years. **age** is a flat 0.287, no sign of trouble.
-
-So what is the verdict? Honestly, borderline. With only 30 patients, `cox.zph` has very little to work with and its p-values wobble; one term grazing 0.05 while the global test does not reject is a *yellow flag*, not a red one. The right move is to look at the Schoenfeld plot for `arm` with `plot(cox.zph(cox_adj))`, judge whether the trend is real or noise, and, in a small trial, report the caveat rather than tear up a defensible model. Lesson 3's hazard ratio survives, but now you have actually *checked* it instead of hoping.
-
-=== step === tryit
-::eyebrow Your turn
-## Run the PH test
-
-`cox_adj` is still in memory, the adjusted Cox model for Dr. Rao's trial. Test its proportional-hazards assumption in one line: wrap the fitted model in the function that returns the per-covariate and GLOBAL trend tests. Fill in the blank.
+Now read the survival curves as a table of numbers. Watch the surgery figure start **below** medical therapy (the operation is dangerous) and end **above** it (its survivors thrive):
 
 ```r
-# cox_adj is already fitted. Test whether its hazard ratios hold over time.
-____(cox_adj)
+km <- survfit(Surv(time, status) ~ arm, data = cohort)
+km_at <- summary(km, times = c(2, 6, 12, 18, 24))
+data.frame(arm = sub("arm=", "", km_at$strata), month = km_at$time, survival = round(km_at$surv, 2))
+#>        arm month survival
+#> 1  medical     2     0.95
+#> 2  medical     6     0.84
+#> 3  medical    12     0.71
+#> 4  medical    18     0.58
+#> 5  medical    24     0.47
+#> 6  surgery     2     0.86
+#> 7  surgery     6     0.66
+#> 8  surgery    12     0.65
+#> 9  surgery    18     0.64
+#> 10 surgery    24     0.62
 ```
-::check {"regex":"cox\\.zph\\s*\\(\\s*cox_adj","gate":true,"difficulty":"intermediate","ok":"That is the test. cox.zph() returns a trend test for each covariate plus a GLOBAL row; here arm grazes 0.05 (p = 0.035) and the global test sits at 0.055, a borderline result you weigh together with the plot and the small sample.","no":"Wrap the fitted model in cox.zph(): the line reads cox.zph(cox_adj). It returns the per-covariate and GLOBAL proportional-hazards tests."}
-::solution
-```r
-cox.zph(cox_adj)
-```
+
+At month 6 surgery survival is 0.66 against medical therapy's 0.84: surgery is losing badly. By month 24 it is 0.62 against 0.47: surgery is winning comfortably. The two curves cross somewhere around month 14. No single hazard ratio can describe a gap that starts negative and ends positive.
 
 === step === concept
-::eyebrow When one number lies
-## When one hazard ratio lies
+::eyebrow One hazard ratio hides the story
+## Fit a Cox model and it papers over the flip
 
-Dr. Rao's trial was borderline and small, so the stakes felt low. Here is a case where getting this wrong would be a disaster. Picture a second study in the same clinic: an aggressive **early-benefit therapy** against standard care. The therapy protects patients strongly in the first months, but its advantage fades and then reverses, with standard care overtaking it late. We can build exactly that, simulate it, and fit the naive Cox model:
+Watch what a standard Cox model does with this data. It does not complain. It dutifully returns one hazard ratio for surgery, averaged over the whole crossing story:
 
 ```r
-# A different comparison in the same clinic: an early-benefit therapy vs standard care.
-set.seed(7)
-n <- 120
-t_std <- rexp(n, rate = 1/11)                   # standard care: steady, constant risk
-t_new <- rweibull(n, shape = 2.4, scale = 13)   # therapy: very low risk early, rising later
-time0 <- c(t_std, t_new)
-grp   <- factor(rep(c("standard", "therapy"), each = n),
-                levels = c("standard", "therapy"))
-early <- data.frame(time   = round(pmin(time0, 24), 2),   # 2-year administrative cutoff
-                    status = as.integer(time0 <= 24),
-                    grp    = grp)
-
-cox_e <- coxph(Surv(time, status) ~ grp, data = early)
-summary(cox_e)$conf.int
+cox_fit <- coxph(Surv(time, status) ~ arm + age, data = cohort)
+summary(cox_fit)
+#>   n= 320, number of events= 179
+#>
+#>                 coef exp(coef)  se(coef)      z Pr(>|z|)
+#> armsurgery -0.419069  0.657659  0.157232 -2.665  0.00769 **
+#> age         0.047265  1.048400  0.009269  5.099 3.41e-07 ***
+#>
 #>            exp(coef) exp(-coef) lower .95 upper .95
-#> grptherapy     0.985      1.016     0.754     1.286
+#> armsurgery    0.6577     1.5205    0.4832     0.895
+#> age           1.0484     0.9538    1.0295     1.068
+#>
+#> Concordance= 0.601  (se = 0.022 )
 ```
 
-Read that hazard ratio: 0.985, a confidence interval straddling 1, a p-value near 0.9. Taken at face value, the therapy does **nothing**, indistinguishable from standard care. A team could kill a genuinely useful early treatment on the strength of that one number. Now run the check:
+The model reports \(\text{HR}=0.66\) for surgery, with a confidence interval below 1 and a significant p-value. Taken at face value it reads "surgery lowers the hazard by about a third." That summary is not just imprecise, it is **actively misleading**. Surgery does not gently lower risk by a third across the board. It roughly triples risk in the first six months and then cuts it to a small fraction. The 0.66 is the numerical average of a harm and a benefit that never coexisted, a compromise that describes no patient at any time.
 
-```r
-cox.zph(cox_e)
-#>        chisq df       p
-#> grp     56.9  1 4.5e-14
-#> GLOBAL  56.9  1 4.5e-14
-
-plot(cox.zph(cox_e))   # the residuals for grp climb steadily from below zero to above it
-```
-
-p = 0.000000000000045. This is not borderline; the proportional-hazards assumption is shattered. The Schoenfeld plot shows the residuals for `grp` marching from strongly negative early to strongly positive late, the treatment effect visibly flipping sign as follow-up wears on. The "no effect" hazard ratio was never a finding. It was an **average of a strong early benefit and a strong late harm**, and the two cancelled into a meaningless 0.98.
+[WARNING]
+A Cox model will always hand you a hazard ratio, even when a single ratio is a fiction. The model does not know whether the proportional-hazards promise holds; checking it is your job, not the software's. Everything from here is how to do that job.
 
 === step === quiz
 ::eyebrow Check yourself
-## What is really going on?
+## Which picture is a violation?
 
-The naive model reported a hazard ratio of 0.98 (p = 0.9) for the early-benefit therapy, yet `cox.zph` returned p < 0.001 against proportional hazards. Which reading is correct?
+You plot two arms' Kaplan-Meier survival curves to eyeball the proportional-hazards assumption. Which pattern is a clear sign that the assumption is broken?
 
-::quiz {"correct":2,"gate":true,"difficulty":"advanced"}
-- The two agree the therapy has no real effect; the tiny cox.zph p just confirms a good fit ::no A small cox.zph p is evidence AGAINST proportional hazards, not confirmation of a good fit. The two results do not agree; together they reveal that the single hazard ratio is hiding a time-varying effect.
-- The therapy's effect changes over time, protective early and harmful late, and the single hazard ratio averaged those opposite effects into a near-1 "no effect" that is true for neither period ::ok Exactly. With hazards that cross, the one number averages a strong early benefit against a strong late harm into a meaningless 0.98. Splitting follow-up recovers the real story: a protective HR early and a harmful HR late.
-- The hazard ratio of 0.98 is the trustworthy summary; cox.zph is oversensitive and can be ignored ::no cox.zph is not oversensitive here: p is 4.5e-14, about as decisive as statistics gets. When PH is violated this badly, the single hazard ratio is the untrustworthy number, not the test.
-- cox.zph tests whether the therapy works, and p < 0.001 means it works very well ::no cox.zph does not test whether the treatment works; it tests whether the treatment's effect is CONSTANT over time. A tiny p means the effect drifts, and says nothing about whether it is beneficial on average.
+::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
+- The curves cross: one arm survives better early, the other better later ::ok Right. Crossing means the hazard ratio has flipped from above 1 to below 1 (or the reverse), and one constant multiplier can never do that. It is the textbook signature of non-proportional hazards.
+- The curves run roughly parallel with a steady gap between them ::no A steady, consistent separation is exactly what proportional hazards predicts, not a violation: the two arms keep the same risk ratio the whole way through.
+- One curve stays entirely above the other for all of follow-up ::no One curve sitting above the other, never touching, is consistent with a constant hazard ratio. That is precisely the never-crossing picture from the cover widget, the assumption HOLDING, not failing.
+- Both curves eventually descend toward zero survival ::no Given long enough follow-up almost every survival curve trends toward zero. That says nothing about whether the two hazards stay proportional along the way.
 
 === step === concept
-::eyebrow The fix
-## Fixing it: let the effect change with time
+::eyebrow A clue at every death
+## Schoenfeld residuals: one clue per death
 
-If one number cannot describe an effect that flips, use more than one. The cleanest fix is to stop pretending the coefficient is constant and let it depend on time. Formally, replace the fixed \(\beta\) with a coefficient that moves:
+To test the assumption we need something more sensitive than eyeballing curves. Schoenfeld residuals are that something. They give one small clue at each death.
 
-\[ \beta(t) = \beta + \theta\,g(t), \]
+Here is the idea in words first. Freeze the study at the exact moment a patient dies. There is a set of patients still at risk (alive, uncensored), the same at-risk set you built in Lesson 2. The Cox model, using its fitted coefficients, has an *expectation* for the average covariate value among whoever was about to die: risk-weighted, so higher-risk patients count more. The **Schoenfeld residual** for a covariate is simply the covariate value of the patient who *actually* died, minus that expected value.
 
-where \(g(t)\) is some simple function of time (a straight line, \(\log t\), or a step). Proportional hazards is the special case \(\theta = 0\), a flat \(\beta(t)\); a nonzero \(\theta\) is exactly the drift `cox.zph` detected. The most interpretable choice of \(g(t)\) is a **step**: cut follow-up into windows and fit a separate hazard ratio in each. Split the early-therapy data at month 8, roughly where the early benefit gives way to late harm, and refit:
+For covariate \(x_k\), at the death happening at time \(t_i\):
+
+\[ r_{ik} = x_{k}(\text{the patient who died at } t_i) \; - \; \bar{x}_k(t_i), \qquad \bar{x}_k(t_i) = \frac{\sum_{j \in R(t_i)} x_{kj}\, e^{\beta' x_j}}{\sum_{j \in R(t_i)} e^{\beta' x_j}}. \]
+
+Read the pieces: \(R(t_i)\) is the at-risk set at that death, \(e^{\beta' x_j}\) is patient \(j\)'s risk score from Lesson 3, and \(\bar{x}_k(t_i)\) is therefore the risk-weighted average covariate value the model expected. A residual near zero means "no surprise, the patient who died looked like the model expected." Under a correct proportional-hazards model these residuals have mean zero and, crucially, **no trend over time**. If the effect of a covariate drifts as time passes, the residuals drift with it.
+
+That is not a claim to take on faith. Compute the residuals for our model and average the surgery column separately for early deaths and late deaths:
 
 ```r
-esplit <- survSplit(Surv(time, status) ~ ., data = early,
-                    cut = 8, episode = "period")
-esplit$win <- factor(ifelse(esplit$period == 1, "early", "late"),
-                     levels = c("early", "late"))
-esplit$therapy_early <- as.integer(esplit$grp == "therapy" & esplit$win == "early")
-esplit$therapy_late  <- as.integer(esplit$grp == "therapy" & esplit$win == "late")
+sch <- residuals(cox_fit, type = "schoenfeld")
+dim(sch)                                            # one row per death, one column per covariate
+#> [1] 179   2
 
-cox_tv <- coxph(Surv(tstart, time, status) ~ therapy_early + therapy_late,
-                data = esplit)
-summary(cox_tv)$conf.int
-#>               exp(coef) exp(-coef) lower .95 upper .95
-#> therapy_early     0.329      3.039     0.211     0.514
-#> therapy_late      2.173      0.460     1.495     3.159
+death_time <- as.numeric(rownames(sch))             # each residual is stamped with its death time
+round(mean(sch[death_time < 6,  "armsurgery"]), 3)  # deaths in the first 6 months
+#> [1] 0.337
+round(mean(sch[death_time > 12, "armsurgery"]), 3)  # deaths after 12 months
+#> [1] -0.255
 ```
 
-Now the truth is legible. In the first eight months the therapy's hazard ratio is **0.33**, a two-thirds cut in risk; after month eight it is **2.17**, more than double the risk. The near-1 average from the last step was hiding two large, opposite effects. `survSplit` did the bookkeeping: it chops each patient's follow-up at the cut point so the early rows feed the early coefficient and the late rows feed the late one, all inside one honest model.
+Surgery is coded 1 and medical 0, so a *positive* surgery residual means the patient who died was, more often than the model expected, a surgery patient. Early on the residuals average **+0.337**: early deaths lean surgical, because surgery is dangerous early. After a year they average **-0.255**: late deaths lean medical, because by then surgery is protective. The residuals slide from positive to negative as time passes. That downward march is the violation, made numeric.
 
-Two lighter fixes exist for when you do not need a full time-varying model. `strata()` lets a nuisance variable (like study site) carry its own baseline hazard instead of a proportional effect, and `coxph`'s `tt()` argument fits a smooth \(\beta(t)\) directly. But when an effect genuinely reverses, as here, reporting an early hazard ratio and a late one is the clearest thing you can put in front of a clinician.
+=== step === widget
+::eyebrow Reading the picture
+## Reading the residual plot
+
+Every residual diagnostic in statistics is read the same way, so it is worth building the instinct on a general one before we point it at time. In the plot below, the dots are residuals and the blue line is their smoothed trend. A **flat, patternless band** hugging zero means the model's assumption holds. **Any systematic shape**, a slope, a funnel, a bend, is the model telling you something is wrong. Toggle the three scenarios and watch the trend line.
+
+::widget residual-plot {}
+
+A Schoenfeld residual plot is exactly this picture with time on the horizontal axis. Flat over time means the hazard ratio is constant (proportional hazards holds); a smooth that slopes or bends means the coefficient is drifting as time passes. Now draw the real one for our surgery model. `cox.zph()` computes the scaled residuals; plotting it shows them against time with a smooth, and the dashed line marks zero:
+
+```r
+ph_arm <- cox.zph(cox_fit)
+plot(ph_arm[1])              # [1] = the first term, arm; time is on the x-axis
+abline(h = 0, lty = 2)       # the reference line the smooth should hug if PH holds
+```
+
+The smooth for surgery starts well above zero and slides steadily below it, the same positive-early, negative-late march you just computed by hand, now drawn as a clear downward slope. (The plot is on a rescaled axis, so the heights are not literally +0.337 and -0.255, but the direction is exactly the drift you found.) That is not a flat band. The assumption is broken for surgery.
+
+=== step === quiz
+::eyebrow Check yourself
+## What does the slope mean?
+
+In the scaled Schoenfeld residual plot for the surgery effect, the smoothed line slopes clearly downward, from positive early to negative late. What is that slope telling you?
+
+::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
+- The surgery coefficient is not statistically significant ::no The slope is about how the effect changes over *time*, not about whether the effect is significant. A drifting residual and a significant coefficient are separate things; here surgery is both significant and non-proportional.
+- Surgery has no effect on survival ::no Quite the opposite: surgery has a large effect that *reverses* over time. A residual plot that sloped would be impossible if surgery did nothing; a null effect gives a flat band around zero.
+- The surgery effect changes with time, harmful early and protective later, so proportional hazards is violated for surgery ::ok Exactly. A residual trend means the coefficient is not constant: \(\beta\) is drifting. The single hazard ratio cannot be trusted, because there is no single ratio to report.
+- The residuals are normally distributed, so the model fits well ::no A flat band, not a slope, is the "all is well" sign for this plot, and it is checking proportionality over time, not normality. A slope is the warning, not the reassurance.
+
+=== step === concept
+::eyebrow The slope as a test
+## cox.zph: turning the plot into a p-value
+
+Eyeballing a slope is a judgment call. `cox.zph()` makes it a formal test. Under the hood it does the obvious thing: it correlates the scaled Schoenfeld residuals with a function of time and asks whether that correlation is significantly different from zero. A flat smooth means zero correlation, proportional hazards holds; a real slope means non-zero correlation, and the test returns a small p-value.
+
+It reports one row per covariate plus a GLOBAL row for the model as a whole:
+
+```r
+cox.zph(cox_fit)
+#>        chisq df       p
+#> arm    48.06  1 4.1e-12
+#> age     3.52  1   0.061
+#> GLOBAL 51.49  2 6.6e-12
+```
+
+Read it row by row. The null hypothesis in every row is "this effect is proportional over time," so a **small p-value is evidence against proportionality**:
+
+- **arm: p = 4.1e-12.** Overwhelming evidence that the surgery effect is not constant over time. This is the violation we already saw in the curves and the residual slope, now with a number on it.
+- **age: p = 0.061.** No strong evidence of a problem. Age's effect looks roughly proportional; older patients carry a steadily higher hazard throughout, which is believable. This is the reassuring shape.
+- **GLOBAL: p = 6.6e-12.** A combined test across all covariates. It is tiny here because arm alone wrecks it.
+
+[KEY INSIGHT]
+A small `cox.zph` p-value is easy to misread. It does **not** say the covariate is an important predictor, and it does **not** say the whole model is worthless. It says one specific thing: the hazard ratio for that covariate does not hold still over time. It flags *which* variable broke the promise, so you know exactly what to fix.
+
+=== step === tryit
+::eyebrow Your turn
+## Run the test yourself
+
+Your fitted Cox model is in memory as `cox_fit`. Call the function that tests whether its hazard ratios stay proportional across the whole follow-up, and print the per-term and GLOBAL rows.
+
+```r
+# Test the proportional-hazards assumption for the fitted model cox_fit
+____(cox_fit)
+```
+::check {"regex":"cox\\.zph\\s*\\(\\s*cox_fit","gate":true,"difficulty":"beginner","ok":"That is the test. arm p = 4e-12 (a clear violation), age p = 0.06 (roughly proportional), GLOBAL p = 7e-12. cox.zph is the one call to reach for after every coxph fit.","no":"Use cox.zph() on the model object: cox.zph(cox_fit). It computes the scaled Schoenfeld residuals and tests each for a trend with time."}
+::solution
+```r
+cox.zph(cox_fit)
+```
+
+=== step === quiz
+::eyebrow Check yourself
+## Reading the cox.zph table
+
+`cox.zph(cox_fit)` reports arm p = 4e-12, age p = 0.06, and GLOBAL p = 7e-12. Which reading is correct?
+
+::quiz {"correct":2,"gate":true,"difficulty":"advanced"}
+- Arm is a highly significant predictor of survival, and age barely matters ::no This confuses two different p-values. `cox.zph` does not test whether a covariate predicts survival; it tests whether that covariate's effect is *constant over time*. Arm's tiny p-value flags a proportionality problem, not predictive strength.
+- Strong evidence that the arm effect is non-proportional (its hazard ratio drifts over time); age looks roughly proportional ::ok Right. Small p means "reject proportional hazards for this term." Arm's effect changes over time and needs fixing; age's does not, so the model's age part is fine as is.
+- The whole Cox model is invalid and must be discarded ::no Only the arm term violates the assumption; age is fine. You repair the offending term (next), you do not throw away a model that is mostly sound.
+- Age should be dropped from the model because its p-value is near 0.05 ::no The 0.06 is a proportionality p-value, not a variable-selection one. It says age's effect is roughly constant over time, which is a reason to KEEP age as an ordinary term, not to drop it.
+
+=== step === concept
+::eyebrow So it broke. Now what?
+## Three honest responses to a violation
+
+A violation is a finding, not a dead end. Once `cox.zph` names the guilty covariate, you have three standard repairs, and which one you pick depends on whether you *care* about that covariate's effect:
+
+- **Stratify** it, with `strata()`. This lets each level of the variable have its own baseline hazard shape, so the proportional-hazards assumption is never imposed on it. The catch: a stratified variable gets **no hazard ratio at all**. This is the right move for a **nuisance** control you must adjust for but do not need to report, for example the enrolling hospital, or a study site with its own risk profile.
+- **Let its effect vary with time**, by estimating a separate hazard ratio in each time window. You keep the estimates, and you get the honest early-vs-late story instead of a fictional average. This is the right move for a variable you **care about**, like our surgery arm.
+- **Shorten the horizon** or report time-specific effects. Sometimes the assumption holds fine over the first year and only breaks later; analyzing a window where it holds, and being explicit about it, is a legitimate and honest choice.
+
+Surgery is the whole point of Dr. Rao's study, so stratifying it away would delete the very number she needs. We want the second repair: two hazard ratios, one for the dangerous early window and one for the durable later one.
+
+=== step === concept
+::eyebrow The counting-process trick
+## Split the timeline at the danger line
+
+To give surgery a different hazard ratio before and after month 6, we first cut each patient's follow-up at month 6 into two rows. A patient who lives past month 6 contributes person-time to *both* windows: one row for months 0 to 6, another for month 6 onward. `survSplit` does this bookkeeping, producing the **counting-process format** with a start time, a stop time, and a status for each row:
+
+```r
+# Cut every patient's follow-up at month 6 into two intervals: (0, 6] and (6, stop].
+cox_split <- survSplit(Surv(time, status) ~ ., data = cohort,
+                       cut = 6, episode = "tgroup")
+cox_split$tgroup <- factor(cox_split$tgroup, labels = c("0-6mo", "6+mo"))
+cox_split$surg   <- as.integer(cox_split$arm == "surgery")   # 0/1 indicator for the interaction
+
+head(cox_split[, c("tstart", "time", "status", "arm", "age", "tgroup")], 5)
+#>   tstart time status     arm age tgroup
+#> 1      0  3.1      1 surgery  60  0-6mo
+#> 2      0  6.0      0 surgery  68  0-6mo
+#> 3      6 36.0      0 surgery  68   6+mo
+#> 4      0  6.0      0 medical  57  0-6mo
+#> 5      6  9.2      1 medical  57   6+mo
+```
+
+Look at the surgery patient in rows 2 and 3. They survived past month 6, so their follow-up splits: row 2 covers months 0 to 6 (censored at the boundary, `status` 0, since they did not die *in* that window), and row 3 covers month 6 to 36. The patient in row 1 died at month 3.1, inside the first window, so they get a single row. The count of patients is unchanged; only the way we count their time has changed, from 320 rows to 563. No data is invented; each patient's timeline is just chopped at the cut point so the model can give each piece its own coefficient.
+
+=== step === concept
+::eyebrow The payoff
+## Two honest hazard ratios
+
+Now fit a Cox model on the split data and let surgery's effect differ by window. The term `surg:strata(tgroup)` says: estimate the surgery hazard ratio *separately* within each time stratum, while `age` keeps a single proportional effect:
+
+```r
+cox_tv <- coxph(Surv(tstart, time, status) ~ age + surg:strata(tgroup), data = cox_split)
+round(summary(cox_tv)$coefficients, 4)
+#>                             coef exp(coef) se(coef)       z Pr(>|z|)
+#> age                       0.0494    1.0507   0.0093  5.2922    0e+00
+#> surg:strata(tgroup)0-6mo  0.9520    2.5909   0.2393  3.9788    1e-04
+#> surg:strata(tgroup)6+mo  -1.8080    0.1640   0.2890 -6.2564    0e+00
+```
+
+There is the truth the single number hid. In the first six months surgery carries a hazard ratio of **2.59**: it roughly *triples* the risk of death, the operative danger. After month 6 the hazard ratio is **0.16**: surgery cuts the risk to about a sixth of medical therapy's, the durable payoff. The fictional 0.66 from earlier was just the average of these two, describing neither. Confirm the repair worked by re-running the test on the new model:
+
+```r
+cox.zph(cox_tv)
+#>                    chisq df     p
+#> age                 3.19  1 0.074
+#> surg:strata(tgroup) 1.77  2 0.413
+#> GLOBAL              4.88  3 0.181
+```
+
+Every p-value is now comfortably above 0.05. By letting surgery have its own hazard ratio in each window, we have described the effect honestly, and the proportional-hazards assumption holds for what remains.
+
+[KEY INSIGHT]
+The fix did not "make the violation go away", it *told the story the violation was pointing at*. A single HR of 0.66 became a candid "3x more dangerous for six months, then 6x safer." That is the difference between a model that passes a diagnostic and a model that informs a decision.
+
+=== step === tryit
+::eyebrow Your turn
+## Build the time-varying model
+
+`cox_split` is in memory, with a `surg` indicator (1 for surgery) and a `tgroup` factor marking the two time windows. Complete the model so surgery gets a separate hazard ratio in each window: the surgery effect must interact with the time-period strata. Fill in the strata variable.
+
+```r
+coxph(Surv(tstart, time, status) ~ age + surg:strata(____), data = cox_split)
+```
+::check {"regex":"strata\\s*\\(\\s*tgroup","gate":true,"difficulty":"intermediate","ok":"That is the repair: interacting surg with strata(tgroup) gives a hazard ratio per window, 2.59 early and 0.16 late. The time-period strata is what lets one coefficient split into two.","no":"The time windows live in the tgroup factor, so the surgery effect must interact with strata(tgroup): surg:strata(tgroup). That estimates a separate surgery hazard ratio in each period."}
+::solution
+```r
+coxph(Surv(tstart, time, status) ~ age + surg:strata(tgroup), data = cox_split)
+```
+
+=== step === concept
+::eyebrow One idea, two names
+## Time-varying effects vs time-varying covariates
+
+The `(tstart, time, status)` counting-process format you just used is the workhorse for anything that changes with time in survival analysis, and it covers two ideas that are easy to confuse:
+
+- A **time-varying effect** (also called a time-varying *coefficient*) is what we just fixed: the covariate value is fixed (a patient had surgery or did not), but its *effect*, the hazard ratio, changes over time. \(\beta\) becomes \(\beta(t)\). Proportional hazards is the special case \(\beta(t) = \beta\), a flat line.
+- A **time-varying covariate** is when the covariate's *value itself* changes during follow-up, for example a lab result remeasured at each clinic visit, or a patient who receives a transplant partway through the study. Each new value gets its own `(tstart, time]` row, exactly like the split above, so the model uses the right value during the right interval.
+
+[NOTE]
+Both are expressed with the same start-stop rows, which is why `survSplit` and the counting-process format are worth knowing well. The `survival` package also offers the `tt()` argument for a smooth \(\beta(t)\) instead of discrete windows, and `strata()` for the nuisance case; the split-into-windows approach here is the most transparent place to start.
+
+=== step === quiz
+::eyebrow Check yourself
+## The right repair
+
+Your `cox.zph` flags the treatment arm, the exact variable your study exists to estimate, as non-proportional. Which response preserves the answer you actually need?
+
+::quiz {"correct":1,"gate":true,"difficulty":"advanced"}
+- Split follow-up into time windows and estimate a separate hazard ratio in each, reporting the early and late effects ::ok Right. This keeps the treatment's hazard ratios and tells the honest time-varying story, which is exactly what a violation on your key variable calls for.
+- Stratify the model on the treatment arm ::no Stratifying gives each arm its own baseline hazard but produces NO hazard ratio for the treatment, deleting the very number your study is about. Stratification is for nuisance controls you do not need to report.
+- Drop the treatment arm from the model ::no Removing the variable you are trying to estimate is not a fix; it throws away the entire point of the analysis and leaves the time-varying effect unreported.
+- Switch to logistic regression on survival at 12 months ::no Collapsing to a single time point discards the censoring and the timing that survival analysis exists to use, and it still hides the early-vs-late reversal inside one yes/no outcome.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-Four solid places to take this further:
+Four authoritative places to take this further:
 
-- [Grambsch and Therneau (1994), Proportional hazards tests and diagnostics based on weighted residuals, Biometrika 81:515](https://doi.org/10.1093/biomet/81.3.515) - the paper behind `cox.zph`: scaled Schoenfeld residuals and the trend test you just ran.
-- [Schoenfeld (1982), Partial residuals for the proportional hazards regression model, Biometrika 69:239](https://doi.org/10.1093/biomet/69.1.239) - the original residual, the raw material of the whole diagnostic.
-- [Therneau and Grambsch (2000), Modeling Survival Data: Extending the Cox Model, Springer](https://doi.org/10.1007/978-1-4757-3294-8) - the definitive treatment of checking and extending proportional hazards, by the survival package's author.
-- [The survival package vignette (Therneau, CRAN)](https://cran.r-project.org/web/packages/survival/vignettes/survival.pdf) - the canonical R reference for `cox.zph`, `survSplit`, `tt()`, and `strata()`, with worked examples.
+- [Grambsch and Therneau (1994), Proportional hazards tests and diagnostics based on weighted residuals, Biometrika 81(3):515](https://doi.org/10.1093/biomet/81.3.515) - the paper behind `cox.zph`, defining the scaled Schoenfeld residual test you used.
+- [Therneau, Crowson and Atkinson, Using time dependent covariates and time dependent coefficients in the Cox model (survival vignette)](https://cran.r-project.org/web/packages/survival/vignettes/timedep.pdf) - the canonical R walkthrough of `survSplit`, `strata`, `tt`, and the counting-process format.
+- [Therneau and Grambsch (2000), Modeling Survival Data: Extending the Cox Model (Springer)](https://doi.org/10.1007/978-1-4757-3294-8) - the definitive book on Cox diagnostics and time-varying effects.
+- [An Introduction to Statistical Learning, ch. 11 (free PDF)](https://www.statlearning.com/) - a gentle companion treatment of survival analysis and the proportional-hazards model.
 
 === step === complete
 ## Lesson 4 complete
 
-You no longer take a hazard ratio on trust. Proportional hazards is a **promise about time**, that one multiplier holds for the whole follow-up, and you now have the tools to hold it to account. **Schoenfeld residuals** turn the promise into a scatter you can read: a flat band means the effect is steady, a trend means it is drifting. `cox.zph()` runs that test for every covariate and for the model as a whole, and you learned to read its verdict honestly, treating Dr. Rao's borderline 0.055 with a small-sample grain of salt and the early-therapy's 4.5e-14 as a settled violation. When the assumption breaks, a single hazard ratio can be a flat lie, a 0.98 "no effect" that was really a protective 0.33 early and a harmful 2.17 late, and you fixed it by letting \(\beta(t)\) change with time.
+You can now check the promise every Cox model quietly makes. **Proportional hazards** says one hazard ratio holds for all of follow-up (\(S_1(t)=S_0(t)^{\text{HR}}\), curves that never cross), and when it fails the single HR becomes an average that describes no one, as surgery's fictional 0.66 hid a 2.59 early harm and a 0.16 late benefit. **Schoenfeld residuals** put a clue at every death, and their trend over time (the +0.337 to -0.255 slide you computed) is what a violation looks like. **`cox.zph`** turns that slope into a per-covariate and GLOBAL test, flagging exactly which variable broke the promise. And when the guilty variable is one you care about, **splitting follow-up into windows** recovers an honest hazard ratio for each period, while `strata()` is reserved for nuisance controls.
 
-Every model so far, Kaplan-Meier and Cox alike, has refused to name the shape of the baseline hazard. Next, Lesson 5: Parametric and AFT models, where you commit to a shape, a Weibull or exponential curve, fit survival with `survreg`, and see when that assumption buys you sharper predictions than Cox can give, and when it costs you.
+Every model so far, from Kaplan-Meier to Cox, has refused to name the shape of the baseline hazard. Next, Lesson 5: parametric and accelerated-failure-time models, where you assume a shape for survival time itself (Weibull, exponential) and gain the power to extrapolate beyond your data, and see when that trade is worth making.
