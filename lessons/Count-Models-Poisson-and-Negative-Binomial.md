@@ -1,13 +1,11 @@
 ---
 title: "Advanced Regression Lesson 8: Poisson and Negative Binomial Regression"
-catalog_blurb: "How to model counts and stay honest when they vary more than expected."
 description: "Model count outcomes with Poisson regression in R: fit the log link, read coefficients as rate ratios, spot overdispersion, and switch to a negative binomial."
 keywords: "Poisson regression, negative binomial, count data, overdispersion, glm, glm.nb, rate ratio, log link, dispersion parameter, MASS, R"
-post_type: "LESSON"
-curriculum_id: "6.130.8"
-webr: true
 mathjax: true
-lesson_access: "pro"
+webr: true
+curriculum_id: "6.130.8"
+post_type: "LESSON"
 course_id: "ds-reg-glm-expert"
 course_title: "Advanced Regression and GLMs"
 course_lesson: "8"
@@ -15,6 +13,8 @@ course_total: "13"
 course_landing: "R-Advanced-Regression-Course.html"
 course_next: "Zero-Inflated-and-Hurdle-Models.html"
 course_prev: "GAMs-Choosing-Smoothness.html"
+lesson_access: "pro"
+catalog_blurb: "How to model counts and stay honest when they vary more than expected."
 ---
 
 === step === cover
@@ -76,7 +76,7 @@ Amara's assistant suggests `lm(repairs ~ rain)`, ordinary least squares. On this
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - It can predict impossible values (negative or fractional repairs) and assumes constant spread, when the count is floored at 0 and gets noisier as it grows ::ok Exactly. The response is discrete, bounded below, and heteroskedastic by nature. That is a mismatch a straight line cannot fix; it needs a model built for counts.
-- Least squares cannot handle a two-level predictor like dry versus rainy ::no A 0/1 factor is no trouble at all for `lm`. The problem is the response, the count, not the predictor.
+- Least squares cannot handle a two-level predictor like dry versus rainy
 - You must always standardize a count before modelling it ::no Standardizing changes the scale but not the nature of the outcome: it is still discrete and floored at zero, and the line can still predict negatives. Rescaling does not fix the mismatch.
 
 === step === concept
@@ -155,7 +155,7 @@ The rainy-day coefficient exponentiates to \(e^{\beta_1} = 2.12\). A local repor
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - On a rainy day she can expect about 2.1 times as many repairs as on a dry day ::ok Right. The exponentiated Poisson coefficient is a multiplicative rate ratio: rainy days run at roughly 2.1 times the dry-day rate.
-- On a rainy day she gets about 2.1 more repairs than on a dry day ::no That would be an additive effect. The log link makes rain a multiplier, not an add-on: 2.1 times the rate, not plus 2.1 repairs.
+- On a rainy day she gets about 2.1 more repairs than on a dry day
 - About 2.1 percent more repairs happen on rainy days ::no A rate ratio of 2.12 means 2.1 times as many, a 112 percent increase, not 2.1 percent. Read exp(coef) as "times as many".
 
 === step === concept
@@ -209,8 +209,8 @@ Look at what changed and what did not. The estimates are essentially identical, 
 ```r
 AIC(pois_fit, nb_fit)
 #>          df      AIC
-#> pois_fit  2 769.7
-#> nb_fit    3 673.1
+#> pois_fit  2 769.7494
+#> nb_fit    3 673.1145
 ```
 
 Lower AIC is better, and the negative binomial wins by nearly 100.
@@ -223,7 +223,7 @@ Her dispersion check came back at 2.76, and the AIC preferred the negative binom
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - The negative binomial: the counts are overdispersed (dispersion well above 1), so the Poisson's standard errors are too small, and the NB both fixes the uncertainty and fits far better (lower AIC) ::ok Right. A dispersion near 2.76 and a much lower AIC both say the Poisson understates the spread. Report the NB, with its honest standard errors.
-- The Poisson, because both models produced the same coefficient estimates ::no The estimates do match, but that is not the point: under overdispersion the Poisson's standard errors, and therefore its p-values, are too optimistic. Matching point estimates do not make its uncertainty trustworthy.
+- The Poisson, because both models produced the same coefficient estimates
 - Either one is fine, since a dispersion of 2.76 is close enough to 1 ::no 2.76 is nearly three times 1, which is strong overdispersion, not "close enough". The large AIC gap confirms the negative binomial is the better model.
 
 === step === concept
