@@ -23,7 +23,7 @@ course_prev: ""
 
 Maya runs a small used-car listing site. She wants to predict a car's resale price from its details, and her data describes each car with words: transmission is `manual` or `automatic`, the body is `sedan`, `hatchback`, or `SUV`, the condition runs `poor` to `excellent`, and the brand is one of dozens of makes. A model, though, only does arithmetic. It cannot multiply the word "automatic" by anything.
 
-Encoding is how we hand a model those words as numbers, and doing it carelessly quietly teaches the model things that are not true. By the end of this lesson you will be able to:
+Encoding is how we hand a model those words as numbers, and doing it carelessly teaches the model things that are not true. By the end of this lesson you will be able to:
 
 - Explain why numbering categories `1, 2, 3` can mislead a model
 - One-hot, dummy, and ordinal encode variables in R, and read the result
@@ -43,7 +43,7 @@ Picture the simplest price model Maya could fit, a straight-line one. It predict
 
 \[ \hat{y} \;=\; \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \dots + \beta_p x_p. \]
 
-Here \(\hat{y}\) is the predicted price, each \(x_j\) is one feature (a number), and each \(\beta_j\) is the weight the model learns for it. The whole machine is multiplication and addition. So every \(x_j\) has to *be* a number. The word "automatic" has no value to multiply, and the same is true of every tree, boosting, or neural model underneath: somewhere they all reduce a row to numbers.
+Here \(\hat{y}\) is the predicted price, each \(x_j\) is one feature (a number), each \(\beta_j\) is the weight the model learns for it, and \(\beta_0\) is the **intercept**, a baseline constant that belongs to no feature. The whole machine is multiplication and addition. So every \(x_j\) has to *be* a number. The word "automatic" has no value to multiply, and the same is true of every tree, boosting, or neural model underneath: somewhere they all reduce a row to numbers.
 
 Each lesson runs in a fresh R session, so let us build Maya's listings right here and look at what we are dealing with.
 
@@ -74,10 +74,10 @@ The fastest fix looks obvious: just hand each category a number. Let `hatchback 
 
 Look at what the model now believes. It will treat that column as an ordinary number, so it reads `SUV (3)` as three times `hatchback (1)`, and `sedan (2)` as sitting exactly halfway between them. You invented an order (hatchback before sedan before SUV) and an even spacing (each step worth the same) that the body styles never had. A body style is a name, not a rank.
 
-::widget table-transform {"code":"cars$body_code <- match(cars$body, c(\"hatchback\", \"sedan\", \"SUV\"))","caption":"Numbering categories is fast, but it tells the model SUV is 3 times a hatchback and a sedan sits halfway between, an order and spacing the data never had.","before":{"cols":["body"],"rows":[["hatchback"],["sedan"],["SUV"],["hatchback"]]},"after":{"cols":["body","body_code"],"rows":[["hatchback",1],["sedan",2],["SUV",3],["hatchback",1]]}}
-
 [WARNING]
 Label-encoding a *nominal* (unordered) category feeds a fake ranking straight into the model. A linear model takes it literally; even tree models will only ever split it in that arbitrary numeric order. Reserve integer codes for categories that genuinely have an order, which is the next part of this lesson.
+
+::widget table-transform {"code":"df %>% mutate(body_code = match(body, c(\"hatchback\", \"sedan\", \"SUV\")))","caption":"Numbering categories is fast, but it tells the model SUV is 3 times a hatchback and a sedan sits halfway between, an order and spacing the data never had.","before":{"cols":["body"],"rows":[["hatchback"],["sedan"],["SUV"],["hatchback"]]},"after":{"cols":["body","body_code"],"rows":[["hatchback",1],["sedan",2],["SUV",3],["hatchback",1]]}}
 
 === step === quiz
 ::eyebrow Check yourself
@@ -86,9 +86,9 @@ Label-encoding a *nominal* (unordered) category feeds a fake ranking straight in
 Maya encodes `brand` as `Toyota = 1, Ford = 2, Honda = 3, Kia = 4, BMW = 5` and puts that single column into a linear price model. Brand has no natural order. What has she accidentally told the model?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"beginner"}
-- Nothing wrong: the model just needs numbers, and any consistent numbering works ::no A model does not see "labels", it sees magnitudes. The numbers carry meaning the brands do not have.
+- Nothing wrong: the model just needs numbers, and any consistent numbering works ::no The opposite is the danger. The model will use the column eagerly and trust the fake numeric order baked into it.
 - That BMW (5) is five times Toyota (1), and the brands sit in evenly spaced rank order ::ok Right. The model reads the codes as real quantities, so it assumes an ordering and equal spacing across brands that simply is not there. Nominal categories must not be integer-coded.
-- That the brands are unrelated to price, so the column will be ignored ::no The opposite: the model will use the column eagerly, and trust the fake numeric order baked into it.
+- That the brands are unrelated to price, so the column will be ignored ::no The opposite is the risk. Brand is a strong price signal, so the model uses the column eagerly and trusts the fake numeric order baked into it.
 
 === step === concept
 ::eyebrow The honest fix for nominal data
@@ -102,7 +102,7 @@ where \(\mathbf{1}[\cdot]\) is 1 when the row is level \(c_j\) and 0 otherwise, 
 
 There is one subtlety. The \(k\) indicator columns always sum to 1 for every row (a car is exactly one body style, so \(\sum_{j} x_j = 1\)). That makes the last column perfectly predictable from the others, which is redundant and, for a linear model with an intercept, breaks the fit (the columns are perfectly collinear). The cure is **dummy encoding**: keep only \(k-1\) columns and let the dropped category be the **baseline** (or reference). Every other column's weight is then read as a difference *from that baseline*. Leaving all \(k\) columns in is the classic mistake known as the **dummy-variable trap**.
 
-::widget table-transform {"code":"model.matrix(~ body - 1, data = cars)","caption":"One-hot: each body style becomes its own 0/1 column. No style is treated as bigger than another. Dummy encoding keeps one fewer column and calls the dropped style the baseline.","before":{"cols":["body"],"rows":[["hatchback"],["sedan"],["SUV"],["sedan"]]},"after":{"cols":["body","is_hatchback","is_sedan","is_SUV"],"rows":[["hatchback",1,0,0],["sedan",0,1,0],["SUV",0,0,1],["sedan",0,1,0]]}}
+::widget table-transform {"code":"model.matrix(~ body - 1, data = df)","caption":"One-hot: each body style becomes its own 0/1 column. No style is treated as bigger than another. Dummy encoding keeps one fewer column and calls the dropped style the baseline.","before":{"cols":["body"],"rows":[["hatchback"],["sedan"],["SUV"],["sedan"]]},"after":{"cols":["body","is_hatchback","is_sedan","is_SUV"],"rows":[["hatchback",1,0,0],["sedan",0,1,0],["SUV",0,0,1],["sedan",0,1,0]]}}
 
 === step === tryit
 ::eyebrow In R
@@ -141,7 +141,7 @@ head(onehot)
 
 Sometimes a category *does* have an order, and throwing it away would lose real information. Maya's `condition` runs `poor`, `fair`, `good`, `excellent`. An excellent car really is worth more than a poor one, in that order. One-hot encoding would scatter that ranking across four unrelated 0/1 columns and make the model relearn the obvious.
 
-For a genuinely ordered category, **ordinal encoding** is the honest move: map the levels to ranked integers in their true order. In R you say the order once with an *ordered* factor, then convert to integers.
+For a genuinely ordered category, **ordinal encoding** is the honest move: map the levels to ranked integers in their true order. In R you state the order once with an *ordered* factor, then convert to integers.
 
 ```r
 # State the real order; "ordered = TRUE" records that poor < fair < good < excellent
@@ -169,9 +169,9 @@ Integer codes carry one extra assumption: **equal spacing**. Writing `poor, fair
 Maya has two columns left to encode: `brand` (Toyota, Ford, Honda, ...) and a survey field `satisfaction` (`low`, `medium`, `high`). Which one is a fair candidate for ordinal (integer) encoding, and why?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- `brand`, because there are too many makes to one-hot, so ranking them is the only option ::no Cardinality does not create an order. The brands have no `low < high` meaning, so integer codes would invent one. The size problem is real, but ordinal encoding is the wrong cure for it (that is the next step).
+- `brand`, because there are too many makes to one-hot, so ranking them is the only option ::no Assigning an order to an unordered category (`brand`) is exactly the label-encoding trap. Only genuinely ranked categories earn integer codes.
 - `satisfaction`, because low, medium, high have a genuine order to preserve ::ok Right. `satisfaction` is ordinal: the levels rank naturally, so `1, 2, 3` keeps real information (as long as the steps are roughly even). `brand` is nominal and must not be integer-coded.
-- Both, since any column can be turned into numbers once you assign an order ::no Assigning an order to an unordered category (`brand`) is exactly the label-encoding trap. Only genuinely ranked categories earn integer codes.
+- Both, since any column can be turned into numbers once you assign an order ::no Assigning an order to `brand` is exactly the label-encoding trap. Only `satisfaction` has a real order to preserve.
 
 === step === concept
 ::eyebrow When categories explode
@@ -226,8 +226,8 @@ The most powerful high-cardinality method, **target encoding**, replaces each ca
 Maya is finalizing her pipeline. For three columns, which encoding fits each best: `transmission` (manual / automatic), `condition` (poor to excellent), and `model` (180 distinct values)?
 
 ::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- One-hot all three, since one-hot is always the safe default ::no One-hot on the 180-level `model` creates 180 sparse columns and breaks on any unseen model. High cardinality needs lumping or a learned encoding instead.
-- Integer-code all three from 1 upward, to keep the pipeline simple ::no `transmission` and `model` are nominal, so integer codes invent an order. Only `condition` is genuinely ordered.
+- One-hot all three, since one-hot is always the safe default ::no One-hot throws away the real order in `condition` and explodes `model` into 180 sparse columns. Match the method to the kind of category.
+- Integer-code all three from 1 upward, to keep the pipeline simple ::no Integer-coding `transmission` and `model` invents an order they do not have. Only `condition` is genuinely ordered.
 - One-hot (or dummy) `transmission`, ordinal-encode `condition`, and lump or target-encode `model` ::ok Exactly. Match the method to the kind of category: nominal and small to one-hot, genuinely ordered to integers, high-cardinality to lumping or a learned encoding.
 
 === step === concept
