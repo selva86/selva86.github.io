@@ -3,8 +3,8 @@
   <head>
     <title>Advanced Regression Lesson 12: Mixed Models and Random Intercepts</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Model grouped data in R with lme4: fit random intercepts so each group gets its own baseline, use partial pooling to steady small groups, and read the ICC.">
-    <meta name="Keywords" content="mixed models, random intercepts, partial pooling, lme4, lmer, multilevel model, hierarchical model, intraclass correlation, ICC, clustered data, R">
+    <meta name="Description" content="Fit random-intercept mixed models in R with lme4: give each group its own baseline, read the ICC, and watch partial pooling steady noisy small groups.">
+    <meta name="Keywords" content="mixed models, random intercepts, partial pooling, ICC, intraclass correlation, lme4, lmer, multilevel model, hierarchical model, shrinkage, random effects, R">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Advanced Regression Lesson 12: Mixed Models and Random Intercepts">
-    <meta property="og:description" content="Model grouped data in R with lme4: fit random intercepts so each group gets its own baseline, use partial pooling to steady small groups, and read the ICC.">
+    <meta property="og:description" content="Fit random-intercept mixed models in R with lme4: give each group its own baseline, read the ICC, and watch partial pooling steady noisy small groups.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Mixed-Models-Random-Intercepts.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Mixed-Models-Random-Intercepts.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Advanced Regression Lesson 12: Mixed Models and Random Intercepts">
-    <meta name="twitter:description" content="Model grouped data in R with lme4: fit random intercepts so each group gets its own baseline, use partial pooling to steady small groups, and read the ICC.">
+    <meta name="twitter:description" content="Fit random-intercept mixed models in R with lme4: give each group its own baseline, read the ICC, and watch partial pooling steady noisy small groups.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Mixed-Models-Random-Intercepts.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Advanced Regression Lesson 12: Mixed Models and Random Intercepts",
-      "description": "Model grouped data in R with lme4: fit random intercepts so each group gets its own baseline, use partial pooling to steady small groups, and read the ICC.",
+      "description": "Fit random-intercept mixed models in R with lme4: give each group its own baseline, read the ICC, and watch partial pooling steady noisy small groups.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Mixed-Models-Random-Intercepts.html",
-      "datePublished": "2026-07-02",
-      "dateModified": "2026-07-02",
+      "datePublished": "2026-07-08",
+      "dateModified": "2026-07-08",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -595,7 +595,7 @@
 
     
     
-        <link rel="stylesheet" href="www/lesson-mode.min.css?h=5f5f1fcb">
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
     <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
   </head>
 
@@ -679,51 +679,60 @@
 <div class="lesson-step-eyebrow">Lesson 12 of 13</div>
 <h2>Mixed Models and Random Intercepts</h2>
 
-<p>Every model so far in this course has leaned on one quiet assumption: that your rows are independent, each one a fresh and unrelated draw. Real data rarely obliges.</p>
+<p>Every model so far in this course has trusted each row on its own: one customer, one claim, one account, each an independent draw. But data rarely arrives that tidy. It comes in <strong>groups</strong> (patients within a clinic, students within a school, repeated visits from the same person) and rows inside a group resemble each other in ways the model has to respect.</p>
 
-<p>Maya, the customer-success data scientist from Lesson 11, has 184 customer accounts. They are not scattered at random: they belong to 12 sales <strong>regions</strong>, and each region has its own local support team, its own culture, its own baseline happiness. Two accounts in the same region are more alike than two accounts picked from different regions. Treat them as independent and you fool yourself about how much you really know.</p>
-
-<p>This lesson gives every group its own intercept while still letting the groups learn from one another, an idea called <strong>partial pooling</strong>. Drag the slider below to feel it: several groups, some tiny and noisy, being gently pulled toward a shared average.</p>
+<p>Meet <strong>Dr. Anna Reyes</strong>, who runs a network of eight walk-in clinics. Every clinic delivered the same recovery programme and scored each patient's recovery from 0 to 100. One clinic saw 40 patients; another saw just 2. Two questions keep her up at night: how good is each clinic <em>really</em>, and can she trust a tiny clinic whose two patients happened to score high? A <strong>mixed model</strong> answers both, by letting every clinic keep its own baseline while borrowing strength from the whole network.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Say why grouped data breaks the independence assumption, and why ignoring the groups makes your estimate of the overall level look more certain than it is</li>
+<li>Say why treating grouped observations as independent is a mistake, and why the two obvious fixes both fail</li>
 
-<li>Write and fit a <strong>random-intercept</strong> model with <code>lmer</code>, and read its fixed effects and its two variance components</li>
+<li>Fit a <strong>random-intercept</strong> model in R and read its two variance components</li>
 
-<li>Explain <strong>partial pooling</strong> (why small groups shrink toward the average) and compute the <strong>intraclass correlation</strong> that measures how grouped your data is</li>
+<li>Read the <strong>intraclass correlation (ICC)</strong>: how much of the variation is between clinics rather than within</li>
+
+<li>Explain <strong>partial pooling</strong>: why the shakiest small clinics get pulled hardest toward the average</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can fit and read <a href="OLS-Regression-from-Scratch.html">a linear model</a>, and you are comfortable reading a coefficient, a standard error, and a variance.</p>
+<p><strong>Prerequisites:</strong> you can fit and read <a href="OLS-Regression-from-Scratch.html">an ordinary linear model</a>, and you are comfortable with variance, standard deviation, and a factor column in R.</p>
 <div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The setup</div>
-<h2>When your data comes in groups</h2>
+<div class="lesson-step-eyebrow">The data</div>
+<h2>Eight clinics, wildly different sizes</h2>
 
-<p>Here is Maya's book of accounts, built right here so every line on this page runs in interactive R. Each account has its hours of guided <code>onboarding</code> (the same lever from Lesson 11) and a monthly <code>satisfaction</code> score from 0 to 100. Crucially, each account belongs to one of 12 <code>region</code>s, and every region carries its own hidden baseline (some regions are simply happier places to be a customer):</p>
+<p>Here is Dr. Reyes's network, built right here so every line on this page runs. Eight clinics, each with its own true baseline recovery level, and a very unequal number of patients. We bring in a predictor later; for now, just the clinic each patient attended and their recovery score:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
-<span class="cl">sizes  <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">38</span>, <span class="m">30</span>, <span class="m">25</span>, <span class="m">22</span>, <span class="m">18</span>, <span class="m">15</span>, <span class="m">12</span>, <span class="m">9</span>, <span class="m">6</span>, <span class="m">4</span>, <span class="m">3</span>, <span class="m">2</span>)   <span class="c1"># accounts per region: some big, some tiny</span></span>
-<span class="cl">region <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">rep</span>(<span class="nf">sprintf</span>(<span class="s">&quot;R%02d&quot;</span>, <span class="m">1</span><span class="o">:</span><span class="m">12</span>), times <span class="o">=</span> sizes))</span>
-<span class="cl">n      <span class="o">&lt;-</span> <span class="nf">length</span>(region)                                  <span class="c1"># 184 accounts in all</span></span>
-<span class="cl">region_base  <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">12</span>, <span class="m">0</span>, <span class="m">6</span>)                           <span class="c1"># each region&#39;s own baseline offset</span></span>
-<span class="cl">onboarding   <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">runif</span>(n, <span class="m">0</span>, <span class="m">8</span>), <span class="m">1</span>)                  <span class="c1"># hours of guided onboarding</span></span>
-<span class="cl">satisfaction <span class="o">&lt;-</span> <span class="m">62</span> <span class="o">+</span> <span class="m">2.5</span> <span class="o">*</span> onboarding <span class="o">+</span>                   <span class="c1"># grand baseline + onboarding effect</span></span>
-<span class="cl">                region_base[<span class="nf">as.integer</span>(region)] <span class="o">+</span>         <span class="c1"># the region&#39;s own shift, up or down</span></span>
-<span class="cl">                <span class="nf">rnorm</span>(n, <span class="m">0</span>, <span class="m">5</span>)                             <span class="c1"># account-level noise</span></span>
-<span class="cl">accounts <span class="o">&lt;-</span> <span class="nf">data.frame</span>(region, onboarding, satisfaction <span class="o">=</span> <span class="nf">round</span>(satisfaction, <span class="m">1</span>))</span>
-<span class="cl"><span class="nf">table</span>(accounts<span class="o">$</span>region)          <span class="c1"># how many accounts each region has</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; R01 R02 R03 R04 R05 R06 R07 R08 R09 R10 R11 R12 </span></span>
-<span class="cl"><span class="c1">#&gt;  38  30  25  22  18  15  12   9   6   4   3   2 </span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl"></span>
+<span class="cl">clinic_names <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;Ashby&quot;</span>, <span class="s">&quot;Brook&quot;</span>, <span class="s">&quot;Cedar&quot;</span>, <span class="s">&quot;Dale&quot;</span>, <span class="s">&quot;Elm&quot;</span>, <span class="s">&quot;Fern&quot;</span>, <span class="s">&quot;Gale&quot;</span>, <span class="s">&quot;Hill&quot;</span>)</span>
+<span class="cl">n_per        <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">3</span>, <span class="m">25</span>, <span class="m">4</span>, <span class="m">40</span>, <span class="m">2</span>, <span class="m">30</span>, <span class="m">5</span>, <span class="m">12</span>)            <span class="c1"># patients seen at each clinic</span></span>
+<span class="cl">clinic       <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">rep</span>(clinic_names, n_per))</span>
+<span class="cl">N            <span class="o">&lt;-</span> <span class="nf">length</span>(clinic)                            <span class="c1"># 121 patients in all</span></span>
+<span class="cl"></span>
+<span class="cl">clinic_base  <span class="o">&lt;-</span> <span class="nf">setNames</span>(<span class="nf">rnorm</span>(<span class="m">8</span>, <span class="m">0</span>, <span class="m">7</span>), clinic_names)   <span class="c1"># each clinic&#39;s own baseline shift</span></span>
+<span class="cl">sessions     <span class="o">&lt;-</span> <span class="nf">rpois</span>(N, <span class="m">6</span>)                              <span class="c1"># therapy sessions attended (used later)</span></span>
+<span class="cl">recovery     <span class="o">&lt;-</span> <span class="m">50</span> <span class="o">+</span> clinic_base[<span class="nf">as.character</span>(clinic)] <span class="o">+</span></span>
+<span class="cl">                <span class="m">1.4</span> <span class="o">*</span> sessions <span class="o">+</span> <span class="nf">rnorm</span>(N, <span class="m">0</span>, <span class="m">6</span>)          <span class="c1"># recovery score</span></span>
+<span class="cl">recovery     <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">pmin</span>(<span class="m">100</span>, <span class="nf">pmax</span>(<span class="m">0</span>, recovery)), <span class="m">1</span>)   <span class="c1"># keep it on the 0-100 scale</span></span>
+<span class="cl"></span>
+<span class="cl">recov <span class="o">&lt;-</span> <span class="nf">data.frame</span>(clinic, sessions, recovery)</span>
+<span class="cl"><span class="nf">head</span>(recov)</span>
+<span class="cl"><span class="c1">#&gt;   clinic sessions recovery</span></span>
+<span class="cl"><span class="c1">#&gt; 1  Ashby        6     79.7</span></span>
+<span class="cl"><span class="c1">#&gt; 2  Ashby        1     72.6</span></span>
+<span class="cl"><span class="c1">#&gt; 3  Ashby       12     83.0</span></span>
+<span class="cl"><span class="c1">#&gt; 4  Brook        5     49.6</span></span>
+<span class="cl"><span class="c1">#&gt; 5  Brook        7     54.9</span></span>
+<span class="cl"><span class="c1">#&gt; 6  Brook        5     57.2</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -733,28 +742,50 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Notice the imbalance: region R01 has 38 accounts to average over, while R12 has just 2. That imbalance is the whole drama of this lesson. Plot satisfaction against onboarding and colour by region, and a second fact appears: the points climb with onboarding (the effect Maya cares about), but each region's cloud sits at its <strong>own height</strong>. Those heights are the baselines we have to account for.</p>
+<p>Now the headline problem. Put each clinic's patient count next to its raw average recovery:</p>
 
-<p>Two accounts from the same region share that region's height, so they are <strong>correlated</strong>: knowing one tells you something about the other. That is precisely the independence assumption breaking, and ordinary regression has no idea it is happening.</p>
-<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0.5,"y":73,"fill":"West"},{"x":2,"y":76,"fill":"West"},{"x":3.5,"y":80,"fill":"West"},{"x":5,"y":85,"fill":"West"},{"x":6.5,"y":87,"fill":"West"},{"x":7.5,"y":90,"fill":"West"},{"x":0.3,"y":64,"fill":"East"},{"x":1.8,"y":68,"fill":"East"},{"x":3,"y":71,"fill":"East"},{"x":4.5,"y":75,"fill":"East"},{"x":6,"y":79,"fill":"East"},{"x":7.8,"y":83,"fill":"East"},{"x":0.8,"y":59,"fill":"South"},{"x":2.2,"y":62,"fill":"South"},{"x":3.6,"y":66,"fill":"South"},{"x":5.1,"y":69,"fill":"South"},{"x":6.4,"y":73,"fill":"South"},{"x":7.2,"y":75,"fill":"South"},{"x":1,"y":84,"fill":"Nordics"},{"x":2.5,"y":88,"fill":"Nordics"},{"x":4,"y":91,"fill":"Nordics"},{"x":1.5,"y":85,"fill":"Nordics"},{"x":3,"y":89,"fill":"Nordics"},{"x":0.5,"y":83,"fill":"Nordics"}],"geoms":["point"],"x":"onboarding","y":"satisfaction","code":{"point":"ggplot(region_sample, aes(onboarding, satisfaction, colour = group)) +\n  geom_point(size = 2) +\n  labs(colour = \"region\", y = \"satisfaction (CSAT)\")"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">data.frame</span>(</span>
+<span class="cl">  n        <span class="o">=</span> <span class="nf">as.integer</span>(<span class="nf">table</span>(recov<span class="o">$</span>clinic)),</span>
+<span class="cl">  raw_mean <span class="o">=</span> <span class="nf">round</span>(<span class="nf">tapply</span>(recov<span class="o">$</span>recovery, recov<span class="o">$</span>clinic, mean), <span class="m">1</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;       n raw_mean</span></span>
+<span class="cl"><span class="c1">#&gt; Ashby  3     78.4</span></span>
+<span class="cl"><span class="c1">#&gt; Brook 25     54.3</span></span>
+<span class="cl"><span class="c1">#&gt; Cedar  4     56.0</span></span>
+<span class="cl"><span class="c1">#&gt; Dale  40     55.4</span></span>
+<span class="cl"><span class="c1">#&gt; Elm    2     52.5</span></span>
+<span class="cl"><span class="c1">#&gt; Fern  30     51.3</span></span>
+<span class="cl"><span class="c1">#&gt; Gale   5     61.1</span></span>
+<span class="cl"><span class="c1">#&gt; Hill  12     56.6</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Ashby</strong> looks spectacular: an average of 78, far above everyone else. But it saw only <strong>3 patients</strong>. Should Dr. Reyes crown it the best clinic in the network, or is three patients simply too few to trust? The bar chart makes the imbalance plain: a couple of towering bars built on almost no evidence, the rest bunched together on solid samples.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"Ashby","y":78.4},{"x":"Brook","y":54.3},{"x":"Cedar","y":56.0},{"x":"Dale","y":55.4},{"x":"Elm","y":52.5},{"x":"Fern","y":51.3},{"x":"Gale","y":61.1},{"x":"Hill","y":56.6}],"geoms":["bar"],"x":"clinic","y":"recovery"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The two easy wrong answers</div>
-<h2>Ignore the groups, or give each its own</h2>
+<div class="lesson-step-eyebrow">Two tempting mistakes</div>
+<h2>Ignore the clinics, or trust them blindly</h2>
 
-<p>Faced with grouped data, there are two tempting shortcuts, and both are traps.</p>
+<p>Faced with grouped data, two shortcuts tempt everyone. Both are wrong, and seeing exactly <em>how</em> they are wrong is the whole motivation for mixed models.</p>
 
-<p><strong>Complete pooling</strong> ignores region entirely and fits one line to all 184 accounts:</p>
+<p><strong>Shortcut 1, complete pooling: ignore the clinics.</strong> Pretend every patient is just a patient, pour all 121 into one pot, and report a single number.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">pool <span class="o">&lt;-</span> <span class="nf">lm</span>(satisfaction <span class="o">~</span> onboarding, data <span class="o">=</span> accounts)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(pool)<span class="o">$</span>coefficients, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt;             Estimate Std. Error t value Pr(&gt;|t|)</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept)   60.381      0.968  62.378        0</span></span>
-<span class="cl"><span class="c1">#&gt; onboarding     2.354      0.217  10.857        0</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">mean</span>(recov<span class="o">$</span>recovery), <span class="m">1</span>)   <span class="c1"># one number for the whole network</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 55</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -764,80 +795,124 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Those standard errors are computed as if all 184 accounts were independent. They are not: accounts cluster inside regions, so you hold far fewer truly independent pieces of information than 184. Counting correlated observations as if each were fresh evidence has a name, <strong>pseudoreplication</strong>, and it quietly distorts your uncertainty. Hold on to that intercept standard error of 0.968; in a few steps the honest model will tell a different story about it.</p>
+<p>Tidy, but it throws away a real fact: clinics genuinely differ. Reporting 55 for everyone tells Ashby's patients and Fern's patients the same story, when their clinics are plainly not the same.</p>
 
-<p><strong>No pooling</strong> swings the other way: give every region its own separate intercept (a fixed dummy per region, or a separate fit per region). Now region R12, with its <strong>two</strong> accounts, gets an intercept estimated from two noisy points, and the model trusts it completely. You also spend 12 parameters on baselines alone.</p>
+<p><strong>Shortcut 2, no pooling: trust each clinic completely.</strong> Give every clinic its own separate estimate, which is exactly the raw-mean column you just saw. This respects that clinics differ, but it trusts a clinic with 2 patients as fully as one with 40:</p>
 
-<p>One shortcut throws the groups away; the other trusts each group blindly, even the ones with almost no data. The right answer lives in between, and the slider you met on the cover was showing it.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">recov[recov<span class="o">$</span>clinic <span class="o">==</span> <span class="s">&quot;Elm&quot;</span>, ]   <span class="c1"># Elm&#39;s entire evidence base</span></span>
+<span class="cl"><span class="c1">#&gt;    clinic sessions recovery</span></span>
+<span class="cl"><span class="c1">#&gt; 73    Elm        5     56.1</span></span>
+<span class="cl"><span class="c1">#&gt; 74    Elm        5     48.9</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Elm's estimate of 52.5 rests on <strong>two people</strong>. If one of them had recovered a little worse, Elm's "score" would swing wildly. No pooling has no way to say <em>I have barely any evidence here</em>: it reports the noisy average with a straight face.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Complete pooling ignores real differences between groups; no pooling trusts every group equally, even the ones built on two data points. The right answer lives in between: trust a big clinic's average, but be sceptical of a tiny one and lean it toward the crowd. That in-between is <strong>partial pooling</strong>, and a mixed model does it for you.</div></div>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Why not just fit one line?</h2>
+<h2>What is wrong with no pooling?</h2>
 
-<p>Maya fits <code>lm(satisfaction ~ onboarding)</code> on all 184 accounts, ignoring region, and reports the result. Those 184 accounts actually come from just 12 regions, and accounts in the same region are correlated. What is the main problem with her reported result?</p>
+<p>Dr. Reyes is tempted to just publish each clinic's raw average (the no-pooling estimate) and be done. What is the core danger of doing that here?</p>
 <section class="exercise" data-exercise-id="Mixed-Models-Random-Intercepts-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing is wrong: more rows always means a better, more trustworthy estimate</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Her reported precision is inflated: she is treating 184 correlated accounts as if they were 184 independent ones, so she knows the overall level less well than her small standard error claims</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The onboarding coefficient is guaranteed to be biased toward zero</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nothing can be done unless every region has the same number of accounts</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. That is pseudoreplication: clustering means fewer independent pieces of information than the row count suggests, so the lm overstates how precisely it pins down the overall level (its intercept standard error is too small).</div><div class="lesson-qfb lesson-qfb-no">Mixed models handle unbalanced groups gracefully; unequal region sizes are exactly what partial pooling is built for.</div></div>
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Raw averages are biased: they systematically overstate every clinic's true recovery level</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The tiny clinics get noisy, unreliable estimates that no pooling has no way to discount</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It uses too much data, so the estimates overfit the whole network</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nothing is wrong; each clinic's own average is always the best possible estimate for that clinic</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Elm's average rests on 2 patients and could swing on a single case, yet no pooling treats it as seriously as Dale's average of 40. The shakiest numbers end up looking as trustworthy as the solid ones.</div><div class="lesson-qfb lesson-qfb-no">A clinic's own average ignores everything the other clinics reveal about a typical clinic. For a tiny, noisy clinic, borrowing some of that shared information beats its raw mean.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">The idea</div>
-<h2>The random-intercept model</h2>
+<div class="lesson-step-eyebrow">The middle path</div>
+<h2>A random intercept: each clinic shifted from a shared centre</h2>
 
-<p>Partial pooling comes from one elegant change to the linear model. Write the satisfaction of account \(i\) in region \(j\) as:</p>
+<p>Here is the idea that threads the needle. We keep a single overall recovery level for the network, and we let each clinic sit a little above or below it. Crucially, those clinic shifts are not eight free numbers we chase individually. We assume they are <strong>draws from one bell-shaped distribution</strong> centred on zero, and we estimate the <em>width</em> of that distribution instead.</p>
 
-<p>\[ y_{ij} = \beta_0 + \beta_1\,x_{ij} + u_j + \varepsilon_{ij}, \]</p>
+<p>Write patient \(i\) at clinic \(j\):</p>
 
-<p>and read it piece by piece. \(y_{ij}\) is the satisfaction of the \(i\)-th account in region \(j\); \(x_{ij}\) is that account's onboarding hours. \(\beta_0\) is the <strong>grand intercept</strong> (the overall baseline across all regions) and \(\beta_1\) is the onboarding slope, shared by every region. So far this is ordinary regression.</p>
+<p>\[ y_{ij} = \beta_0 + u_j + \varepsilon_{ij}, \qquad u_j \sim \mathcal{N}(0, \tau^2), \qquad \varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2). \]</p>
 
-<p>The new term is \(u_j\): a single number for each region that shifts its whole line <strong>up or down</strong> from the grand baseline. R12's line might sit 9 points below average, R01's 5 points above. The residual \(\varepsilon_{ij}\) is the leftover account-level noise, as usual.</p>
+<p>Reading each piece in plain words:</p>
 
-<p>Here is the move that makes it a <em>mixed</em> model. Instead of estimating 12 free intercepts, we assume the region shifts are themselves draws from a normal distribution:</p>
+<ul>
 
-<p>\[ u_j \sim N(0, \tau^2), \qquad \varepsilon_{ij} \sim N(0, \sigma^2). \]</p>
+<li>\(y_{ij}\) is the recovery score of patient \(i\) at clinic \(j\).</li>
 
-<p>\(\tau^2\) ("tau squared") is the <strong>between-region variance</strong>, how much regions differ from one another, and \(\sigma^2\) ("sigma squared") is the <strong>within-region variance</strong>, how much accounts differ inside a region. We estimate just these two variances, not 12 separate intercepts. The \(\beta_0, \beta_1\) are called <strong>fixed effects</strong> (one value each); the \(u_j\) are <strong>random effects</strong> (drawn from a distribution).</p>
+<li>\(\beta_0\) ("beta-nought") is the <strong>grand mean</strong>: the typical recovery level across the whole network.</li>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">By treating the region shifts as a sample from \(N(0, \tau^2)\), the model estimates ONE number, \(\tau^2\), instead of 12 loose intercepts. That single shared distribution is what lets a small region borrow strength from all the others, rather than standing alone on its two data points.</div></div>
+<li>\(u_j\) ("u-j") is clinic \(j\)'s <strong>random intercept</strong>, how far that clinic sits above or below the grand mean. Ashby's is positive, Fern's is negative.</li>
+
+<li>\(\tau^2\) ("tau-squared") is the <strong>between-clinic variance</strong>: how spread out those clinic shifts are. This single number is what we estimate, instead of eight separate intercepts.</li>
+
+<li>\(\varepsilon_{ij}\) ("epsilon") is the leftover patient-level noise, and \(\sigma^2\) ("sigma-squared") is the <strong>within-clinic variance</strong>: how much patients scatter around their own clinic's level.</li>
+
+</ul>
+
+<p>The word <strong>mixed</strong> is now literal: the model mixes a <strong>fixed effect</strong> (\(\beta_0\), one number for everyone) with a <strong>random effect</strong> (\(u_j\), one per clinic, all tied together by the shared \(\tau^2\)).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Modelling the clinic shifts as draws from a single \(\mathcal{N}(0, \tau^2)\) is exactly what buys partial pooling. Because all eight clinics inform one variance \(\tau^2\), a clinic with little data cannot wander far on its own: the shared distribution reins it in.</div></div>
 </section>
 
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Fit it with lmer</h2>
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the random-intercept model</h2>
 
-<p>The <code>lme4</code> package fits this model. Its formula adds one new piece to the familiar <code>y ~ x</code>: the term <code>(1 | region)</code>. Read it as "let the intercept (the <code>1</code>) vary by (the <code>|</code>) region". That single term is the whole random-intercept model.</p>
+<p>The <code>lme4</code> package fits it with <code>lmer</code>. The fixed part is the familiar formula; the new piece is the random-intercept term in parentheses, <code>(1 | clinic)</code>, which reads *"let the intercept (the <code>1</code>) vary by <code>clinic</code>"*. Start with the simplest model, just a grand mean plus a per-clinic intercept, no predictor yet. Fill in the random term.</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Intercepts-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="\(\s*1\s*\|\s*clinic\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">library(lme4)
+m0 &lt;- lmer(recovery ~ 1 + ____, data = recov)
+summary(m0)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. (1 | clinic) lets the intercept vary by clinic: one shared grand mean plus a clinic-specific shift drawn from N(0, tau squared).</span><span class="lesson-tryit-fb lesson-tryit-no">The random-intercept term is (1 | clinic): the 1 is the intercept, and | clinic says let it vary by clinic.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(lme4)
+m0 &lt;- lmer(recovery ~ 1 + (1 | clinic), data = recov)
+summary(m0)
+#&gt; Linear mixed model fit by REML ['lmerMod']
+#&gt; Formula: recovery ~ 1 + (1 | clinic)
+#&gt;    Data: recov
+#&gt;
+#&gt; REML criterion at convergence: 792.1
+#&gt;
+#&gt; Scaled residuals:
+#&gt;      Min       1Q   Median       3Q      Max
+#&gt; -2.39083 -0.60498 -0.01962  0.47327  3.01726
+#&gt;
+#&gt; Random effects:
+#&gt;  Groups   Name        Variance Std.Dev.
+#&gt;  clinic   (Intercept) 60.85    7.801
+#&gt;  Residual             35.23    5.936
+#&gt; Number of obs: 121, groups:  clinic, 8
+#&gt;
+#&gt; Fixed effects:
+#&gt;             Estimate Std. Error t value
+#&gt; (Intercept)   57.970      2.891   20.05</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the fit</div>
+<h2>Two variances tell the whole story</h2>
+
+<p>Ignore everything in that output except the <strong>Random effects</strong> block, because it is the heart of a mixed model:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
-<span class="cl">m1 <span class="o">&lt;-</span> <span class="nf">lmer</span>(satisfaction <span class="o">~</span> onboarding <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> region), data <span class="o">=</span> accounts)</span>
-<span class="cl"><span class="nf">summary</span>(m1)</span>
-<span class="cl"><span class="c1">#&gt; Linear mixed model fit by REML [&#39;lmerMod&#39;]</span></span>
-<span class="cl"><span class="c1">#&gt; Formula: satisfaction ~ onboarding + (1 | region)</span></span>
-<span class="cl"><span class="c1">#&gt;    Data: accounts</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; REML criterion at convergence: 1119.9</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; Scaled residuals: </span></span>
-<span class="cl"><span class="c1">#&gt;      Min       1Q   Median       3Q      Max </span></span>
-<span class="cl"><span class="c1">#&gt; -2.60984 -0.63786 -0.08588  0.67629  2.66212 </span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; Random effects:</span></span>
-<span class="cl"><span class="c1">#&gt;  Groups   Name        Variance Std.Dev.</span></span>
-<span class="cl"><span class="c1">#&gt;  region   (Intercept) 23.59    4.857   </span></span>
-<span class="cl"><span class="c1">#&gt;  Residual             22.11    4.702   </span></span>
-<span class="cl"><span class="c1">#&gt; Number of obs: 184, groups:  region, 12</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; Fixed effects:</span></span>
-<span class="cl"><span class="c1">#&gt;             Estimate Std. Error t value</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept)  58.9846     1.5996   36.87</span></span>
-<span class="cl"><span class="c1">#&gt; onboarding    2.4290     0.1536   15.81</span></span></div>
+<span class="cl">m0 <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> <span class="m">1</span> <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
+<span class="cl"><span class="nf">as.data.frame</span>(<span class="nf">VarCorr</span>(m0))[, <span class="nf">c</span>(<span class="s">&quot;grp&quot;</span>, <span class="s">&quot;vcov&quot;</span>)]</span>
+<span class="cl"><span class="c1">#&gt;        grp     vcov</span></span>
+<span class="cl"><span class="c1">#&gt; 1   clinic 60.85047</span></span>
+<span class="cl"><span class="c1">#&gt; 2 Residual 35.23086</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -847,63 +922,177 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Two blocks matter (you can read past the top <code>REML</code> line, which just names the default method <code>lmer</code> uses to estimate the variances). <strong>Random effects</strong> reports the two variances you just met: the <code>region</code> row is \(\tau^2\) (here 23.6, with its square root 4.86 shown as a standard deviation), and <code>Residual</code> is \(\sigma^2\) (22.1). Regions differ about as much as accounts within a region do. <strong>Fixed effects</strong> is the ordinary coefficient table: the grand intercept \(\beta_0\) and the shared onboarding slope \(\beta_1\). One thing is missing next to them, a p-value column: degrees of freedom are genuinely hard to pin down for mixed models, so <code>lmer</code> reports the t value and leaves the call to you (as a rough guide, a t value beyond about 2 marks a clear effect).</p>
+<p>Two numbers, and each answers a real question:</p>
 
-<p>Now compare the standard errors with the complete-pooling <code>lm</code>, because they move in opposite directions and each direction teaches something. The intercept's standard error <strong>grew</strong>, from 0.97 to 1.60: the <code>lm</code>, treating 184 correlated accounts as independent, had overstated how precisely it knew the overall baseline, exactly the pseudoreplication trap. The onboarding slope's standard error <strong>shrank</strong>, from 0.217 to 0.154: because onboarding varies <em>within</em> a region, lifting the region-to-region differences out into the random intercept stripped away noise that had been blurring the slope, so it is now measured more sharply.</p>
+<ul>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A mixed model does not simply inflate your uncertainty; it gets it right. Whether a quantity is measured between groups (the overall level) or within them (a predictor that varies inside each group) decides which way its standard error moves.</div></div>
+<li><strong>clinic = 60.85</strong> is \(\tau^2\), the <strong>between-clinic variance</strong>: how much clinics differ from one another. Its square root, about 7.8 points, is the typical gap between a clinic and the network average.</li>
+
+<li><strong>Residual = 35.23</strong> is \(\sigma^2\), the <strong>within-clinic variance</strong>: how much patients scatter <em>inside</em> a clinic. Its square root is about 5.9 points.</li>
+
+</ul>
+
+<p>Notice the grand mean the model reported: <code>(Intercept) = 57.97</code>, not the 55 we got from <code>mean(recovery)</code>. They differ because the simple patient average is dragged down by the big low-scoring clinics (Fern with 30 patients, Brook with 25), while the mixed model weights the eight clinics more evenly. The model's 58 is <em>the typical clinic</em>, not <em>the typical patient</em>. (The <code>t value</code> of 20 just says that average is clearly not zero; <code>lmer</code> prints no p-value on purpose, which we return to at the end.)</p>
 </section>
 
-<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
-<div class="lesson-step-eyebrow">Your turn</div>
-<h2>Write the random-intercept term</h2>
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">How much is the clinic?</div>
+<h2>The intraclass correlation (ICC)</h2>
 
-<p>Maya wants each region to have its own baseline satisfaction while sharing one onboarding slope. Complete the formula with the random-intercept term for <code>region</code>, then run it.</p>
-<section class="exercise" data-exercise-id="Mixed-Models-Random-Intercepts-step7" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="\(\s*1\s*\|\s*region\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">library(lme4)
-m1 &lt;- lmer(satisfaction ~ onboarding + ____, data = accounts)
-summary(m1)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. (1 | region) lets the intercept vary by region: one baseline per region, drawn from a shared normal distribution, with the onboarding slope held common across regions.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the intercept to vary by region: add (1 | region). The 1 is the intercept, the bar means varies by, and region is the grouping factor.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(lme4)
-m1 &lt;- lmer(satisfaction ~ onboarding + (1 | region), data = accounts)</code></pre></details></div>
+<p>Those two variances answer Dr. Reyes's deepest question: <em>how much does the clinic you walk into actually matter?</em> The <strong>intraclass correlation</strong>, the ICC, is their ratio:</p>
+
+<p>\[ \rho = \frac{\tau^2}{\tau^2 + \sigma^2}, \]</p>
+
+<p>where \(\tau^2\) is the between-clinic variance, \(\sigma^2\) the within-clinic variance, and \(\tau^2 + \sigma^2\) therefore the total variance in recovery scores. The ICC is the <strong>share of that total variation that lives between clinics</strong>. Compute it straight from the fit:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">m0 <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> <span class="m">1</span> <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
+<span class="cl">vc <span class="o">&lt;-</span> <span class="nf">as.data.frame</span>(<span class="nf">VarCorr</span>(m0))</span>
+<span class="cl">between <span class="o">&lt;-</span> vc<span class="o">$</span>vcov[vc<span class="o">$</span>grp <span class="o">==</span> <span class="s">&quot;clinic&quot;</span>]     <span class="c1"># tau^2</span></span>
+<span class="cl">within  <span class="o">&lt;-</span> vc<span class="o">$</span>vcov[vc<span class="o">$</span>grp <span class="o">==</span> <span class="s">&quot;Residual&quot;</span>]   <span class="c1"># sigma^2</span></span>
+<span class="cl"><span class="nf">round</span>(between <span class="o">/</span> (between <span class="o">+</span> within), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.63</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An ICC of <strong>0.63</strong> is large. It says <strong>63% of the variation in recovery scores is explained by which clinic a patient attended</strong>, and only 37% by patient-to-patient differences within a clinic. Which clinic you go to matters more than who you are.</p>
+
+<p>The ICC has a second, equivalent reading worth holding onto: it is the <strong>correlation between any two patients treated at the same clinic</strong>. Two patients from Ashby correlate 0.63; they resemble each other far more than two patients picked from different clinics. That correlation is exactly the non-independence that complete pooling ignored, and that a mixed model is built to handle.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The ICC turns "are my groups meaningfully different?" into one number. Near 0, groups barely differ and a plain model is fine; near 1, group membership dominates and ignoring it would badly understate your uncertainty. At 0.63, these clinics are emphatically real.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading an ICC</h2>
+
+<p>A colleague fits a random-intercept model to exam scores of students grouped by school and reports an ICC of <strong>0.08</strong>. What does that tell you?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Intercepts-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Schools explain most of the variation in scores, so which school a student attends is what matters most</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The mixed model has failed, because a valid ICC must be above 0.5</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Only about 8% of the variation is between schools; two students in the same school are barely more alike than students from different schools</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The average exam score is 8% higher in the best school than in the worst</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. ICC = 0.08 means schools account for 8% of the total variance, and two students in the same school correlate only 0.08. The grouping is weak, though not necessarily ignorable.</div><div class="lesson-qfb lesson-qfb-no">The ICC is a share of variance, not a difference in means. It says nothing directly about the gap between the top and bottom school's averages.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="widget">
-<div class="lesson-step-eyebrow">The heart of it</div>
-<h2>Partial pooling and shrinkage</h2>
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Partial pooling: borrow strength</h2>
 
-<p>This is what <code>lmer</code> did under the hood. Each group starts at its own raw average (the faint dots), but the model pulls every estimate toward the grand mean, and it pulls the <strong>small, noisy groups hardest</strong>. Slide from "no pooling" (trust each group alone) to "complete pooling" (one number for all) and watch the tiny groups swing while the big ones barely move. It is drawn here as eight clinics, but the logic is identical to Maya's regions.</p>
+<p>Now the reward. A mixed model reports neither extreme. It gives each clinic a <strong>partially pooled</strong> estimate that sits between its own raw mean and the grand mean, and it decides <em>where</em> between them by how much data the clinic has. Slide the dial below from no pooling toward complete pooling and watch the small clinics get dragged toward the centre while the big ones hold their ground:</p>
 
-<p>The amount each group is pulled is not arbitrary. A region's estimate is a precision-weighted blend of its own mean and the grand mean, with weight</p>
+<p>The estimates <code>lmer</code> actually produced are its partially pooled intercepts. Put them next to the raw means and the shrinkage is unmistakable:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">m0 <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> <span class="m">1</span> <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
+<span class="cl">raw    <span class="o">&lt;-</span> <span class="nf">tapply</span>(recov<span class="o">$</span>recovery, recov<span class="o">$</span>clinic, mean)   <span class="c1"># no-pooling estimate</span></span>
+<span class="cl">pooled <span class="o">&lt;-</span> <span class="nf">coef</span>(m0)<span class="o">$</span>clinic[, <span class="s">&quot;(Intercept)&quot;</span>]             <span class="c1"># partial-pooled estimate</span></span>
+<span class="cl"><span class="nf">data.frame</span>(n      <span class="o">=</span> <span class="nf">as.integer</span>(<span class="nf">table</span>(recov<span class="o">$</span>clinic)),</span>
+<span class="cl">           raw    <span class="o">=</span> <span class="nf">round</span>(raw, <span class="m">1</span>),</span>
+<span class="cl">           pooled <span class="o">=</span> <span class="nf">round</span>(pooled, <span class="m">1</span>),</span>
+<span class="cl">           pulled <span class="o">=</span> <span class="nf">round</span>(pooled <span class="o">-</span> raw, <span class="m">1</span>))</span>
+<span class="cl"><span class="c1">#&gt;        n  raw pooled pulled</span></span>
+<span class="cl"><span class="c1">#&gt; Ashby  3 78.4   75.1   -3.3</span></span>
+<span class="cl"><span class="c1">#&gt; Brook 25 54.3   54.4    0.1</span></span>
+<span class="cl"><span class="c1">#&gt; Cedar  4 56.0   56.2    0.3</span></span>
+<span class="cl"><span class="c1">#&gt; Dale  40 55.4   55.4    0.0</span></span>
+<span class="cl"><span class="c1">#&gt; Elm    2 52.5   53.7    1.2</span></span>
+<span class="cl"><span class="c1">#&gt; Fern  30 51.3   51.4    0.1</span></span>
+<span class="cl"><span class="c1">#&gt; Gale   5 61.1   60.8   -0.3</span></span>
+<span class="cl"><span class="c1">#&gt; Hill  12 56.6   56.6    0.1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the <code>pulled</code> column. The big clinics barely move: Dale (40 patients) shifts 0.0, Fern and Brook by 0.1. The small clinics are tugged toward the centre: Ashby's suspicious 78.4 is reeled in to 75.1, and Elm's 52.5 is nudged up to 53.7. The model quietly discounts a bold claim made on thin evidence.</p>
+
+<p>How hard each clinic is pulled follows a shrinkage weight \(\lambda_j\):</p>
 
 <p>\[ \lambda_j = \frac{n_j\,\tau^2}{n_j\,\tau^2 + \sigma^2}, \]</p>
 
-<p>where \(n_j\) is the number of accounts in region \(j\), \(\tau^2\) the between-region variance and \(\sigma^2\) the within-region variance. When a region is large (\(n_j\) big), \(\lambda_j\) sits near 1 and the model trusts the region's own mean. When it is tiny (like R12's two accounts), \(\lambda_j\) is small and the estimate is pulled most of the way back to the grand mean. Small groups borrow strength from the whole, so you get a sensible number for R12 without pretending its two points are gospel.</p>
+<p>where \(n_j\) is clinic \(j\)'s number of patients, \(\tau^2\) the between-clinic variance and \(\sigma^2\) the within-clinic variance. The pooled estimate lands \(\lambda_j\) of the way from the grand mean to the clinic's own raw mean. When \(n_j\) is large, \(\lambda_j \to 1\) and the clinic keeps its own average; when \(n_j\) is tiny, \(\lambda_j\) shrinks and the clinic is pulled toward the grand mean. You never told the model to do this; it falls straight out of the shared \(\mathcal{N}(0, \tau^2)\) assumption.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Partial pooling is automatic regularization for grouped data: more honest than no pooling (which overfits tiny groups) and more informative than complete pooling (which erases real group differences).</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Partial pooling is automatic regularization for groups: every group's estimate is shrunk toward the overall mean by an amount set by how little data it has. It is the single most useful thing a mixed model does, and the reason its estimates beat both extremes on a fresh sample.</div></div>
 <div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="concept">
-<div class="lesson-step-eyebrow">One number for "how grouped?"</div>
-<h2>The intraclass correlation (ICC)</h2>
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which clinic moves most?</h2>
 
-<p>How much does region matter at all? The <strong>intraclass correlation</strong> answers with a single number: the share of the total variation that lives <em>between</em> regions rather than within them:</p>
+<p>In the table above, which clinic's estimate was pulled furthest from its raw mean toward the network average, and why?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Intercepts-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Ashby: it has few patients (n = 3) AND a raw mean far above the centre, so the model discounts the surprise most</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Dale: with 40 patients it has the most data, so the model adjusts it the most</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Elm: it has the fewest patients (n = 2), so it must be pulled the most</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">All clinics are pulled by the same amount, because they share one tau squared</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Shrinkage grows when a group has little data and sits far from the grand mean. Ashby is both, so its 78.4 is pulled the hardest, down to 75.1.</div><div class="lesson-qfb lesson-qfb-no">They share one tau squared, but the pull lambda also depends on each clinic's own n (and its distance from the mean), so the amount differs clinic to clinic.</div></div>
+</section>
+</section>
 
-<p>\[ \rho = \frac{\tau^2}{\tau^2 + \sigma^2}. \]</p>
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Add a predictor: one shared slope</h2>
 
-<p>\(\rho\) ("rho") runs from 0 to 1. Near 0, regions are basically interchangeable and grouping barely matters. Near 1, almost all the variation is between regions, and which region an account belongs to tells you most of its satisfaction. \(\rho\) is also, exactly, the correlation between two accounts drawn from the same region, which is why it measures how badly the independence assumption was being violated. Pull the two variances straight out of the fitted model:</p>
+<p>So far the model only had a grand mean. But Dr. Reyes also recorded how many therapy <strong>sessions</strong> each patient attended, and more sessions should mean better recovery. A random-intercept model handles this beautifully: it fits <strong>one shared slope</strong> for sessions across all clinics, while still giving <strong>each clinic its own intercept</strong>. Add <code>sessions</code> as a fixed effect.</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Intercepts-step12" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="sessions"><textarea class="lesson-tryit-input" spellcheck="false">library(lme4)
+m1 &lt;- lmer(recovery ~ ____ + (1 | clinic), data = recov)
+summary(m1)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. sessions enters as a fixed effect, one slope shared by every clinic, while (1 | clinic) keeps each clinic its own baseline.</span><span class="lesson-tryit-fb lesson-tryit-no">Put sessions in as the fixed predictor: recovery ~ sessions + (1 | clinic).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(lme4)
+m1 &lt;- lmer(recovery ~ sessions + (1 | clinic), data = recov)
+summary(m1)
+#&gt; Random effects:
+#&gt;  Groups   Name        Variance Std.Dev.
+#&gt;  clinic   (Intercept) 63.06    7.941
+#&gt;  Residual             25.80    5.079
+#&gt; Number of obs: 121, groups:  clinic, 8
+#&gt;
+#&gt; Fixed effects:
+#&gt;             Estimate Std. Error t value
+#&gt; (Intercept)  49.5488     3.1858  15.553
+#&gt; sessions      1.3789     0.2123   6.497</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">The geometry</div>
+<h2>Parallel lines: one slope, eight intercepts</h2>
+
+<p><code>coef()</code> spells out what the random intercept did to each clinic. It hands back a fitted line per clinic, the shared fixed effects plus that clinic's own intercept shift:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
-<span class="cl">m1 <span class="o">&lt;-</span> <span class="nf">lmer</span>(satisfaction <span class="o">~</span> onboarding <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> region), data <span class="o">=</span> accounts)</span>
-<span class="cl">vc   <span class="o">&lt;-</span> <span class="nf">as.data.frame</span>(<span class="nf">VarCorr</span>(m1))</span>
-<span class="cl">tau2 <span class="o">&lt;-</span> vc<span class="o">$</span>vcov[vc<span class="o">$</span>grp <span class="o">==</span> <span class="s">&quot;region&quot;</span>]    <span class="c1"># between-region variance</span></span>
-<span class="cl">sig2 <span class="o">&lt;-</span> vc<span class="o">$</span>vcov[vc<span class="o">$</span>grp <span class="o">==</span> <span class="s">&quot;Residual&quot;</span>]  <span class="c1"># within-region variance</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(tau2 <span class="o">=</span> tau2, sigma2 <span class="o">=</span> sig2, ICC <span class="o">=</span> tau2 <span class="o">/</span> (tau2 <span class="o">+</span> sig2)), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt;   tau2 sigma2    ICC </span></span>
-<span class="cl"><span class="c1">#&gt; 23.589 22.106  0.516</span></span></div>
+<span class="cl">m1 <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(m1)<span class="o">$</span>clinic, <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;       (Intercept) sessions</span></span>
+<span class="cl"><span class="c1">#&gt; Ashby        67.3      1.4</span></span>
+<span class="cl"><span class="c1">#&gt; Brook        45.0      1.4</span></span>
+<span class="cl"><span class="c1">#&gt; Cedar        47.6      1.4</span></span>
+<span class="cl"><span class="c1">#&gt; Dale         46.9      1.4</span></span>
+<span class="cl"><span class="c1">#&gt; Elm          46.3      1.4</span></span>
+<span class="cl"><span class="c1">#&gt; Fern         43.4      1.4</span></span>
+<span class="cl"><span class="c1">#&gt; Gale         52.9      1.4</span></span>
+<span class="cl"><span class="c1">#&gt; Hill         47.1      1.4</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -913,48 +1102,67 @@ m1 &lt;- lmer(satisfaction ~ onboarding + (1 | region), data = accounts)</code><
   <div class="webr-plot-output"></div>
 </div>
 
-<p>That ICC of 0.52 says about half the variation in satisfaction sits between regions rather than within them: substantial, and far too much to sweep aside. It is also the correlation you would expect between any two accounts from the same region, and it is the number that told us pseudoreplication would have burned us.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Random intercepts need enough groups to estimate \(\tau^2\). With only a handful of regions (fewer than about five or six) the between-group variance is barely identifiable, and <code>lmer</code> may report a variance of exactly zero (a "singular fit"). And a random intercept assumes every region shares the <em>same</em> onboarding slope, with only the baseline shifting. When the slope itself varies by group, you need random slopes, which is Lesson 13.</div></div>
+<p>Every clinic shares the <strong>same slope of 1.4</strong> (a session helps just as much wherever you go) but keeps its <strong>own intercept</strong>: Ashby starts high at 67, Fern low at 43. Geometrically these are eight <strong>parallel lines</strong>, one per clinic, shifted up and down. That is precisely what a random <em>intercept</em> means, and precisely its limitation. Letting the slope vary too, so the lines are no longer parallel, is the random-slopes model of Lesson 13.</p>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">Handle with care</div>
+<h2>Where random intercepts wobble</h2>
+
+<p>A mixed model is powerful, not magic. Four cautions before you trust one:</p>
+
+<ul>
+
+<li><strong>You need enough groups.</strong> \(\tau^2\) is a variance <em>of the group effects</em>, and you cannot estimate a variance well from a handful of numbers. With fewer than about five groups there is too little to go on; eight (as here) is a workable minimum, and more is better. With very few groups, put them in as ordinary fixed-effect dummies instead.</li>
+
+<li><strong>Singular fits.</strong> When the groups barely differ, <code>lmer</code> may estimate \(\tau^2\) as essentially zero and warn <code>boundary (singular) fit</code>. That is the model telling you the grouping explains almost nothing (a near-zero ICC), and a plain <code>lm</code> may be all you need.</li>
+
+<li><strong>Groups are assumed exchangeable.</strong> The random-effects story treats the eight clinics as interchangeable draws from one population of clinics. If a "group" is really a fixed category you care about individually (say, treatment versus control), model it as a fixed effect, not a random one.</li>
+
+<li><strong>No p-values by default, on purpose.</strong> You saw <code>lmer</code> print a <code>t value</code> but no p-value. With random effects the exact denominator degrees of freedom are unknown, so a naive p-value would be wrong. Use \(|t| > 2\) as a rough screen, and a likelihood-ratio test (<code>anova</code>) or <code>confint(m1)</code> for real inference.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A random <em>intercept</em> assumes every group shares the same slope: eight parallel lines. If a predictor's effect genuinely differs by group (sessions help far more at some clinics than others), that assumption is wrong, and you need the random <em>slopes</em> of Lesson 13.</div></div>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Putting it together</div>
-<h2>Read the model</h2>
+<h2>Pick the model</h2>
 
-<p>A colleague fits a random-intercept model of test <code>score</code> on <code>study_hours</code> for students grouped by <code>school</code>, and finds an ICC of 0.30 with a clearly nonzero between-school variance. Which reading is correct?</p>
-<section class="exercise" data-exercise-id="Mixed-Models-Random-Intercepts-step10" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">About 30% of the variation in scores is between schools; schools differ enough that a plain lm ignoring school would understate the uncertainty</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">An ICC of 0.30 means the model explains 30% of the variance, like an R-squared</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because 0.30 is below 0.5, school can safely be ignored and a plain lm used</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 30% is the amount each small school is shrunk toward the grand mean</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. An ICC of 0.30 means roughly a third of the variance is between schools, so two students in the same school correlate at 0.30; ignoring school (complete pooling) would report standard errors that are too small.</div><div class="lesson-qfb lesson-qfb-no">A group's shrinkage depends on its own size through lambda = n tau squared over (n tau squared plus sigma squared), not on the ICC. The ICC measures how grouped the data is overall, not any one group's pull.</div></div>
+<p>A learning-science team measures the same <strong>20 students</strong> once a week for <strong>10 weeks</strong>, giving 200 rows: each student contributes 10 correlated measurements. They want the effect of week on the score, without pretending the 200 rows are independent. Which model respects the grouping?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Intercepts-step15" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>lm(score ~ week)</code> on all 200 rows</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>lmer(score ~ week + (1 | student))</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>lmer(score ~ student + (1 | week))</code></span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">A separate <code>lm(score ~ week)</code> fit for each of the 20 students</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. week is the fixed effect (the shared trend you care about), and (1 | student) gives each student their own intercept, absorbing the repeated-measures correlation so the uncertainty stays honest.</div><div class="lesson-qfb lesson-qfb-no">That is no pooling: 20 tiny, noisy fits with nothing shared between them. A random intercept pools information across students and gives each a steadier estimate.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="16" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
 <ul>
 
-<li><a href="http://www.stat.columbia.edu/~gelman/arm/">Gelman and Hill (2007), Data Analysis Using Regression and Multilevel/Hierarchical Models</a> - the definitive, readable treatment of partial pooling and when to reach for it.</li>
+<li><a href="https://doi.org/10.18637/jss.v067.i01">Bates, Mächler, Bolker and Walker (2015), Fitting Linear Mixed-Effects Models Using lme4 (JSS 67:1)</a> - the paper for the package you used here; the definitive reference for <code>lmer</code> syntax and what it estimates.</li>
 
-<li><a href="https://doi.org/10.18637/jss.v067.i01">Bates, Machler, Bolker and Walker (2015), Fitting Linear Mixed-Effects Models Using lme4 (JSS 67:1)</a> - the paper behind the lme4 package and the lmer() function you used here.</li>
+<li><a href="https://doi.org/10.7717/peerj.4794">Harrison et al. (2018), A brief introduction to mixed effects modelling and multi-model inference in ecology (PeerJ 6:e4794)</a> - a friendly, practical walkthrough of random effects, the ICC, and the common pitfalls.</li>
 
-<li><a href="https://doi.org/10.7717/peerj.4794">Harrison et al. (2018), A brief introduction to mixed effects modelling and multimodel inference in ecology (PeerJ)</a> - a practical, example-led walkthrough of random intercepts, the ICC, and common pitfalls.</li>
+<li><a href="http://www.stat.columbia.edu/~gelman/arm/">Gelman and Hill, Data Analysis Using Regression and Multilevel/Hierarchical Models</a> - the standard text on partial pooling and multilevel models, and the source of the shrinkage intuition used here.</li>
 
-<li><a href="https://doi.org/10.1111/j.2041-210x.2012.00261.x">Nakagawa and Schielzeth (2013), A general and simple method for obtaining R-squared from generalized linear mixed-effects models</a> - where the variance-partition and ICC ideas for mixed models are laid out cleanly.</li>
+<li><a href="https://stats.oarc.ucla.edu/other/mult-pkg/introduction-to-linear-mixed-models/">UCLA OARC, Introduction to Linear Mixed Models</a> - a clear, example-driven primer that maps every term to its R output.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="17" data-step-type="complete">
 <h2>Lesson 12 complete</h2>
 
-<p>You can now handle data that arrives in groups. You know that ignoring the groups (complete pooling) understates your uncertainty through pseudoreplication, and that giving each group a free intercept (no pooling) overfits the small ones. The fix is a <strong>random intercept</strong>: <code>lmer(y ~ x + (1 | group))</code> gives every group its own baseline drawn from a shared \(N(0, \tau^2)\), reads out the between- and within-group variances, and applies <strong>partial pooling</strong> so small groups borrow strength. And you can measure how grouped your data is with the <strong>ICC</strong>, \(\tau^2 / (\tau^2 + \sigma^2)\).</p>
+<p>You can now model data that arrives in groups without lying about it. A <strong>random intercept</strong> gives every group its own baseline drawn from a shared \(\mathcal{N}(0, \tau^2)\), which you fit with <code>lmer(y ~ ... + (1 | group))</code> and read from two variance components. The <strong>ICC</strong>, \(\tau^2/(\tau^2+\sigma^2)\), tells you how much the grouping matters; <strong>partial pooling</strong> shrinks the shakiest small groups toward the centre automatically, so their estimates stop swinging on two data points.</p>
 
-<p>Next, Lesson 13: Random Slopes and GLMMs. Here every region shared one onboarding slope; next you will let the <em>slope</em> vary by group too (some regions may respond to onboarding far more than others), extend mixed models to non-normal outcomes like counts and yes/no data with GLMMs, and learn to read and fix the convergence warnings that come with them.</p>
+<p>Next, Lesson 13: <strong>Random Slopes and GLMMs</strong>. Here every clinic shared one slope, eight parallel lines. But what if sessions help far more at some clinics than others? Random <em>slopes</em> let each group's slope vary too. And when the outcome is a count or a yes/no rather than a score, the <strong>generalized</strong> linear mixed model marries everything you have learned about links and families to the random effects you met today, along with the convergence warnings that come with them.</p>
 </section>
 
 
@@ -1042,7 +1250,7 @@ m1 &lt;- lmer(satisfaction ~ onboarding + (1 | region), data = accounts)</code><
     }
   })();
   </script>
-  <script src="www/toc.min.js?h=db578404"></script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
   <!-- MathJax Script -->
   
   <script type="text/x-mathjax-config">
@@ -1050,7 +1258,11 @@ m1 &lt;- lmer(satisfaction ~ onboarding + (1 | region), data = accounts)</code><
       tex2jax: {
         inlineMath: [['$','$'], ['\\(','\\)']],
         displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
@@ -1060,13 +1272,13 @@ m1 &lt;- lmer(satisfaction ~ onboarding + (1 | region), data = accounts)</code><
 
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
-  <script src="www/webr-init.min.js?h=92549f4e"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=946dceef"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
-  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <script src="www/lesson-mode.min.js?h=378afac5"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
        scripting doesn't compete with the critical path. Events fired before
        the loader lands get buffered on window.dataLayer and flushed once
