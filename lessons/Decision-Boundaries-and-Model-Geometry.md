@@ -1,8 +1,8 @@
 ---
 title: "Classification Lesson 5: Decision Boundaries and Model Geometry"
-catalog_blurb: "Why every classifier is really a boundary, and what its shape tells you."
-description: "Every classifier draws a boundary in feature space. See why some are straight and some curve, what generative vs discriminative means, and how shape drives fit."
-keywords: "decision boundary, model geometry, linear vs nonlinear classifier, generative vs discriminative, logistic regression, LDA, QDA, kNN, decision tree, feature space, classification, R"
+catalog_blurb: "How each classifier's assumptions show up as the shape of its boundary."
+description: "See how kNN, logistic regression, LDA, QDA and a tree each draw a different decision boundary on one dataset in R, and what generative vs discriminative means."
+keywords: "decision boundary, model geometry, linear vs nonlinear boundary, generative vs discriminative, logistic regression, LDA, QDA, kNN, decision tree, classification, R"
 post_type: "LESSON"
 curriculum_id: "6.30.5"
 webr: true
@@ -21,236 +21,451 @@ course_prev: "Decision-Trees-for-Classification.html"
 ::eyebrow Lesson 5 of 6
 ## Decision Boundaries and Model Geometry
 
-A botanist sets one iris flower on your desk. Its petal is 4.8 cm long and 1.7 cm wide. Versicolor, or virginica? By now you have met a handful of machines that could answer: nearest neighbours (Lesson 1), Naive Bayes (Lesson 2), LDA and QDA (Lesson 3), a decision tree (Lesson 4), plus logistic regression from the Regression course. Six classifiers, six different sets of math.
+Lesson 4 ended with a decision tree carving the plane into rectangular boxes, one label per box. Lesson 3 drew smooth Gaussian curves; Lesson 1 followed a jagged trail of nearest neighbours. Five different machines, five different pictures. This lesson reveals that they are all the same idea wearing different clothes.
 
-This lesson reveals that under the surface they are all doing the **same geometric thing**: drawing a line through a plane of flowers, with everything on one side called versicolor and everything on the other called virginica.
+Here is the running example for the whole lesson. A sleep-tracking watch labels each night **restful** or **restless** from just two numbers: your **average overnight heart rate** in beats per minute, and your **movements per hour**. Once the watch has trained, it has an opinion about *every* possible night, so it has effectively painted the entire heart-rate-by-movements plane with two colours. The border between the colours is the **decision boundary**, and its **shape**, straight or curved or wiggly or boxy, is a fingerprint of the model that drew it.
 
-By the end you will be able to:
+By the end of this lesson you will be able to:
 
-- See any classifier as a **decision boundary** that carves feature space into regions
-- Tell a **linear** boundary from a **nonlinear** one, and name which models draw each
-- Place every model on one map by two questions: what **shape** is its boundary, and does it work **generatively or discriminatively**
-- Read a boundary's shape as the model's assumptions, and reshape a hopeless problem by changing the space
+- Read any classifier as a decision boundary that splits feature space into one region per class, and tell a linear boundary from a nonlinear one
+- Explain **generative** versus **discriminative**, a second axis that is independent of the boundary's shape
+- Predict which of kNN, logistic regression, LDA, QDA and a tree draws a straight, curved, wiggly or boxy boundary, and why
+- Fit all of them on one dataset and draw and compare their boundaries in R
 
-**Prerequisites:** you can run R and read its output; you have met kNN, Naive Bayes, LDA/QDA and decision trees (Lessons 1 to 4) and logistic regression; and you know bias from variance (the ML Workflow course).
+**Prerequisites:** you can run R and read its output, and you have met this course's classifiers (kNN in Lesson 1, Naive Bayes in Lesson 2, LDA and QDA in Lesson 3, the decision tree in Lesson 4) and the idea of bias versus variance.
 
-::widget decision-region {"labels":{"c0":"versicolor","c1":"virginica"},"start":3}
+::widget decision-region {"labels":{"c0":"restful","c1":"restless"},"start":3}
 
-The picture above is a real classifier, fit live, separating two overlapping groups the way our two iris species overlap in petal size. The dial makes its boundary more or less flexible. Where that boundary comes from, and what its shape means, is the whole lesson.
+The picture above is one such boundary, a tree's, with a dial for how flexible it is. Slide it later; for now, just notice that the model has an answer everywhere, and a visible fence between the two answers. That fence is what this whole lesson is about.
 
 === step === concept
 ::eyebrow The one idea
-## Every classifier draws a boundary
+## Every classifier is a boundary
 
-Put both iris species on a plane: petal length runs across, petal width runs up, and every flower is one point. Versicolor flowers cluster low and to the left (shorter, narrower petals); virginica cluster up and to the right.
+Think about what your sleep watch actually does. You hand it a night, a single point on the plane like "heart rate 57, movements 15", and it returns one word. Do that for every point on the plane and the whole surface fills in with two colours: a **restful region** and a **restless region**. The **decision boundary** is simply the line where those two regions meet, the set of nights the model finds a perfect toss-up.
 
-A classifier's whole job is to split this plane into two **decision regions**: a patch it calls versicolor and a patch it calls virginica. The dividing line between those patches, the set of points where the model is perfectly torn (a 50/50 vote), is its **decision boundary**. Predict a new flower by seeing which region its point lands in. Different models split the plane differently, but every one of them splits it somehow.
+We can say that precisely. Write \(x\) for a night's two numbers, \(x = (\text{heart rate}, \text{movements})\), and write \(P(\text{restless} \mid x)\) for the probability the model assigns to "restless" given that night. The boundary is exactly the set of nights where the two verdicts are tied at fifty-fifty:
 
-```r
-# Two iris species that overlap a little: versicolor and virginica.
-# Each flower is ONE point in a 2-D plane: petal length across, petal width up.
-flowers <- subset(iris, Species != "setosa")
-flowers$Species <- droplevels(flowers$Species)
-flowers <- flowers[, c("Petal.Length", "Petal.Width", "Species")]
-table(flowers$Species)
-#>
-#> versicolor  virginica
-#>         50         50
-```
+\[ \{\, x \;:\; P(\text{restless} \mid x) = P(\text{restful} \mid x) = 0.5 \,\} \]
 
-```r
-library(ggplot2)
-ggplot(flowers, aes(Petal.Length, Petal.Width, colour = Species)) +
-  geom_point(size = 2) +
-  labs(x = "petal length (cm)", y = "petal width (cm)")
-```
-
-Two clouds, slightly overlapping. The question for the rest of the lesson is simply: where, and in what shape, should we draw the line between them?
-
-=== step === concept
-::eyebrow The simplest shape
-## Linear boundaries: a straight cut
-
-The simplest boundary is a straight line. **Logistic regression** and **LDA** can only ever draw this shape: a single straight cut across the plane (a flat plane in higher dimensions). Models whose boundary is a straight line are called **linear classifiers**.
-
-Why a straight line? Logistic regression scores a flower with a weighted sum of its features, \(z = \beta_0 + \beta_1 x_1 + \beta_2 x_2\), where \(x_1\) is petal length, \(x_2\) is petal width, and the \(\beta\) values are weights it learns. It calls the flower virginica when \(z > 0\) and versicolor when \(z < 0\). The boundary is the exact tie, \(z = 0\):
-
-\[ \beta_0 + \beta_1 x_1 + \beta_2 x_2 = 0 \]
-
-That is the equation of a straight line. Solve it for \(x_2\) and you get \(x_2 = -(\beta_0 + \beta_1 x_1)/\beta_2\), a line with a fixed slope and intercept. Fit it and draw it:
-
-```r
-# Logistic regression: model the chance a flower is virginica from its petals.
-fit <- glm(Species ~ Petal.Length + Petal.Width,
-           data = flowers, family = binomial)
-round(coef(fit), 2)
-#> (Intercept) Petal.Length  Petal.Width
-#>      -45.27         5.75        10.45
-```
-
-```r
-b <- coef(fit)
-# The boundary is the straight line where the model is exactly 50/50:
-#   b0 + b1*length + b2*width = 0  ->  width = -(b0 + b1*length) / b2
-ggplot(flowers, aes(Petal.Length, Petal.Width, colour = Species)) +
-  geom_point(size = 2) +
-  geom_abline(intercept = -b[1] / b[3], slope = -b[2] / b[3], linewidth = 1) +
-  labs(x = "petal length (cm)", y = "petal width (cm)")
-```
-
-One straight line, tilted to follow the gap between the clouds. It misreads a few flowers in the overlap, and it always will: a straight line is a strong, rigid commitment. That rigidity is not a bug, it is the model's whole personality, as the next step makes clear.
-
-=== step === widget
-::eyebrow Letting the line bend
-## Nonlinear boundaries
-
-A **decision tree** and **k-nearest-neighbours** are not stuck with a straight line. They draw **nonlinear** boundaries: shapes that bend, branch, and wrap around the data. A tree carves the plane into axis-aligned rectangles (a staircase of yes/no splits); kNN lets the boundary wiggle around individual points.
-
-Drag the dial below. At the low end the boundary is nearly straight, a gentle cut. Crank it up and watch it fracture into little islands chasing individual points: the training accuracy climbs toward 100% while the test accuracy (the hollow points it never trained on) peaks and then sags. That is the price of flexibility.
-
-::widget decision-region {"labels":{"c0":"versicolor","c1":"virginica"}}
-
-Each model has a signature shape:
-
-| Model | Boundary it draws |
-|---|---|
-| Logistic regression, LDA, linear SVM | a straight line (or flat plane) |
-| QDA, Gaussian Naive Bayes | a smooth curve |
-| Decision tree | axis-aligned rectangles, a staircase |
-| k-nearest-neighbours | a local, wiggly line that hugs the data |
+Everything on one side is painted restless, everything on the other restful. So a classifier *is* its boundary: to know the model is to know the shape of that fence. Different models draw the fence differently, and that is the story of this lesson.
 
 [KEY INSIGHT]
-The more flexible the boundary's shape, the lower the model's bias (it can fit subtler patterns) but the higher its variance (it bends to noise). A boundary's shape is the bias-variance tradeoff, made visible.
-
-=== step === quiz
-::eyebrow Check yourself
-## Which one is stuck with a straight line?
-
-No matter how the two species are arranged on the plane, which of these can **only** ever draw a straight-line boundary?
-
-::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- A decision tree, because it splits on one feature at a time ::no A tree does split one feature at a time, but it stacks many splits into a staircase of rectangles, a nonlinear, boxy boundary, not a straight line.
-- Logistic regression, because it separates the classes with one weighted-sum cut ::ok Right. Its boundary is the line \(\beta_0 + \beta_1 x_1 + \beta_2 x_2 = 0\), linear in the features by construction. However the points are arranged, the best it can do is a single straight cut.
-- k-nearest-neighbours with k = 1, because it is the simplest rule ::no Simple to describe, but 1-NN draws the most wiggly boundary of all: it bends around every single training point. A simple rule does not mean a simple boundary.
+A trained classifier has already decided the label of every possible point. The decision boundary is the border between its label regions, and comparing classifiers means comparing the shapes of those borders.
 
 === step === concept
-::eyebrow The second question
-## Two routes to a boundary: discriminative vs generative
+::eyebrow Two families of shape
+## Linear boundaries, and everything else
 
-Shape is one axis. There is a second, completely separate one: **how** a model arrives at its boundary. There are two routes.
+Boundaries come in two broad kinds, and the distinction runs through the rest of the lesson.
 
-A **discriminative** model learns the boundary directly. It asks only "given this flower's measurements, which class is more probable?", modelling \(P(y \mid x)\) and nothing more. Logistic regression, kNN and decision trees all work this way: they never describe what a versicolor *looks* like, they just learn where to cut.
+A boundary is **linear** when it is a straight line (in our two-feature plane) or a flat plane (in higher dimensions). Concretely, it is the set of nights where a weighted sum of the features equals a constant:
 
-A **generative** model takes the long way round. It first learns what each class looks like, a full description of each species' cloud, \(P(x \mid y)\), plus how common each species is, \(P(y)\). Then it flips those around with Bayes' rule to get the answer:
+\[ w_1 x_1 + w_2 x_2 + b = 0 \]
 
-\[ P(y \mid x) \;\propto\; P(x \mid y)\,P(y) \]
+Here \(x_1\) is the heart rate and \(x_2\) the movements; \(w_1\) and \(w_2\) are **weights** that say how much each feature counts; and \(b\) is a constant **offset** (also called the bias or intercept) that slides the line up or down. On one side of the line the weighted sum is positive and the model predicts restless; on the other it is negative and predicts restful. A straight fence, full stop.
 
-Here \(y\) is the species, \(x\) is the flower's two measurements, \(P(x \mid y)\) is how typical those measurements are for a given species (its cloud), and \(P(y)\) is the species' base rate. The \(\propto\) sign means "proportional to": the species with the bigger right-hand side wins. Naive Bayes, LDA and QDA all take this generative route, the two clouds you can actually draw:
+A boundary is **nonlinear** when it cannot be written that way: a curve that bends, a jagged trail that wiggles, or a staircase of right-angle steps. Curved, wiggly and boxy are all just different flavours of nonlinear.
+
+[NOTE]
+"Linear" is a statement about the boundary's *shape*, not about the features. A straight line in the heart-rate-by-movements plane is linear. Later you will see a trick that makes a curved boundary straight simply by changing what the features are.
+
+=== step === concept
+::eyebrow The running data
+## The nights we will classify
+
+Every lesson starts a fresh R session, so we build the sleep log right here. We simulate 240 labelled nights, 120 restful and 120 restless, each a point in the heart-rate-by-movements plane. The two groups are deliberately given different-shaped clouds (the restless nights spread wider and tilt the other way), because that difference in shape is exactly what will make some boundaries curve later on.
 
 ```r
-library(ggplot2)
-# Generative view: describe each species as its OWN cloud (a 2-D bell),
-# then label a flower by which cloud more likely produced it.
-ggplot(flowers, aes(Petal.Length, Petal.Width, colour = Species)) +
-  geom_point(size = 2) +
-  stat_ellipse(type = "norm", linewidth = 1) +
-  labs(x = "petal length (cm)", y = "petal width (cm)")
-```
-
-The two ellipses are the generative model's picture of the world. The boundary falls out of where they balance. The payoff is extra: because a generative model knows what normal looks like, it can flag a flower that fits *neither* cloud (an outlier, or a third species) and cope when a measurement is missing, things a discriminative model cannot do. The cost is a stronger bet: if the clouds are not really bell-shaped, that picture is wrong, and a discriminative model that never made the bet is safer.
-
-=== step === concept
-::eyebrow The whole map
-## One map for every classifier
-
-Two questions now place every classifier you have met. **What shape is its boundary?** and **which route, generative or discriminative?** That is the entire geometry of classification on one page:
-
-| Model | Route | Boundary shape | Flexibility |
-|---|---|---|---|
-| Logistic regression | discriminative | straight | low (high bias) |
-| LDA | generative | straight | low |
-| Gaussian Naive Bayes | generative | curved | low to moderate |
-| QDA | generative | curved | moderate |
-| Decision tree | discriminative | rectangles | high (tunable) |
-| k-nearest-neighbours | discriminative | wiggly, local | high (small k) |
-
-Read it and the deep idea lands: a model's boundary is its **assumptions made visible**. A straight boundary is a model betting the classes really do split along a flat cut, a strong assumption that buys stability (low variance) at the cost of some bias. A wiggly boundary is a model assuming almost nothing about shape, which lets it fit subtle patterns (low bias) but makes it twitch at noise (high variance).
-
-[KEY INSIGHT]
-Fit several models to the same flowers and they draw different boundaries because they hold different beliefs about the world, not because one is simply right. Choosing a classifier is choosing which boundary shape, and which assumptions, fit your problem.
-
-=== step === concept
-::eyebrow When no line works
-## Change the space, straighten the boundary
-
-Sometimes no straight line can possibly work. Picture one species sitting in a tight cluster, completely ringed by the other, a target with a bullseye. Slice that plane with any straight line and you cut the ring in half: hopeless.
-
-The fix is one of the most powerful ideas in machine learning: **do not bend the boundary, move the data**. Add a new feature, each point's distance from the centre, \(r = \sqrt{x_1^2 + x_2^2}\). In this new space the inner cluster (small \(r\)) and the outer ring (large \(r\)) peel apart into two flat bands that a single straight line splits cleanly.
-
-```r
+library(MASS)
 set.seed(1)
-m <- 200
-angle  <- runif(m, 0, 2 * pi)
-radius <- c(runif(m / 2, 0, 1.2),     # inner group: small radius
-            runif(m / 2, 2.2, 3.4))   # outer ring: large radius
-ring <- data.frame(
-  x1    = radius * cos(angle),
-  x2    = radius * sin(angle),
-  group = factor(rep(c("inner", "outer"), each = m / 2))
+n <- 120
+
+# Restful nights: lower heart rate, fewer movements; a compact, gently tilted cloud.
+restful  <- mvrnorm(n, mu = c(54, 12), Sigma = matrix(c(14,  4,   4,  9), 2))
+# Restless nights: higher heart rate, more movements; a wider, oppositely tilted cloud.
+restless <- mvrnorm(n, mu = c(60, 19), Sigma = matrix(c(34, -8,  -8, 38), 2))
+
+nights <- data.frame(
+  state      = factor(rep(c("restful", "restless"), each = n)),
+  heart_rate = c(restful[, 1], restless[, 1]),   # avg overnight beats per minute
+  movements  = c(restful[, 2], restless[, 2])    # movements per hour
 )
-table(ring$group)
+table(nights$state)
 #>
-#> inner outer
-#>   100   100
+#>  restful restless
+#>      120      120
 ```
+
+Now plot them. Restful nights gather in the lower left (calm heart, still body); restless nights sit up and to the right; and, crucially, the two clouds **overlap** in the middle. No classifier will get every night right, and that honest overlap is what makes the shape of the boundary matter.
 
 ```r
 library(ggplot2)
-ggplot(ring, aes(x1, x2, colour = group)) +
-  geom_point(size = 2) + coord_equal() +
-  labs(title = "Raw features: no straight line can separate them")
+ggplot(nights, aes(heart_rate, movements, color = state)) +
+  geom_point(alpha = 0.75, size = 2) +
+  scale_color_manual(values = c(restful = "#2563a8", restless = "#b5631a")) +
+  labs(title = "240 nights: two overlapping clouds",
+       x = "heart rate (bpm)", y = "movements per hour") +
+  theme_minimal(base_size = 13)
 ```
+
+=== step === concept
+::eyebrow The second axis
+## Generative versus discriminative
+
+Before we draw a single boundary, there is a second, deeper way models differ, and it is *independent* of the boundary's shape. It is the difference between describing the classes and describing the border.
+
+A **generative** model learns how each class *generates* its data. It builds a full description of what restful nights look like and, separately, what restless nights look like, then combines them with each class's overall frequency. In symbols, it estimates the distribution \(P(x \mid y{=}k)\) of nights *within* class \(k\) and the base rate \(P(y{=}k)\), and gets the answer by Bayes' rule:
+
+\[ P(y{=}k \mid x) \;\propto\; \underbrace{P(x \mid y{=}k)}_{\text{what class } k \text{ looks like}} \; \underbrace{P(y{=}k)}_{\text{how common class } k \text{ is}} \]
+
+Here \(y\) is the label (restful or restless), \(k\) is one of its values, and \(\propto\) means "proportional to" (we skip the common denominator because it does not change which class wins). Because a generative model knows what each class *looks like*, you could literally use it to *sample fake but plausible nights*. Naive Bayes, LDA and QDA are all generative.
+
+A **discriminative** model skips all of that. It never describes what a restful night looks like; it learns only the boundary, or equivalently the conditional probability \(P(y{=}\text{restless} \mid x)\) directly. It answers "which side are you on?" without ever asking "what does each side look like?". Logistic regression, kNN and decision trees are discriminative.
+
+| Classifier | What it learns | Route |
+|---|---|---|
+| Naive Bayes | each class's feature distribution | generative |
+| LDA / QDA | each class as a Gaussian cloud | generative |
+| Logistic regression | the probability of restless directly | discriminative |
+| kNN | the local majority label directly | discriminative |
+| Decision tree | the label of each region directly | discriminative |
+
+Hold on to this: **shape** (linear or not) and **route** (generative or discriminative) are two separate questions. We will see them cross.
+
+=== step === concept
+::eyebrow A discriminative straight line
+## Why logistic regression draws a straight boundary
+
+Start with the simplest discriminative model, logistic regression, and watch *why* its boundary is straight. Logistic regression models the probability of restless directly by squashing a weighted sum of the features through the **sigmoid** function:
+
+\[ P(\text{restless} \mid x) = \sigma(w_1 x_1 + w_2 x_2 + b), \qquad \sigma(z) = \frac{1}{1 + e^{-z}} \]
+
+The sigmoid \(\sigma\) takes any real number \(z\) and gently squashes it into a probability between 0 and 1. Now recall from the last step that the boundary is where that probability equals \(0.5\). And \(\sigma(z) = 0.5\) happens at exactly one place: \(z = 0\). So the boundary is wherever the inside of the sigmoid is zero:
+
+\[ w_1 x_1 + w_2 x_2 + b = 0 \]
+
+That is the straight-line equation from two steps ago. No matter what the data looks like, logistic regression can only ever draw a straight fence. Let us fit it and see the weights:
 
 ```r
-ring$r <- sqrt(ring$x1^2 + ring$x2^2)   # the new feature: distance from centre
-ggplot(ring, aes(x1, r, colour = group)) +
-  geom_point(size = 2) +
-  geom_hline(yintercept = 1.7, linewidth = 1) +
-  labs(y = "radius  r = sqrt(x1^2 + x2^2)",
-       title = "Add one feature, and a straight line splits them")
+logit <- glm(state ~ heart_rate + movements, data = nights, family = binomial)
+round(coef(logit), 3)
+#> (Intercept)  heart_rate   movements
+#>     -25.980       0.355       0.398
 ```
 
-A straight cut at \(r = 1.7\) in the new space is a perfect **circle** back in the original plane. This is the engine behind feature engineering, kernel SVMs and neural networks: a boundary that looks impossibly curved in the features you measured can be perfectly straight in a space you build.
+Those three numbers *are* the boundary: \(b = -25.98\), \(w_1 = 0.355\), \(w_2 = 0.398\). To draw the line, rearrange \(w_1 x_1 + w_2 x_2 + b = 0\) into the familiar slope-and-intercept form \(x_2 = \text{slope}\cdot x_1 + \text{intercept}\):
+
+```r
+library(ggplot2)
+cf <- coef(logit)
+slope     <- -cf["heart_rate"] / cf["movements"]    # -w1 / w2
+intercept <- -cf["(Intercept)"] / cf["movements"]   # -b  / w2
+
+ggplot(nights, aes(heart_rate, movements, color = state)) +
+  geom_point(alpha = 0.7, size = 2) +
+  geom_abline(slope = slope, intercept = intercept, linewidth = 1) +
+  scale_color_manual(values = c(restful = "#2563a8", restless = "#b5631a")) +
+  labs(title = "Logistic regression: one straight boundary",
+       x = "heart rate (bpm)", y = "movements per hour") +
+  theme_minimal(base_size = 13)
+```
+
+One clean diagonal line splits the plane. Nights above and to the right are called restless, below and to the left restful.
 
 === step === tryit
 ::eyebrow Your turn
-## Which region is the botanist's flower in?
+## Classify one night by hand
 
-Back to the desk. The botanist's flower is 4.8 cm long and 1.7 cm wide. Use the logistic model `fit` from earlier to place it: complete `predict()` so it scores the **new flower**. A probability above 0.5 lands it in the virginica region, below 0.5 in versicolor.
+The fitted rule is just "add up intercept plus \(w_1\) times heart rate plus \(w_2\) times movements; if the total is positive, it is on the restless side." Let us apply it to one night, heart rate 58 bpm with 17 movements per hour, using the coefficients you just fit. The first block computes the weighted sum (nothing to fill in); run it, then finish the second block by choosing the threshold that marks the boundary.
 
 ```r
-new_flower <- data.frame(Petal.Length = 4.8, Petal.Width = 1.7)
-predict(fit, ____, type = "response")   # P(virginica) for the new flower
+# intercept*1 + w1*heart_rate + w2*movements, using the fitted coefficients
+score <- sum(coef(logit) * c(1, 58, 17))
+round(score, 3)
+#> [1] 1.377
 ```
-::check {"regex":"new_flower","gate":true,"difficulty":"beginner","ok":"The model returns about 0.53, barely past 0.5, so it lands the flower on the virginica side, but only just. This flower sits almost on the boundary, in the contested overlap, which is exactly where a classifier is least sure.","no":"Pass the new flower as the data to score: predict(fit, new_flower, type = \"response\")."}
+
+```r
+# The boundary sits where the score is exactly ____. Above it, predict restless.
+ifelse(score > ____, "restless", "restful")
+```
+::check {"regex":">\\s*0","gate":true,"difficulty":"beginner","ok":"Right: the boundary is where the score equals 0. This night scores +1.377, just over the line, so the straight-line rule calls it restless.","no":"The linear boundary is where the weighted sum equals 0 (that is where the sigmoid hits 0.5). Compare the score with 0: ifelse(score > 0, ...)."}
 ::solution
 ```r
-new_flower <- data.frame(Petal.Length = 4.8, Petal.Width = 1.7)
-predict(fit, new_flower, type = "response")
-#>         1
-#> 0.5271735
+ifelse(score > 0, "restless", "restful")
+#> [1] "restless"
 ```
 
 === step === quiz
 ::eyebrow Check yourself
-## Read the shape
+## Same line, same model?
 
-A classifier scores 100% on the training flowers but only 72% on new ones, and its boundary is a maze of tiny islands curling around individual points. What does the **shape** of that boundary tell you?
+In a moment you will fit LDA on these nights and get a straight boundary almost on top of the logistic one. Suppose the two lines landed *exactly* on each other. Would that make LDA and logistic regression the same model?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The model is too rigid (high bias) and is underfitting ::no Underfitting looks like a too-simple boundary that misses the pattern and scores poorly on BOTH sets. This boundary is the opposite: ultra-flexible, perfect on train, weak on new data.
-- The model is too flexible (high variance) and is overfitting; the jagged shape is it memorising noise ::ok Exactly. A boundary that carves islands around single points has chased the noise in this particular sample. Low bias, high variance: the geometric signature of overfitting.
-- The shape is fine; 100% training accuracy means it found the true boundary ::no Training accuracy always rises with flexibility, even when the model is just memorising. The 28-point drop to new data is the tell that the shape is too flexible, not that it is correct.
+- Yes: an identical boundary shape means an identical model ::no Shape is only one of the two axes. Two models can draw the same fence by completely different machinery, and diverge the moment their assumptions are tested.
+- No. They share a shape but not a route: LDA is generative (it models each class as a Gaussian cloud and the straight line falls out of a shared covariance), while logistic regression is discriminative (it fits the line to the probability directly). They can disagree when the Gaussian assumption is wrong or when outliers are present ::ok Exactly. Same geometry, different reasoning. LDA leans on a distribution assumption that logistic regression never makes, so the two part ways when that assumption fails.
+- No, but only because LDA is a little more accurate on this data ::no Accuracy is not what makes them different models; even at identical accuracy they reason differently. The real distinction is generative versus discriminative, not a point or two of training accuracy.
+
+=== step === concept
+::eyebrow Generative curves
+## LDA stays straight, QDA bends
+
+Now the generative side. Lesson 3 modelled each class as a Gaussian cloud and showed the payoff: if both classes are forced to **share one covariance** (one common shape and tilt), the boundary comes out straight, and that is **LDA**. If each class is allowed **its own covariance**, the boundary is free to **curve**, and that is **QDA**. Our restless cloud is genuinely wider and tilted the other way from the restful one, so QDA's freedom to bend should help. Fit both and compare their training accuracy:
+
+```r
+library(MASS)
+lda_fit <- lda(state ~ heart_rate + movements, data = nights)
+qda_fit <- qda(state ~ heart_rate + movements, data = nights)
+
+# fraction of the 240 nights each model labels correctly
+c(LDA = round(mean(predict(lda_fit)$class == nights$state), 3),
+  QDA = round(mean(predict(qda_fit)$class == nights$state), 3))
+#>   LDA   QDA
+#> 0.871 0.904
+```
+
+QDA edges ahead, 90.4% to 87.1%, because a straight line cannot honour two differently-shaped clouds while a curve can. Notice the pattern taking shape: LDA and logistic regression both draw straight lines (0.871 and 0.867, near twins), while QDA's per-class covariance buys it a curve.
+
+[NOTE]
+This is **training** accuracy, scored on the very nights each model learned from, so the more flexible model (QDA) naturally flatters itself. Whether that curve actually helps on *new* nights is the bias-variance question from Lesson 3, and we return to it once every shape is on the table.
+
+=== step === tryit
+::eyebrow Your turn
+## Send three new nights through QDA
+
+A trained classifier's real job is labelling nights it has never seen. Here are three: a calm one, a clearly restless one, and one sitting right in the overlap. Complete the line so QDA labels each by which region it falls in.
+
+```r
+new_nights <- data.frame(
+  heart_rate = c(51, 64, 57),   # bpm
+  movements  = c( 8, 24, 15)    # per hour
+)
+```
+
+```r
+new_nights$label <- ____(qda_fit, new_nights)$class   # QDA's verdict for each
+new_nights
+```
+::check {"regex":"predict","gate":true,"difficulty":"beginner","ok":"That is it: predict() drops each night into QDA's regions. The calm night is restful, the high-and-active one restless, and the borderline 57/15 night lands (just) in the restful region.","no":"Use predict(qda_fit, new_nights)$class. predict() takes a fitted model and new data and returns the class each row falls into."}
+::solution
+```r
+new_nights$label <- predict(qda_fit, new_nights)$class
+new_nights
+#>   heart_rate movements    label
+#> 1         51         8  restful
+#> 2         64        24 restless
+#> 3         57        15  restful
+```
+
+=== step === widget
+::eyebrow A wiggly boundary
+## kNN follows the neighbours
+
+kNN is discriminative in the most literal way: it fits no equation at all. To label a night it just finds the \(k\) nearest past nights and takes their majority vote (Lesson 1). Because the vote is decided locally, point by point, the boundary is free to **wiggle**: it follows the data wherever the nearest neighbours happen to flip. And \(k\) is the flexibility dial. At \(k = 1\) the boundary is jagged and chases every single point; as \(k\) grows it smooths out.
+
+In the widget, two classes of points sit red and blue. Drop a query point anywhere and slide \(k\): its \(k\) nearest neighbours light up, vote, and colour the query. Watch the vote flip as you cross into the other cluster, and watch how a tiny \(k\) makes the verdict twitchy.
+
+::widget knn-vote {}
+
+We can measure that flexibility on our nights. kNN needs no package; it is just distance-then-vote. To judge it honestly we use **leave-one-out**: predict each night from the *other* 239, so no night ever votes for itself.
+
+```r
+# k-nearest neighbours by hand: distance to every night, the k closest vote.
+knn_predict <- function(train_x, train_y, query, k) {
+  diffs <- sweep(train_x, 2, query)        # subtract the query night from every row
+  dist  <- sqrt(rowSums(diffs^2))          # straight-line distance to each night
+  votes <- train_y[order(dist)[1:k]]       # labels of the k nearest nights
+  names(which.max(table(votes)))           # the majority vote
+}
+
+X <- as.matrix(nights[, c("heart_rate", "movements")])
+
+# Leave-one-out accuracy at two values of k.
+loo_acc <- function(k) {
+  pred <- sapply(seq_len(nrow(X)),
+                 function(i) knn_predict(X[-i, ], nights$state[-i], X[i, ], k))
+  round(mean(pred == nights$state), 3)
+}
+c(k1 = loo_acc(1), k15 = loo_acc(15))
+#>   k1  k15
+#> 0.85 0.90
+```
+
+At \(k = 1\) the jagged boundary trusts a single neighbour and scores 0.85; at \(k = 15\) it steadies to 0.90. The wiggle is not free: too much of it (tiny \(k\)) is overfitting, exactly the high-variance failure the shape is warning you about.
+
+=== step === widget
+::eyebrow A boxy boundary
+## The tree draws staircases
+
+A decision tree can only ever ask questions of the form "is this feature below a threshold?", like "movements below 16?". Each such question is a single horizontal or vertical cut, so the boundary is always a **staircase of axis-aligned rectangles**. Grow the tree on our nights and read the cuts:
+
+```r
+library(rpart)
+tree <- rpart(state ~ heart_rate + movements, data = nights, method = "class")
+tree
+#> n= 240
+#>
+#> node), split, n, loss, yval, (yprob)
+#>       * denotes terminal node
+#>
+#> 1) root 240 120 restful (0.50000000 0.50000000)
+#>   2) movements< 16.14908 147  33 restful (0.77551020 0.22448980)
+#>     4) heart_rate< 58.14093 114   7 restful (0.93859649 0.06140351) *
+#>     5) heart_rate>=58.14093 33   7 restless (0.21212121 0.78787879) *
+#>   3) movements>=16.14908 93   6 restless (0.06451613 0.93548387) *
+```
+
+Read top to bottom: first a horizontal cut at 16.1 movements, then a vertical cut at 58.1 bpm inside the lower band. Three boxes, and the true boundary between our clouds runs on a *diagonal*, so the tree is forced to approximate a slope with right-angle steps, a slightly clumsy fit that is the geometric price of only being allowed axis-aligned cuts.
+
+The widget below is a real tree, grown live on two overlapping clouds like our nights. Drag the depth dial. A shallow tree is a couple of clean boxes that underfit; push it deep and the training accuracy climbs toward 100% while the test accuracy (the hollow points it never trained on) peaks and then falls, the boundary shattering into tiny islands around individual noisy nights.
+
+::widget decision-region {"labels":{"c0":"restful","c1":"restless"},"min":1,"max":10,"start":2,"showTest":true}
+
+[KEY INSIGHT]
+Boxier, wigglier and curvier all mean *more flexible*. More flexibility lowers bias (the boundary can hug the training data) but raises variance (it chases noise). The shape of the boundary is a picture of exactly this trade-off.
+
+=== step === concept
+::eyebrow The gallery
+## One dataset, four boundary shapes
+
+Time to put them side by side. We label every point on a fine grid with each fitted model, then colour the regions. Same 240 nights underneath each panel; only the model changes.
+
+```r
+library(ggplot2)
+gx <- seq(min(nights$heart_rate), max(nights$heart_rate), length.out = 90)
+gy <- seq(min(nights$movements),  max(nights$movements),  length.out = 90)
+grid <- expand.grid(heart_rate = gx, movements = gy)
+
+# each model's verdict for every grid cell
+grid$logistic <- ifelse(predict(logit, grid, type = "response") > 0.5, "restless", "restful")
+grid$LDA  <- as.character(predict(lda_fit, grid)$class)
+grid$QDA  <- as.character(predict(qda_fit, grid)$class)
+grid$tree <- as.character(predict(tree, grid, type = "class"))
+
+# stack the four region maps into one long table so we can facet them
+one <- function(col, label) {
+  data.frame(heart_rate = grid$heart_rate, movements = grid$movements,
+             region = grid[[col]], model = label)
+}
+regions <- rbind(one("logistic", "logistic (straight)"), one("LDA", "LDA (straight)"),
+                 one("QDA", "QDA (curved)"),            one("tree", "tree (boxy)"))
+regions$model <- factor(regions$model,
+  levels = c("logistic (straight)", "LDA (straight)", "QDA (curved)", "tree (boxy)"))
+
+ggplot(nights, aes(heart_rate, movements)) +
+  geom_tile(data = regions, aes(fill = region), alpha = 0.3) +
+  geom_point(aes(color = state), size = 0.9) +
+  facet_wrap(~ model) +
+  scale_fill_manual(values  = c(restful = "#2563a8", restless = "#b5631a")) +
+  scale_color_manual(values = c(restful = "#2563a8", restless = "#b5631a")) +
+  labs(title = "One dataset, four boundary shapes",
+       x = "heart rate (bpm)", y = "movements per hour") +
+  theme_minimal(base_size = 12)
+```
+
+Four panels, four fingerprints: logistic and LDA are clean straight diagonals, QDA bows into a gentle curve that wraps the wider restless cloud, and the tree is a hard-edged staircase. Same nights, same overlap, four different geometries, each one a direct read-out of what its model assumes.
+
+=== step === concept
+::eyebrow A deeper twist
+## The shape depends on the space
+
+Here is the idea that ties the room together: a boundary's shape is not absolute, it depends on the *features you measure*. Change the features and a curved boundary can become straight.
+
+Step away from the sleep tracker for one moment. Imagine a "core" group of points sitting in a tight blob, completely surrounded by a "halo" group forming a ring around it. In the raw two features, **no straight line can separate them**: any line you draw cuts through both.
+
+```r
+library(ggplot2)
+set.seed(7)
+m <- 150
+inner <- data.frame(x1 = rnorm(m, 0, 0.5), x2 = rnorm(m, 0, 0.5), class = "core")
+ang <- runif(m, 0, 2 * pi); rad <- runif(m, 2.2, 3.2)
+outer <- data.frame(x1 = rad * cos(ang), x2 = rad * sin(ang), class = "halo")
+ring  <- rbind(inner, outer)
+ring$class <- factor(ring$class)
+
+ggplot(ring, aes(x1, x2, color = class)) +
+  geom_point(size = 1.6) + coord_equal() +
+  labs(title = "Raw space: the core sits inside the halo, no straight cut works") +
+  theme_minimal(base_size = 13)
+```
+
+Now add **one** new feature: each point's distance from the centre, \(r = \sqrt{x_1^2 + x_2^2}\). Plot that new feature against \(x_1\), and the two groups separate onto two flat bands. A single straight cut at a radius of about 1.8 now splits them perfectly.
+
+```r
+ring$radius <- sqrt(ring$x1^2 + ring$x2^2)   # one engineered feature
+
+ggplot(ring, aes(x1, radius, color = class)) +
+  geom_point(size = 1.6) +
+  geom_hline(yintercept = 1.8, linetype = "dashed") +
+  labs(title = "After adding radius: a straight cut at 1.8 separates them",
+       y = "radius = distance from centre") +
+  theme_minimal(base_size = 13)
+```
+
+That straight cut in the new space, mapped back to the original plane, is a **circle**. Nothing about the data changed; we only changed the coordinates we measure it in. This is the geometric seed of feature engineering, kernel methods and neural networks: rather than bend the boundary, they bend the *space* until a simple boundary fits.
+
+[KEY INSIGHT]
+"Linear" and "nonlinear" describe the boundary *in a given feature space*. Engineer the right feature and a hopeless nonlinear problem can become a trivial linear one.
+
+=== step === concept
+::eyebrow The map
+## Two independent axes
+
+We now have both axes, and the point is that they are **independent**. Boundary shape (straight, curved, wiggly, boxy) tells you how flexible a model is. Route (generative or discriminative) tells you whether it describes the classes or only the border. Neither one predicts the other.
+
+| Classifier | Boundary shape | Route |
+|---|---|---|
+| Logistic regression | straight line | discriminative |
+| LDA | straight line | generative |
+| Gaussian Naive Bayes | curved | generative |
+| QDA | curved | generative |
+| kNN | wiggly, local | discriminative |
+| Decision tree | boxy, axis-aligned | discriminative |
+
+Read it across and the independence jumps out. LDA and logistic regression share a **shape** but split on **route**. QDA (generative, curved) and a deep tree (discriminative, boxy) are both nonlinear yet reach it from opposite ends of the map. The shape came from each model's assumption about *flexibility*; the route came from its assumption about *what to model*. Knowing both is knowing the model's geometry and its philosophy at once.
+
+=== step === quiz
+::eyebrow Check yourself
+## When the route matters
+
+Your sleep app receives a bizarre new reading: heart rate 95 with 60 movements per hour, unlike any training night of either class (it turns out the watch fell off). You would rather the app flag it as "this does not look like normal sleep" than force it into restful or restless. Which kind of model can do that, and why?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- A discriminative model, because it draws a sharper boundary ::no A sharper boundary still only tells you which *side* a point is on. It has no notion of "far from everything," so it will confidently assign even an absurd point to whichever region it lands in.
+- A generative model, because it describes what each class actually looks like, so it can notice the point is unlikely under BOTH classes ::ok Right. A generative model gives a likelihood for each class, so a point that scores near-zero under both is a natural novelty signal. This is the basis of outlier and novelty detection, and a purely discriminative model cannot do it from the boundary alone.
+- Neither: no classifier can ever tell that a point is unusual ::no Generative models can, precisely because they model the class distributions. The likelihood under each class is a built-in measure of how typical a point is.
+
+=== step === concept
+::eyebrow Choosing
+## The shape is not the score
+
+A tempting mistake is to pick a model by how good its boundary *looks*. The gallery makes the honest rule obvious instead: the best geometry is the one that matches the truth, and you can only tell which that is by checking on data the model has not seen.
+
+- **More flexible is not more accurate.** The tree and QDA scored highest on the *training* nights, but that is partly because a flexible boundary can memorise. The wiggle at \(k = 1\) that dropped kNN to 0.85 was flexibility hurting, not helping.
+- **Match the geometry to the problem.** If the true divide is roughly a straight diagonal, a straight model (logistic or LDA) is both accurate and stable. If classes are genuinely differently shaped, a curve (QDA) earns its keep. If the rule is really "movements above X or heart rate above Y," a tree's boxes fit naturally.
+- **Decide on held-out data.** Training accuracy always flatters the flexible model. Judge boundaries by cross-validation or a test set (the resampling tools coming up in this track), never by which one hugs the training points hardest.
+
+| Prefer a simpler, straighter boundary when... | Prefer a more flexible boundary when... |
+|---|---|
+| Few training nights, or many features | Plenty of data per class |
+| The classes look like the same shape, just shifted | The classes clearly differ in shape |
+| You want a stable, low-variance model | The truth genuinely bends and you can afford the variance |
+
+[WARNING]
+A boundary that fits the training data perfectly is a red flag, not a trophy. Perfect training accuracy usually means the model memorised noise, and its jagged or shattered shape is telling you so.
+
+=== step === quiz
+::eyebrow Check yourself
+## Name that boundary
+
+You are shown three trained boundaries on the same two features. **(A)** is a single perfectly straight diagonal line. **(B)** is a smooth curved arc that bulges around one class. **(C)** is a staircase of horizontal and vertical steps. Match each shape to the model most likely to have drawn it.
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- A = decision tree, B = logistic regression, C = QDA ::no A tree can only make axis-aligned steps, so it draws C, not the straight line A. Logistic regression is straight, not the curve B.
+- A = logistic regression or LDA, B = QDA, C = decision tree ::ok Exactly. A straight line comes from a linear model (logistic or LDA); a smooth curve is QDA's per-class covariance at work; a right-angled staircase is the unmistakable signature of a tree's axis-aligned splits.
+- A = QDA, B = kNN, C = LDA ::no QDA is curved, not the straight line A, and LDA is straight, not the boxy staircase C. The shapes are mismatched to the models.
 
 === step === concept
 ::eyebrow Go deeper
@@ -258,14 +473,15 @@ A classifier scores 100% on the training flowers but only 72% on new ones, and i
 
 A few authoritative places to take this further:
 
-- [An Introduction to Statistical Learning, ch. 2 and 4 (free PDF)](https://www.statlearning.com/) - the Bayes decision boundary, and the classification methods compared here, with R labs.
-- [The Elements of Statistical Learning, ch. 2 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - linear vs flexible boundaries and the bias-variance picture behind them.
-- [scikit-learn: classifier comparison](https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html) - a gallery of the same boundary shapes drawn by many classifiers on the same data; the picture this lesson is built on.
-- [Ng and Jordan (2002), On Discriminative vs. Generative Classifiers](https://papers.nips.cc/paper_files/paper/2001/hash/7b7a53e239400a13bd6be6c91c4f6c4e-Abstract.html) - the classic analysis of logistic regression (discriminative) versus Naive Bayes (generative).
+- [An Introduction to Statistical Learning, ch. 2 and 4 (free PDF)](https://www.statlearning.com/) - the gentlest treatment of decision boundaries, the Bayes boundary, and LDA/QDA/logistic side by side, with R labs.
+- [The Elements of Statistical Learning, ch. 2 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - linear boundaries versus flexible ones, and the bias-variance geometry, in full.
+- [Ng and Jordan (2002), "On Discriminative vs. Generative Classifiers"](https://ai.stanford.edu/~ang/papers/nips01-discriminativegenerative.pdf) - the classic paper contrasting logistic regression and Naive Bayes, and when each wins.
+- [scikit-learn: classifier comparison gallery](https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html) - a literal gallery of decision boundaries for many models on the same datasets; the picture of this whole lesson.
+- [R documentation: MASS::lda and qda](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/lda.html) - the generative models you fitted here, with their assumptions.
 
 === step === complete
 ## Lesson 5 complete
 
-Every classifier you have met turns out to be one idea wearing different clothes: a way of drawing a boundary through feature space. You learned to read that boundary on two axes, its **shape** (straight for logistic and LDA, curved for QDA and Naive Bayes, boxy for trees, wiggly for kNN) and its **route** (discriminative models the boundary directly, generative models the classes and lets Bayes' rule draw it). A boundary's shape is the model's assumptions made visible, and when no shape in the raw features works, you can change the space until a straight line does.
+You can now read any classifier as the boundary it draws. A classifier labels every point of feature space, and the border between its regions has a shape, straight (logistic, LDA), curved (QDA, Gaussian Naive Bayes), wiggly (kNN), or boxy (a tree), that is a fingerprint of the model's flexibility. You saw a second, independent axis, generative (model each class, as LDA and QDA do) versus discriminative (model only the boundary, as logistic regression, kNN and trees do), and why it lets generative models flag novel points that discriminative ones cannot. You drew all four boundaries on one dataset in R, watched a curved boundary turn straight simply by adding a feature, and learned to choose by held-out performance rather than by which fence looks tightest.
 
-Next, Lesson 6: Reading a Classifier. You can now *see* a boundary; the final lesson gives you the *numbers* to grade one, the confusion matrix, precision and recall, ROC and PR curves, and why plain accuracy can flatter a useless model.
+Next, Lesson 6: Reading a Classifier. Now that you can *see* the boundary, you need *numbers* to grade it. We move from the shape of the decision to how well it actually performs: the confusion matrix, accuracy, precision, recall and F1, the ROC and precision-recall curves, and why accuracy alone can badly mislead you.
