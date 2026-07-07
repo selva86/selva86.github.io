@@ -1,8 +1,8 @@
 ---
 title: "Advanced Supervised Learning Lesson 5: Stacking and the Super Learner"
-catalog_blurb: "Blend several models with cross-validation so the combination beats the best single one."
-description: "Stacking in R from scratch: why diverse models blend well, out-of-fold predictions, a meta-learner that beats every base model, and Super Learner weights."
-keywords: "stacking, stacked generalization, super learner, ensemble learning, meta-learner, out-of-fold predictions, model blending, stacking in R, SuperLearner package"
+catalog_blurb: "Combine several models into one that beats the best of them."
+description: "Stacking and the Super Learner in R from scratch: why out-of-fold predictions matter, blending base learners with a meta-learner, and honest convex weights."
+keywords: "stacking, stacked generalization, super learner, ensemble learning, meta-learner, out-of-fold predictions, cross-validation, model blending, R"
 post_type: "LESSON"
 curriculum_id: "6.140.5"
 webr: true
@@ -21,370 +21,488 @@ course_prev: "Gaussian-Processes-for-Regression.html"
 ::eyebrow Lesson 5 of 8
 ## Stacking and the Super Learner
 
-In Lesson 4 a Gaussian process predicted kiln temperatures and confessed how sure it was. This lesson keeps the honesty theme but changes the question. You now have a shelf of strong learners: SVMs, discriminant blends, GPs, trees. When several of them are good, why crown one?
+In Lesson 4 you gave a regression model a conscience: a Gaussian process that predicts a value AND admits how sure it is. This lesson does something different with your growing toolbox. Instead of crowning one winner and discarding the rest, it keeps several models and teaches a second model to blend them.
 
-Meet Priya, who prices trade-ins for a used-car dealership. Cars arrive at the lot every week; quote too little and the seller walks next door, quote too much and the lot eats the loss at resale. Her evidence is two years of history: **240 hatchbacks**, each with three facts, the car's age in years, the kilometres driven (in thousands), and the price it actually resold for (in thousands of dollars). She has built three price models: a linear regression, a deep decision tree, and an RBF SVM. On held-out cars they score within a whisker of each other, and her instinct says pick the winner, delete the rest.
+Meet Nadia. She runs a coffee cart outside a train station, and she has logged cups sold in **160 fifteen-minute windows**: the hour of day, and the cups she sold. Demand has a morning rush, an evening rush, and a sharp jump at noon when the office across the road breaks for lunch. Nadia has built three models to forecast demand for her ordering app: a **straight line**, a **smooth curve**, and a **regression tree**. Her app has room for one. Which does she ship?
 
-That instinct throws money away. The three models make **different** mistakes, and a fourth model, trained to combine them, prices cars better than any of the three alone. Building that fourth model correctly, without cheating, is called stacking, and its most principled form is the Super Learner. By the end of this lesson you will be able to:
+The surprising answer this lesson defends: **none of them alone.** By the end you will be able to:
 
-- Measure how differently two models fail with an error-correlation matrix, and explain why disagreeing errors are fuel for blending
-- Explain why the blending model must be trained on out-of-fold predictions, and show exactly what happens to the blend weights when you cheat
-- Build a complete stack in R: the out-of-fold matrix, the meta-learner, and the two-stage prediction path
-- Say what the Super Learner adds: convex weights, the discrete Super Learner, and the oracle guarantee in plain words
+- Explain why picking a single best model leaves accuracy on the table, and why a plain average can even hurt
+- Build a stacking ensemble in R: out-of-fold predictions, a meta-learner, and the blend weights it learns
+- See why the meta-learner must be trained on out-of-fold predictions, not in-sample ones, and what goes wrong when it is not
+- Turn a stack into a Super Learner with convex weights, and score the whole thing honestly with nested cross-validation
 
-**Prerequisites:** [k-fold cross-validation](Cross-Validation-Strategies.html) (the machinery this lesson repurposes), [linear regression](Linear-Regression.html), [decision trees](Decision-Trees-for-Classification.html) and the [bias-variance trade-off](The-Bias-Variance-Tradeoff.html), and this course's [SVM lessons](Kernel-SVMs-and-the-Kernel-Trick.html).
+**Prerequisites:** several strong, different learners already in hand ([decision trees](Decision-Trees-for-Classification.html), [SVMs](Support-Vector-Machines-Maximum-Margin.html), [Gaussian processes](Gaussian-Processes-for-Regression.html) from this course), [k-fold cross-validation](Cross-Validation-Strategies.html) as an honest accuracy estimate, [linear regression](Linear-Regression.html) with `lm()`, and the [overfitting idea](The-Bias-Variance-Tradeoff.html) from the ML Workflow course.
 
-The interactive below is the destination in miniature: three base learners, each cross-validated, blended by a meta-learner. Toggle between the test errors (the stacked bar sits lowest) and the blend weights (how much the meta-learner trusts each model). We will build this exact pipeline on Priya's cars, step by step.
+The interactive below is the lesson's payoff in miniature: three base learners and the stack built on top of them. Toggle to **Test error** and the stacked bar sits lowest; toggle to **Blend weights** to see how much the meta-learner leans on each. We will build every piece of this from scratch.
 
 ::widget stacking-blend {}
 
 === step === concept
-::eyebrow The contenders
-## Three good models, one price to quote
+::eyebrow The problem
+## Three good models, one slot
 
-Each lesson runs in a fresh R session, so we start by writing Priya's sales ledger ourselves. Building it by hand has a teaching payoff: we know the truth the models are chasing. Prices fall along a smooth depreciation curve as cars age; every thousand kilometres shaves a little more off; and old, heavily driven cars drop off a small cliff (past a point, buyers pay scrap-plus-a-bit, not book value). Real ledgers hide their formula. Ours shows it, so we can see why each model succeeds where it does.
+Each lesson runs in a fresh R session, so we start by typing Nadia's log into the machine. We build her 160 windows and, separately, a larger fresh fortnight of data to score models on honestly, so no model is ever judged on rows it trained on.
 
 ```r
-library(rpart)     # decision trees
-library(e1071)     # support vector machines
+set.seed(1)
+n <- 160
+cart <- data.frame(hour = round(runif(n, 6, 20), 2))          # 6am to 8pm
+mean_cups <- 12 +
+  18 * exp(-((cart$hour - 8)^2)  / (2 * 1.2^2)) +             # morning rush
+  14 * exp(-((cart$hour - 18)^2) / (2 * 1.5^2)) +             # evening rush
+  8  * (cart$hour >= 12)                                      # lunch office crowd: a hard jump
+cart$cups <- round(mean_cups + rnorm(n, 0, 4))               # cups sold in a 15-min window
+
+set.seed(2)                                                   # a fresh fortnight, held out for scoring
+m <- 300
+test <- data.frame(hour = round(runif(m, 6, 20), 2))
+test$cups <- round(12 +
+  18 * exp(-((test$hour - 8)^2)  / (2 * 1.2^2)) +
+  14 * exp(-((test$hour - 18)^2) / (2 * 1.5^2)) +
+  8  * (test$hour >= 12) + rnorm(m, 0, 4))
+
+rmse <- function(pred, truth) sqrt(mean((truth - pred)^2))    # our scoreboard: lower is better
+head(cart)
+#>    hour cups
+#> 1  9.72   16
+#> 2 11.21   12
+#> 3 14.02   25
+#> 4 18.71   26
+#> 5  8.82   29
+#> 6 18.58   34
+```
+
+Now Nadia's three models. They are deliberately simple and very different in shape: a line that can only tilt, a degree-5 polynomial that can bend smoothly, and a tree that predicts a flat value inside step-like ranges of the hour. These three stand in for the richer learners you built earlier (the SVMs, GPs and forests); stacking works exactly the same whatever the learners are, and these three run live and give the same numbers every time.
+
+```r
+library(rpart)
+fit_lin  <- lm(cups ~ hour, data = cart)                      # a straight line
+fit_poly <- lm(cups ~ poly(hour, 5), data = cart)             # a smooth curve
+fit_tree <- rpart(cups ~ hour, data = cart,                   # a step function
+                  control = rpart.control(cp = 0.002, minbucket = 5))
+
+base_rmse <- c(
+  linear = rmse(predict(fit_lin,  test), test$cups),
+  poly   = rmse(predict(fit_poly, test), test$cups),
+  tree   = rmse(predict(fit_tree, test), test$cups))
+round(base_rmse, 3)
+#> linear   poly   tree
+#>  7.162  5.050  4.867
+```
+
+The tree wins, just, at 4.867 cups of typical error; the smooth curve is close behind; the straight line is hopeless (it cannot represent two rush hours with one slope). The naive move is to ship the tree and bin the other two. But look at WHERE each model is right before you throw anything away.
+
+```r
 library(ggplot2)
-
-set.seed(29)
-n   <- 240
-age <- round(runif(n, 0.5, 12), 1)                     # years on the road
-km  <- round(age * runif(n, 6, 14) + runif(n, 0, 15))  # thousand km, grows with age
-price <- round(3.5 + 26 * exp(-0.15 * age) - 0.02 * km +
-               ifelse(age > 8 & km > 90, -3, 0) +      # the scrap-value cliff
-               rnorm(n, 0, 1.1), 2)                    # everything a ledger cannot see
-cars_sold <- data.frame(age, km, price)
-head(cars_sold, 4)
-#>   age km price
-#> 1 1.6 17 23.29
-#> 2 3.3 47 17.98
-#> 3 1.7 22 24.90
-#> 4 4.2 62 16.57
-```
-
-A 1.6-year-old car with 17,000 km resold for 23,290 dollars; a 4.2-year-old with 62,000 km fetched 16,570. Priya locks 60 cars away as the final exam (the test set, touched only to score finished models) and trains on the other 180. Her tree is grown deep on purpose (`cp = 0.001`, `minsplit = 5`) so its small leaves can carve out the scrap cliff. Remember that choice; it is about to matter.
-
-```r
-test_id <- sample(n, 60)                 # 60 cars locked away: the final exam
-train <- cars_sold[-test_id, ]
-test  <- cars_sold[test_id, ]
-
-rmse <- function(actual, pred) sqrt(mean((actual - pred)^2))
-
-m_lin  <- lm(price ~ age + km, data = train)
-m_tree <- rpart(price ~ age + km, data = train, cp = 0.001, minsplit = 5)
-m_svm  <- svm(price ~ age + km, data = train)          # RBF kernel by default
-
-p_test <- data.frame(linear = predict(m_lin,  test),
-                     tree   = predict(m_tree, test),
-                     svm    = predict(m_svm,  test))
-round(sapply(p_test, rmse, actual = test$price), 3)
-#> linear   tree    svm 
-#>  1.543  1.464  1.289 
-```
-
-RMSE (root mean squared error) is the typical size of a quote's miss, in the same units as price: the SVM misses a typical unseen car by about 1,290 dollars, the linear model by about 1,540. A close race with one apparent winner. But now look at the **shape** each family draws, with mileage held at 60,000 km:
-
-```r
-grid_cars <- data.frame(age = seq(0.5, 12, by = 0.1), km = 60)
+grid <- data.frame(hour = seq(6, 20, by = 0.1))
 fits <- rbind(
-  data.frame(model = "linear",    age = grid_cars$age, price = predict(m_lin,  grid_cars)),
-  data.frame(model = "deep tree", age = grid_cars$age, price = predict(m_tree, grid_cars)),
-  data.frame(model = "RBF SVM",   age = grid_cars$age, price = predict(m_svm,  grid_cars))
-)
-ggplot(train, aes(age, price)) +
-  geom_point(alpha = 0.3, size = 1.6) +
-  geom_line(data = fits, aes(colour = model), linewidth = 1) +
-  labs(title = "Three families, three shapes (mileage fixed at 60,000 km)",
-       x = "age (years)", y = "sale price (thousand dollars)", colour = NULL) +
+  data.frame(hour = grid$hour, cups = predict(fit_lin,  grid), model = "linear"),
+  data.frame(hour = grid$hour, cups = predict(fit_poly, grid), model = "poly (smooth)"),
+  data.frame(hour = grid$hour, cups = predict(fit_tree, grid), model = "tree"))
+ggplot(cart, aes(hour, cups)) +
+  geom_point(colour = "grey70", size = 1.2) +
+  geom_line(data = fits, aes(hour, cups, colour = model), linewidth = 1) +
+  labs(title = "Three models, each right in a different place",
+       x = "hour of day", y = "cups sold (15-min window)") +
   theme_minimal(base_size = 13)
 ```
 
-The straight line cannot bend, so it overprices the middle-aged cars and keeps falling long after real prices flatten. The deep tree is a staircase: it can catch the cliff, but each step wobbles with the handful of cars that defined it. The SVM bends smoothly, and rounds off sharp corners for the same reason. Three honest workers, three different blind spots.
-
-[KEY INSIGHT]
-A model family is the set of shapes it is allowed to draw. Different families are therefore wrong in different places, and "wrong in different places" is not a nuisance. It is a resource you can spend.
+Press Run. The smooth curve traces the two rushes gracefully but rounds off the sharp noon jump. The tree nails the noon jump (a clean step) but climbs the rushes in coarse stairs. The line just splits the difference everywhere. **Each model is wrong exactly where another is right.** Throwing two of them away throws away the corrections they could make. Keeping all three is the whole idea.
 
 === step === concept
-::eyebrow Diversity
-## Errors that disagree are an asset
+::eyebrow Why it works
+## Combining helps because their mistakes disagree
 
-Watch the three models argue about individual cars from the test set:
+Before we combine anything, it is worth being precise about WHY combining could help at all, because the answer tells us exactly when it will not. The key quantity is not how accurate the models are on their own, but how much their **errors** agree.
 
-```r
-round(cbind(test, p_test)[c("11", "77", "107"), ], 2)
-#>      age  km price linear  tree   svm
-#> 11  11.8 164  0.67  -0.87  2.97  2.68
-#> 77  10.8  82  6.44   4.84  7.04  6.96
-#> 107  4.9  48 16.69  16.20 13.83 15.00
-```
-
-Car 11, an 11.8-year workhorse with 164,000 km, actually sold for 670 dollars. The linear model quotes **minus 870 dollars**: a straight line that keeps falling has no idea where to stop. The tree and SVM stay sane. But on car 107, a 4.9-year car, the roles flip: the linear model is closest (16.20 against the true 16.69) while the deep tree misses by almost 2,900 dollars. And on car 77, an old car that dodged the cliff, the linear model is the one caught flat. No model is always the fool; each is the fool somewhere different.
-
-Put one number on "somewhere different": correlate the models' errors across all 60 test cars.
+Compute the residual (actual minus predicted) for each model on the test set, and correlate the three columns of residuals.
 
 ```r
-res <- test$price - p_test        # each model's error on each unseen car
-round(cor(res), 2)
-#>        linear tree  svm
-#> linear   1.00 0.45 0.65
-#> tree     0.45 1.00 0.79
-#> svm      0.65 0.79 1.00
+resid <- data.frame(
+  linear = test$cups - predict(fit_lin,  test),
+  poly   = test$cups - predict(fit_poly, test),
+  tree   = test$cups - predict(fit_tree, test))
+round(cor(resid), 2)
+#>        linear poly tree
+#> linear   1.00 0.85 0.62
+#> poly     0.85 1.00 0.78
+#> tree     0.62 0.78 1.00
 ```
 
-Here is that matrix as a picture:
+::widget correlation-heatmap {"vars":["linear","poly","tree"],"matrix":[[1,0.85,0.62],[0.85,1,0.78],[0.62,0.78,1]]}
 
-::widget correlation-heatmap {"vars":["linear","tree","svm"],"matrix":[[1,0.45,0.65],[0.45,1,0.79],[0.65,0.79,1]]}
+Read the grid. Every pair is positively correlated (they are all chasing the same demand curve, so when demand is genuinely surprising they tend to miss together), but none of the correlations is close to 1. The tree and the line disagree the most (r = 0.62): where the tree steps, the line slides. That disagreement is the raw material a blend feeds on.
 
-If two models' errors correlated at 1.00, they would make the same mistake on every car and blending them would buy nothing. At 0.45, when the linear model overprices a car, the tree is doing something unrelated about half the time, so their mistakes partly cancel in an average. You met this arithmetic in the [random forest course](RF-Course-Lesson-2.html), and it is worth re-deriving because it is the entire economics of stacking. Suppose each model's error \(\varepsilon_m\) (epsilon: the miss on a given car) has typical spread \(\sigma\) (sigma: the RMSE-sized standard deviation) and every pair of errors correlates at \(\rho\) (rho). The averaged error \(\bar\varepsilon\) then has variance
+Here is why, made exact. Suppose you average \(M\) models whose errors each have variance \(\sigma^2\) and whose errors have average pairwise correlation \(\rho\). The error variance of their average is
 
-\[ \mathrm{Var}(\bar\varepsilon) \;=\; \rho\,\sigma^2 \;+\; \frac{1-\rho}{M}\,\sigma^2 , \]
+\[ \operatorname{Var}(\text{average}) = \rho\,\sigma^2 \;+\; \frac{1-\rho}{M}\,\sigma^2 \]
 
-where \(M\) is the number of models blended. The second term shrinks as you add models; the first term, the **shared** part of the mistakes, never does. Disagreement (small \(\rho\)) is the fuel; the errors every model shares are the floor no blend can dig below. Test the theory with the crudest possible blend, an equal vote:
-
-```r
-p_avg <- rowMeans(p_test)         # every model gets an equal say
-round(rmse(test$price, p_avg), 3)
-#> [1] 1.234
-```
-
-An unweighted average, no learning involved, already prices cars better than the best single model (1.234 against the SVM's 1.289). That is the diversity dividend paying out. But equal votes are a blunt instrument: the SVM has clearly earned more say than the line that quoted a negative price. Surely we can **learn** how much to trust each model. We can, and there is a trap on the way.
-
-=== step === concept
-::eyebrow The trap
-## Never learn weights from flattering predictions
-
-The natural move: treat the three models' predictions as three new columns, and regress the true price on them. The regression's coefficients are then the trust weights, learned from data. The blending model is called the **meta-learner** (a model whose inputs are other models' outputs), and the models feeding it are the **base learners**. One question decides whether this works: *which* predictions do you train the meta-learner on? First instinct: predictions on the training cars. We have them already.
-
-```r
-p_in <- data.frame(linear = predict(m_lin,  train),
-                   tree   = predict(m_tree, train),
-                   svm    = predict(m_svm,  train))
-round(sapply(p_in, rmse, actual = train$price), 3)
-#> linear   tree    svm 
-#>  1.529  1.019  1.232 
-```
-
-Read the tree's number. On its own training cars it scores 1.019, comfortably the "best" model, nearly half a unit better than the 1.464 it earned on genuinely unseen cars in step 2. The deep tree, with its tiny 5-car leaves, has partly memorized the training set. It is not lying about the training cars; it is lying about the future. Hand these flattering columns to a meta-learner and it believes the lie:
-
-```r
-meta_naive <- lm(train$price ~ ., data = p_in)
-round(coef(meta_naive), 2)
-#> (Intercept)      linear        tree         svm 
-#>       -0.05        0.03        0.85        0.12 
-round(rmse(test$price, predict(meta_naive, p_test)), 3)
-#> [1] 1.379
-```
-
-The meta-learner hands 0.85 of the vote to the memorizer, and the resulting blend scores **1.379** on the final exam: worse than the plain average (1.234), worse than the SVM alone (1.289). This is **leakage**: each training car's own price is partly memorized inside the tree's prediction for it, so the column that is supposed to say "how good is the tree on a car like this" secretly contains the answer sheet.
-
-The fix follows from stating the requirement plainly: the meta-learner must see each base model *the way the future will see it*, predicting cars it never trained on. Cross-validation manufactures exactly that. Deal the 180 training cars into 5 folds. To get honest predictions for fold 1, train the three bases on folds 2 to 5 and predict fold 1's cars; then let fold 2 sit out, and so on around the wheel. Every training car ends up predicted by models that never saw it. These are **out-of-fold predictions** (OOF), and the 180-by-3 matrix of them (competition folk call it the level-one data) is the only safe textbook for the meta-learner. Step through the rotation:
-
-::widget cv-folds {"k":5}
+Every symbol in words: \(\sigma^2\) is how much one model's error bounces around; \(\rho\) is how much two models' errors move together (0 = independent mistakes, 1 = identical mistakes); \(M\) is how many models. The second term, the part averaging can kill, shrinks as you add models; the first term is a **floor** set by \(\rho\). Perfectly correlated errors (\(\rho = 1\)) leave the floor at the full \(\sigma^2\): averaging buys nothing. Independent errors (\(\rho = 0\)) let the whole thing fall toward \(\sigma^2/M\). 
 
 [KEY INSIGHT]
-Stacking is cross-validation used as a factory rather than a scorekeeper. The product is not the CV score (we throw it away); it is the full column of honest predictions each model leaves behind on its way around the folds.
+Combining models pays off in proportion to how much their errors DISAGREE. Nadia's three learners are only partly decorrelated (0.62 to 0.85), so the gain here will be real but modest, and that is exactly the honest expectation. Three near-identical models would gain almost nothing, a fact we will cash in when deciding whether stacking is worth it.
+
+=== step === concept
+::eyebrow The baseline
+## First instinct: just average them
+
+The simplest way to keep all three is to average their predictions. No training, no weights, just the mean of the three numbers at every hour.
+
+```r
+avg_pred <- (predict(fit_lin, test) + predict(fit_poly, test) + predict(fit_tree, test)) / 3
+round(c(base_rmse, average = avg_pred |> rmse(test$cups)), 3)
+#> linear    poly    tree average
+#>  7.162   5.050   4.867   5.208
+```
+
+Look closely: the plain average scores 5.208, which is **worse than the tree alone** (4.867). That stings, and it is the whole limitation of equal weights in one number. Averaging gave the hopeless straight line (RMSE 7.16) exactly the same one-third vote as the tree. A model that is both weak and correlated with the others does not cancel error, it adds it. Down-weighting the line and leaning on the curve and the tree would obviously do better, but a plain average has no way to know that.
+
+[NOTE]
+A simple average is a fine, robust default when your models are all of similar strength (it is hard to beat and impossible to overfit). It fails exactly when they are not, because it cannot tell a strong member from a weak one. What Nadia needs is a blend that LEARNS the weights.
 
 === step === quiz
 ::eyebrow Check yourself
-## Why not train the blender in-sample?
+## When does a plain average help?
 
-A colleague shrugs: "The three base models were fit on those 180 cars anyway. Why can the meta-learner not just use their predictions on those same cars?" What is the sharpest answer?
+You average several models' predictions. When does that average beat the best single model among them?
 
-::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
-- The meta-learner's whole job is deciding how much to trust each base model, and in-sample predictions misreport exactly that: the deep tree looked like a 1.019 model when it is honestly a 1.5 one, so the learned weights are wrong for every future car ::ok Right. The weights are the product, and the inputs were flattery: 0.85 of the vote went to the memorizer. The same meta-learner jumps from 1.379 to a winning score the moment its training columns become honest, which is the next step.
-- Nothing is wrong in principle, because the finished stack is still checked on the 60 held-out cars; the test set will catch any over-trust before it costs money ::no The test set measured the damage (1.379) but could not prevent it: the weights were already mislearned by then. Evaluation catches mistakes; it does not repair training. You would ship a worse blend, now with a certificate documenting exactly how much worse.
-- The real problem is that lm is too flexible a meta-learner; averaging the in-sample predictions instead removes the incentive to over-trust any single model ::no A plain average does dodge this trap, but only by refusing to learn at all, and the whole point was to improve on equal votes. The leak lives in the input columns (flattering predictions), not in the meta-learner's flexibility: fix the inputs and even plain lm learns good weights.
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- Always: an average is at least as good as its best member, by definition ::no An average can be worse than its best member, which is exactly what you just saw: the weak straight line dragged the equal-weight average (5.21) below the tree alone (4.87).
+- When the members are individually decent AND make different, weakly correlated errors, so their mistakes partly cancel ::ok Right. Averaging cancels the part of the error the members do NOT share, so the payoff grows as their errors decorrelate. A member that is both weak and correlated with the rest just adds error to the pool.
+- Only when all the members are equally accurate ::no Equal accuracy is neither required nor enough. What matters is that good members make different mistakes; and a plain average still wastes that by giving a weak member the same vote as a strong one, which is the gap stacking closes.
 
 === step === concept
-::eyebrow The build
-## Build the honest stack
+::eyebrow The idea
+## Stacking: let a model learn the blend
 
-Fifteen lines. The loop below is the cross-validation you already know, with one twist: the score is thrown away and the predictions are kept.
+Think of the three base learners as a panel of specialists: one good on trends, one on smooth curvature, one on sharp thresholds. A plain average is a manager who counts every vote equally. **Stacking** hires a smarter manager: a second model, the **meta-learner**, whose entire job is to learn, from data, how much to trust each specialist. Stacking (Wolpert, 1992) is that two-level idea.
+
+Write it down. Call the base learners \(f_1, f_2, \dots, f_M\) (here \(M = 3\): line, curve, tree). The stacked prediction for an input \(x\) is a weighted combination of their predictions:
+
+\[ \hat f(x) \;=\; w_0 \;+\; \sum_{m=1}^{M} w_m\, f_m(x) \]
+
+Here \(f_m(x)\) is base learner \(m\)'s prediction, and \(w_0, w_1, \dots, w_M\) are the meta-learner's weights (\(w_0\) is an intercept that shifts the whole blend). The meta-learner chooses those weights to minimize squared error over the training rows:
+
+\[ \min_{w}\ \sum_{i=1}^{n} \Big( y_i \;-\; w_0 \;-\; \sum_{m=1}^{M} w_m\, z_{im} \Big)^2 \]
+
+where \(y_i\) is the true cups for row \(i\), \(n\) is the number of rows, and \(z_{im}\) is base learner \(m\)'s prediction for row \(i\). That is just a linear regression: the response is the truth, and the three predictors are the three base learners' predictions. So the natural first attempt is to fit `lm()` with the base predictions as inputs. Let each model predict its own training rows, then regress the truth on those columns.
+
+```r
+P <- cbind(linear = predict(fit_lin,  cart),      # each base scores its OWN training rows
+           poly   = predict(fit_poly, cart),
+           tree   = predict(fit_tree, cart))
+meta_leak <- lm(cart$cups ~ P)                    # the meta-learner: truth on base predictions
+round(coef(meta_leak), 3)
+#> (Intercept)     Plinear       Ppoly       Ptree
+#>      -0.208      -0.004       0.035       0.978
+```
+
+The meta-learner handed the tree almost the entire weight (0.978) and all but ignored the curve and the line. Put it to work on the fresh test set (each base predicts the new rows, the meta blends them):
+
+```r
+Ptest <- cbind(1, linear = predict(fit_lin,  test),
+                  poly   = predict(fit_poly, test),
+                  tree   = predict(fit_tree, test))
+round(rmse(as.numeric(Ptest %*% coef(meta_leak)), test$cups), 3)
+#> [1] 4.837
+```
+
+A test RMSE of 4.837, barely better than shipping the tree alone (4.867), and worse than what we are about to get. The meta-learner essentially rebuilt the tree and threw the diversity away. Why did it trust the tree so blindly?
+
+=== step === concept
+::eyebrow The trap
+## A model grading its own homework
+
+The answer is a subtle, dangerous form of cheating, and it hides in the phrase "predict its own training rows." A flexible model has already SEEN those rows, so its predictions on them are flattering, not honest. Measure exactly how flattering for the tree, the model the meta trusted. Compare its error on its own training rows to its error on the fresh test set.
+
+```r
+insample_rmse <- apply(P, 2, function(pr) rmse(pr, cart$cups))   # each base on its own rows
+round(c(in_sample = unname(insample_rmse["tree"]),
+        on_test   = unname(base_rmse["tree"])), 3)
+#> in_sample   on_test
+#>     3.291     4.867
+```
+
+The tree scores **3.291 on its own rows but 4.867 on fresh data**. That gap is the tree flattering itself: on training rows it partly memorized, so it looks far better than it really is. The meta-learner, shown only the flattering 3.29 version, naturally concluded the tree was the star and handed it the weight. It was fooled by a self-graded report card. The rigid straight line cannot pull this trick (it is too inflexible to memorize anything), which is exactly why a flexible learner is the dangerous one to trust in-sample. This mistake has a name: **leakage**, information about the answer sneaking into a model's inputs.
+
+[WARNING]
+The more flexible a base learner, the harder it flatters itself in-sample, and the worse this gets. A 1-nearest-neighbour model, or a fully grown tree, scores a perfect RMSE of 0 on its own training rows (every point is its own closest match), so a meta-learner trained on in-sample predictions would hand it 100% of the weight and the stack would collapse into that one overfit model. Training the meta-learner on in-sample predictions is not a small inefficiency; it quietly defeats the entire point of stacking.
+
+=== step === concept
+::eyebrow The fix
+## Out-of-fold predictions
+
+The fix is to give the meta-learner HONEST base predictions: for every row, a prediction from a model that never saw that row. Cross-validation already does exactly this. Split the training data into K folds; for each fold, train the base learners on the other K minus 1 folds and predict the held-out fold. Every row gets a prediction made without it. Step through the folds below to feel the rotation, then we build it.
+
+::widget cv-folds {"k":5}
+
+Do that for all three base learners and you get a matrix with one column per learner and one row per training row: the **out-of-fold predictions**, sometimes called the level-one data. This matrix, not the in-sample one, is what the meta-learner should see.
 
 ```r
 K <- 5
-fold <- sample(rep(1:K, length.out = nrow(train)))   # fold labels dealt out like cards
-oof <- data.frame(linear = rep(NA_real_, nrow(train)), tree = NA_real_, svm = NA_real_)
-
+set.seed(7)
+fold <- sample(rep(1:K, length.out = nrow(cart)))          # assign each row to a fold
+Z <- matrix(NA, nrow(cart), 3, dimnames = list(NULL, c("linear", "poly", "tree")))
 for (k in 1:K) {
-  tr <- train[fold != k, ]                 # train on everything except fold k
-  te <- which(fold == k)                   # ...then predict the rows fold k held out
-  oof$linear[te] <- predict(lm(price ~ age + km, data = tr),  train[te, ])
-  oof$tree[te]   <- predict(rpart(price ~ age + km, data = tr,
-                                  cp = 0.001, minsplit = 5),  train[te, ])
-  oof$svm[te]    <- predict(svm(price ~ age + km, data = tr), train[te, ])
+  tr <- cart[fold != k, ]                                  # train on the other four folds
+  ho <- which(fold == k)                                   # predict the held-out fold
+  Z[ho, "linear"] <- predict(lm(cups ~ hour, tr), cart[ho, ])
+  Z[ho, "poly"]   <- predict(lm(cups ~ poly(hour, 5), tr), cart[ho, ])
+  Z[ho, "tree"]   <- predict(rpart(cups ~ hour, tr,
+                        control = rpart.control(cp = 0.002, minbucket = 5)), cart[ho, ])
 }
-round(sapply(oof, rmse, actual = train$price), 3)
-#> linear   tree    svm 
-#>  1.564  1.514  1.366 
+round(head(Z), 1)
+#>      linear poly tree
+#> [1,]   21.7 22.4 17.7
+#> [2,]   22.3 17.6 13.7
+#> [3,]   24.0 20.3 21.4
+#> [4,]   27.6 30.9 30.6
+#> [5,]   20.7 23.9 24.5
+#> [6,]   26.4 31.0 29.3
 ```
 
-Same three models, honest report card: the tree's 1.019 fantasy is now 1.514, close to the 1.464 it earns on the final exam. That agreement is the whole point: out-of-fold predictions preview the future. Now refit nothing, change nothing, except the columns the meta-learner reads:
+Now score each column against the truth and line it up against the flattering in-sample errors from the last step. These out-of-fold numbers are the models' HONEST error rates, because no row was predicted by a model that trained on it.
 
 ```r
-meta <- lm(train$price ~ ., data = oof)
-round(coef(meta), 2)
-#> (Intercept)      linear        tree         svm 
-#>       -0.25        0.17        0.30        0.54 
-round(rmse(test$price, predict(meta, p_test)), 3)
-#> [1] 1.189
+oof_rmse <- apply(Z, 2, function(pr) rmse(pr, cart$cups))
+round(rbind(in_sample = insample_rmse, out_of_fold = oof_rmse), 3)
+#>             linear  poly  tree
+#> in_sample    6.220 4.719 3.291
+#> out_of_fold  6.351 4.958 4.574
 ```
 
-Identical code to the naive stack; only the training data changed. The vote redistributes (the SVM now leads at 0.54, the memorizing tree drops to 0.30) and the test RMSE lands at **1.189**, below every single model and below the plain average. Note how prediction works from here on, because it runs in two stages: for a new car, each base learner predicts first, then the meta-learner blends those three numbers. The base learners used at prediction time are the ones fit on **all** 180 training cars (`m_lin`, `m_tree`, `m_svm`); the folds existed only to build the meta-learner's honest textbook. That is exactly what `predict(meta, p_test)` just did. The full scoreboard:
-
-```r
-scoreboard <- data.frame(
-  model = c("linear", "deep tree", "RBF SVM", "simple average",
-            "naive stack (leaky)", "stacked on OOF"),
-  test_rmse = round(c(sapply(p_test, rmse, actual = test$price),
-                      rmse(test$price, p_avg),
-                      rmse(test$price, predict(meta_naive, p_test)),
-                      rmse(test$price, predict(meta, p_test))), 3))
-print(scoreboard[order(scoreboard$test_rmse), ], row.names = FALSE)
-#>                model test_rmse
-#>       stacked on OOF     1.189
-#>       simple average     1.234
-#>              RBF SVM     1.289
-#>  naive stack (leaky)     1.379
-#>            deep tree     1.464
-#>               linear     1.543
-```
-
-On a typical car the stack shaves about 100 dollars of error off Priya's best single model, and about 275 off the deep tree that the in-sample table would have crowned. Margins this size are normal for stacking: it wins by noses, not laps, but it wins the nose so reliably that the top of nearly every prediction-competition leaderboard is a stack.
-
-=== step === concept
-::eyebrow The Super Learner
-## From stack to Super Learner
-
-Give the recipe its formal clothes. With \(M\) base learners (here \(M = 3\)) and \(Z_{im}\) the out-of-fold prediction of learner \(m\) for training car \(i\), the stack predicts a new car \(x\) as
-
-\[ \hat f(x) \;=\; \hat\alpha \;+\; \sum_{m=1}^{M} \hat w_m\, \hat f_m(x), \]
-
-where \(\hat f_m(x)\) is base learner \(m\)'s own prediction for that car, \(\hat w_m\) is its learned weight, and \(\hat\alpha\) (alpha) is an intercept. The weights are chosen to make the blend track the true prices as closely as possible **on the honest columns**:
-
-\[ (\hat\alpha, \hat w) \;=\; \arg\min_{\alpha,\, w}\; \sum_{i=1}^{n} \Big( y_i - \alpha - \sum_{m=1}^{M} w_m Z_{im} \Big)^{2} . \]
-
-In words: \(y_i\) is car \(i\)'s true sale price, the inner sum is the blend's quote for it built from out-of-fold predictions, and \(\arg\min\) means "the intercept and weights that make the total squared miss smallest." That is precisely what `lm` computed in the last step.
-
-The **Super Learner** (van der Laan, Polley and Hubbard, 2007) is this recipe with two amendments. First, the weights must form a fair committee: \(w_m \ge 0\) and \(\sum_m w_m = 1\), a combination called **convex weights**, with no intercept, so each weight reads directly as a share of trust and the blend can never leave the range of its members' opinions. One corner of that committee is worth naming: put weight 1 on the single learner with the best out-of-fold score and you get the **discrete Super Learner**, so "just pick the CV winner" is itself a special case of stacking. Second, the theory: the **oracle inequality**, which guarantees that as the dataset grows, the Super Learner performs essentially as well as the best weighted combination you could have picked with hindsight, including the best single learner. Fit the constrained weights with `optim`; we route each weight through `exp` so all stay positive, then divide by their sum so they total exactly 1:
-
-```r
-sl_rmse <- function(b) {                 # b: three free numbers -> a fair committee
-  w <- exp(b) / sum(exp(b))              # all positive, summing to exactly 1
-  rmse(train$price, as.matrix(oof) %*% w)
-}
-opt <- optim(c(0, 0, 0), sl_rmse)
-w <- exp(opt$par) / sum(exp(opt$par))
-round(setNames(w, names(oof)), 2)
-#> linear   tree    svm 
-#>   0.18   0.31   0.51 
-round(rmse(test$price, as.matrix(p_test) %*% w), 3)
-#> [1] 1.238
-```
-
-Half the trust goes to the SVM, a third to the tree, and a sixth to the straight line that once quoted a negative price: a flawed model still earns a seat when its errors disagree with the committee's. On these 60 cars the constrained blend (1.238) gives back a little of the unconstrained stack's 1.189, mostly because the intercept there also corrected a small shared bias. So why accept the constraint? **Stability.** With three genuinely different learners, unconstrained `lm` is safe. Stack fifteen highly correlated learners and unconstrained coefficients start chasing noise: two near-identical models can receive weights like +14 and -13.6 that cancel beautifully on the training columns and explode on new data. Breiman documented this in 1996: non-negativity is what made stacked regressions reliable. The constraint is a seatbelt you do not feel until the crash.
+Read the two rows together. The rigid line barely moves (6.22 to 6.35), the smooth curve moves a little (4.72 to 4.96), and the tree lurches from a fantasy 3.291 to an honest **4.574**. The more flexible the learner, the more out-of-fold exposes its self-flattery. And out-of-fold, the tree and the curve are much closer rivals than the in-sample numbers suggested, which is exactly the truth the meta-learner needs to weigh them fairly.
 
 === step === tryit
 ::eyebrow Your turn
-## Keep the tree honest
+## Build one out-of-fold prediction
 
-The single most important line in this lesson is a subset. Below, the loop that rebuilds the tree's out-of-fold column is missing it: as written, nothing says fold `k` must stay out of the training rows. `K`, `fold`, `oof`, `train` and `rmse` are still in your session. Fill the blank so each fold's cars are predicted by a tree that never saw them; run mentally first, then check.
+The heart of the loop above is one line: train a model on the folds that are NOT `k`, then predict the rows that ARE fold `k`. You have `cart` and `fold` in your session. Fill in the blank so the tree, trained on the other four folds, predicts the rows it never saw.
 
 ```r
-for (k in 1:K) {
-  tr <- train[____, ]              # <- the honesty of the whole stack lives here
-  te <- which(fold == k)
-  oof$tree[te] <- predict(rpart(price ~ age + km, data = tr,
-                                cp = 0.001, minsplit = 5), train[te, ])
-}
-round(rmse(train$price, oof$tree), 3)
+k  <- 3
+tr <- cart[fold != k, ]          # train on the other four folds
+ho <- which(fold == k)           # row indices of the held-out fold
+oof_tree <- predict(rpart(cups ~ hour, tr,
+              control = rpart.control(cp = 0.002, minbucket = 5)), ____)
+round(head(oof_tree, 5), 1)
 ```
-::check {"regex":"fold *!= *k","gate":true,"difficulty":"intermediate","ok":"That comparison is the entire integrity of stacking: fold k is predicted only by a tree that never trained on it, and the honest 1.514 reappears.","no":"Keep every row whose fold label is NOT k, which in R is train[fold != k, ]. Training on all the rows lets the tree predict cars it has memorized, and the flattering 1.019 sneaks back into the meta-learner."}
+::check {"regex":"cart\\s*\\[\\s*ho","gate":true,"difficulty":"intermediate","ok":"Yes. The tree trained on the other folds now predicts cart[ho, ], the rows it never saw, giving honest out-of-fold predictions: 21.4, 24.5, 19.5, 13.0, 13.0.","no":"Predict the held-out rows, cart[ho, ], the fold the tree did NOT train on. Those are the honest predictions the meta-learner needs."}
 ::solution
 ```r
-for (k in 1:K) {
-  tr <- train[fold != k, ]         # rows from every fold except k
-  te <- which(fold == k)
-  oof$tree[te] <- predict(rpart(price ~ age + km, data = tr,
-                                cp = 0.001, minsplit = 5), train[te, ])
+k  <- 3
+tr <- cart[fold != k, ]
+ho <- which(fold == k)
+oof_tree <- predict(rpart(cups ~ hour, tr,
+              control = rpart.control(cp = 0.002, minbucket = 5)), cart[ho, ])
+round(head(oof_tree, 5), 1)
+#>    3    5   13   26   28
+#> 21.4 24.5 19.5 13.0 13.0
+```
+
+=== step === concept
+::eyebrow The payoff
+## Fit the meta, read the win
+
+Now refit the meta-learner, but on the out-of-fold matrix `Z` instead of the flattering in-sample matrix `P`. Everything else is identical.
+
+```r
+meta <- lm(cart$cups ~ Z)                                  # meta trained on OUT-OF-FOLD preds
+round(coef(meta), 3)
+#> (Intercept)     Zlinear       Zpoly       Ztree
+#>       1.148      -0.010       0.304       0.659
+```
+
+A completely different, and honest, verdict. Instead of collapsing onto the tree (0.978 before), the meta-learner now leans on the tree (0.659) AND the curve (0.304) together, the two learners that genuinely complement each other, and gives the weak line essentially nothing. That is stacking exploiting the diversity we measured earlier. The whole recipe, start to finish, is just four moves:
+
+::widget process-flow {"steps":[{"title":"Cross-validate each base learner","sub":"K-fold: predict every training row from models that never saw it"},{"title":"Collect the out-of-fold predictions","sub":"one column per learner, one row per training row: the matrix Z"},{"title":"Fit the meta-learner on Z","sub":"it learns the blend weights from honest, not self-graded, predictions"},{"title":"Refit the bases on all the data","sub":"to predict a new row: run the bases, then the meta on top of them"}]}
+
+Score the honest stack on the fresh test set, using the base learners refit on all of Nadia's data (that is what `Ptest` already holds), with the meta on top.
+
+```r
+stack_rmse <- rmse(as.numeric(Ptest %*% coef(meta)), test$cups)
+round(stack_rmse, 3)
+#> [1] 4.724
+```
+
+**4.724, below every single base learner** (linear 7.16, poly 5.05, tree 4.87) and below the plain average (5.21). Modest, as we predicted from the correlations, but real, and free: Nadia already trained these three models. Put the whole scoreboard on one chart.
+
+```r
+scoreboard <- data.frame(
+  model = c("linear", "poly", "tree", "average", "stacked"),
+  rmse  = c(base_rmse, average = avg_pred |> rmse(test$cups), stacked = stack_rmse))
+scoreboard$model <- factor(scoreboard$model, levels = scoreboard$model)
+ggplot(scoreboard, aes(model, rmse, fill = model == "stacked")) +
+  geom_col(width = 0.65, show.legend = FALSE) +
+  geom_text(aes(label = round(rmse, 2)), vjust = -0.4, size = 4) +
+  scale_fill_manual(values = c("grey65", "#2563a8")) +
+  labs(title = "The stack beats every learner it is built from",
+       x = NULL, y = "test RMSE (cups)") +
+  theme_minimal(base_size = 13)
+```
+
+=== step === quiz
+::eyebrow Check yourself
+## Why out-of-fold?
+
+Why must the meta-learner be trained on out-of-fold predictions rather than the base models' predictions on their own training rows?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- Out-of-fold prediction is just a faster way to get the same predictions ::no It is not about speed. It is actually K times MORE work. It is about honesty: in-sample predictions are a genuinely different, over-optimistic set of numbers.
+- On its own training rows a flexible learner predicts too well, so a meta trained on those over-trusts it; out-of-fold predictions reveal each learner's true skill, so the weights are honest ::ok Exactly. The tree's in-sample RMSE (3.29) flattered it; its honest out-of-fold RMSE (4.57) is worse, and the meta trained on out-of-fold predictions weights it sensibly (0.66) alongside the curve (0.30) instead of collapsing onto it.
+- Out-of-fold predictions stop the base learners themselves from overfitting ::no The base learners are unchanged, and a deep tree still overfits. Out-of-fold changes only what the META sees: honest predictions instead of self-graded ones. Overfit bases are fine, as long as the meta judges them out-of-fold.
+
+=== step === concept
+::eyebrow The refinement
+## The Super Learner: a convex blend with a guarantee
+
+Our `lm` meta-learner was free to do whatever least squares wanted, including a slightly negative weight on the line and an intercept of 1.148. That works, but the weights are hard to read and, with many correlated base learners, an unconstrained regression can chase noise. The **Super Learner** (van der Laan, Polley and Hubbard, 2007) pins the meta-learner down to a **convex combination**: weights that are non-negative and sum to one.
+
+\[ \hat f(x) \;=\; \sum_{m=1}^{M} w_m\, f_m(x), \qquad w_m \ge 0, \quad \sum_{m=1}^{M} w_m = 1 \]
+
+A convex combination is just a weighted average whose weights are genuine proportions, so \(w = (0.04, 0.31, 0.66)\) reads directly as "trust the tree 66%, the curve 31%, the line 4%." To find those weights we minimize the same squared error over the out-of-fold matrix `Z`, but subject to the constraint. A clean way to enforce it in base R is to optimize over unconstrained numbers passed through a **softmax**, which always returns non-negative values summing to one.
+
+```r
+sse <- function(theta) {
+  w <- exp(theta) / sum(exp(theta))              # softmax: forces w >= 0 and sum(w) = 1
+  mean((cart$cups - as.numeric(Z %*% w))^2)      # squared error of the convex blend
 }
-round(rmse(train$price, oof$tree), 3)
-#> [1] 1.514
+opt <- optim(c(0, 0, 0), sse, method = "BFGS")
+w   <- exp(opt$par) / sum(exp(opt$par))
+names(w) <- colnames(Z)
+round(w, 3)
+#> linear   poly   tree
+#>  0.036  0.306  0.659
+```
+
+```r
+sl_pred <- cbind(predict(fit_lin, test), predict(fit_poly, test), predict(fit_tree, test)) %*% w
+round(rmse(sl_pred, test$cups), 3)
+#> [1] 4.705
+```
+
+RMSE 4.705, a hair better than the unconstrained stack and far easier to interpret and to trust. The name "Super Learner" comes with a genuine theoretical promise, the **oracle property**: as the sample grows, the Super Learner's expected loss converges to that of the best possible convex combination of the learners in your library, the combination you could only pick if you already knew the truth (the "oracle"). In plain words: **you are asymptotically no worse than the best blend achievable from your set of models**, without knowing in advance which blend that is. That is a strong, honest guarantee, and note its limit: it is about the best blend of the models you GAVE it. A library of three mediocre learners caps how good the Super Learner can be.
+
+=== step === concept
+::eyebrow Honest scoring
+## How good is the stack, really?
+
+One more piece of rigor, because it is a classic way stacking flatters itself. We measured the stack on a separate test set, which is honest. But suppose Nadia has no test set to spare and wants to estimate the stack's error from her 160 rows alone. She cannot just report the meta-learner's error on `Z`: the meta-learner was FIT on `Z`, so scoring it there is the same self-grading trap, one level up. The fix is **nested cross-validation**: an outer CV loop in which the entire stacking procedure (build `Z`, fit the meta) happens on the inner data, and is then scored on an outer fold it never touched.
+
+```r
+super_cv <- function(dat, Kout = 5, Kin = 5, seed = 11) {
+  set.seed(seed)
+  ofold <- sample(rep(1:Kout, length.out = nrow(dat)))
+  pred  <- numeric(nrow(dat))
+  for (o in 1:Kout) {
+    dev  <- dat[ofold != o, ]                     # build the whole stack here
+    hold <- dat[ofold == o, ]                     # outer holdout: untouched while building
+    ifold <- sample(rep(1:Kin, length.out = nrow(dev)))
+    Zi <- matrix(NA, nrow(dev), 3)
+    for (k in 1:Kin) {                            # inner CV -> out-of-fold preds for the meta
+      itr <- dev[ifold != k, ]; iho <- which(ifold == k)
+      Zi[iho, 1] <- predict(lm(cups ~ hour, itr), dev[iho, ])
+      Zi[iho, 2] <- predict(lm(cups ~ poly(hour, 5), itr), dev[iho, ])
+      Zi[iho, 3] <- predict(rpart(cups ~ hour, itr,
+                     control = rpart.control(cp = 0.002, minbucket = 5)), dev[iho, ])
+    }
+    ob <- function(th) { ww <- exp(th)/sum(exp(th)); mean((dev$cups - as.numeric(Zi %*% ww))^2) }
+    ww <- { op <- optim(c(0,0,0), ob, method = "BFGS"); exp(op$par)/sum(exp(op$par)) }
+    Ph <- cbind(predict(lm(cups ~ hour, dev), hold),        # bases refit on the dev set...
+                predict(lm(cups ~ poly(hour, 5), dev), hold),
+                predict(rpart(cups ~ hour, dev,
+                   control = rpart.control(cp = 0.002, minbucket = 5)), hold))
+    pred[ofold == o] <- Ph %*% ww                           # ...blended, scored on the holdout
+  }
+  rmse(pred, dat$cups)
+}
+round(super_cv(cart), 3)
+#> [1] 4.252
+```
+
+The honest, no-test-set estimate is 4.252, comfortably below every base learner's own out-of-fold error (the best was the tree at 4.574). It differs from the 4.72 we measured on the separate test set simply because the two use different random draws of data, but they agree on the verdict that matters: **the stack generalizes better than the best learner in it, and both numbers were earned without any model grading its own work.**
+
+=== step === tryit
+::eyebrow Your turn
+## Predict with the stack
+
+Nadia wants a forecast for 12:30, just after the lunch jump. The stack's prediction is each base model's prediction at that hour, blended by the convex weights `w` (still in your session). Fill in the blank.
+
+```r
+new       <- data.frame(hour = 12.5)                 # 12:30, just after the lunch jump
+base_pred <- unname(c(predict(fit_lin, new), predict(fit_poly, new), predict(fit_tree, new)))
+base_pred                                            #  22.9  17.0  16.8
+stacked   <- ____                                    # blend them with the convex weights w
+round(stacked, 1)
+```
+::check {"regex":"w\\s*\\*|\\*\\s*w|%\\*%|weighted\\.mean","gate":true,"difficulty":"intermediate","ok":"That blends the three predictions by how much the Super Learner trusts each: 0.036*22.9 + 0.306*17.0 + 0.659*16.8 = 17.1 cups. The tree and the curve carry the forecast; the line barely counts.","no":"Weight each base prediction by w and add them up: sum(w * base_pred), or base_pred %*% w. Because the convex weights w sum to 1, this is a weighted average."}
+::solution
+```r
+new       <- data.frame(hour = 12.5)
+base_pred <- unname(c(predict(fit_lin, new), predict(fit_poly, new), predict(fit_tree, new)))
+stacked   <- sum(w * base_pred)
+round(stacked, 1)
+#> [1] 17.1
 ```
 
 === step === concept
 ::eyebrow In practice
-## When stacking breaks, and the production tools
+## Production tools, and when stacking breaks
 
-Stacking is not free, and it is not always the answer. Four ways it earns less than the headline, and one way it silently fails:
+You have now built every part a stacking library contains: the out-of-fold matrix, the meta-learner, and the two-stage prediction path. In real work you hand those parts to a package. The `SuperLearner` package is the direct implementation of this lesson: give it a library of learners and it cross-validates them and fits the convex meta-learner for you.
 
-- **Compute, not statistics.** A stack of \(M\) learners with \(K\) folds costs \(K \times M\) fits plus \(M\) final refits: our 3-learner, 5-fold stack fit 18 models. Trivial here; painful when one base learner takes an hour.
-- **Very few rows.** The out-of-fold columns are themselves estimates. On tiny datasets they are noisy, and the meta-learner starts overfitting *them*. Keep the committee small and constrained, or settle for the simple average.
-- **Clones add nothing.** Step 3's formula is blunt: the shared error \(\rho\sigma^2\) never averages away. Stacking five random forests that differ only by seed buys almost nothing; diversity of *family* (linear, tree, kernel) is what lowers \(\rho\).
-- **One dominant model.** When a single learner is far ahead of the rest, the weights collapse onto it and the stack matches it at 18 times the cost. The scoreboard tells you before you ship.
-- **Leakage wears disguises.** The try-it fixed the visible leak, but any preprocessing that saw all the rows (imputation, target encoding, feature selection) re-opens it from inside the fold loop. The rule: everything a base learner learns from data must be re-learned inside each fold.
+```r-static
+# Run locally (install.packages("SuperLearner")). It cross-validates a whole library
+# of learners and returns each one's CV risk and its convex (non-negative) weight.
+sl <- SuperLearner::SuperLearner(
+  Y = cart$cups, X = cart["hour"],
+  SL.library = c("SL.lm", "SL.rpart", "SL.polymars"),
+  method     = "method.NNLS"      # non-negative least squares -> convex weights
+)
+sl                                # prints each learner's risk and its coefficient
+```
 
-| Situation on the lot | Verdict |
+In the tidymodels world the same idea ships as the `stacks` package (it stacks tuned `workflow` objects with a penalized meta-learner), and `mlr3pipelines` builds stacks as reusable graphs. Whichever you use, the decision of whether to stack at all is yours, and it follows from everything above.
+
+| Situation | Should you stack? |
 |---|---|
-| Several strong models from different families | Stack them; expect a small, consistent win |
-| One model far ahead of the rest | Weights collapse onto it; stacking adds cost, not accuracy |
-| Very few rows | Convex weights and few learners, or keep the simple average |
-| Every point of accuracy is money | A stack is the standard finish |
+| Several strong, DIVERSE learners (a tree, a linear model, a GP), data to spare | Yes: this is exactly stacking's sweet spot |
+| A few near-identical models, or copies of one model | No: their errors are correlated, so there is nothing to cancel |
+| A tiny dataset (dozens of rows) | Rarely: the K-fold split leaves too little to fit the meta reliably |
+| One model already clearly dominates and interpretability matters | Often no: a small gain may not be worth the added complexity |
 
-In production you rarely hand-roll the loop. Two mature wrappers do it for you, shown here to run on your own machine:
+And the failure modes, honestly. **Correlated learners:** as the averaging identity warned, if the base learners make the same mistakes the blend cannot improve on them, a stack of look-alikes is wasted compute. **Cost:** stacking multiplies training by roughly K (the folds) times the number of learners, and every prediction must run all of them. **Meta overfit:** with few rows or many learners, even the meta-learner can overfit the out-of-fold matrix, which is why the Super Learner constrains it (convex weights) and why you evaluate with nested CV. **Leaky preprocessing:** any scaling, imputation or feature selection must happen INSIDE each fold, or the leak you closed for the meta sneaks back in through the base learners' inputs.
 
-```r-static
-# The classic: the SuperLearner package (run locally)
-library(SuperLearner)
-sl <- SuperLearner(Y = train$price, X = train[, c("age", "km")],
-                   SL.library = c("SL.glm", "SL.rpart", "SL.svm"),
-                   cvControl  = list(V = 5))
-sl$coef    # convex blend weights, learned exactly as in this lesson
-```
-
-```r-static
-# The tidymodels route: stacks (run locally)
-library(stacks)
-car_stack <- stacks() |>
-  add_candidates(lin_res) |>      # each *_res: a tuned workflow with saved OOF predictions
-  add_candidates(tree_res) |>
-  add_candidates(svm_res) |>
-  blend_predictions() |>          # penalized non-negative weights; many drop to zero
-  fit_members()                   # refit the surviving members on all the training data
-```
-
-Both do what you just did by hand: out-of-fold columns, a constrained meta-learner, full refits for deployment. You now know which line inside them is load-bearing.
+[KEY INSIGHT]
+Stacking is not a free lunch that always wins; it is a principled way to spend compute converting model DIVERSITY into accuracy. Its ceiling is the best blend of the learners you supply, and its cost is real. Feed it strong, different learners with honest out-of-fold predictions, and it reliably beats picking one.
 
 === step === quiz
 ::eyebrow Check yourself
-## A guarantee, read correctly
+## When is stacking worth it?
 
-Priya's manager skims the Super Learner paper and announces: "There is an oracle guarantee. So the stack is mathematically certain to beat the SVM on next quarter's cars; ship it and stop monitoring." Which reading of the theory is right?
+Nadia's stack beat her best single model by a little. When is stacking most worth its extra machinery?
 
-::quiz {"correct":2,"gate":true,"difficulty":"advanced"}
-- The manager is right about the guarantee but wrong to stop monitoring: the oracle inequality ensures the stack beats every base learner on any test set, but drift could still change which base model is best ::no The inequality promises no win on any given test set at all, drift or none. It is an asymptotic statement about matching the best weighted blend as data grows; on one quarter of cars the stack can lose to a base learner through ordinary sampling luck.
-- Neither claim holds: the oracle result says that as data grows the Super Learner does essentially as well as the best weighted blend chosen with hindsight; on any single test set it can still lose to a base model, and next quarter's cars may not play by the training ledger's rules ::ok Exactly. It is a "you will not regret blending in the long run" theorem, not a per-quarter certificate. In practice the stack usually edges ahead, as ours did, but the learned trust shares assume the world that produced the training data, so monitoring stays.
-- The guarantee only fails here because lm was the meta-learner; with proper non-negative weights the stacked model can no longer lose to any base learner on any dataset ::no The constraint buys stability, not certainty. A convex committee does contain every single learner (weight 1 on one member), so "pick the best" is inside what it optimizes over, but the guarantee is still asymptotic: our constrained blend beat the SVM 1.238 to 1.289 on this exam as a result, not as a law.
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- Always: a stack is mathematically guaranteed to beat its best base learner on new data ::no There is no such guarantee. A stack can tie, or with too few rows or a leak even lose. Here it won by a modest amount precisely because the three learners were only partly diverse.
+- When you have several strong but DIVERSE base learners and enough data to cross-validate, so the meta has real, different signals to blend and the CV cost is affordable ::ok Right. Diversity supplies the un-shared error to cancel, and data supplies honest out-of-fold predictions. Three near-identical models, or a few dozen rows, and stacking earns little for its K-times cost.
+- When you stack many copies of your single best model to reinforce it ::no Copies of one model are perfectly correlated: nothing to cancel, no gain, just cost. Stacking rewards disagreement between learners, not repetition of one.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-Five places to take stacking further, in reading order:
+Five authoritative places to take this further:
 
-- [Wolpert (1992), "Stacked Generalization", Neural Networks 5(2)](https://www.sciencedirect.com/science/article/abs/pii/S0893608005800231) - the paper that named the idea; its "cross-validation partition" is exactly the out-of-fold loop you built.
-- [Breiman (1996), "Stacked Regressions", Machine Learning 24](https://link.springer.com/article/10.1007/BF00117832) - short and readable; where the non-negativity constraint earned its keep on real regressions.
-- [van der Laan, Polley and Hubbard (2007), "Super Learner"](https://pubmed.ncbi.nlm.nih.gov/17910531/) - the oracle inequality and the name; the statistical backbone of this lesson.
-- [The SuperLearner package on CRAN](https://cran.r-project.org/package=SuperLearner) - the reference implementation; its vignette runs this lesson's workflow with dozens of ready-made wrappers.
-- [stacks: tidymodels model stacking](https://stacks.tidymodels.org/) - the modern tidymodels route; the Getting Started article stacks tuned workflows exactly like our three.
+- [Wolpert (1992), Stacked Generalization, Neural Networks 5(2)](https://doi.org/10.1016/S0893-6080(05)80023-1) - the paper that introduced stacking and the out-of-fold construction you built here.
+- [Breiman (1996), Stacked Regressions, Machine Learning 24](https://doi.org/10.1007/BF00117832) - shows why non-negative (convex) weights make stacked regression robust, the idea behind the Super Learner.
+- [van der Laan, Polley and Hubbard (2007), Super Learner](https://doi.org/10.2202/1544-6115.1309) - the cross-validated, convex version with the oracle guarantee.
+- [The Elements of Statistical Learning, ch. 8 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - model averaging and stacking in the wider context of ensembles.
+- [The SuperLearner R package (CRAN)](https://cran.r-project.org/package=SuperLearner) - the production implementation of everything in this lesson.
 
 === step === complete
 ## Lesson 5 complete
 
-You watched three good models each be the fool somewhere different, measured that disagreement with an error-correlation matrix, and saw an unweighted average already beat the best single model. Then you met the trap: a meta-learner trained on in-sample predictions handed 0.85 of the vote to a memorizing tree and lost to the plain average. Cross-validation, repurposed as a factory for honest out-of-fold predictions, fixed the inputs, and the same one-line meta-learner beat everything on the final exam. You formalized the blend in one equation, constrained it into a Super Learner committee with real shares of trust, learned why the discrete Super Learner makes "pick the CV winner" a special case, and read the oracle guarantee at its true strength: blend and you will not regret it in the long run.
+You stopped throwing away good models. You saw that Nadia's three learners each win somewhere and that a plain average can lose because it cannot tell a strong member from a weak one. You measured why blending works at all (decorrelated errors) and built a stack from scratch: a meta-learner that learns the weights, trained on out-of-fold predictions so no model grades its own homework, beating every base learner it was made of. You upgraded it to a Super Learner with interpretable convex weights and the oracle guarantee, scored the whole thing honestly with nested cross-validation, and drew the honest line on when stacking earns its keep.
 
-Next, Lesson 6: Bayesian Optimization for Hyperparameters. This lesson took the deep tree's settings on faith, and a grid search over them would cost one full fit per candidate. Lesson 6 spends those fits the smart way: a Gaussian process (Lesson 4's tool) stands in for the expensive fit, and an acquisition function decides which setting deserves the next try.
+Next, Lesson 6: Bayesian Optimization for Hyperparameters. Every model in this lesson, and in the stack, ran on settings we chose by hand. When each setting is expensive to test, choosing them well becomes its own search problem, and the same Gaussian process from Lesson 4 comes back as the engine that solves it.
