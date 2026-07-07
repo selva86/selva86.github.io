@@ -1,7 +1,7 @@
 ---
 title: "Classification Lesson 2: Naive Bayes for Tabular and Text"
-description: "Learn naive Bayes from scratch in R: Bayes' rule, the naive independence assumption, Laplace smoothing for unseen words, and why it classifies text so well."
-keywords: "naive Bayes, Bayes rule, classification, conditional independence, Laplace smoothing, spam filter, Gaussian naive Bayes, e1071, text classification, R"
+description: "Learn Naive Bayes from scratch in R: Bayes' rule for classification, the naive independence assumption, Laplace smoothing, log-space scoring, and Gaussian NB."
+keywords: "naive bayes, naive bayes classifier, bayes rule, conditional independence, laplace smoothing, spam filter, text classification, gaussian naive bayes, e1071 naiveBayes, R"
 mathjax: true
 webr: true
 curriculum_id: "6.30.2"
@@ -23,170 +23,427 @@ catalog_blurb: "How Bayes' rule classifies email and tabular data, and why naive
 <div class="lesson-step-eyebrow">Lesson 2 of 6</div>
 <h2>Naive Bayes for Tabular and Text</h2>
 
-<p>In Lesson 1, kNN classified by measuring distance to its neighbors, and you watched it drown when the features piled up. Naive Bayes takes the opposite route. It never measures distance. It reasons with probabilities, asking a single question: <strong>of the possible classes, which one makes this evidence most likely?</strong></p>
+<p>Lesson 1 classified by distance: to label a new point, look at who it sits next to. That instinct drowned once we piled on features, because in high dimensions everything is roughly equidistant. This lesson takes the opposite route. Instead of measuring distance, it reasons with probability, and it shrugs off the very high-dimensional data that sank kNN.</p>
 
-<p>Picture the spam filter guarding your inbox. A new email arrives: "WIN a FREE prize NOW". Is it spam, or a real message? A naive Bayes filter weighs the words as clues, scores each class, and files the email under whichever score wins. And it thrives on exactly the high-dimensional data, thousands of possible words, that just sank kNN.</p>
+<p>Picture the spam filter guarding your inbox. A new email arrives: <strong>"free money, claim now"</strong>. The filter has read thousands of past emails, each already stamped <strong>spam</strong> or <strong>real</strong> (in the jargon, real mail is called <strong>ham</strong>). From those labels alone it computes: given these exact words, how likely is spam versus ham, and files the message under whichever wins. That filter is Naive Bayes, and by the end of this lesson you will have built one from scratch, twice: once on the words of an email, once on numeric features in a table.</p>
 
-<p>By the end of this lesson you will be able to:</p>
+<p>By the end you will be able to:</p>
 
 <ul>
 
-<li>Use Bayes' rule to turn "which class?" into "which class makes these clues most likely?"</li>
+<li>Use <strong>Bayes' rule</strong> to turn a base rate and some evidence into the probability that an email is spam</li>
 
-<li>Apply the naive independence assumption to score an email by multiplying per-word probabilities, and fix the zero-frequency trap with smoothing</li>
+<li>Apply the <strong>naive</strong> independence assumption, add <strong>Laplace smoothing</strong>, and classify in <strong>log space</strong>, all in plain R</li>
 
-<li>Run naive Bayes on numeric, tabular data in one R call, and explain why a wrong assumption still classifies well</li>
+<li>Fit <strong>Gaussian Naive Bayes</strong> on numeric features, and explain why an assumption this crude still works so well</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can run R and read its output, you know what a training set and a classifier are (the ML Workflow course), and Lesson 1 (kNN).</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Start with the prior","sub":"how common each class is before reading the email"},{"title":"Weigh the evidence","sub":"multiply by how well each clue fits each class"},{"title":"Pick the winner","sub":"the higher score is the prediction"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p><strong>Prerequisites:</strong> you can run R and read its output, you know what a training set and a classifier are (the ML Workflow course), and Lesson 1 (kNN). Basic probability is enough; conditional probability is defined the moment it appears.</p>
+
+<p>Those three moves are the whole method. The rest of this lesson is where each number comes from.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Start with the base rate","sub":"how common is each class before we read a single word"},{"title":"Weigh every clue","sub":"fold in how spammy or hammy each word is"},{"title":"Pick the winner","sub":"the class with the highest combined score wins"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The idea</div>
-<h2>Bayes' rule: flip the question</h2>
+<div class="lesson-step-eyebrow">The core idea</div>
+<h2>Bayes' rule flips the question</h2>
 
-<p>We want \(P(\text{spam} \mid \text{words})\): the probability the email is spam <strong>given</strong> the words we can see. That is hard to estimate directly, because we would need to have seen this exact combination of words before. Bayes' rule flips it into two pieces we <em>can</em> estimate from training emails:</p>
+<p>The question we want answered is awkward: <strong>given these words, what is the probability the email is spam?</strong> We have no direct way to know that. But we can easily measure the reverse from labeled history: <strong>among known spam, how often do these words show up?</strong> Bayes' rule is the bridge that flips one into the other.</p>
 
-<p>\[ P(\text{spam} \mid \text{words}) \;\propto\; P(\text{spam}) \times P(\text{words} \mid \text{spam}) \]</p>
+<p>First, one piece of notation. \(P(A \mid B)\) is read "the probability of \(A\) <strong>given</strong> \(B\)", meaning the probability that \(A\) is true once we already know \(B\) is true. So \(P(\text{spam} \mid \text{"free"})\) is the chance an email is spam given that it contains the word "free". Bayes' rule says:</p>
 
-<p>Read the three pieces in plain words:</p>
+<p>\[ P(y = k \mid x) = \frac{P(y = k)\,P(x \mid y = k)}{P(x)} \]</p>
+
+<p>Read it left to right. \(y\) is the label and \(k\) is one class (spam or ham); \(x\) is the evidence (the words). The three named pieces:</p>
 
 <ul>
 
-<li>\(P(\text{spam})\) is the <strong>prior</strong>: how common spam is before we read a single word. If 40% of past email was spam, the prior is 0.4.</li>
+<li>\(P(y = k)\) is the <strong>prior</strong>: how common class \(k\) is before we look at the email at all (the base rate).</li>
 
-<li>\(P(\text{words} \mid \text{spam})\) is the <strong>likelihood</strong>: if an email <em>were</em> spam, how typical are these particular words? Spam says "free" and "prize" a lot, so those push the likelihood up.</li>
+<li>\(P(x \mid y = k)\) is the <strong>likelihood</strong>: how typical this evidence is for class \(k\).</li>
 
-<li>\(P(\text{spam} \mid \text{words})\) is the <strong>posterior</strong>: our updated belief after seeing the words. The \(\propto\) ("proportional to") means we can skip the constant denominator, because we only need to compare spam against ham, not get an exact percentage.</li>
+<li>\(P(y = k \mid x)\) is the <strong>posterior</strong>: what we actually want, the probability of the class after seeing the evidence.</li>
 
 </ul>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Instead of asking the hard question ("given these words, is it spam?"), Bayes' rule lets us ask the easy one ("if it were spam, how likely are these words?") for each class, then pick the class that explains the evidence best.</div></div>
+<p>Let us make it concrete with one word. Suppose that of the last 100 emails, 40 were spam, the word "free" appeared in 30 of those 40 spam emails, and in just 6 of the 60 real ones. What is the probability an email is spam <strong>given</strong> it says "free"?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Priors: 40 of the last 100 emails were spam.
+p_spam &lt;- 0.40
+p_ham  &lt;- 0.60
+
+# Likelihoods: how often &quot;free&quot; shows up in each class.
+p_free_spam &lt;- 30 / 40      # 0.75
+p_free_ham  &lt;-  6 / 60      # 0.10
+
+# Bayes' rule. The numerator for each class is prior * likelihood;
+# the denominator P(&quot;free&quot;) is just the two numerators added up.
+num_spam &lt;- p_spam * p_free_spam
+num_ham  &lt;- p_ham  * p_free_ham
+c(num_spam = num_spam, num_ham = num_ham)
+#&gt; num_spam  num_ham
+#&gt;     0.30     0.06
+
+p_spam_given_free &lt;- num_spam / (num_spam + num_ham)
+round(p_spam_given_free, 3)
+#&gt; [1] 0.833</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One word swings the odds from a 40% base rate to <strong>83%</strong> spam. Notice the denominator \(P(x)\) is the same for every class (it is just the two numerators summed), so it never changes which class is larger. For the decision we can drop it entirely and compare only the numerators:</p>
+
+<p>\[ P(y = k \mid x) \;\propto\; P(y = k)\,P(x \mid y = k) \]</p>
+
+<p>The symbol \(\propto\) means "proportional to". The rule for classifying is now one sentence: <strong>compute prior times likelihood for each class, and pick the bigger one.</strong></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Bayes' rule lets us answer a question we cannot measure directly (is this spam, given the words?) using two things we can count from labeled history (how common spam is, and how typical these words are for spam).</div></div>
 </section>
 
-<section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The naive leap</div>
-<h2>Why it is called "naive"</h2>
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which piece is which?</h2>
 
-<p>One term in Bayes' rule is still hard: \(P(\text{words} \mid \text{spam})\), the chance of seeing this whole bundle of words together. Naive Bayes makes one bold simplifying assumption to crack it. It pretends every word is an <strong>independent</strong> clue, so the probability of the bundle is just the product of the individual word probabilities:</p>
-
-<p>\[ P(\text{words} \mid \text{spam}) \;=\; \prod_{j} P(\text{word}_j \mid \text{spam}) \]</p>
-
-<p>The \(\prod\) symbol means "multiply together", and \(\text{word}_j\) is the \(j\)-th word in the email. So instead of one impossible joint probability, we estimate one easy probability per word and multiply.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">This is the "naive" part, and it is plainly false: in real email "free" and "prize" travel together, they are not independent. The surprise of this lesson is that the classifier works well anyway. We will see exactly why a few steps from now.</div></div>
+<p>In the calculation above, the number <strong>0.75</strong> came from "free appears in 30 of the 40 spam emails". In Bayes' rule, which piece is that, and what role does it play?</p>
+<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is the prior: how common spam is before reading the email</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It is the likelihood P("free" given spam): how typical the evidence is for the spam class</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is the posterior: the probability the email is spam given that it says "free"</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. It reads "given spam, how often does free appear", which is exactly the likelihood P(evidence given class). Bayes' rule multiplies it by the prior to get the posterior.</div><div class="lesson-qfb lesson-qfb-no">The posterior is what we solved FOR, 0.833. 0.75 is an ingredient (the likelihood), not the answer. Mixing up the likelihood P(word given class) with the posterior P(class given word) is the single most common Bayes mistake.</div></div>
+</section>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="concept">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Count the clues</h2>
+<div class="lesson-step-eyebrow">The naive shortcut</div>
+<h2>Why "naive": one assumption, one product</h2>
 
-<p>Each lesson runs in a fresh R session, so we build a tiny training inbox right here: ten past emails we have already labeled, four of them spam and six ham (not-spam). Each email is summarized by how often four words appear in it.</p>
+<p>A real email is not one word, it is many. Our arriving message "free money claim now" is four clues at once, so the likelihood we need is the <strong>joint</strong> probability of all of them together given a class:</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">emails &lt;- data.frame(
-  label   = c(&quot;spam&quot;,&quot;spam&quot;,&quot;spam&quot;,&quot;spam&quot;,  &quot;ham&quot;,&quot;ham&quot;,&quot;ham&quot;,&quot;ham&quot;,&quot;ham&quot;,&quot;ham&quot;),
-  free    = c( 2, 1, 3, 1,    0, 0, 1, 0, 0, 0),
-  prize   = c( 1, 1, 0, 1,    0, 0, 0, 0, 0, 0),
-  meeting = c( 0, 0, 0, 0,    2, 1, 1, 0, 1, 2),
-  report  = c( 0, 0, 0, 1,    1, 2, 1, 2, 1, 0)
-)
-emails</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<p>\[ P(\text{free},\, \text{money},\, \text{claim},\, \text{now} \mid \text{spam}) \]</p>
 
-<p>The <strong>prior</strong> is just how common each class is in the inbox: 4 of 10 spam, 6 of 10 ham. The <strong>likelihood</strong> of a word given a class is that word's share of all the words used in that class. Spam used 11 words in total, 7 of them "free", so \(P(\text{free} \mid \text{spam}) = 7/11 \approx 0.64\).</p>
+<p>Estimating that joint probability honestly is hopeless. To count how often those four exact words co-occur, we would need spam emails containing that precise combination, and for a vocabulary of thousands of words and emails many words long, the number of possible combinations explodes far past any inbox we could ever collect. We would almost always be dividing by zero.</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">priors &lt;- c(spam = 4/10, ham = 6/10)
+<p>Naive Bayes makes one bold, deliberately simple assumption to escape this: <strong>given the class, the features are independent of one another.</strong> In words, once we know an email is spam, seeing "free" tells us nothing extra about whether "money" also appears. That lets the joint probability break apart into a plain product of one-word likelihoods:</p>
 
-# Total times each word appears within each class:
-spam_tot &lt;- colSums(emails[emails$label == &quot;spam&quot;, -1])
-ham_tot  &lt;- colSums(emails[emails$label == &quot;ham&quot;,  -1])
+<p>\[ P(x_1, \dots, x_p \mid y = k) \;\approx\; \prod_{j=1}^{p} P(x_j \mid y = k) \]</p>
 
-# P(word | class) = the word's share of all words used in that class:
-p_word_spam &lt;- spam_tot / sum(spam_tot)
-p_word_ham  &lt;- ham_tot  / sum(ham_tot)
-round(rbind(spam = p_word_spam, ham = p_word_ham), 3)
-#&gt;       free prize meeting report
-#&gt; spam 0.636 0.273   0.000  0.091
-#&gt; ham  0.067 0.000   0.467  0.467</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<p>where \(x_1, \dots, x_p\) are the \(p\) features (here, the words) and \(\prod\) means "multiply these together". Each factor \(P(x_j \mid y = k)\) is a single-word likelihood we can actually count.</p>
 
-<p>Read the table as two word-fingerprints. Spam leans on "free" and "prize"; ham leans on "meeting" and "report". A naive Bayes <strong>score</strong> for an email is the prior times the product of its word likelihoods, each raised to how many times that word appears:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">score &lt;- function(pw, prior, email) prior * prod(pw[names(email)] ^ email)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The assumption is called <strong>naive</strong> because it is usually false: in real spam, "free" and "money" travel together, they are not independent at all. We assume it anyway, purely because it turns an impossible joint probability into an easy product. The last step of this lesson explains why such a crude assumption still classifies email so well.</div></div>
 </section>
 
-<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">From history to numbers</div>
+<h2>Count the clues per class</h2>
+
+<p>Time to build the real thing. Each lesson runs in a fresh R session, so we create a tiny labeled inbox inline: three spam emails and three real ones, each just a short string.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- data.frame(
+  text  = c(&quot;free money claim now&quot;,
+            &quot;free claim your prize&quot;,
+            &quot;cheap meds free shipping&quot;,
+            &quot;team lunch tomorrow&quot;,
+            &quot;project meeting friday&quot;,
+            &quot;reschedule our lunch&quot;),
+  label = c(&quot;spam&quot;, &quot;spam&quot;, &quot;spam&quot;, &quot;ham&quot;, &quot;ham&quot;, &quot;ham&quot;),
+  stringsAsFactors = FALSE
+)
+train
+#&gt;                       text label
+#&gt; 1     free money claim now  spam
+#&gt; 2    free claim your prize  spam
+#&gt; 3 cheap meds free shipping  spam
+#&gt; 4      team lunch tomorrow   ham
+#&gt; 5   project meeting friday   ham
+#&gt; 6     reschedule our lunch   ham</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To use words as features we split each email into lowercase tokens (a <strong>bag of words</strong>: we care which words appear, not their order), then collect every distinct word into a <strong>vocabulary</strong>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tokens &lt;- function(s) unlist(strsplit(tolower(s), &quot; &quot;))
+vocab  &lt;- sort(unique(unlist(lapply(train$text, tokens))))
+length(vocab)
+#&gt; [1] 17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the raw material of the classifier: how many times each vocabulary word appears in the spam emails, and in the ham emails.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">word_counts &lt;- function(texts) {
+  toks &lt;- unlist(lapply(texts, tokens))
+  as.integer(table(factor(toks, levels = vocab)))
+}
+spam_counts &lt;- word_counts(train$text[train$label == &quot;spam&quot;])
+ham_counts  &lt;- word_counts(train$text[train$label == &quot;ham&quot;])
+data.frame(word = vocab, spam = spam_counts, ham = ham_counts)
+#&gt;          word spam ham
+#&gt; 1       cheap    1   0
+#&gt; 2       claim    2   0
+#&gt; 3        free    3   0
+#&gt; 4      friday    0   1
+#&gt; 5       lunch    0   2
+#&gt; 6        meds    1   0
+#&gt; 7     meeting    0   1
+#&gt; 8       money    1   0
+#&gt; 9         now    1   0
+#&gt; 10        our    0   1
+#&gt; 11      prize    1   0
+#&gt; 12    project    0   1
+#&gt; 13 reschedule    0   1
+#&gt; 14   shipping    1   0
+#&gt; 15       team    0   1
+#&gt; 16   tomorrow    0   1
+#&gt; 17       your    1   0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table already tells the story: <strong>free</strong> (3 in spam, 0 in ham) and <strong>claim</strong> (2, 0) scream spam, while <strong>lunch</strong> (0, 2) is a marker of ordinary mail. Naive Bayes just turns these counts into probabilities.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">A trap in the counts</div>
+<h2>The zero that eats everything</h2>
+
+<p>The obvious estimate of a word's likelihood is its share of the words in a class: count the word, divide by the total words in that class.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spam_total &lt;- sum(spam_counts)   # total words across spam emails
+ham_total  &lt;- sum(ham_counts)
+c(spam_total = spam_total, ham_total = ham_total)
+#&gt; spam_total  ham_total
+#&gt;         12          9
+
+# &quot;free&quot; appears 3 times out of 12 spam words:
+spam_counts[match(&quot;free&quot;, vocab)] / spam_total
+#&gt; [1] 0.25
+
+# but &quot;lunch&quot; never appears in a spam email at all:
+spam_counts[match(&quot;lunch&quot;, vocab)] / spam_total
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is the landmine. \(P(\text{lunch} \mid \text{spam}) = 0\) because "lunch" happened not to appear in our three spam examples. But recall the naive likelihood is a <strong>product</strong>. A single zero factor drags the entire product to zero, so any email containing "lunch" would be judged <strong>impossible</strong> as spam, no matter how many blatant spam words sit beside it. One unseen word should not carry a veto.</p>
+
+<p>The standard fix is <strong>Laplace smoothing</strong> (also called add-one smoothing): pretend every vocabulary word was seen one extra time in each class. Nothing is ever exactly zero, just very small:</p>
+
+<p>\[ \hat{P}(w \mid k) = \frac{\text{count}(w, k) + 1}{N_k + V} \]</p>
+
+<p>where \(\text{count}(w, k)\) is how often word \(w\) appears in class \(k\), \(N_k\) is the total words in class \(k\), and \(V\) is the vocabulary size. We add 1 on top and \(V\) on the bottom (one for each vocabulary word we nudged) so the probabilities still sum to 1.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">V &lt;- length(vocab)                              # 17 distinct words
+p_word_spam &lt;- (spam_counts + 1) / (spam_total + V)
+p_word_ham  &lt;- (ham_counts  + 1) / (ham_total  + V)
+
+# &quot;lunch&quot; is no longer impossible in spam, just unlikely:
+round(p_word_spam[match(&quot;lunch&quot;, vocab)], 3)
+#&gt; [1] 0.034
+# and &quot;free&quot; stays clearly spammy:
+round(p_word_spam[match(&quot;free&quot;, vocab)], 3)
+#&gt; [1] 0.138</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Never skip smoothing on a product-of-probabilities model. Without it, the first word a class has never seen sets that class's whole score to zero, and no amount of other evidence can recover it. This is not a rare edge case: new emails contain unseen words constantly.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Score the email and pick a class</h2>
+<h2>Add the one</h2>
 
-<p>A new email arrives: <strong>"free free prize"</strong>, so the word counts are free = 2, prize = 1, and the others 0. We score it under each class with the function you just built. The last move is the whole decision rule: naive Bayes predicts the class with the <strong>higher</strong> score. Fill in the blank so <code>which.max</code> looks at the two scores.</p>
-<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step5" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="which\.max\(\s*scores"><textarea class="lesson-tryit-input" spellcheck="false">new_email &lt;- c(free = 2, prize = 1, meeting = 0, report = 0)   # &quot;free free prize&quot;
+<p>Laplace smoothing adds a fixed number to every word count so nothing is ever impossible. The vocabulary, counts, and totals already exist from the steps above. Fill in the number Laplace smoothing adds to each count.</p>
+<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="spam_counts\s*\+\s*1"><textarea class="lesson-tryit-input" spellcheck="false">V &lt;- length(vocab)                                 # 17 distinct words
+p_word_spam &lt;- (spam_counts + ____) / (spam_total + V)
+round(p_word_spam[match(&quot;free&quot;, vocab)], 3)        # target: 0.138</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. Add-one smoothing lifts every count by 1, so P(free given spam) = (3+1)/(12+17) = 0.138, and a word with count 0 lands at 1/29 = 0.034 instead of a fatal zero.</span><span class="lesson-tryit-fb lesson-tryit-no">Laplace (add-one) smoothing adds exactly 1 to each count: (spam_counts + 1) / (spam_total + V). The 1 is what rescues words a class has never seen.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">V &lt;- length(vocab)
+p_word_spam &lt;- (spam_counts + 1) / (spam_total + V)
+round(p_word_spam[match(&quot;free&quot;, vocab)], 3)
+#&gt; [1] 0.138</code></pre></details></div>
+</section>
+</section>
 
-spam_score &lt;- score(p_word_spam, priors[[&quot;spam&quot;]], new_email)
-ham_score  &lt;- score(p_word_ham,  priors[[&quot;ham&quot;]],  new_email)
-scores &lt;- c(spam = spam_score, ham = ham_score)
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does smoothing fix?</h2>
 
-prediction &lt;- names(which.max(____))    # pick the higher-scoring class
-prediction</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the entire decision rule: score each class, take the argmax. Spam wins, 0.044 to 0, so the email is filed as spam.</span><span class="lesson-tryit-fb lesson-tryit-no">Point which.max at the vector of scores: which.max(scores). It returns the position of the larger score, and names() turns that into the class label.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">new_email &lt;- c(free = 2, prize = 1, meeting = 0, report = 0)   # &quot;free free prize&quot;
+<p>A teammate removed Laplace smoothing "to keep the code simple", and now the filter labels many obvious spam emails as ham. What is the mechanism behind the failure?</p>
+<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Any word in the new email that never appeared in the spam training set gives P(word given spam) = 0, which zeroes the entire spam product and rules spam out regardless of the other words</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Without smoothing the prior is ignored, so every email defaults to the more common class</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Smoothing normally deletes rare words, and without it those rare words dominate the score</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The likelihood is a product, so one zero factor kills the whole class score. Real emails routinely contain a word the spam examples never had, so without smoothing the spam score collapses to zero constantly.</div><div class="lesson-qfb lesson-qfb-no">Smoothing deletes nothing; it lifts every count by one so no probability is zero. Rare words are handled, not dropped. The real problem is unseen words forcing an exact zero.</div></div>
+</section>
+</section>
 
-spam_score &lt;- score(p_word_spam, priors[[&quot;spam&quot;]], new_email)
-ham_score  &lt;- score(p_word_ham,  priors[[&quot;ham&quot;]],  new_email)
-scores &lt;- c(spam = spam_score, ham = ham_score)
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Making the decision</div>
+<h2>Multiply, but in log space</h2>
 
-prediction &lt;- names(which.max(scores))
-prediction
+<p>We can now score the arriving email. For each class, multiply the prior by the smoothed likelihood of every word, then pick the winner. But there is a numerical snag: multiplying many probabilities, each well below 1, produces a number so tiny it can underflow to zero on a computer. The standard cure is to work with <strong>logarithms</strong>. Because \(\log(ab) = \log a + \log b\), a product of probabilities becomes a <strong>sum</strong> of their logs, and adding moderate negative numbers never underflows. Comparing sums of logs picks the exact same winner as comparing the raw products.</p>
+
+<p>\[ \text{score}(k) = \log P(y = k) + \sum_{j} \log P(x_j \mid y = k) \]</p>
+
+<p>Our priors here are equal (three spam, three ham), so the words alone decide. We classify by taking the class with the largest score (the <strong>argmax</strong>).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_spam_prior &lt;- mean(train$label == &quot;spam&quot;)   # 0.5
+p_ham_prior  &lt;- mean(train$label == &quot;ham&quot;)    # 0.5
+
+score &lt;- function(text) {
+  w   &lt;- tokens(text)
+  w   &lt;- w[w %in% vocab]                       # ignore words we never trained on
+  idx &lt;- match(w, vocab)
+  logp_spam &lt;- log(p_spam_prior) + sum(log(p_word_spam[idx]))
+  logp_ham  &lt;- log(p_ham_prior)  + sum(log(p_word_ham[idx]))
+  c(spam = logp_spam, ham = logp_ham)
+}
+
+s &lt;- score(&quot;free claim lunch&quot;)
+round(s, 2)
+#&gt;  spam   ham
+#&gt; -8.31 -9.37
+names(which.max(s))
+#&gt; [1] &quot;spam&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The email "free claim lunch" scores higher for spam (-8.31 beats -9.37), so it is filed as spam: two spammy words (free, claim) outweigh one hammy one (lunch). To turn the two log scores back into probabilities that sum to 1, exponentiate and normalize:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">post &lt;- exp(s - max(s))          # subtract the max first for numerical safety
+round(post / sum(post), 3)
+#&gt; spam  ham
+#&gt; 0.742 0.258</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A clean 74% spam. That is a complete Naive Bayes classifier: count, smooth, sum logs, take the argmax.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Call the winner</h2>
+
+<p>The <code>score()</code> function returns the log score for spam and for ham. Classify one more borderline email, "cheap prize meeting", by picking the class with the higher score. Fill in the function that returns the position of the maximum.</p>
+<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="which\.max"><textarea class="lesson-tryit-input" spellcheck="false">s &lt;- score(&quot;cheap prize meeting&quot;)
+round(s, 2)
+names(s)[____(s)]        # which class wins?</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the decision rule: which.max returns the index of the larger score, so names(s)[which.max(s)] gives the winning class. Here spam wins -9.41 to -9.77, two spammy words just edging out one hammy one.</span><span class="lesson-tryit-fb lesson-tryit-no">You want which.max(s): it returns the position of the largest score, and names(s)[...] turns that position into the class name.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">s &lt;- score(&quot;cheap prize meeting&quot;)
+round(s, 2)
+#&gt;  spam   ham
+#&gt; -9.41 -9.77
+names(s)[which.max(s)]
 #&gt; [1] &quot;spam&quot;</code></pre></details></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">A trap, and the fix</div>
-<h2>When one word vetoes a class</h2>
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">The tabular case</div>
+<h2>Numeric features: Gaussian Naive Bayes</h2>
 
-<p>Look again at the fingerprint table: \(P(\text{prize} \mid \text{ham}) = 0\), because "prize" never appeared in a ham email. That zero is dangerous. Since the score is a product, <strong>a single zero wipes out the entire class</strong>, no matter how strong the other evidence is. Watch it backfire on the email "a free meeting":</p>
+<p>Bayes' rule and the naive product do not care whether the features are words. Swap the emails' text for numbers and the exact same machine works. A spam filter also has plenty of numeric clues per email: how many <strong>links</strong> it contains, what <strong>percent of characters are capitalized</strong>, and so on. Spam tends to run high on both.</p>
+
+<p>The only piece that must change is the likelihood \(P(x_j \mid y = k)\). For a word we counted occurrences, but a continuous number like "percent capitals" cannot be counted that way, there are infinitely many possible values. Instead we assume each numeric feature follows a <strong>bell curve</strong> (a Gaussian) within each class, and estimate that curve's center and spread from the training rows of that class. That is all "Gaussian Naive Bayes" means. The boxplot makes the idea visible: for the feature "number of links", the spam and ham classes have clearly different distributions, and a new email's link count is scored against each.</p>
+
+<p>The likelihood of a numeric feature value \(x_j\) under class \(k\) is the height of that class's bell curve at \(x_j\):</p>
+
+<p>\[ P(x_j \mid y = k) = \frac{1}{\sqrt{2\pi}\,\sigma_{jk}} \exp\!\left(-\frac{(x_j - \mu_{jk})^2}{2\sigma_{jk}^2}\right) \]</p>
+
+<p>where \(\mu_{jk}\) is the <strong>mean</strong> of feature \(j\) among class-\(k\) training rows and \(\sigma_{jk}\) is its <strong>standard deviation</strong> (its spread). A value near a class's mean scores high for that class; a value far out in the tail scores low. Everything else, priors, the product across features, the argmax, is unchanged from the text case.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"spam","y":6},{"x":"spam","y":7},{"x":"spam","y":5},{"x":"spam","y":10},{"x":"spam","y":8},{"x":"spam","y":9},{"x":"spam","y":6},{"x":"ham","y":2},{"x":"ham","y":1},{"x":"ham","y":3},{"x":"ham","y":0},{"x":"ham","y":2},{"x":"ham","y":1},{"x":"ham","y":2}],"geoms":["boxplot"],"x":"class","y":"links","code":{"boxplot":"ggplot(emails, aes(class, links)) +\n  geom_boxplot()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">Fitting it</div>
+<h2>Gaussian Naive Bayes in R</h2>
+
+<p>Let us fit it on real numbers. We simulate a labeled batch of 120 emails (60 spam, 60 ham) with two numeric features: <code>links</code> and <code>caps_pct</code> (the percent of capital letters). The <code>set.seed</code> makes the random draw reproducible, so your numbers match these exactly.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">spammy &lt;- c(free = 1, meeting = 1, prize = 0, report = 0)   # &quot;a free meeting&quot;
-c(spam = score(p_word_spam, priors[[&quot;spam&quot;]], spammy),
-  ham  = score(p_word_ham,  priors[[&quot;ham&quot;]],  spammy))
-#&gt;       spam        ham
-#&gt; 0.00000000 0.01866667</div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 60
+emails &lt;- data.frame(
+  # pmax(0, ...) keeps counts and percentages from ever going negative
+  links    = pmax(0, round(c(rnorm(n, 7, 2), rnorm(n, 1.5, 1.2)))),   # spam ~7 links, ham ~1.5
+  caps_pct = pmax(0, round(c(rnorm(n, 22, 6), rnorm(n, 6, 3)), 1)),   # spam ~22% caps, ham ~6%
+  label    = factor(rep(c(&quot;spam&quot;, &quot;ham&quot;), each = n))
+)
+aggregate(cbind(links, caps_pct) ~ label, data = emails, mean)
+#&gt;   label    links  caps_pct
+#&gt; 1   ham 1.683333  5.806667
+#&gt; 2  spam 7.266667 21.725000</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -196,24 +453,32 @@ c(spam = score(p_word_spam, priors[[&quot;spam&quot;]], spammy),
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The spam score is exactly 0, not because the email looks innocent, but because "meeting" never showed up in our spam training. One unseen word silenced the whole spam class. The cure is <strong>Laplace (add-one) smoothing</strong>: pretend we saw every word one extra time in every class, so no probability is ever exactly zero. For a vocabulary of \(V\) words,</p>
-
-<p>\[ \hat{P}(\text{word} \mid \text{class}) = \frac{\text{count} + 1}{N_{\text{class}} + V} \]</p>
-
-<p>where \(\text{count}\) is how often the word appeared in the class and \(N_{\text{class}}\) is the total word count in that class.</p>
+<p>The two classes separate cleanly on both features. Now the whole classifier from scratch: for each class, store its prior, and each feature's mean and standard deviation. To predict, score a new email under each class with the Gaussian formula (using <code>dnorm</code>, R's built-in normal density) and take the argmax.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">V &lt;- ncol(emails) - 1     # vocabulary size: the number of word columns = 4
+    <div class="webr-editor" data-language="r">classes &lt;- levels(emails$label)
+model &lt;- lapply(classes, function(k) {
+  rows &lt;- emails[emails$label == k, c(&quot;links&quot;, &quot;caps_pct&quot;)]
+  list(prior = mean(emails$label == k),
+       mean  = sapply(rows, mean),
+       sd    = sapply(rows, sd))
+})
+names(model) &lt;- classes
 
-p_word_spam_s &lt;- (spam_tot + 1) / (sum(spam_tot) + V)
-p_word_ham_s  &lt;- (ham_tot  + 1) / (sum(ham_tot)  + V)
+predict_nb &lt;- function(model, x) {
+  scores &lt;- sapply(names(model), function(k) {
+    m &lt;- model[[k]]
+    log(m$prior) + sum(dnorm(x, mean = m$mean, sd = m$sd, log = TRUE))
+  })
+  names(which.max(scores))
+}
 
-c(spam = score(p_word_spam_s, priors[[&quot;spam&quot;]], spammy),
-  ham  = score(p_word_ham_s,  priors[[&quot;ham&quot;]],  spammy))
-#&gt;       spam       ham
-#&gt; 0.01422222 0.02659279</div>
+predict_nb(model, c(links = 8, caps_pct = 25))   # many links, lots of caps
+#&gt; [1] &quot;spam&quot;
+predict_nb(model, c(links = 1, caps_pct = 4))     # few links, little shouting
+#&gt; [1] &quot;ham&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -223,85 +488,20 @@ c(spam = score(p_word_spam_s, priors[[&quot;spam&quot;]], spammy),
   <div class="webr-plot-output"></div>
 </div>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Without smoothing, any test email containing a word your training never saw in a class gets that class zeroed out, a brittle, all-or-nothing failure. Smoothing is not optional polish; real naive Bayes always uses it.</div></div>
-</section>
-
-<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>What does smoothing actually change?</h2>
-
-<p>Before smoothing, every email mentioning "meeting" scored spam = 0, because "meeting" never appeared in a spam training email. After add-one smoothing, that same email scored spam = 0.014. What did smoothing change, and what did it leave alone?</p>
-<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It gives every word a tiny non-zero probability in every class, so one never-before-seen word can no longer force a class's whole score to zero</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It makes the two classes equally likely by throwing away the prior</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It deletes rare words from the vocabulary so they cannot cause zeros</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. Smoothing only lifts the floor off the likelihoods. The class can still lose, but now it loses on the weight of the evidence, not because a single missing word vetoed it.</div><div class="lesson-qfb lesson-qfb-no">The opposite: it adds a pretend count to every word, keeping all of them. Nothing is deleted, the zeros are filled in.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<div class="lesson-step-eyebrow">The surprise</div>
-<h2>Why a wrong assumption still wins</h2>
-
-<p>The independence assumption is false, so naive Bayes computes the probability <em>numbers</em> wrong, usually too confident, pushed toward 0 or 1, because correlated words like "free" and "prize" get counted as if they were separate, independent evidence. So why does the classifier work?</p>
-
-<p>Because classification does not need the numbers to be right. It only needs the <strong>ranking</strong> to be right. The prediction is the class with the highest score:</p>
-
-<p>\[ \hat{y} = \operatorname*{arg\,max}_{c}\; P(c)\prod_{j} P(\text{word}_j \mid c) \]</p>
-
-<p>Here \(\operatorname<em>{arg\,max}_{c}\) means "the class \(c\) that makes the expression largest". Even when the assumption distorts both scores, it usually distorts them in the same direction, so the </em>winner* stays the same. You get the right label from probabilities you should not trust as exact chances.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Naive Bayes is often a great classifier and a poor probability estimator at the same time. Trust its predicted class; be skeptical of its 99.9% confidence.</div></div>
-
-<p>When does the assumption actually bite? When features are strongly redundant. Ten near-duplicate clues get counted as ten independent votes, and that pile-up can occasionally overwhelm the prior and flip the winner. That is the one case where "naive" genuinely hurts.</p>
-</section>
-
-<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>The broken assumption</h2>
-
-<p>In real email, words are clearly <strong>not</strong> independent: "free" and "prize" tend to appear together. Yet naive Bayes still labels spam well. Why does the false assumption not break the classifier?</p>
-<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step9" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Classification needs only the correct class to get the highest score; the independence assumption distorts the probability values but usually not which class comes out on top</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because in email, words genuinely are independent once you condition on the class</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because naive Bayes produces well-calibrated probabilities you can read as exact chances</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The argmax is robust even when the underlying probabilities are off, so the predicted label is usually right despite the wrong assumption.</div><div class="lesson-qfb lesson-qfb-no">The reverse is true. Double-counting correlated words makes naive Bayes overconfident, so its probabilities are usually poorly calibrated even when its labels are right.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="10" data-step-type="concept">
-<div class="lesson-step-eyebrow">From text to tables</div>
-<h2>The same recipe for numeric data</h2>
-
-<p>Nothing about Bayes' rule was specific to words. For <strong>tabular</strong> data with numeric features, the only thing that changes is how we compute the likelihood \(P(x \mid \text{class})\). Instead of a word's share, we fit a bell curve (a Gaussian) to each numeric feature within each class, using that class's mean \(\mu_c\) and standard deviation \(\sigma_c\):</p>
-
-<p>\[ P(x \mid c) = \frac{1}{\sqrt{2\pi}\,\sigma_c}\, \exp\!\left(-\frac{(x-\mu_c)^2}{2\sigma_c^2}\right) \]</p>
-
-<p>The intuition is the same as the word fingerprints: each class has its own typical range for each feature, and a new point is scored by how well it fits each class's range. The chart shows one such numeric clue, the number of links in an email. Spam emails cluster high, ham low: that separation is exactly the signal Gaussian naive Bayes reads.</p>
-
-<p>In R, the <code>e1071</code> package does the whole recipe, priors, per-feature Gaussians, and the product, in one call. Here two numeric clues per email: the count of links and of ALL-CAPS words.</p>
+<p>Both calls land where common sense says they should. In practice you would reach for a package rather than hand-roll this. The <code>naiveBayes()</code> function in <strong>e1071</strong> fits the identical Gaussian model in one line, and scores every training email so we can check the accuracy:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">library(e1071)
-
-mail &lt;- data.frame(
-  label = factor(c(&quot;spam&quot;,&quot;spam&quot;,&quot;spam&quot;,&quot;spam&quot;,&quot;spam&quot;,
-                   &quot;ham&quot;,&quot;ham&quot;,&quot;ham&quot;,&quot;ham&quot;,&quot;ham&quot;)),
-  links = c( 6, 9, 5, 8, 7,    1, 0, 2, 1, 0),
-  caps  = c( 4, 6, 3, 5, 7,    0, 1, 0, 2, 1)
-)
-
-model &lt;- naiveBayes(label ~ ., data = mail)    # Gaussian naive Bayes on the numeric clues
-
-new &lt;- data.frame(links = 6, caps = 4)
-predict(model, new)                            # the predicted class
-predict(model, new, type = &quot;raw&quot;)              # the class probabilities
-#&gt; [1] spam
-#&gt; Levels: ham spam
-#&gt;           ham spam
-#&gt; [1,] 1.45e-11    1</div>
+nb &lt;- naiveBayes(label ~ links + caps_pct, data = emails)
+round(mean(predict(nb, emails) == emails$label), 4)   # training accuracy
+#&gt; [1] 0.9917
+round(nb$tables$links, 2)                     # per-class mean and sd of 'links'
+#&gt;       links
+#&gt; Y      [,1] [,2]
+#&gt;   ham  1.68 1.07
+#&gt;   spam 7.27 1.73</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -311,11 +511,82 @@ predict(model, new, type = &quot;raw&quot;)              # the class probabiliti
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The model calls the new email spam, with a probability rounded to 1. <strong>Where naive Bayes shines:</strong> text and other high-dimensional data, tiny training sets, and any time you need a fast, strong baseline. <strong>Where it struggles:</strong> strongly correlated features (the redundancy problem above), and any time you need the probabilities themselves to be trustworthy.</p>
-<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"spam","y":6},{"x":"spam","y":9},{"x":"spam","y":5},{"x":"spam","y":8},{"x":"spam","y":7},{"x":"ham","y":1},{"x":"ham","y":0},{"x":"ham","y":2},{"x":"ham","y":1},{"x":"ham","y":0}],"geoms":["boxplot"],"x":"class","y":"links"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The library agrees with our from-scratch model: the same per-class means and standard deviations, and 99% of the training emails classified correctly.</p>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="13" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which flavor of Naive Bayes?</h2>
+
+<p>You have now seen two versions. One counted word occurrences (multinomial); one fit a bell curve per feature (Gaussian). You are handed a spam dataset where each email is described by two continuous numbers, its length in kilobytes and its percent of capital letters. Which likelihood should each feature use?</p>
+<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Multinomial, because Naive Bayes on spam always uses word counts</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Either one works identically; the choice of likelihood never matters</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Gaussian, because both features are continuous numbers, so each is modeled with a per-class mean and standard deviation</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Continuous features call for the Gaussian likelihood: estimate a mean and spread per class and read the bell-curve height. Bayes' rule, the naive product, and the argmax stay exactly the same; only the likelihood swaps.</div><div class="lesson-qfb lesson-qfb-no">The choice matters a great deal. The likelihood P(feature given class) must match the feature type, or the probabilities it produces are meaningless. That is the one part of Naive Bayes you tailor to your data.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Why naive works so well anyway</h2>
+
+<p>We built the whole method on an assumption we admitted is false: words in an email are not independent. So why does Naive Bayes routinely rival far fancier classifiers on text and tabular data alike? Two reasons.</p>
+
+<p><strong>First, classification only needs the argmax to be right, not the probabilities.</strong> The naive product does distort the actual probability values, often pushing them absurdly close to 0 or 1, because correlated features get double-counted as if they were separate evidence. But we never use those probabilities; we only ask <strong>which class scored higher</strong>. As long as the true class comes out on top, the exact scores can be badly miscalibrated and the classification is still correct. This is a proven result: under zero-one loss (right or wrong, with no partial credit) Naive Bayes is optimal far more often than its shaky assumption suggests.</p>
+
+<p>\[ \hat{y} = \arg\max_{k}\; \Big[\log P(y = k) + \sum_{j} \log P(x_j \mid y = k)\Big] \]</p>
+
+<p><strong>Second, the assumption buys enormous stability.</strong> Because features are treated independently, the model estimates only a handful of numbers per feature per class (a count, or a mean and a standard deviation) instead of the vast web of interactions a richer model chases. Few parameters means low variance: Naive Bayes learns from very little data and, crucially, does not fall apart as the number of features grows. This is the exact opposite of kNN from Lesson 1, whose neighborhoods dissolved in high dimensions. Naive Bayes was the workhorse of early spam filters precisely because text has thousands of features and it handles them effortlessly. In the bias-variance language of the ML Workflow course, it is a high-bias, low-variance model: it gives up some flexibility for a lot of robustness.</p>
+
+<p>It sits at one end of a family you will meet across this course:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Features may correlate?</th>
+<th>What it estimates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gaussian Naive Bayes</td>
+<td>No (assumed independent)</td>
+<td>a mean and sd per feature, per class</td>
+</tr>
+<tr>
+<td>LDA (next lesson)</td>
+<td>Yes</td>
+<td>one shared full covariance matrix</td>
+</tr>
+<tr>
+<td>QDA (next lesson)</td>
+<td>Yes</td>
+<td>a full covariance matrix per class</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Naive Bayes trades a false assumption for speed and stability, and gets away with it because a classifier is graded on its argmax, not on calibrated probabilities. Treat its probability outputs as rankings, not as trustworthy confidences.</div></div>
+
+<p>The honest limits: because it double-counts correlated evidence, its probabilities are unreliable as confidences, and if you feed it two nearly duplicate features (say, the same signal twice), that evidence is counted twice and can wrongly tip the argmax. When you truly need calibrated probabilities, or when feature correlations carry the signal, the models in the next lessons do better.</p>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The false assumption</h2>
+
+<p>Naive Bayes assumes an email's words are independent given its class, which is plainly untrue, yet it classifies spam accurately. Which explanation is correct?</p>
+<section class="exercise" data-exercise-id="Naive-Bayes-for-Tabular-and-Text-step15" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Classification only needs the winning class to be right; the independence assumption skews the probability values but usually not which class scores highest</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">In practice the words in an email really are independent given the class, so the assumption holds after all</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Naive Bayes produces well-calibrated probabilities, so its confidence values can be trusted directly</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The argmax is what gets used, and it holds up surprisingly well against the distorted probabilities the naive product produces. The scores can be badly miscalibrated while the ranking, and therefore the label, stays correct.</div><div class="lesson-qfb lesson-qfb-no">The opposite is true. Double-counting correlated words pushes its probabilities toward 0 or 1, so they are poorly calibrated. Its strength is the argmax, not the confidence numbers.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
@@ -323,25 +594,25 @@ predict(model, new, type = &quot;raw&quot;)              # the class probabiliti
 
 <ul>
 
-<li><a href="https://doi.org/10.1023/A:1007413511361">Domingos and Pazzani (1997), "On the Optimality of the Simple Bayesian Classifier under Zero-One Loss"</a> - the paper that explains why the wrong independence assumption still classifies well.</li>
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - the gentlest rigorous treatment of Naive Bayes alongside the Bayes-rule derivation, with R labs.</li>
 
-<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 4 (free PDF)</a> - the gentle treatment of naive Bayes alongside the other classifiers, with R labs.</li>
+<li><a href="https://nlp.stanford.edu/IR-book/">Manning, Raghavan and Schutze, Introduction to Information Retrieval, ch. 13</a> - the canonical account of text classification, the multinomial model, and Laplace smoothing.</li>
 
-<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 6.6 (free PDF)</a> - naive Bayes with the full density-estimation math.</li>
+<li><a href="https://doi.org/10.1023/A:1007413511361">Domingos and Pazzani (1997), "On the Optimality of the Simple Bayesian Classifier under Zero-One Loss"</a> - the paper that explains why the naive assumption still classifies well.</li>
 
-<li><a href="https://nlp.stanford.edu/IR-book/">Introduction to Information Retrieval, ch. 13 (free online)</a> - multinomial naive Bayes for text, with the counting and smoothing you did by hand here.</li>
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 6.6 (free PDF)</a> - Naive Bayes placed in the wider frame of density estimation.</li>
 
-<li><a href="https://cran.r-project.org/package=e1071">e1071 (Meyer et al.) on CRAN</a> - the package whose naiveBayes() you called above.</li>
+<li><a href="https://cran.r-project.org/package=e1071">e1071 reference manual (CRAN)</a> - the naiveBayes() function you fitted here, with its options.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="17" data-step-type="complete">
 <h2>Lesson 2 complete</h2>
 
-<p>You can now run Bayes' rule as a classifier: estimate a prior and per-feature likelihoods, multiply them under the naive independence assumption, smooth away the zeros, and read off the higher-scoring class. You know why the false assumption rarely breaks the prediction, and you saw the very same recipe handle numeric, tabular features through a Gaussian likelihood in one e1071 call.</p>
+<p>You built a Naive Bayes classifier from the ground up. You flipped an unanswerable question into a countable one with <strong>Bayes' rule</strong> (posterior proportional to prior times likelihood), tamed the impossible joint likelihood with the <strong>naive</strong> independence assumption (a plain product of per-feature likelihoods), rescued unseen words with <strong>Laplace smoothing</strong>, classified safely in <strong>log space</strong> by taking the argmax, and then swapped the word-count likelihood for a <strong>Gaussian</strong> to handle numeric features in a table, fitting it both by hand and with <code>e1071</code> at 99% accuracy. Finally you saw why an assumption this crude still wins: classification needs only the argmax, and the independence bet buys the low variance that lets Naive Bayes thrive on little data and many features.</p>
 
-<p>Next, Lesson 3: Discriminant Analysis, LDA and QDA. Like Gaussian naive Bayes it assumes the classes are bell-shaped, but it drops the independence assumption and lets the features correlate, then draws an explicit boundary between the classes. You will see exactly what that boundary buys you, and what it costs.</p>
+<p>Next, Lesson 3: Discriminant Analysis, LDA and QDA. It keeps the "which class most likely produced this?" idea but drops the naive pretence, letting features move together, and turns each class into a tilted Gaussian cloud with an explicit boundary drawn between them.</p>
 </section>
 
 {% endraw %}
