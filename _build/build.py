@@ -1462,6 +1462,11 @@ def build_post(
     page_html = page_html.replace('{{DESCRIPTION}}', description)
     page_html = page_html.replace('{{DESCRIPTION_JSON}}', description_json)
     page_html = page_html.replace('{{KEYWORDS}}', keywords)
+    # canonical override: an FR/duplicate page can point its rel=canonical at the
+    # page that should rank (frontmatter `canonical: <slug>.html`); og:url and
+    # JSON-LD url keep the page's own slug. Default = self-canonical (unchanged).
+    canonical_slug = (meta.get('canonical', '') or '').strip() or slug
+    page_html = page_html.replace('{{CANONICAL}}', canonical_slug)
     page_html = page_html.replace('{{SLUG}}', slug)
     page_html = page_html.replace('{{SLUG_NO_EXT}}', slug_no_ext)
     page_html = page_html.replace('{{DATE_PUBLISHED}}', date_published)
