@@ -1,13 +1,11 @@
 ---
 title: "Advanced Supervised Learning Lesson 3: Regularized Discriminant Analysis"
-catalog_blurb: "Blend LDA and QDA when you have many classes or thin data."
 description: "Learn Regularized Discriminant Analysis in R from scratch: shrink the covariance between LDA and QDA with two dials, and pick the sweet spot by cross-validation."
 keywords: "regularized discriminant analysis, RDA, LDA, QDA, covariance shrinkage, Friedman 1989, discriminant analysis, classification, cross-validation, klaR rda, R"
-post_type: "LESSON"
-curriculum_id: "6.140.3"
-webr: true
 mathjax: true
-lesson_access: "pro"
+webr: true
+curriculum_id: "6.140.3"
+post_type: "LESSON"
 course_id: "ds-advanced-supervised"
 course_title: "Advanced Supervised Learning"
 course_lesson: "3"
@@ -15,6 +13,8 @@ course_total: "8"
 course_landing: "R-Advanced-Supervised-Learning-Course.html"
 course_next: "Gaussian-Processes-for-Regression.html"
 course_prev: "Kernel-SVMs-and-the-Kernel-Trick.html"
+lesson_access: "pro"
+catalog_blurb: "Blend LDA and QDA when you have many classes or thin data."
 ---
 
 === step === cover
@@ -41,7 +41,7 @@ By the end of this lesson you will be able to:
 
 Here is the tension in one number. A covariance matrix for \(p\) features holds \(p(p+1)/2\) free numbers, one variance per feature plus one covariance per pair. LDA estimates **one** such matrix, pooling every class together. QDA estimates **one per class**, so for \(K\) classes it must pin down \(K\) times as many.
 
-| | Covariances to estimate | For \(K=4\) classes, \(p=2\) features |
+|  | Covariances to estimate | For \(K=4\) classes, \(p=2\) features |
 |---|---|---|
 | LDA | one shared matrix: \(p(p+1)/2\) | 3 numbers |
 | QDA | one per class: \(K \cdot p(p+1)/2\) | 12 numbers |
@@ -201,7 +201,7 @@ Read the three panels left to right. **LDA** carves the plane into straight-edge
 You set RDA's \(\lambda = 1\) and the decision boundary comes out perfectly straight, identical to LDA. Why does turning \(\lambda\) all the way up straighten the boundary?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- At lambda = 1 the model drops the quadratic discriminant and switches to a linear classifier like logistic regression ::no RDA never changes which discriminant it uses; it always uses the same Gaussian \(\delta_k\). What changes is only the covariance fed into it, and at lambda = 1 that covariance becomes shared across classes.
+- At lambda = 1 the model drops the quadratic discriminant and switches to a linear classifier like logistic regression
 - At lambda = 1 every class covariance becomes the single pooled matrix, so the quadratic term is identical for all classes and cancels, leaving a boundary linear in x ::ok Exactly. \(\hat\Sigma_k(1) = \hat\Sigma\) for every class, which is precisely LDA's shared-covariance assumption. The shared covariance is what cancels the quadratic term and forces a straight boundary.
 - At lambda = 1 the data is projected onto one dimension, and a boundary in one dimension is always a straight line ::no RDA does no projection (that is a different technique, discriminant-coordinate reduction). The boundary is straight because the shared covariance cancels the quadratic part of the discriminant, not because of any dimension change.
 
@@ -213,9 +213,9 @@ Strip away the tea and the covariance math, and RDA's \(\lambda\) is just a **co
 
 The interactive below fits polynomials of rising degree, a different model from RDA, but the shape of the story is identical: the training error keeps falling as complexity rises, while the test error traces a **U**, high on the left (underfit, LDA's failure mode), high on the right (overfit, QDA's failure mode), lowest in the middle (where a well-tuned RDA lives). Drag the slider and find the bottom of the U.
 
-::widget bias-variance {}
-
 RDA's whole job is to let cross-validation find that bottom for you, along the \(\lambda\) axis instead of the polynomial-degree axis.
+
+::widget bias-variance {}
 
 === step === concept
 ::eyebrow The payoff
@@ -280,7 +280,7 @@ The engine of RDA is that one blend line. Write a function that returns the regu
 rda_blend <- function(Sigma_g, pooled, lambda) ____
 round(rda_blend(Sigma[["second"]], pooled, 0.5), 1)
 ```
-::check {"regex":"1\\s*-\\s*lambda","gate":true,"difficulty":"intermediate","ok":"That is the whole idea of RDA in one line: a weighted mix of the wobbly per-class covariance and the steady pooled one. At lambda = 0.5 the off-diagonal lands at -2.2, exactly halfway between -12.5 and +8.1.","no":"You want a weighted average: (1 - lambda) of the class covariance plus lambda of the pooled one. Write (1 - lambda) * Sigma_g + lambda * pooled."}
+::check {"regex":"1\\s*-\\s*lambda","gate":true,"difficulty":"intermediate","ok":"That is the whole idea of RDA in one line: a weighted mix of the wobbly per-class covariance and the steady pooled one. At lambda = 0.5 the off-diagonal lands at -2.2, exactly halfway between -12.5 and +8.1.","no":"You want a weighted average: (1 - lambda) of the class covariance plus lambda of the pooled one. Write (1 - lambda) times Sigma_g plus lambda times pooled."}
 ::solution
 ```r
 rda_blend <- function(Sigma_g, pooled, lambda) (1 - lambda) * Sigma_g + lambda * pooled
@@ -322,7 +322,7 @@ Your cross-validation curve shows QDA (\(\lambda=0\)) at 66.7%, LDA (\(\lambda=1
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - No: a blended covariance is a genuinely different estimator, so an intermediate lambda can beat both endpoints, as it does here (75% versus 66.7% and 60.4%) ::ok Right. The blend at lambda = 0.2 is not LDA and not QDA; it is a steadier-than-QDA, more-flexible-than-LDA covariance that neither endpoint can produce. That is exactly why the curve peaks in the interior instead of at an end.
-- Yes: RDA only interpolates, so its accuracy must lie between the LDA and QDA numbers ::no Interpolating the covariance does not interpolate the accuracy. A covariance halfway between two poor estimates can be a much better estimate, so held-out accuracy can rise above both ends, which is what happened here.
+- Yes: RDA only interpolates, so its accuracy must lie between the LDA and QDA numbers
 - Yes, because leave-one-out cross-validation always favours the simpler model, so lambda = 1 would win with more folds ::no Leave-one-out did not favour the simpler model here; LDA (lambda = 1) was the worst. And RDA won on this very cross-validation, not despite it.
 
 === step === concept
