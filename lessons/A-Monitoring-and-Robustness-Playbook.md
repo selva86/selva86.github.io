@@ -1,13 +1,11 @@
 ---
 title: "Robustness and Drift Lesson 7: A Monitoring and Robustness Playbook"
-catalog_blurb: "What to log, which alarms to wire, and when to roll back."
 description: "A deployment playbook for a live model: what to log, which drift, out-of-distribution, worst-group and adversarial alarms to wire, and when to roll back."
 keywords: "model monitoring, ML in production, data drift, distribution shift, worst-group accuracy, retraining trigger, automatic rollback, adversarial robustness, PSI, R"
-post_type: "LESSON"
-curriculum_id: "6.190.7"
-webr: true
 mathjax: true
-lesson_access: "pro"
+webr: true
+curriculum_id: "6.190.7"
+post_type: "LESSON"
 course_id: "ds-robustness-drift"
 course_title: "Robustness, Drift and Distribution Shift"
 course_lesson: "7"
@@ -15,6 +13,8 @@ course_total: "7"
 course_landing: "R-Robustness-and-Drift-Course.html"
 course_next: ""
 course_prev: "Adversarial-Robustness.html"
+lesson_access: "pro"
+catalog_blurb: "What to log, which alarms to wire, and when to roll back."
 ---
 
 === step === cover
@@ -132,8 +132,8 @@ Order the stack by latency, not by importance. The label-free layers are the lea
 Nadia's stack lights up: PSI on `amount` is **0.545**, well past 0.2. The fraud labels for this week will not land for a month. A teammate says: "PSI is above the line, so accuracy has already dropped. Roll `fraud-v3` back right now." What is the right read?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- PSI above 0.2 is a direct measurement that accuracy fell, so an immediate rollback is the right call ::no PSI measures the *inputs* moving, not accuracy. As Lesson 1 showed, harmless covariate shift can push PSI past 0.2 while the model is perfectly fine. A label-free alarm cannot prove damage.
-- The inputs have clearly moved, but that is a proxy, not proof of harm: it warrants a look (page a human), not an automatic rollback, until a label-based metric confirms real damage ::ok Exactly. PSI is a fast, label-free early warning. It says "the world changed, investigate," which could be a benign covariate shift or the first sign of real trouble. You escalate to a human; you do not auto-revert on a proxy alone.
+- PSI above 0.2 is a direct measurement that accuracy fell, so an immediate rollback is the right call ::no PSI above its line is a real early warning, but it measures the INPUTS moving, not the model failing. Reverting on a proxy alone is how teams roll back on harmless covariate shift.
+- The inputs have clearly moved, but that is a proxy, not proof of harm: it warrants a look (page a human), not an automatic rollback, until a label-based metric confirms real damage ::ok Exactly. PSI is a fast, label-free early warning. It says the world changed, investigate, which could be a benign covariate shift or the first sign of real trouble. You escalate to a human; you do not auto-revert on a proxy alone.
 - Ignore it: without labels the PSI number is meaningless and tells you nothing actionable ::no Too far the other way. PSI is genuinely informative about the inputs and is exactly the early warning you want weeks before labels. It just is not, by itself, a verdict on accuracy.
 
 === step === concept
@@ -230,8 +230,8 @@ decide(psi_amount, ood_rate, worst, perf_confirmed = TRUE)
 Your policy sends some alarms to a person and lets others revert on their own. Which alarm is the right one to trust with an **automatic** rollback, no human in the loop?
 
 ::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- A PSI breach on one input feature, labels not yet in ::no This is a low-precision proxy: benign covariate shift trips PSI too, so an automatic revert would fire on false alarms. Drift alone pages a human, who decides whether it is harmless or the start of real trouble.
-- A single out-of-distribution request scoring past the 99% shell ::no One strange request is a per-item flag (hold or route that request), not evidence the whole model degraded. Rolling the entire model back over one outlier is a massive overreaction to a tiny, low-precision signal.
+- A PSI breach on one input feature, labels not yet in ::no That is a low-precision proxy: a harmless covariate shift trips it too. Automating it just automates false reverts. It pages a human.
+- A single out-of-distribution request scoring past the 99% shell ::no One strange request is a per-item flag, not evidence the model is failing in aggregate. It never justifies reverting the whole model on its own.
 - A confirmed, label-based worst-group accuracy below the floor, with a known-good previous model available to revert to ::ok Exactly. This is high precision (a direct measurement of failure, not a proxy) and reversible (a good previous model exists), so the expected-cost rule clears and it can revert without waking anyone. Automatic rollback belongs to conclusive, label-based, reversible alarms only.
 - Any alarm at all, since automating every response removes slow humans from the loop ::no Automating a low-precision alarm just automates false alarms and needless reverts. The whole point of the policy is to match the response to the alarm's precision, not to automate everything.
 
@@ -270,14 +270,14 @@ ready_to_ship(worst, evade_rate)
 
 Every piece now snaps into one loop. **Log** every request. **Detect** with the layered stack, fast label-free layers now, the sharp label-based layers when the join lands. **Confirm** a breach across two windows before acting, so a single noisy batch cannot trigger a rollback. **Decide** with the precision policy: a proxy pages a human, a confirmed reversible breach rolls back. **Act**, then reset the reference and keep watching.
 
-::widget process-flow {"steps":[{"title":"Log","sub":"every request: inputs, score, model version, a slot for the late label"},{"title":"Detect","sub":"per-request OOD and label-free drift now; performance and worst-group when labels land"},{"title":"Confirm","sub":"a breach two windows running, not one noisy batch"},{"title":"Decide","sub":"a proxy alarm pages a human; a confirmed reversible breach rolls back"},{"title":"Act","sub":"reweight, retrain on the trigger, or roll back; then reset the reference"}]}
-
 A playbook is honest about its own limits, so hold four in view:
 
 - **Alert fatigue.** Every threshold trades false alarms against missed harm. Set limits too low and the team drowns in pages and learns to ignore them; the two-window confirmation and the precision policy exist to keep the signal worth reading.
 - **Feedback loops.** A fraud model that blocks a transaction never learns whether it was really fraud, and its own actions reshape tomorrow's data. Your monitoring changes the very distribution you are monitoring.
 - **Label lag.** The label-free layers are proxies precisely because the truth arrives late. Pair a fast input-drift trigger with a slow performance trigger; never mistake the fast one for a verdict.
 - **A decaying rollback target.** Automatic rollback assumes a known-good previous model still exists and still works. That safety net drifts too, so the model you would revert to must be re-validated, not trusted forever.
+
+::widget process-flow {"steps":[{"title":"Log","sub":"every request: inputs, score, model version, a slot for the late label"},{"title":"Detect","sub":"per-request OOD and label-free drift now; performance and worst-group when labels land"},{"title":"Confirm","sub":"a breach two windows running, not one noisy batch"},{"title":"Decide","sub":"a proxy alarm pages a human; a confirmed reversible breach rolls back"},{"title":"Act","sub":"reweight, retrain on the trigger, or roll back; then reset the reference"}]}
 
 === step === concept
 ::eyebrow Go deeper
