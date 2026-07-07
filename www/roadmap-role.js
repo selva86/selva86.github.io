@@ -252,6 +252,22 @@
         det.classList.add('has-inter');
         grand+=ls.length;
       });
+      // DS: sections with no live interactive lessons yet are the road ahead, not
+      // buyable now. Show their Pro rows as a non-clickable "Soon" instead of a
+      // pricing link. Self-correcting: once a section ships lessons it upgrades
+      // above (gets .has-inter) and is skipped here.
+      if(role==='ds'&&grand){
+        secs.forEach(function(s){
+          var det=document.getElementById('rm-s'+s.n);
+          if(!det||det.classList.contains('has-inter'))return;
+          det.querySelectorAll('a.lsn.pro').forEach(function(a){
+            var lt=a.querySelector('.lt'),span=document.createElement('span');
+            span.className='lsn soon';
+            span.innerHTML='<span class="dot"></span><span class="ltwrap"><span class="lt">'+(lt?lt.innerHTML:'')+'</span></span><span class="go">Soon</span>';
+            a.parentNode.replaceChild(span,a);
+          });
+        });
+      }
       if((role==='analyst'||role==='foundations')&&grand){var rm=document.getElementById('roleMeta');
         if(rm)rm.innerHTML='<span><b>'+secs.length+'</b> sections</span><span><b>'+grand+'</b> interactive lessons</span><span>Certificate: <b>'+esc(L.cert)+'</b></span>';}
     }).catch(function(){});
