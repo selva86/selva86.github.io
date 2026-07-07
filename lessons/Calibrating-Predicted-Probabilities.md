@@ -98,9 +98,7 @@ The model predicts fraud with an average probability of 0.42, on a set where onl
 
 The tool for seeing calibration is the **reliability diagram**. Sort the predictions into bins (0.0 to 0.1, 0.1 to 0.2, and so on), and for each bin plot one point: the mean predicted probability across the horizontal axis, the fraction that were actually fraud up the vertical. Perfect calibration lands every point on the 45-degree diagonal, because there predicted equals observed.
 
-Drag the slider below to tilt a model from under- to over-confident and watch the curve bow away from the diagonal. Below it lies over-confidence (the model claims more certainty than it earns); above it, under-confidence.
-
-::widget calibration-curve {}
+Drag the slider on the widget below to tilt a model from under- to over-confident and watch the curve bow away from the diagonal. Below the diagonal lies over-confidence (the model claims more certainty than it earns); above it, under-confidence.
 
 Now the real thing, on our fraud model. Bin its test-set predictions and plot observed against predicted.
 
@@ -135,6 +133,8 @@ round(rel_raw, 3)
 
 Every point sits well below the diagonal. A transaction the model rates around 0.65 is truly fraud only about 15% of the time, and even its most confident scores, above 0.9, are right only 56% of the time. The model is confidently wrong about its own confidence.
 
+::widget calibration-curve {}
+
 === step === quiz
 ::eyebrow Check yourself
 ## Read the diagram
@@ -142,7 +142,7 @@ Every point sits well below the diagonal. A transaction the model rates around 0
 A model's reliability curve sits **above** the diagonal for every bin: in the group it rated around 0.3, about 55% turned out to be fraud. What is this model doing?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"beginner"}
-- It is over-confident: it claims more certainty than the outcomes justify ::no Over-confidence bows the curve BELOW the diagonal (predicted higher than observed). Here observed is higher than predicted, the opposite.
+- It is over-confident: it claims more certainty than the outcomes justify ::no Above the diagonal is the opposite case. There, events happen MORE often than predicted, so the model is too cautious, not too bold.
 - It is under-confident: the real fraud rate is higher than its cautious scores suggest ::ok Right. Above the diagonal means events happen MORE often than predicted, so the model is hedging. It should push its probabilities up.
 - It is perfectly calibrated: a curve is a curve ::no Only the 45-degree diagonal is calibrated. A curve above or below it is a systematic gap between predicted and observed.
 
@@ -278,8 +278,6 @@ Here is the mistake that quietly fakes a perfect result: calibrate on the same r
 
 The discipline is a three-way split: train the model, fit the calibrator on a separate held-out slice, and report calibration on a test set neither has seen. That is why every fit above used `calib` to learn the map and `test` to judge it.
 
-::widget process-flow {"steps":[{"title":"Split three ways","sub":"a training set, a held-out calibration set, and an untouched test set"},{"title":"Fit the model on train","sub":"this is the model whose probabilities need repairing"},{"title":"Fit the calibrator on the calibration set","sub":"learn the score-to-probability map on rows the model never trained on"},{"title":"Evaluate on the test set","sub":"measure calibration on rows neither the model nor the calibrator has seen"}]}
-
 In a full tidymodels workflow you would not hand-roll this. The **probably** package fits Platt and isotonic calibration inside resampling, so the held-out discipline is automatic. Run this one in a local R session:
 
 ```r-static
@@ -290,6 +288,8 @@ preds_cal <- cal_apply(preds, cal)
 # cal_estimate_isotonic(...) swaps in the isotonic fit; cal_plot_reliability(...) draws the curve.
 ```
 
+::widget process-flow {"steps":[{"title":"Split three ways","sub":"a training set, a held-out calibration set, and an untouched test set"},{"title":"Fit the model on train","sub":"this is the model whose probabilities need repairing"},{"title":"Fit the calibrator on the calibration set","sub":"learn the score-to-probability map on rows the model never trained on"},{"title":"Evaluate on the test set","sub":"measure calibration on rows neither the model nor the calibrator has seen"}]}
+
 === step === quiz
 ::eyebrow Check yourself
 ## The tempting shortcut
@@ -297,9 +297,9 @@ preds_cal <- cal_apply(preds, cal)
 A teammate fits isotonic regression on the very rows the model was trained on. The reliability diagram now sits almost perfectly on the diagonal, and the AUC is unchanged. What actually happened?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The model is calibrated and ready to ship ::no The diagonal is an illusion here: the calibrator was fit on rows the model already overfits. On fresh data the curve will drift. Calibrate on held-out data.
+- The model is calibrated and ready to ship ::no The near-perfect diagonal is an illusion of in-sample fitting. On the training rows the model is already over-fit, so its calibration curve there flatters itself and then drifts on live data.
 - Calibration leaked: fit on training rows, it looks perfect there and will drift live; and AUC is unchanged because a monotonic map never reorders scores ::ok Exactly. In-sample calibration flatters itself, and calibration never changes ranking, so the flat AUC is expected, not a bug.
-- Something is broken: calibrating should have raised the AUC too ::no Calibration is monotonic by design, so it leaves the ranking, and therefore the ROC curve and AUC, untouched. An unchanged AUC is correct.
+- Something is broken: calibrating should have raised the AUC too ::no Calibration is monotonic by design, so it leaves the ranking, and therefore the ROC curve and AUC, untouched. An unchanged AUC is correct, not a fault.
 
 === step === concept
 ::eyebrow Go deeper
