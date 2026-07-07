@@ -3,8 +3,8 @@
   <head>
     <title>Advanced Regression Lesson 13: Random Slopes and GLMMs</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Fit random-slope and generalized linear mixed models in R with lme4: let each group have its own slope, model non-normal outcomes with glmer, and fix convergence warnings.">
-    <meta name="Keywords" content="random slopes, GLMM, generalized linear mixed model, lme4, lmer, glmer, singular fit, convergence, binomial mixed model, mixed models, R">
+    <meta name="Description" content="Fit random-slope mixed models in R with lme4, test them, fix singular and convergence warnings, and read a binomial GLMM for yes/no grouped data on the odds scale.">
+    <meta name="Keywords" content="random slopes, mixed models, GLMM, generalized linear mixed model, lme4, lmer, glmer, singular fit, convergence, partial pooling, random effects, binomial, odds ratio, R">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Advanced Regression Lesson 13: Random Slopes and GLMMs">
-    <meta property="og:description" content="Fit random-slope and generalized linear mixed models in R with lme4: let each group have its own slope, model non-normal outcomes with glmer, and fix convergence warnings.">
+    <meta property="og:description" content="Fit random-slope mixed models in R with lme4, test them, fix singular and convergence warnings, and read a binomial GLMM for yes/no grouped data on the odds scale.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Mixed-Models-Random-Slopes-and-GLMMs.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Mixed-Models-Random-Slopes-and-GLMMs.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Advanced Regression Lesson 13: Random Slopes and GLMMs">
-    <meta name="twitter:description" content="Fit random-slope and generalized linear mixed models in R with lme4: let each group have its own slope, model non-normal outcomes with glmer, and fix convergence warnings.">
+    <meta name="twitter:description" content="Fit random-slope mixed models in R with lme4, test them, fix singular and convergence warnings, and read a binomial GLMM for yes/no grouped data on the odds scale.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Mixed-Models-Random-Slopes-and-GLMMs.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Advanced Regression Lesson 13: Random Slopes and GLMMs",
-      "description": "Fit random-slope and generalized linear mixed models in R with lme4: let each group have its own slope, model non-normal outcomes with glmer, and fix convergence warnings.",
+      "description": "Fit random-slope mixed models in R with lme4, test them, fix singular and convergence warnings, and read a binomial GLMM for yes/no grouped data on the odds scale.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Mixed-Models-Random-Slopes-and-GLMMs.html",
-      "datePublished": "2026-07-02",
-      "dateModified": "2026-07-02",
+      "datePublished": "2026-07-08",
+      "dateModified": "2026-07-08",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -595,7 +595,7 @@
 
     
     
-        <link rel="stylesheet" href="www/lesson-mode.min.css?h=5f5f1fcb">
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
     <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
   </head>
 
@@ -679,136 +679,70 @@
 <div class="lesson-step-eyebrow">Lesson 13 of 13</div>
 <h2>Random Slopes and GLMMs</h2>
 
-<p>Last lesson you gave every group its own baseline. Maya, the customer-success data scientist, let each of her 12 sales regions sit at its own height with a random intercept, <code>lmer(satisfaction ~ onboarding + (1 | region))</code>, while every region shared one common onboarding slope: two extra hours of guided onboarding was assumed to move satisfaction by the same amount everywhere.</p>
+<p>In Lesson 12 you gave each of Dr. Reyes's eight clinics its own baseline recovery level: one <strong>random intercept</strong> per clinic, all drawn from a shared bell curve. But every clinic was forced to share the <em>same</em> slope for therapy sessions, giving eight parallel lines. That is often too rigid. At some clinics an extra therapy session lifts recovery a lot; at others it barely moves the needle.</p>
 
-<p>That shared-slope assumption is the crack in the model. In some regions a customer-success team turns onboarding into loyalty and satisfaction climbs steeply; in others the same hours barely register. The <em>slope itself</em> varies by region. And Maya's real question is not always a number on a scale: often it is yes or no. Did the account <strong>churn</strong>? A satisfaction model cannot answer that.</p>
-
-<p>This lesson closes both gaps. You will let each region carry its own slope (a <strong>random slope</strong>), stretch mixed models to yes/no and count outcomes (a <strong>GLMM</strong>), and learn to read the convergence warnings that richer models start to throw. The engine underneath is the same partial pooling from last lesson: drag the slider to feel small, noisy groups being pulled toward the average, exactly what will now steady each region's slope as well as its baseline.</p>
+<p>This lesson lets the <strong>slope</strong> vary by clinic too, so the lines fan out instead of running parallel. Then it goes one step further: when the outcome is a yes/no or a count rather than a 0-100 score, the <strong>generalized</strong> linear mixed model (GLMM) carries everything you know onto that new scale.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Say why a shared slope is wrong when groups respond differently, and write and fit a <strong>random-slope</strong> model with <code>lmer</code></li>
+<li>See why one shared slope (parallel lines) is too rigid, and fit a <strong>random-slopes</strong> model with <code>lmer</code></li>
 
-<li>Read the random-slope output: the slope variance, the intercept-slope correlation, and why the average slope's standard error grows</li>
+<li>Read the three numbers a random slope adds: the spread of intercepts, the spread of slopes, and their correlation</li>
 
-<li>Fit a <strong>GLMM</strong> for a yes/no outcome with <code>glmer</code>, choose the family and link, and read the effect as an odds ratio</li>
+<li>Test whether the random slope earns its keep, and watch partial pooling steady the noisy small-clinic slopes</li>
 
-<li>Diagnose a <strong>singular fit</strong> or convergence warning and fix it by simplifying the random-effects structure</li>
+<li>Diagnose and fix the two warnings every mixed-model user meets: <strong>singular fits</strong> and <strong>convergence failures</strong></li>
+
+<li>Fit a <strong>GLMM</strong> for a yes/no outcome with <code>glmer</code> and read its effect as an odds ratio</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> <a href="Mixed-Models-Random-Intercepts.html">Lesson 12 on random intercepts, partial pooling, and the ICC</a>, and <a href="Logistic-Regression-Done-Properly.html">logistic regression</a> (the logit link and odds ratios).</p>
+<p><strong>Prerequisites:</strong> <a href="Mixed-Models-Random-Intercepts.html">Lesson 12 on random intercepts</a> (variance components, the ICC, partial pooling), an <a href="OLS-Regression-from-Scratch.html">ordinary linear model</a>, and the <a href="Logistic-Regression-With-R.html">logit link and odds</a> for the GLMM half.</p>
 <div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The setup</div>
-<h2>When the slope itself varies by group</h2>
+<div class="lesson-step-eyebrow">The data, rebuilt</div>
+<h2>One shared slope, eight clinics</h2>
 
-<p>Here is Maya's book of accounts, rebuilt inline so every line on this page runs. Each account has its hours of guided <code>onboarding</code> and a monthly <code>satisfaction</code> score, and belongs to one of 12 <code>region</code>s. The new ingredient compared to last lesson: each region gets not only its own baseline but its own <strong>onboarding slope</strong>, drawn around the overall slope of 2.5.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
-<span class="cl">sizes  <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">38</span>, <span class="m">30</span>, <span class="m">25</span>, <span class="m">22</span>, <span class="m">18</span>, <span class="m">15</span>, <span class="m">12</span>, <span class="m">9</span>, <span class="m">6</span>, <span class="m">4</span>, <span class="m">3</span>, <span class="m">2</span>)   <span class="c1"># accounts per region</span></span>
-<span class="cl">region <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">rep</span>(<span class="nf">sprintf</span>(<span class="s">&quot;R%02d&quot;</span>, <span class="m">1</span><span class="o">:</span><span class="m">12</span>), times <span class="o">=</span> sizes))</span>
-<span class="cl">n      <span class="o">&lt;-</span> <span class="nf">length</span>(region)                                 <span class="c1"># 184 accounts in all</span></span>
-<span class="cl">ri     <span class="o">&lt;-</span> <span class="nf">as.integer</span>(region)</span>
-<span class="cl">region_base  <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">12</span>, <span class="m">0</span>, <span class="m">6</span>)                          <span class="c1"># each region&#39;s own baseline</span></span>
-<span class="cl">region_slope <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">12</span>, <span class="m">0</span>, <span class="m">1.1</span>)                        <span class="c1"># each region&#39;s OWN onboarding slope</span></span>
-<span class="cl">onboarding   <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">runif</span>(n, <span class="m">0</span>, <span class="m">8</span>), <span class="m">1</span>)                 <span class="c1"># hours of guided onboarding</span></span>
-<span class="cl">satisfaction <span class="o">&lt;-</span> <span class="m">62</span> <span class="o">+</span> (<span class="m">2.5</span> <span class="o">+</span> region_slope[ri]) <span class="o">*</span> onboarding <span class="o">+</span>   <span class="c1"># slope now differs by region</span></span>
-<span class="cl">                region_base[ri] <span class="o">+</span>                             <span class="c1"># baseline differs by region</span></span>
-<span class="cl">                <span class="nf">rnorm</span>(n, <span class="m">0</span>, <span class="m">5</span>)                                <span class="c1"># account-level noise</span></span>
-<span class="cl">accounts <span class="o">&lt;-</span> <span class="nf">data.frame</span>(region, onboarding, satisfaction <span class="o">=</span> <span class="nf">round</span>(satisfaction, <span class="m">1</span>))</span>
-<span class="cl"><span class="c1"># a yes/no churn flag we will need later: more onboarding, less churn</span></span>
-<span class="cl">accounts<span class="o">$</span>churned <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, <span class="nf">plogis</span>(<span class="m">1.0</span> <span class="o">-</span> <span class="m">0.45</span> <span class="o">*</span> onboarding <span class="o">+</span> <span class="m">0.12</span> <span class="o">*</span> region_base[ri]))</span>
-<span class="cl"><span class="nf">nrow</span>(accounts)</span>
-<span class="cl"><span class="c1">#&gt; [1] 184</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Pick four sizeable regions and fit a plain line to each. Watch the lines <strong>fan out</strong>: some regions climb steeply with onboarding, one is nearly flat. A single shared slope would have to average all of these into one number and would misdescribe every region.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(ggplot2)</span>
-<span class="cl">four <span class="o">&lt;-</span> <span class="nf">subset</span>(accounts, region <span class="o">%in%</span> <span class="nf">c</span>(<span class="s">&quot;R01&quot;</span>, <span class="s">&quot;R02&quot;</span>, <span class="s">&quot;R03&quot;</span>, <span class="s">&quot;R04&quot;</span>))</span>
-<span class="cl">four<span class="o">$</span>region <span class="o">&lt;-</span> <span class="nf">droplevels</span>(four<span class="o">$</span>region)</span>
-<span class="cl"><span class="nf">ggplot</span>(four, <span class="nf">aes</span>(onboarding, satisfaction, colour <span class="o">=</span> region)) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_point</span>(size <span class="o">=</span> <span class="m">2</span>, alpha <span class="o">=</span> <span class="m">0.7</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_smooth</span>(method <span class="o">=</span> <span class="s">&quot;lm&quot;</span>, se <span class="o">=</span> <span class="kc">FALSE</span>, formula <span class="o">=</span> y <span class="o">~</span> x) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Each region climbs at its own rate&quot;</span>, y <span class="o">=</span> <span class="s">&quot;satisfaction (CSAT)&quot;</span>)</span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Those four fitted slopes are roughly 2.4, 2.8, 0.1, and 3.4. Region R03 barely responds to onboarding while R04 responds strongly. Forcing one slope on all of them repeats last lesson's mistake, one level up: there we wrongly assumed a single intercept for every region, and here we would be wrongly assuming a single slope.</p>
-</section>
-
-<section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The idea</div>
-<h2>The random-slope model</h2>
-
-<p>Last lesson's model let the intercept vary by group. Now we let the slope vary too. Write the satisfaction of account \(i\) in region \(j\) as:</p>
-
-<p>\[ y_{ij} = \beta_0 + \beta_1\,x_{ij} + u_{0j} + u_{1j}\,x_{ij} + \varepsilon_{ij}. \]</p>
-
-<p>Read it piece by piece. \(y_{ij}\) is the satisfaction of account \(i\) in region \(j\) and \(x_{ij}\) is its onboarding hours. \(\beta_0\) and \(\beta_1\) are the <strong>fixed effects</strong>: the average baseline and the average slope across all regions. The two new terms are the random effects. \(u_{0j}\) shifts region \(j\)'s whole line up or down (the random intercept you already know). \(u_{1j}\) is new: it tilts region \(j\)'s line, adding to the common slope, so region \(j\)'s actual response to onboarding is \(\beta_1 + u_{1j}\). The residual \(\varepsilon_{ij}\) is the leftover account-level noise.</p>
-
-<p>Here is the move that makes it a mixed model. We do not estimate 12 free intercepts and 12 free slopes. We assume each region's pair \((u_{0j}, u_{1j})\) is a draw from one shared two-dimensional normal distribution:</p>
-
-<p>\[ \begin{pmatrix} u_{0j} \\ u_{1j} \end{pmatrix} \sim N\!\left(\begin{pmatrix}0\\0\end{pmatrix},\ \Sigma\right), \qquad \Sigma = \begin{pmatrix} \tau_0^2 & \rho\,\tau_0\tau_1 \\ \rho\,\tau_0\tau_1 & \tau_1^2 \end{pmatrix}. \]</p>
-
-<p>So we estimate just three numbers instead of 24: \(\tau_0^2\) ("tau-zero squared"), how much baselines vary between regions; \(\tau_1^2\), how much slopes vary between regions; and \(\rho\) ("rho"), the <strong>correlation</strong> between a region's baseline and its slope. A positive \(\rho\) would mean regions that start high also gain fastest; a negative \(\rho\) means high-baseline regions have less room to climb.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A raw per-region slope from a tiny region is worthless: region R11's three accounts gave an OLS slope of -8.5, as if onboarding <em>destroyed</em> satisfaction. Because the model treats the 12 slopes as draws from one \(N(0, \tau_1^2)\), it pulls that nonsense slope hard toward the shared average, the same partial pooling that steadied the intercepts, now steadying the slopes.</div></div>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="concept">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Fit it with lmer</h2>
-
-<p>The random-slope model needs one change to the formula. Last lesson's <code>(1 | region)</code> becomes <code>(1 + onboarding | region)</code>: read it as "let the intercept (the <code>1</code>) <strong>and</strong> the <code>onboarding</code> slope vary by region." That single term adds the per-region slope and its correlation with the intercept.</p>
+<p>We are back with Dr. Anna Reyes and her eight walk-in clinics. Every lesson runs in its own session, so we rebuild her network right here. Alongside each patient's therapy <code>sessions</code> and 0-100 <code>recovery</code> score, we now record two more things: the patient's baseline illness <code>severity</code> (standardised), and whether, at a one-year follow-up, they <code>recovered</code> fully (1) or not (0). We use <code>severity</code> when we reach troubleshooting, and <code>recovered</code> for the GLMM at the end.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
-<span class="cl">m_slope <span class="o">&lt;-</span> <span class="nf">lmer</span>(satisfaction <span class="o">~</span> onboarding <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> onboarding <span class="o">|</span> region), data <span class="o">=</span> accounts)</span>
-<span class="cl"><span class="nf">summary</span>(m_slope)</span>
-<span class="cl"><span class="c1">#&gt; Linear mixed model fit by REML [&#39;lmerMod&#39;]</span></span>
-<span class="cl"><span class="c1">#&gt; Formula: satisfaction ~ onboarding + (1 + onboarding | region)</span></span>
-<span class="cl"><span class="c1">#&gt;    Data: accounts</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; REML criterion at convergence: 1127.4</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; Random effects:</span></span>
-<span class="cl"><span class="c1">#&gt;  Groups   Name        Variance Std.Dev. Corr </span></span>
-<span class="cl"><span class="c1">#&gt;  region   (Intercept) 33.721   5.807         </span></span>
-<span class="cl"><span class="c1">#&gt;           onboarding   1.002   1.001    -0.40</span></span>
-<span class="cl"><span class="c1">#&gt;  Residual             21.083   4.592         </span></span>
-<span class="cl"><span class="c1">#&gt; Number of obs: 184, groups:  region, 12</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; Fixed effects:</span></span>
-<span class="cl"><span class="c1">#&gt;             Estimate Std. Error t value</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept)   59.573      1.878  31.715</span></span>
-<span class="cl"><span class="c1">#&gt; onboarding     2.262      0.365   6.196</span></span></div>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">3</span>)</span>
+<span class="cl"></span>
+<span class="cl">clinic_names <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;Ashby&quot;</span>,<span class="s">&quot;Brook&quot;</span>,<span class="s">&quot;Cedar&quot;</span>,<span class="s">&quot;Dale&quot;</span>,<span class="s">&quot;Elm&quot;</span>,<span class="s">&quot;Fern&quot;</span>,<span class="s">&quot;Gale&quot;</span>,<span class="s">&quot;Hill&quot;</span>)</span>
+<span class="cl">n_per   <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">18</span>, <span class="m">34</span>, <span class="m">15</span>, <span class="m">40</span>, <span class="m">12</span>, <span class="m">30</span>, <span class="m">16</span>, <span class="m">25</span>)          <span class="c1"># patients seen at each clinic</span></span>
+<span class="cl">clinic  <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">rep</span>(clinic_names, n_per))</span>
+<span class="cl">N       <span class="o">&lt;-</span> <span class="nf">length</span>(clinic)                             <span class="c1"># 190 patients in all</span></span>
+<span class="cl"></span>
+<span class="cl">u_int   <span class="o">&lt;-</span> <span class="nf">setNames</span>(<span class="nf">rnorm</span>(<span class="m">8</span>, <span class="m">0</span>, <span class="m">7</span>),   clinic_names)   <span class="c1"># each clinic&#39;s baseline shift</span></span>
+<span class="cl">w_slope <span class="o">&lt;-</span> <span class="nf">setNames</span>(<span class="nf">rnorm</span>(<span class="m">8</span>, <span class="m">0</span>, <span class="m">0.7</span>), clinic_names)   <span class="c1"># each clinic&#39;s own extra slope</span></span>
+<span class="cl">sessions <span class="o">&lt;-</span> <span class="nf">pmin</span>(<span class="m">14L</span>, <span class="nf">rpois</span>(N, <span class="m">6</span>))                    <span class="c1"># therapy sessions attended</span></span>
+<span class="cl">severity <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">scale</span>(<span class="nf">rnorm</span>(N))[, <span class="m">1</span>], <span class="m">2</span>)            <span class="c1"># standardised illness severity</span></span>
+<span class="cl"></span>
+<span class="cl">recovery <span class="o">&lt;-</span> <span class="m">50</span> <span class="o">+</span> u_int[<span class="nf">as.character</span>(clinic)] <span class="o">+</span></span>
+<span class="cl">            (<span class="m">1.4</span> <span class="o">+</span> w_slope[<span class="nf">as.character</span>(clinic)]) <span class="o">*</span> sessions <span class="o">+</span></span>
+<span class="cl">            (<span class="m">-2</span>) <span class="o">*</span> severity <span class="o">+</span> <span class="nf">rnorm</span>(N, <span class="m">0</span>, <span class="m">6</span>)</span>
+<span class="cl">recovery <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">pmin</span>(<span class="m">100</span>, <span class="nf">pmax</span>(<span class="m">0</span>, recovery)), <span class="m">1</span>)    <span class="c1"># keep it on the 0-100 scale</span></span>
+<span class="cl"></span>
+<span class="cl">v_log     <span class="o">&lt;-</span> <span class="nf">setNames</span>(<span class="nf">rnorm</span>(<span class="m">8</span>, <span class="m">0</span>, <span class="m">1.0</span>), clinic_names) <span class="c1"># clinic shift on the log-odds</span></span>
+<span class="cl">eta       <span class="o">&lt;-</span> <span class="m">-1.3</span> <span class="o">+</span> v_log[<span class="nf">as.character</span>(clinic)] <span class="o">+</span> <span class="m">0.25</span> <span class="o">*</span> sessions</span>
+<span class="cl">recovered <span class="o">&lt;-</span> <span class="nf">rbinom</span>(N, <span class="m">1</span>, <span class="nf">plogis</span>(eta))                <span class="c1"># full recovery at follow-up? 1/0</span></span>
+<span class="cl"></span>
+<span class="cl">recov <span class="o">&lt;-</span> <span class="nf">data.frame</span>(clinic, sessions, severity, recovery, recovered)</span>
+<span class="cl"><span class="nf">head</span>(recov)</span>
+<span class="cl"><span class="c1">#&gt;   clinic sessions severity recovery recovered</span></span>
+<span class="cl"><span class="c1">#&gt; 1  Ashby        4    -0.31     50.7         0</span></span>
+<span class="cl"><span class="c1">#&gt; 2  Ashby        6    -0.44     42.6         0</span></span>
+<span class="cl"><span class="c1">#&gt; 3  Ashby        4     1.46     40.3         0</span></span>
+<span class="cl"><span class="c1">#&gt; 4  Ashby        5    -0.73     39.3         0</span></span>
+<span class="cl"><span class="c1">#&gt; 5  Ashby        9    -0.48     70.3         0</span></span>
+<span class="cl"><span class="c1">#&gt; 6  Ashby        4    -0.04     38.3         0</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -818,71 +752,112 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The <strong>Random effects</strong> block now has three rows, not two. <code>(Intercept)</code> is \(\tau_0^2\) (33.7): regions differ a lot in baseline. <code>onboarding</code> is \(\tau_1^2\) (1.00, standard deviation 1.00): region slopes scatter by about one satisfaction point per onboarding hour around the average, so a region at the low end gains near 1.3 per hour while one at the high end gains near 3.3. The <code>Corr</code> of -0.40 is \(\rho\): regions with higher baselines tend to have gentler slopes (they started high, with less room to grow).</p>
+<p>The question that drives this lesson: <strong>does an extra therapy session help every clinic by the same amount?</strong> Lesson 12's random-intercept model assumed yes. Let us look.</p>
+</section>
 
-<p>Now look at the <strong>Fixed effects</strong>. The average onboarding slope is 2.26, close to the truth of 2.5, but its standard error is 0.365. Last lesson, with a shared slope, that same standard error was 0.154. It more than doubled, and that is honest, not worse: once you admit that regions respond differently, you know the <em>average</em> response less precisely than a model that pretended every region was identical.</p>
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The evidence</div>
+<h2>Some clinics respond much more than others</h2>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Adding a random slope almost always widens the standard error of the corresponding fixed effect. A too-simple model does not just miss the group differences, it reports false confidence in its average. To check whether the extra slope earns its keep, compare it against last lesson's random-intercept model (call it <code>m_int</code>) with <code>anova(m_int, m_slope)</code>, which refits both by maximum likelihood and runs a likelihood-ratio test; here it is highly significant (p below 0.001), so the random slope stays.</div></div>
+<p>Fit a plain line, <code>recovery ~ sessions</code>, separately inside each clinic and read off just the slope. <code>lmList</code> from <code>lme4</code> does exactly that, running one ordinary regression per clinic:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(<span class="nf">lmList</span>(recovery <span class="o">~</span> sessions <span class="o">|</span> clinic, data <span class="o">=</span> recov))[, <span class="s">&quot;sessions&quot;</span>], <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; Ashby Brook Cedar  Dale   Elm  Fern  Gale  Hill</span></span>
+<span class="cl"><span class="c1">#&gt;  2.96  2.80  0.09  0.08  1.53  1.37  1.07  1.20</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>These are not the same number. At <strong>Ashby</strong> an extra session is worth almost <strong>3 recovery points</strong>; at <strong>Dale</strong> and <strong>Cedar</strong> it is worth essentially <strong>nothing</strong> (0.08, 0.09). A single shared slope would paper over a real, clinically important difference. Plotted, the per-clinic lines fan out like a hand of cards rather than running parallel:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(ggplot2)</span>
+<span class="cl"><span class="nf">ggplot</span>(recov, <span class="nf">aes</span>(sessions, recovery, colour <span class="o">=</span> clinic)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_point</span>(alpha <span class="o">=</span> <span class="m">0.35</span>, size <span class="o">=</span> <span class="m">1.4</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_smooth</span>(method <span class="o">=</span> <span class="s">&quot;lm&quot;</span>, se <span class="o">=</span> <span class="kc">FALSE</span>, linewidth <span class="o">=</span> <span class="m">0.9</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;One line per clinic: the slopes fan out&quot;</span>,</span>
+<span class="cl">       x <span class="o">=</span> <span class="s">&quot;therapy sessions&quot;</span>, y <span class="o">=</span> <span class="s">&quot;recovery score&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A random <em>intercept</em> could only slide these lines up and down; it could never tilt them. We need to let the slope itself vary.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does a random intercept assume?</h2>
+
+<p>Lesson 12's model was <code>recovery ~ sessions + (1 | clinic)</code>. Given the fanned lines you just saw, what is that model quietly assuming, and why is it a problem here?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">That every clinic has the SAME sessions slope and only a different intercept: eight parallel lines. Here the slopes plainly differ, so it is wrong.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That every clinic has the same intercept but its own slope</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">That the clinics are independent, so their patients can be pooled into one regression</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nothing is wrong: a random intercept already lets each clinic respond to sessions differently</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>(1 | clinic)</code> varies only the intercept, so all eight lines share one slope. The per-clinic slopes ran from 0.08 to 2.96, so forcing them equal misrepresents clinics like Ashby and Dale.</div><div class="lesson-qfb lesson-qfb-no">It does not. A random intercept shifts lines up and down but keeps them parallel. Letting the response to sessions differ is exactly what a random SLOPE adds.</div></div>
+</section>
 </section>
 
 <section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Write the random-slope term</h2>
+<h2>Let the slope vary too</h2>
 
-<p>Maya wants each region to have its own baseline <strong>and</strong> its own onboarding slope. Complete the random-effects term, then run it.</p>
+<p>To give each clinic its own slope for <code>sessions</code>, put <code>sessions</code> inside the random-effects term next to the <code>1</code>. The term <code>(1 + sessions | clinic)</code> reads <em>"let the intercept AND the sessions slope vary by clinic."</em> Fill in the random term.</p>
 <section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step5" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="\(\s*1\s*\+\s*onboarding\s*\|\s*region\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">library(lme4)
-m_slope &lt;- lmer(satisfaction ~ onboarding + ____, data = accounts)
-summary(m_slope)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. (1 + onboarding | region) lets both the intercept and the onboarding slope vary by region, drawn together from a shared 2-D normal with a correlation.</span><span class="lesson-tryit-fb lesson-tryit-no">You want both the intercept and the slope to vary by region: write (1 + onboarding | region). The 1 is the intercept, onboarding is the slope, the bar means varies by, and region is the grouping factor.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(lme4)
-m_slope &lt;- lmer(satisfaction ~ onboarding + (1 + onboarding | region), data = accounts)</code></pre></details></div>
+<div class="lesson-tryit" data-check-regex="\(\s*1\s*\+\s*sessions\s*\|\s*clinic\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">library(lme4)
+m_slope &lt;- lmer(recovery ~ sessions + ____, data = recov)
+summary(m_slope)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. (1 + sessions | clinic) gives every clinic its own intercept AND its own sessions slope, the two drawn together from a shared 2-D normal.</span><span class="lesson-tryit-fb lesson-tryit-no">The random-slope term is (1 + sessions | clinic): the 1 is the intercept, sessions is the varying slope, and | clinic says vary both by clinic.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(lme4)
+m_slope &lt;- lmer(recovery ~ sessions + (1 + sessions | clinic), data = recov)
+summary(m_slope)
+#&gt; Linear mixed model fit by REML ['lmerMod']
+#&gt; Formula: recovery ~ sessions + (1 + sessions | clinic)
+#&gt;    Data: recov
+#&gt;
+#&gt; Random effects:
+#&gt;  Groups   Name        Variance Std.Dev. Corr
+#&gt;  clinic   (Intercept) 58.6375  7.6575
+#&gt;           sessions     0.8101  0.9001   -0.48
+#&gt;  Residual             44.4003  6.6634
+#&gt; Number of obs: 190, groups:  clinic, 8
+#&gt;
+#&gt; Fixed effects:
+#&gt;             Estimate Std. Error t value
+#&gt; (Intercept)  48.7622     3.1252  15.603
+#&gt; sessions      1.3868     0.4056   3.419</code></pre></details></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Reading the random slopes</h2>
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading the fit</div>
+<h2>Three new numbers, and a matrix behind them</h2>
 
-<p>Maya's fitted model reports a random-effects <code>onboarding</code> standard deviation of 1.00 and an intercept-slope correlation of -0.40, and the fixed <code>onboarding</code> estimate is 2.26. Which reading is correct?</p>
-<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step6" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Every region responds to onboarding at exactly 2.26 points per hour; the 1.00 is just measurement error</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The -0.40 correlation means onboarding and satisfaction are negatively related</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Regions differ in how strongly onboarding helps (SD about 1.00 around a mean of 2.26), and high-baseline regions tend to gain a little less per hour (correlation -0.40)</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Because the average slope is positive, every region must have a positive slope</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. The slope SD describes real region-to-region variation in the onboarding effect, and the negative correlation ties a higher baseline to a slightly gentler slope.</div><div class="lesson-qfb lesson-qfb-no">Not guaranteed. With a mean of 2.26 and an SD of 1.00 most regions are positive, but a raw small-region slope can even come out negative from noise, which is exactly why the model pools it toward the average.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="7" data-step-type="concept">
-<div class="lesson-step-eyebrow">Beyond the normal outcome</div>
-<h2>GLMMs: when the outcome is not a number</h2>
-
-<p>Satisfaction is a number, so a linear mixed model fits. But Maya's sharper question is binary: did the account churn, yes or no? You cannot model a 0/1 outcome with a straight line; it would predict probabilities below 0 and above 1. Ordinary <a href="Logistic-Regression-Done-Properly.html">logistic regression</a> solved that for independent rows by modeling the log-odds through a <strong>link function</strong>:</p>
-
-<p>\[ \operatorname{logit}(p_{ij}) = \log\frac{p_{ij}}{1 - p_{ij}} = \beta_0 + \beta_1\,x_{ij} + u_j, \]</p>
-
-<p>where \(p_{ij}\) is the probability that account \(i\) in region \(j\) churns. A <strong>generalized linear mixed model</strong> (GLMM) is exactly this: a GLM's link function plus the random effects \(u_j\) that handle the grouping. In R the function is <code>glmer</code>, and you name the outcome's distribution with <code>family</code>, here <code>binomial</code> for yes/no.</p>
+<p>The random-effects block now carries three quantities instead of one. Pull them out with names:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
-<span class="cl">gm <span class="o">&lt;-</span> <span class="nf">glmer</span>(churned <span class="o">~</span> onboarding <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> region), data <span class="o">=</span> accounts, family <span class="o">=</span> binomial)</span>
-<span class="cl"><span class="nf">summary</span>(gm)</span>
-<span class="cl"><span class="c1">#&gt; Generalized linear mixed model fit by maximum likelihood (Laplace</span></span>
-<span class="cl"><span class="c1">#&gt;   Approximation) [glmerMod]</span></span>
-<span class="cl"><span class="c1">#&gt;  Family: binomial  ( logit )</span></span>
-<span class="cl"><span class="c1">#&gt; Formula: churned ~ onboarding + (1 | region)</span></span>
-<span class="cl"><span class="c1">#&gt;    Data: accounts</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; Random effects:</span></span>
-<span class="cl"><span class="c1">#&gt;  Groups Name        Variance Std.Dev.</span></span>
-<span class="cl"><span class="c1">#&gt;  region (Intercept) 0.2182   0.4671  </span></span>
-<span class="cl"><span class="c1">#&gt; Number of obs: 184, groups:  region, 12</span></span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; Fixed effects:</span></span>
-<span class="cl"><span class="c1">#&gt;             Estimate Std. Error z value Pr(&gt;|z|)    </span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept)  0.56186    0.34542   1.627    0.104    </span></span>
-<span class="cl"><span class="c1">#&gt; onboarding  -0.44779    0.09149  -4.894 9.87e-07 ***</span></span></div>
+<span class="cl">m_slope <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> sessions <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
+<span class="cl">vc <span class="o">&lt;-</span> <span class="nf">as.data.frame</span>(<span class="nf">VarCorr</span>(m_slope))</span>
+<span class="cl"><span class="nf">setNames</span>(<span class="nf">round</span>(vc<span class="o">$</span>sdcor, <span class="m">2</span>), <span class="nf">c</span>(<span class="s">&quot;sd_intercept&quot;</span>,<span class="s">&quot;sd_slope&quot;</span>,<span class="s">&quot;corr_int_slope&quot;</span>,<span class="s">&quot;sd_residual&quot;</span>))</span>
+<span class="cl"><span class="c1">#&gt;   sd_intercept       sd_slope corr_int_slope    sd_residual</span></span>
+<span class="cl"><span class="c1">#&gt;           7.66           0.90          -0.48           6.66</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -892,79 +867,191 @@ m_slope &lt;- lmer(satisfaction ~ onboarding + (1 + onboarding | region), data =
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Two things to notice. First, unlike <code>lmer</code>, <code>glmer</code> <strong>does</strong> print a p-value column: the maximum-likelihood fit for a GLMM gives usable z-tests, so the degrees-of-freedom problem that made <code>lmer</code> withhold p-values does not bite here. Second, the coefficients live on the log-odds scale, so exponentiate to read them as <strong>odds ratios</strong>:</p>
+<p>Formally, for patient \(i\) at clinic \(j\) who attended \(x_{ij}\) sessions:</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="nf">fixef</span>(gm)), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; (Intercept)  onboarding </span></span>
-<span class="cl"><span class="c1">#&gt;       1.754       0.639</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<p>\[ y_{ij} = \beta_0 + u_j + (\beta_1 + w_j)\,x_{ij} + \varepsilon_{ij}, \qquad \varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2), \]</p>
 
-<p>Each extra hour of onboarding multiplies the odds of churn by 0.64, a 36% cut in churn odds per hour, after accounting for the region each account sits in. The random intercept absorbs the fact that some regions are simply churnier than others. Plotting each region's fitted churn curve makes the structure visible: the same S-shaped fall, shifted up or down by each region's baseline.</p>
+<p>\[ \begin{pmatrix} u_j \\ w_j \end{pmatrix} \sim \mathcal{N}\!\left( \begin{pmatrix} 0 \\ 0 \end{pmatrix},\ \begin{pmatrix} \tau_0^2 & \rho\,\tau_0\tau_1 \\ \rho\,\tau_0\tau_1 & \tau_1^2 \end{pmatrix} \right). \]</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(ggplot2)</span>
-<span class="cl">accounts<span class="o">$</span>p_churn <span class="o">&lt;-</span> <span class="nf">predict</span>(gm, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
-<span class="cl"><span class="nf">ggplot</span>(accounts, <span class="nf">aes</span>(onboarding, p_churn, group <span class="o">=</span> region, colour <span class="o">=</span> region)) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_line</span>(alpha <span class="o">=</span> <span class="m">0.85</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Each region&#39;s churn curve, shifted by its baseline&quot;</span>,</span>
-<span class="cl">       y <span class="o">=</span> <span class="s">&quot;predicted P(churn)&quot;</span>)</span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<p>Reading each estimate in plain words:</p>
+
+<ul>
+
+<li>\(\beta_1 = 1.39\) is the <strong>average slope</strong>: across the network, an extra session adds about 1.4 recovery points. Its standard error, 0.41, is nearly double the 0.24 the random-intercept model reported. Honestly admitting that the slope varies makes us less certain about its average, which is exactly as it should be.</li>
+
+<li>\(\tau_1 = 0.90\) (<code>sd_slope</code>) is the <strong>spread of clinic slopes</strong> around that average. Clinic slopes scatter by roughly 0.9 points-per-session, so a typical clinic sits somewhere between about 0.5 and 2.3.</li>
+
+<li>\(\tau_0 = 7.66\) (<code>sd_intercept</code>) is the familiar <strong>spread of clinic baselines</strong> from Lesson 12.</li>
+
+<li>\(\rho = -0.48\) (<code>corr_int_slope</code>) is the <strong>intercept-slope correlation</strong>: clinics that start higher tend to climb more gently. It is the off-diagonal of the 2 by 2 matrix \(\Sigma\).</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A random intercept estimated ONE variance. A random slope estimates a whole 2 by 2 covariance matrix \(\Sigma\): a variance for the intercepts, a variance for the slopes, and the correlation between them. That correlation is free information, telling you whether high-baseline groups tend to respond more or less.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does sd_slope = 0.90 tell you?</h2>
+
+<p>The fit reported a slope spread of \(\tau_1 = 0.90\) and an intercept-slope correlation of \(\rho = -0.48\). Which reading is correct?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The average clinic slope is 0.90 points per session</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Every clinic's slope is exactly 0.90 away from 1.39</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Clinic slopes typically sit within about 0.90 of the average 1.39, and clinics with higher baselines tend to have gentler slopes</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">rho = -0.48 means sessions and recovery are negatively correlated</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. sd_slope = 0.90 is the spread of the per-clinic slopes around the mean 1.39, and rho = -0.48 says a higher intercept goes with a lower slope: high-baseline clinics climb more gently.</div><div class="lesson-qfb lesson-qfb-no">rho is the correlation between each clinic's random INTERCEPT and its random SLOPE, not between sessions and recovery (which is positive). It links a clinic's baseline to its steepness.</div></div>
+</section>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Choosing the family and link</h2>
+<div class="lesson-step-eyebrow">Before we pool</div>
+<h2>Why not just fit each clinic separately?</h2>
 
-<p>A colleague wants to model the <strong>number of support tickets</strong> each account files (0, 1, 2, ...), grouped by region, with a mixed model. What should they fit?</p>
+<p>You already have eight per-clinic slopes from <code>lmList</code> (0.08 to 2.96). Why prefer one random-slopes <code>lmer</code> over just reporting those eight separate <code>lm</code> fits?</p>
 <section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step8" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A linear mixed model with lmer, because counts are numbers</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">glmer(tickets ~ ... + (1 | region), family = poisson): a GLMM with a Poisson family and its log link</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">glmer(tickets ~ ... + (1 | region), family = binomial), because glmer always uses the binomial family</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Drop the grouping and use an ordinary glm, because glmer cannot do counts</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. Counts call for a Poisson (or negative-binomial) GLMM; glmer with family = poisson uses the log link so fitted counts stay non-negative, while the random intercept handles the regions.</div><div class="lesson-qfb lesson-qfb-no">glmer handles Poisson counts fine, and dropping region reintroduces the pseudoreplication that mixed models exist to fix.</div></div>
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because <code>lmer</code> is quicker to type than eight <code>lm</code> calls</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because a clinic with few patients gives a wildly noisy slope, and the random-slopes model shrinks those toward the average instead of trusting them blindly</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because separate <code>lm</code> fits cannot include a slope at all</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Because the random-slopes model returns identical slopes to the eight separate fits, just in one table</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Elm (12 patients) or Cedar (15) estimate a slope from very little data. Separate <code>lm</code> fits trust each noisy slope fully; partial pooling pulls the shakiest ones toward the network average, exactly as it did for intercepts in Lesson 12.</div><div class="lesson-qfb lesson-qfb-no">They are NOT identical. Pooling deliberately shrinks the separate slopes toward the mean, most for the smallest clinics, which is the whole benefit.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="9" data-step-type="concept">
-<div class="lesson-step-eyebrow">When the fit complains</div>
-<h2>Troubleshooting convergence</h2>
+<div class="lesson-step-eyebrow">Is it worth it?</div>
+<h2>Test the random slope with a likelihood-ratio test</h2>
 
-<p>Richer random-effects structures ask more of your data, and <code>lme4</code> will warn you when you have asked for too much. The most common message is a <strong>singular fit</strong>. Here is one on purpose: only five groups, and a slope that does not actually vary between them, yet we still ask for a random slope.</p>
+<p>Letting the slope vary cost two extra parameters: a slope variance \(\tau_1^2\) and the correlation \(\rho\). Did the data actually need them? Compare the random-intercept model against the random-slope model with <code>anova</code>, which runs a likelihood-ratio test:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
-<span class="cl">grp <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">rep</span>(<span class="kc">letters</span>[<span class="m">1</span><span class="o">:</span><span class="m">5</span>], each <span class="o">=</span> <span class="m">8</span>))          <span class="c1"># only 5 groups to learn from</span></span>
-<span class="cl">x    <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">runif</span>(<span class="m">40</span>, <span class="m">0</span>, <span class="m">10</span>), <span class="m">1</span>)</span>
-<span class="cl">y    <span class="o">&lt;-</span> <span class="m">3</span> <span class="o">+</span> <span class="m">1.5</span> <span class="o">*</span> x <span class="o">+</span>                                <span class="c1"># ONE slope shared by every group</span></span>
-<span class="cl">        <span class="nf">rnorm</span>(<span class="m">5</span>, <span class="m">0</span>, <span class="m">4</span>)[<span class="nf">as.integer</span>(grp)] <span class="o">+</span>           <span class="c1"># baselines differ by group</span></span>
-<span class="cl">        <span class="nf">rnorm</span>(<span class="m">40</span>, <span class="m">0</span>, <span class="m">2</span>)                             <span class="c1"># noise</span></span>
-<span class="cl">small <span class="o">&lt;-</span> <span class="nf">data.frame</span>(grp, x, y)</span>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">m_int   <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> clinic),            data <span class="o">=</span> recov)</span>
+<span class="cl">m_slope <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> sessions <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
+<span class="cl"><span class="nf">anova</span>(m_int, m_slope)</span>
+<span class="cl"><span class="c1">#&gt; refitting model(s) with ML (instead of REML)</span></span>
+<span class="cl"><span class="c1">#&gt; Data: recov</span></span>
+<span class="cl"><span class="c1">#&gt; Models:</span></span>
+<span class="cl"><span class="c1">#&gt; m_int: recovery ~ sessions + (1 | clinic)</span></span>
+<span class="cl"><span class="c1">#&gt; m_slope: recovery ~ sessions + (1 + sessions | clinic)</span></span>
+<span class="cl"><span class="c1">#&gt;         npar    AIC    BIC  logLik -2*log(L)  Chisq Df Pr(&gt;Chisq)</span></span>
+<span class="cl"><span class="c1">#&gt; m_int      4 1307.0 1320.0 -649.48    1299.0</span></span>
+<span class="cl"><span class="c1">#&gt; m_slope    6 1303.3 1322.8 -645.68    1291.3 7.6121  2    0.02224 *</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0.022, below 0.05, and the AIC drops from 1307 to 1303. The random slope earns its keep: clinics really do differ in how much sessions help, by more than sampling noise alone would produce. (<code>anova</code> quietly refits both models with maximum likelihood instead of REML, because REML likelihoods are not comparable across models with different fixed-effect setups; here the fixed part is identical, so it is simply being careful.)</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Testing whether a variance is zero (\(\tau_1^2 = 0\)) sits on the boundary of the allowed range, since a variance cannot go below zero. That makes this p-value mildly conservative: the true evidence is, if anything, a touch stronger than 0.022. When a random slope is borderline, favour keeping it if theory says the effect should vary.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Partial pooling steadies the slopes too</h2>
+
+<p>Everything you learned about shrinkage in Lesson 12 applies here, now to slopes. A clinic with plenty of patients stays close to its own raw slope; a small clinic's slope is pulled toward the network average of 1.39. Slide the pooling dial to feel it, then read the real pulled slopes underneath:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">m_slope <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> sessions <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
+<span class="cl">raw    <span class="o">&lt;-</span> <span class="nf">coef</span>(<span class="nf">lmList</span>(recovery <span class="o">~</span> sessions <span class="o">|</span> clinic, data <span class="o">=</span> recov))[, <span class="s">&quot;sessions&quot;</span>]</span>
+<span class="cl">pooled <span class="o">&lt;-</span> <span class="nf">coef</span>(m_slope)<span class="o">$</span>clinic[, <span class="s">&quot;sessions&quot;</span>]</span>
+<span class="cl"><span class="nf">data.frame</span>(n      <span class="o">=</span> <span class="nf">as.integer</span>(<span class="nf">table</span>(recov<span class="o">$</span>clinic)),</span>
+<span class="cl">           raw    <span class="o">=</span> <span class="nf">round</span>(raw, <span class="m">2</span>),</span>
+<span class="cl">           pooled <span class="o">=</span> <span class="nf">round</span>(pooled, <span class="m">2</span>),</span>
+<span class="cl">           pulled <span class="o">=</span> <span class="nf">round</span>(pooled <span class="o">-</span> raw, <span class="m">2</span>))</span>
+<span class="cl"><span class="c1">#&gt;        n  raw pooled pulled</span></span>
+<span class="cl"><span class="c1">#&gt; Ashby 18 2.96   2.10  -0.86</span></span>
+<span class="cl"><span class="c1">#&gt; Brook 34 2.80   2.56  -0.24</span></span>
+<span class="cl"><span class="c1">#&gt; Cedar 15 0.09   0.59   0.50</span></span>
+<span class="cl"><span class="c1">#&gt; Dale  40 0.08   0.39   0.31</span></span>
+<span class="cl"><span class="c1">#&gt; Elm   12 1.53   1.41  -0.12</span></span>
+<span class="cl"><span class="c1">#&gt; Fern  30 1.37   1.40   0.03</span></span>
+<span class="cl"><span class="c1">#&gt; Gale  16 1.07   1.29   0.22</span></span>
+<span class="cl"><span class="c1">#&gt; Hill  25 1.20   1.36   0.16</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the <code>pulled</code> column. Cedar's raw slope of 0.09 is nudged up to 0.59 and Dale's 0.08 up to 0.39: both looked suspiciously flat on limited within-clinic evidence, so the model leans them toward the average. Ashby's steep 2.96 is reeled in hardest, down to 2.10. The extreme, less-certain slopes move most; the well-supported ones barely budge.</p>
+<div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which slope was pulled most?</h2>
+
+<p>In the table, Ashby's slope moved the most (2.96 down to 2.10). Brook's raw slope is almost as steep (2.80) yet it barely moved (down to 2.56). What best explains the difference?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Ashby is both far from the average slope and backed by fewer patients (18 vs Brook's 34), so the model trusts its steep slope less</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Ashby has more patients than Brook, so it gets adjusted more</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Ashby's slope is negative, so it is corrected toward positive</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Random slopes are shrunk by a fixed 30% for every clinic</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Shrinkage grows with distance from the mean AND with how little data supports the estimate. Ashby and Brook are about equally extreme, but Ashby's smaller sample makes its slope less certain, so it is pulled harder.</div><div class="lesson-qfb lesson-qfb-no">The pull is not a fixed fraction. It depends on each clinic's sample size and how far its raw slope sits from the network average, so it differs clinic to clinic.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">The geometry</div>
+<h2>Eight lines that finally fan out</h2>
+
+<p><code>coef()</code> combines the fixed effects with each clinic's own intercept and slope, giving a genuine fitted line per clinic. Predict across the range of sessions and plot them:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl"><span class="nf">library</span>(ggplot2)</span>
+<span class="cl">m_slope <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> sessions <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">library</span>(lme4)</span>
-<span class="cl">fit <span class="o">&lt;-</span> <span class="nf">lmer</span>(y <span class="o">~</span> x <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> x <span class="o">|</span> grp), data <span class="o">=</span> small)    <span class="c1"># we ASK for a per-group slope too</span></span>
+<span class="cl">grid <span class="o">&lt;-</span> <span class="nf">expand.grid</span>(clinic <span class="o">=</span> clinic_names, sessions <span class="o">=</span> <span class="m">0</span><span class="o">:</span><span class="m">14</span>)</span>
+<span class="cl">grid<span class="o">$</span>fit <span class="o">&lt;-</span> <span class="nf">predict</span>(m_slope, newdata <span class="o">=</span> grid)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">ggplot</span>(grid, <span class="nf">aes</span>(sessions, fit, colour <span class="o">=</span> clinic)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_line</span>(linewidth <span class="o">=</span> <span class="m">1</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Eight fitted lines, no longer parallel&quot;</span>,</span>
+<span class="cl">       x <span class="o">=</span> <span class="s">&quot;therapy sessions&quot;</span>, y <span class="o">=</span> <span class="s">&quot;predicted recovery&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare these to the parallel lines a random intercept would have drawn. Ashby climbs steeply, Dale and Cedar stay nearly flat, and the lines cross: at zero sessions Ashby is not the best clinic, but by twelve sessions it has overtaken several. That crossing is impossible with a shared slope, and it is exactly the story the raw per-clinic fits told, now smoothed by partial pooling.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">Trouble, part 1</div>
+<h2>The singular fit</h2>
+
+<p>Emboldened, you might ask for the "maximal" model: let BOTH the <code>sessions</code> and <code>severity</code> slopes vary by clinic. Try it, and <code>lmer</code> pushes back:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">m_max <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> severity <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> sessions <span class="o">+</span> severity <span class="o">|</span> clinic),</span>
+<span class="cl">              data <span class="o">=</span> recov)</span>
 <span class="cl"><span class="c1">#&gt; boundary (singular) fit: see help(&#39;isSingular&#39;)</span></span>
-<span class="cl"><span class="nf">isSingular</span>(fit)</span>
+<span class="cl"><span class="nf">isSingular</span>(m_max)</span>
 <span class="cl"><span class="c1">#&gt; [1] TRUE</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -975,63 +1062,275 @@ m_slope &lt;- lmer(satisfaction ~ onboarding + (1 + onboarding | region), data =
   <div class="webr-plot-output"></div>
 </div>
 
-<p>A singular fit means the model pushed a variance to zero or a correlation to exactly plus or minus one: the random-effects structure is more complex than the data can support (five groups cannot pin down a slope variance, and the true slope did not vary anyway). The estimated correlation here collapses to -1.00, a tell-tale sign. It is a warning about the <em>model</em>, not a bug in your code, and the fix is to simplify, in this order:</p>
+<p><code>boundary (singular) fit</code> means the model landed on the edge of what it can estimate: some variance was driven to zero, or some correlation to exactly plus or minus one. Look at the estimated correlations among the random effects:</p>
 
-<ul>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">m_max <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> severity <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> sessions <span class="o">+</span> severity <span class="o">|</span> clinic),</span>
+<span class="cl">              data <span class="o">=</span> recov)</span>
+<span class="cl">vc <span class="o">&lt;-</span> <span class="nf">as.data.frame</span>(<span class="nf">VarCorr</span>(m_max))</span>
+<span class="cl">vc<span class="o">$</span>sdcor <span class="o">&lt;-</span> <span class="nf">round</span>(vc<span class="o">$</span>sdcor, <span class="m">3</span>)</span>
+<span class="cl">vc[<span class="o">!</span><span class="nf">is.na</span>(vc<span class="o">$</span>var2), <span class="nf">c</span>(<span class="s">&quot;grp&quot;</span>,<span class="s">&quot;var1&quot;</span>,<span class="s">&quot;var2&quot;</span>,<span class="s">&quot;sdcor&quot;</span>)]</span>
+<span class="cl"><span class="c1">#&gt;      grp        var1     var2  sdcor</span></span>
+<span class="cl"><span class="c1">#&gt; 4 clinic (Intercept) sessions -0.435</span></span>
+<span class="cl"><span class="c1">#&gt; 5 clinic (Intercept) severity -0.386</span></span>
+<span class="cl"><span class="c1">#&gt; 6 clinic    sessions severity  0.999</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<li><strong>Drop the correlation.</strong> Replace <code>(1 + x | grp)</code> with <code>(1 + x || grp)</code>: the <code>||</code> keeps the random slope but stops estimating the intercept-slope correlation, removing the hardest parameter.</li>
+<p>The <code>sessions</code>-<code>severity</code> slope correlation is pinned at <strong>0.999</strong>. With only eight clinics there is not enough information to estimate a full 3 by 3 covariance matrix (three variances plus three correlations, six numbers, from eight groups). The model is over-specified.</p>
 
-<li><strong>Drop the random slope.</strong> Fall back to <code>(1 | grp)</code> when a slope genuinely does not vary, or when too few groups can support one.</li>
-
-<li><strong>Rescale predictors.</strong> Very different variable scales (dollars next to a 0-to-1 flag) cause convergence, not singularity, warnings; <code>scale()</code> the numeric predictors and refit.</li>
-
-<li><strong>Switch the optimizer.</strong> <code>lme4::allFit(fit)</code> refits with several optimizers; if they all land in the same place, trust the result despite a borderline warning.</li>
-
-</ul>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Never ignore a convergence or singular-fit warning and report the numbers as if nothing happened. A singular model is telling you it cannot estimate what you asked for. Simplify the random-effects structure until the warning clears, and let the likelihood-ratio test, not habit, decide how much structure the data can carry.</div></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A singular fit is not a crash, and the estimates are not garbage, but the random-effects structure is more than your data can support. Do not just wave the warning away: simplify the model until it goes away on its own.</div></div>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<section class="lesson-step" data-step="14" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Fix a singular fit</h2>
+<h2>Simplify until it converges</h2>
 
-<p>The <code>(1 + x | grp)</code> model above was singular. Apply the first fix: keep the random slope but drop the intercept-slope correlation, using the double-bar <code>||</code> operator. Fill in the blank, then run it.</p>
-<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step10" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="\|\|"><textarea class="lesson-tryit-input" spellcheck="false">library(lme4)
-fixed &lt;- lmer(y ~ x + (1 + x ____ grp), data = small)
-isSingular(fixed)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. (1 + x || grp) keeps a random intercept and a random slope but stops estimating the correlation between them, dropping the parameter the small data set could not support. The fit is no longer singular.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the double-bar operator: (1 + x || grp). One bar keeps the correlation; two bars drop it while still allowing a random slope.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(lme4)
-fixed &lt;- lmer(y ~ x + (1 + x || grp), data = small)
-isSingular(fixed)
+<p>The cure is to ask for less. <code>severity</code>'s effect barely varies across clinics, so drop its random slope and keep only the one the data clearly supports, <code>sessions</code>. <code>severity</code> stays in as a fixed effect. Fill in the reduced random term.</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step14" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="\(\s*1\s*\+\s*sessions\s*\|\s*clinic\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">library(lme4)
+m_fix &lt;- lmer(recovery ~ sessions + severity + ____, data = recov)
+isSingular(m_fix)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. Keeping only (1 + sessions | clinic) asks for a random structure the eight clinics can actually support, and the fit is no longer singular.</span><span class="lesson-tryit-fb lesson-tryit-no">Drop the severity random slope and keep (1 + sessions | clinic); severity stays as a fixed effect in the formula.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(lme4)
+m_fix &lt;- lmer(recovery ~ sessions + severity + (1 + sessions | clinic), data = recov)
+isSingular(m_fix)
 #&gt; [1] FALSE</code></pre></details></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">Trouble, part 2</div>
+<h2>When it will not converge</h2>
+
+<p>The other warning you will meet is <code>Model failed to converge</code>, often with the hint <code>Rescale variables?</code>. It usually means the optimizer could not settle on a stable maximum, and the fix is rarely to abandon the model. Work down this ladder:</p>
+
+<p><strong>1. Put predictors on a comparable scale.</strong> An optimizer struggles when one predictor ranges 0 to 14 and another 0 to 10000. Centre and scale first; it changes nothing about the science, only the numerics:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">recov<span class="o">$</span>sessions_z <span class="o">&lt;-</span> <span class="nf">scale</span>(recov<span class="o">$</span>sessions)[, <span class="m">1</span>]      <span class="c1"># centre and scale to mean 0, sd 1</span></span>
+<span class="cl">m_z <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions_z <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> sessions_z <span class="o">|</span> clinic), data <span class="o">=</span> recov)</span>
+<span class="cl"><span class="nf">isSingular</span>(m_z)</span>
+<span class="cl"><span class="c1">#&gt; [1] FALSE</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>2. Try a different optimizer.</strong> lme4 lets you swap the engine; <code>bobyqa</code> often succeeds where the default stalls:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">m_b <span class="o">&lt;-</span> <span class="nf">lmer</span>(recovery <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> sessions <span class="o">|</span> clinic), data <span class="o">=</span> recov,</span>
+<span class="cl">            control <span class="o">=</span> <span class="nf">lmerControl</span>(optimizer <span class="o">=</span> <span class="s">&quot;bobyqa&quot;</span>))</span>
+<span class="cl"><span class="nf">isSingular</span>(m_b)</span>
+<span class="cl"><span class="c1">#&gt; [1] FALSE</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>3. Simplify the random structure</strong>, just as you did for the singular fit: drop a random slope, or drop its correlations with <code>||</code>.</p>
+
+<p><strong>4. As a last diagnostic, refit with every optimizer</strong> using <code>allFit(m)</code> and check whether they agree. If all optimizers land in the same place, a lone convergence warning is usually a false alarm you can safely step past.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Order matters: rescale first (it is free and clears most warnings), then swap optimizer, then simplify the model. Reach for <code>allFit</code> only to confirm a borderline case, not as a first move.</div></div>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Your first move on a convergence warning</h2>
+
+<p>You fit a mixed model with several predictors on very different scales (age in years, income in dollars, a 0-14 count) and get <code>Model failed to converge; Rescale variables?</code>. What is the sensible FIRST thing to try?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step16" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Delete the random effects and fall back to a plain <code>lm</code></span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Centre and scale the predictors so they share a comparable range, then refit</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Collect more data until the warning disappears</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Lower your significance threshold to accept the model as is</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The warning even suggests it ("Rescale variables?"). Scaling is free, changes no conclusions, and clears the majority of convergence warnings caused by predictors on wildly different scales.</div><div class="lesson-qfb lesson-qfb-no">The threshold has nothing to do with whether the optimizer converged. Ignoring the warning risks trusting unstable estimates; address the cause instead.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
+<div class="lesson-step-eyebrow">Generalizing</div>
+<h2>When the outcome is yes or no</h2>
+
+<p>So far the outcome has been a 0-100 score with residuals assumed normal. But Dr. Reyes also recorded a plain yes/no: at the one-year follow-up, did the patient report a full recovery (<code>recovered</code> = 1) or not (0)? You cannot model a yes/no with a straight line, because a line would happily predict probabilities above 1 and below 0.</p>
+
+<p>The fix is the same one ordinary logistic regression uses: pass the linear predictor through the <strong>logit link</strong>, which squashes any number into a probability between 0 and 1. A mixed model wearing that link is a <strong>generalized linear mixed model (GLMM)</strong>. For patient \(i\) at clinic \(j\):</p>
+
+<p>\[ \operatorname{logit}(p_{ij}) = \log\frac{p_{ij}}{1 - p_{ij}} = \beta_0 + u_j + \beta_1 x_{ij}, \qquad u_j \sim \mathcal{N}(0, \tau^2), \]</p>
+
+<p>where \(p_{ij}\) is the probability that the patient reports full recovery, \(x_{ij}\) their number of sessions, \(\beta_1\) the average effect of a session on the log-odds, and \(u_j\) each clinic's random intercept, now living on the log-odds scale. Everything you know about random effects carries straight over; only the link and the outcome distribution (binomial, not normal) change. The S-curve below is that link: drag the threshold to see how a straight log-odds line becomes a bounded probability.</p>
+<div class="lesson-widget" data-widget-type="logistic-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the GLMM</h2>
+
+<p><code>glmer</code> is <code>lmer</code>'s generalized sibling: the same formula grammar, plus a <code>family</code> that names the outcome's distribution and link. For a yes/no outcome that is <code>family = binomial</code> (which uses the logit link by default). Fill it in.</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step18" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="binomial"><textarea class="lesson-tryit-input" spellcheck="false">library(lme4)
+g &lt;- glmer(recovered ~ sessions + (1 | clinic), data = recov, family = ____)
+summary(g)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. family = binomial puts a logit link on a yes/no outcome, turning the mixed model into a logistic GLMM with a per-clinic random intercept.</span><span class="lesson-tryit-fb lesson-tryit-no">For a 0/1 outcome use family = binomial, which applies the logit link by default.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(lme4)
+g &lt;- glmer(recovered ~ sessions + (1 | clinic), data = recov, family = binomial)
+summary(g)
+#&gt; Generalized linear mixed model fit by maximum likelihood (Laplace
+#&gt;   Approximation) [glmerMod]
+#&gt;  Family: binomial  ( logit )
+#&gt;
+#&gt; Random effects:
+#&gt;  Groups Name        Variance Std.Dev.
+#&gt;  clinic (Intercept) 5.572    2.361
+#&gt; Number of obs: 190, groups:  clinic, 8
+#&gt;
+#&gt; Fixed effects:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -2.43097    1.04938  -2.317 0.020527 *
+#&gt; sessions     0.35225    0.09455   3.726 0.000195 ***</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reading a GLMM</div>
+<h2>From log-odds to odds ratios</h2>
+
+<p><code>glmer</code> reports fixed effects on the <strong>log-odds</strong> scale, which is hard to feel. Exponentiate to get <strong>odds ratios</strong>, the natural way to read a logistic model:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">g <span class="o">&lt;-</span> <span class="nf">glmer</span>(recovered <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> clinic), data <span class="o">=</span> recov, family <span class="o">=</span> binomial)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="nf">fixef</span>(g)), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)    sessions</span></span>
+<span class="cl"><span class="c1">#&gt;        0.09        1.42</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each extra therapy session multiplies a patient's <strong>odds</strong> of reporting full recovery by <strong>1.42</strong>, a 42% increase in the odds per session, at a fixed clinic. Two differences from <code>lmer</code> are worth noting. First, <code>glmer</code> prints a <code>z value</code> and a p-value (0.0002 for sessions), because on the binomial scale those tests are well defined, unlike the deliberately p-value-free <code>lmer</code>. Second, the random effects have only a variance, with no <code>Residual</code> row:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(lme4)</span>
+<span class="cl">g <span class="o">&lt;-</span> <span class="nf">glmer</span>(recovered <span class="o">~</span> sessions <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> clinic), data <span class="o">=</span> recov, family <span class="o">=</span> binomial)</span>
+<span class="cl"><span class="nf">as.data.frame</span>(<span class="nf">VarCorr</span>(g))[, <span class="nf">c</span>(<span class="s">&quot;grp&quot;</span>, <span class="s">&quot;sdcor&quot;</span>)]</span>
+<span class="cl"><span class="c1">#&gt;      grp    sdcor</span></span>
+<span class="cl"><span class="c1">#&gt; 1 clinic 2.361198</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The clinic random-intercept standard deviation is 2.36 <strong>on the log-odds scale</strong>: clinics differ a great deal in their baseline recovery odds. There is no residual variance term because a binomial outcome's spread is fixed once you know its mean (a coin's variance is set the moment you know its probability), so the tidy \(\tau^2/(\tau^2+\sigma^2)\) ICC from Lesson 12 does not carry over unchanged to a GLMM.</p>
+</section>
+
+<section class="lesson-step" data-step="20" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does an odds ratio of 1.42 mean?</h2>
+
+<p>The GLMM reported <code>exp(sessions) = 1.42</code>. Which statement is correct?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step20" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Each session raises the probability of full recovery by 42 percentage points</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Each session adds 1.42 to the recovery score</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Each extra session multiplies the odds of reporting full recovery by 1.42, about a 42% rise in the odds, at a fixed clinic</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The model is 1.42 times more accurate than a plain logistic regression</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The exponential of a logistic coefficient is an odds ratio: the odds get multiplied by 1.42 per session. Its effect on the probability depends on the baseline, but the odds multiplier is constant.</div><div class="lesson-qfb lesson-qfb-no">1.42 is the odds ratio for sessions, not a measure of accuracy or a comparison between two models.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="21" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>Choose the model</h2>
+
+<p>A sleep researcher measures <strong>reaction time</strong> on <strong>18 volunteers</strong> across <strong>10 nights</strong> of sleep restriction. Reaction time is a continuous score, and she expects sleep loss to slow some people far more than others. Which model fits the design?</p>
+<section class="exercise" data-exercise-id="Mixed-Models-Random-Slopes-and-GLMMs-step21" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>lm(rt ~ night)</code> on all 180 rows</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>lmer(rt ~ night + (1 + night | subject))</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>lmer(rt ~ night + (1 | subject))</code></span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx"><code>glmer(rt ~ night + (1 + night | subject), family = binomial)</code></span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. night is the fixed effect, and (1 + night | subject) gives each volunteer their own baseline AND their own slowing rate, exactly the "some people slow more than others" the researcher expects, while respecting the repeated measures.</div><div class="lesson-qfb lesson-qfb-no">Reaction time is a continuous score, not a yes/no, so the binomial family and logit link are wrong. Use <code>lmer</code>; reserve <code>glmer</code> for yes/no or count outcomes.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="22" data-step-type="concept">
+<div class="lesson-step-eyebrow">Handle with care</div>
+<h2>Where random slopes and GLMMs bite</h2>
+
+<p>Five cautions before you trust one of these models in the wild:</p>
+
+<ul>
+
+<li><strong>Random slopes are hungry for data.</strong> Estimating how a slope VARIES needs both enough groups and enough spread of the predictor within each group. With few groups, or a predictor that barely moves inside a group, expect singular fits. Eight clinics was workable here; five would be shaky.</li>
+
+<li><strong>Keep the random structure your data can support.</strong> The maximal model is a fine goal, but if it will not converge, simplify: drop the correlations with <code>||</code>, then drop the least-supported random slope. A model that runs beats a maximal model that does not.</li>
+
+<li><strong>A GLMM's ICC is not</strong> \(\tau^2/(\tau^2+\sigma^2)\). There is no residual variance on the response scale, so the clean Lesson-12 formula does not apply. Report the random-effect standard deviation on the log-odds scale, or use a purpose-built approximation.</li>
+
+<li>**<code>glmer</code> is slower and approximate.** It integrates over the random effects numerically (Laplace by default). For a stubborn single-intercept model, <code>nAGQ = 10</code> sharpens the approximation at the cost of speed.</li>
+
+<li><strong>Random effects are assumed exchangeable draws.</strong> As in Lesson 12, treat a grouping as random only when its levels are interchangeable samples from a population you want to generalize to; a handful of fixed categories you care about individually belong in the fixed part.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The commonest mistake is over-specifying random effects and then ignoring the singular-fit warning. If <code>lmer</code> or <code>glmer</code> warns, believe it: pare the random structure back to what the data can actually estimate.</div></div>
+</section>
+
+<section class="lesson-step" data-step="23" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
 <ul>
 
-<li><a href="http://www.stat.columbia.edu/~gelman/arm/">Gelman and Hill (2007), Data Analysis Using Regression and Multilevel/Hierarchical Models</a> - the definitive, readable treatment of varying intercepts and slopes and when each is worth it.</li>
+<li><a href="https://doi.org/10.18637/jss.v067.i01">Bates, Machler, Bolker and Walker (2015), Fitting Linear Mixed-Effects Models Using lme4 (JSS 67:1)</a> - the definitive reference for <code>lmer</code> and <code>glmer</code> syntax, including the <code>(1 + x | g)</code> and <code>||</code> random-effects grammar used here.</li>
 
-<li><a href="https://doi.org/10.18637/jss.v067.i01">Bates, Machler, Bolker and Walker (2015), Fitting Linear Mixed-Effects Models Using lme4 (JSS 67:1)</a> - the paper behind lme4, the <code>(1 + x | g)</code> syntax, and the REML fit you read here.</li>
+<li><a href="https://doi.org/10.1016/j.jml.2012.11.001">Barr, Levy, Scheepers and Tily (2013), Random effects structure for confirmatory hypothesis testing: Keep it maximal (Journal of Memory and Language 68:255)</a> - the case for including the random slopes your design justifies, and the errors that follow from leaving them out.</li>
 
-<li><a href="https://doi.org/10.1016/j.jml.2012.11.001">Barr, Levy, Scheepers and Tily (2013), Random effects structure for confirmatory hypothesis testing: Keep it maximal (J. Memory and Language)</a> - the classic argument for including random slopes, and the trade-offs when data is thin.</li>
+<li><a href="https://doi.org/10.1016/j.tree.2008.10.008">Bolker et al. (2009), Generalized linear mixed models: a practical guide for ecology and evolution (Trends in Ecology and Evolution 24:127)</a> - a clear, applied tour of GLMMs: choosing families and links, fitting, and interpreting.</li>
 
-<li><a href="https://doi.org/10.1016/j.tree.2008.10.008">Bolker et al. (2009), Generalized linear mixed models: a practical guide for ecology and evolution (Trends in Ecology and Evolution)</a> - a clear, example-led introduction to GLMMs and choosing a family.</li>
-
-<li><a href="https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html">Bolker, GLMM FAQ</a> - the go-to reference for convergence and singular-fit troubleshooting, kept current by the lme4 authors.</li>
+<li><a href="https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html">Bolker, GLMM FAQ</a> - the community reference for troubleshooting: singular fits, convergence warnings, <code>allFit</code>, and when to worry.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="24" data-step-type="complete">
 <h2>Lesson 13 complete</h2>
 
-<p>You can now fit mixed models that let each group respond differently and that handle outcomes beyond the normal. A <strong>random slope</strong>, <code>lmer(y ~ x + (1 + x | group))</code>, gives every group its own slope drawn from a shared distribution, reports how much slopes vary and how they correlate with the baseline, and honestly widens the average slope's standard error. A <strong>GLMM</strong>, <code>glmer(y ~ x + (1 | group), family = ...)</code>, adds a link function so mixed models reach yes/no and count outcomes, read on the odds or rate scale. And when a richer model throws a <strong>singular fit</strong> or convergence warning, you know it is telling you the random-effects structure outran the data, and you simplify with <code>||</code>, a dropped slope, rescaling, or a different optimizer.</p>
+<p>You can now let a group's whole <em>relationship</em> vary, not just its baseline. A <strong>random slope</strong>, <code>lmer(y ~ x + (1 + x | g))</code>, gives each group its own intercept and slope drawn together from a 2 by 2 covariance \(\Sigma\); a likelihood-ratio test says whether it earns its place, and partial pooling steadies the noisy small-group slopes just as it did the intercepts. When the model resists, you can now read a <strong>singular fit</strong> or a <strong>convergence warning</strong> and fix it by rescaling, switching optimizer, or simplifying the random structure. And with <code>glmer</code> and a <code>family</code>, every one of these ideas carries onto yes/no and count outcomes as a <strong>GLMM</strong>, read on the odds scale.</p>
 
-<p>That completes Advanced Regression and GLMs. You started with a single outlier tilting an OLS line and finished fitting hierarchical models to grouped, non-normal data, the full modern regression toolkit. From here, the natural next steps are the tree-based and Bayesian tracks, where many of these same ideas (partial pooling, shrinkage, honest uncertainty) return in new forms.</p>
+<p>That closes the Advanced Regression and GLMs course. You began with a line too easily tilted by a single outlier and end with models that give hundreds of groups their own honest, pooled story on whatever scale the outcome demands. From here two doors open: <strong>GLMMs for counts</strong> (Poisson and negative-binomial random-effects models for rates and events), and the fully <strong>Bayesian multilevel model</strong>, where partial pooling becomes a prior and the same clinics get full posterior uncertainty. You have the foundation for both.</p>
 </section>
 
 
@@ -1119,7 +1418,7 @@ isSingular(fixed)
     }
   })();
   </script>
-  <script src="www/toc.min.js?h=db578404"></script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
   <!-- MathJax Script -->
   
   <script type="text/x-mathjax-config">
@@ -1127,7 +1426,11 @@ isSingular(fixed)
       tex2jax: {
         inlineMath: [['$','$'], ['\\(','\\)']],
         displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
@@ -1137,13 +1440,13 @@ isSingular(fixed)
 
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
-  <script src="www/webr-init.min.js?h=92549f4e"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=946dceef"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
-  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <script src="www/lesson-mode.min.js?h=378afac5"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
        scripting doesn't compete with the critical path. Events fired before
        the loader lands get buffered on window.dataLayer and flushed once
