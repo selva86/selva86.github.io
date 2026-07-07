@@ -95,11 +95,9 @@ rbind(A = rates("A"), B = rates("B"))
 #> B      0.36 0.6 0.2       0.4
 ```
 
-Read it as an audit table:
+Read it as an audit table. Group A is approved more overall (0.56 vs 0.36) **and** approved more among the people who would repay (TPR 0.80 vs 0.60). The one thing that matches is the false-positive rate (0.20 each). Three numbers, three different stories, and they will not all point the same way.
 
-::widget styled-table {"cols":["group","selection","TPR","FPR","base rate"],"rows":[["A",0.56,0.80,0.20,0.60],["B",0.36,0.60,0.20,0.40]],"formats":{"selection":"pct","TPR":"pct","FPR":"pct","base rate":"pct"},"title":"Loan approvals audited by group","note":"Selection is the approval rate. TPR is the approval rate among applicants who would repay."}
-
-Group A is approved more overall (0.56 vs 0.36) **and** approved more among the people who would repay (TPR 0.80 vs 0.60). The one thing that matches is the false-positive rate (0.20 each). Three numbers, three different stories, and they will not all point the same way.
+::widget styled-table {"cols":["group","selection","TPR","FPR","base rate"],"rows":[["A",0.56,0.8,0.2,0.6],["B",0.36,0.6,0.2,0.4]],"formats":{"selection":"pct","TPR":"pct","FPR":"pct","base rate":"pct"},"title":"Loan approvals audited by group","note":"Selection is the approval rate. TPR is the approval rate among applicants who would repay."}
 
 === step === widget
 ::eyebrow The definitions
@@ -122,7 +120,7 @@ The widget runs the same audit on a second lender's model (its group A is approv
 Back to our bank: group A vs B has selection 0.56 vs 0.36, TPR 0.80 vs 0.60, and FPR 0.20 vs 0.20. Which fairness definitions does this model satisfy, and which does it fail?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- It satisfies equalised odds, since the two false-positive rates match at 0.20 ::no Equalised odds needs BOTH rates equal. The FPRs match, but the TPRs do not (0.80 vs 0.60), so equalised odds fails. Matching one of the two is not enough.
+- It satisfies equalised odds, since the two false-positive rates match at 0.20
 - It fails all three: parity (selection 0.56 vs 0.36), equal opportunity (TPR 0.80 vs 0.60), and equalised odds (which needs equal TPR and FPR, and the TPRs differ). Only the FPRs happen to match ::ok Exactly. Every definition compares a different rate, and the only rate that lines up here is the FPR, which on its own satisfies none of the three named definitions.
 - It satisfies equal opportunity, because group B still receives some approvals ::no Equal opportunity means equal TPR, not "some approvals for everyone". The TPRs are 0.80 vs 0.60, a clear gap, so equal opportunity fails.
 
@@ -152,12 +150,12 @@ Now try to engineer **equalised odds**: force both groups to share one TPR and o
 # Force equalised odds: give BOTH groups TPR = 0.70 and FPR = 0.20.
 # Base rates still differ (0.60 vs 0.40), so selection rates cannot match.
 c(A = sel(0.60, 0.70, 0.20), B = sel(0.40, 0.70, 0.20))
-#>    A    B
-#> 0.50 0.40
+#>   A   B
+#> 0.5 0.4
 ```
 
 [KEY INSIGHT]
-When two groups have different base rates, equalised odds (equal TPR and FPR) and demographic parity (equal selection) cannot both hold, unless the model is a perfect, error-free classifier. No real model is. You have to pick which fairness you want; you cannot have every one at once.
+When two groups have different base rates, equalised odds (equal TPR and FPR) and demographic parity (equal selection) cannot both hold. Making the model more accurate does not rescue you: the identity forces the two selection rates to match only when TPR equals FPR, that is, when the model approves would-repay and would-default applicants at exactly the same rate and so ignores merit entirely. Any model that actually tells the two groups of applicants apart has to pick which fairness you want; you cannot have every one at once.
 
 === step === quiz
 ::eyebrow Check yourself
@@ -166,9 +164,9 @@ When two groups have different base rates, equalised odds (equal TPR and FPR) an
 Your bank wants the model to satisfy demographic parity **and** equalised odds at the same time. The two groups have different base rates (60% vs 40% would repay). A teammate says: just collect more data and retrain harder until both hold. Will that work?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Yes: with enough data and careful tuning, a well-built model can satisfy every fairness definition at once ::no This is the most common misconception. The clash is arithmetic, not a data-quality problem: the selection identity forces it whenever base rates differ. No amount of data removes it (short of perfect prediction).
-- No: since selection = base_rate x TPR + (1 - base_rate) x FPR, equal TPR and FPR with different base rates force different selection rates. Only a perfect, error-free classifier escapes, and no real model is perfect ::ok Exactly. The incompatibility is baked into the identity. More data can improve accuracy, but it cannot make two unequal base rates produce equal selection AND equal error rates together.
-- No, but only because the training data is biased; a perfectly clean dataset would let both definitions hold ::no Even with flawless, unbiased data, unequal base rates alone make parity and equalised odds incompatible. The obstacle is the base-rate gap plus imperfect prediction, not dirty data.
+- Yes: with enough data and careful tuning, a well-built model can satisfy every fairness definition at once
+- No: since selection = base_rate x TPR + (1 - base_rate) x FPR, equal TPR and FPR with different base rates force different selection rates. The only way out is a model that approves repayers and defaulters at the same rate, which ignores merit and no bank would use ::ok Exactly. The incompatibility is baked into the identity. More data can improve accuracy, but it cannot make two unequal base rates produce equal selection AND equal error rates together.
+- No, but only because the training data is biased; a perfectly clean dataset would let both definitions hold ::no Even with flawless, unbiased data, unequal base rates alone make parity and equalised odds incompatible. The obstacle is the base-rate gap itself, not dirty data: as long as the model tells repayers from defaulters at all, the two definitions collide.
 
 === step === tryit
 ::eyebrow Your turn
@@ -196,11 +194,7 @@ tpr_B
 
 Since you cannot satisfy every definition, fairness becomes a decision, not a calculation. The rule of thumb: pick the definition that matches the **harm you most want to avoid**. When the harm is denying a good outcome to someone who deserved it (a qualified applicant refused a loan, a sick patient not flagged), that is a false negative, so you care about **equal opportunity** (equal TPR). When the harm is unequal access regardless of merit, you reach for **demographic parity**.
 
-Once you have chosen, a real audit follows four steps:
-
-::widget process-flow {"steps":[{"title":"Audit","sub":"measure selection, TPR and FPR for every group"},{"title":"Choose","sub":"pick the fairness definition that matches the real harm"},{"title":"Mitigate","sub":"reweight data, add a training constraint, or adjust group thresholds"},{"title":"Document","sub":"record the choice, the gap left, and who is affected"}]}
-
-Mitigation lives at three points. **Pre-processing** reweights or relabels the training data to remove a bias before fitting. **In-processing** adds a fairness penalty to the training objective. **Post-processing** leaves the model alone and adjusts the *decision*, for example a different approval threshold per group. Here is a post-processing fix that equalises opportunity by approving more of group B's qualified applicants:
+Once you have chosen a target, you change the pipeline to hit it. Mitigation lives at three points. **Pre-processing** reweights or relabels the training data to remove a bias before fitting. **In-processing** adds a fairness penalty to the training objective. **Post-processing** leaves the model alone and adjusts the *decision*, for example a different approval threshold per group. Here is a post-processing fix that equalises opportunity by approving more of group B's qualified applicants:
 
 ```r
 # Post-processing: approve more of the QUALIFIED group-B applicants so both
@@ -218,6 +212,10 @@ The true-positive rates now match at 0.80, yet the selection rates still differ 
 [WARNING]
 One "fix" that does not work: simply deleting the group label so the model cannot see it. Other features (address, income, spending history) act as **proxies** and let the model reconstruct the group anyway, so the gaps usually survive. Fairness through unawareness is not fairness. You must measure the rates on the outputs, never assume fairness from the inputs.
 
+That is the whole loop: audit the rates, choose the definition that matches the harm, mitigate, and document what you decided and what gap remains.
+
+::widget process-flow {"steps":[{"title":"Audit","sub":"measure selection, TPR and FPR for every group"},{"title":"Choose","sub":"pick the fairness definition that matches the real harm"},{"title":"Mitigate","sub":"reweight data, add a training constraint, or adjust group thresholds"},{"title":"Document","sub":"record the choice, the gap left, and who is affected"}]}
+
 === step === quiz
 ::eyebrow Check yourself
 ## Does hiding the group make it fair?
@@ -225,7 +223,7 @@ One "fix" that does not work: simply deleting the group label so the model canno
 To be fair, an engineer removes the applicant's group label from the model's inputs entirely, so the model can no longer see it. Does that guarantee a fair model?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Yes: a model that never sees the protected attribute cannot discriminate on it ::no This is "fairness through unawareness", and it fails. Correlated features stand in for the hidden attribute, so the model still behaves differently across groups.
+- Yes: a model that never sees the protected attribute cannot discriminate on it
 - No: other features (zip code, income, spending history) act as proxies for the group, so the model can reconstruct and act on it; the group gaps often survive. You must MEASURE fairness on the outputs, not assume it from the inputs ::ok Exactly. Removing the label removes your ability to audit, not the bias itself. Proxies carry the information, so you check the per-group rates on the decisions the model actually makes.
 - No, but only if the engineer also forgot to delete the group column from the training data file ::no The problem is not a leftover column. Even with the label truly gone from training and scoring, proxy features reconstruct it, which is why unawareness does not deliver fairness.
 
