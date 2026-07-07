@@ -52,11 +52,11 @@ dat <- data.frame(
   weekly_logins    = pmax(0, round(rnorm(n, 12, 4))),  # real signal
   features_used    = rpois(n, 5),                       # real signal
   team_size        = rpois(n, 4) + 1,                   # real signal
-  docs_opened      = rpois(n, 6),                        # no signal
-  emails_clicked   = rpois(n, 3),                        # no signal
-  support_tickets  = rpois(n, 1),                        # no signal
-  page_pings       = round(rnorm(n, 40, 12)),            # no signal
-  session_gap_days = round(rnorm(n, 7, 3))               # no signal
+  docs_opened      = rpois(n, 6),                       # no signal
+  emails_clicked   = rpois(n, 3),                       # no signal
+  support_tickets  = rpois(n, 1),                       # no signal
+  page_pings       = round(rnorm(n, 40, 12)),           # no signal
+  session_gap_days = round(rnorm(n, 7, 3))              # no signal
 )
 
 # The true conversion score depends ONLY on the first three columns:
@@ -111,7 +111,7 @@ You have the `strength` ranking from the last step. Turn a ranking into a *selec
 keep <- names(strength)[strength ____ 0.15]
 keep
 ```
-::check {"regex":">","gate":true,"difficulty":"beginner","ok":"Right: strength > 0.15 keeps the features above the cutoff. The three real drivers clear it comfortably; the five noise columns fall short and are dropped.","no":"You want the features whose strength is greater than the cutoff, so use the greater-than sign: strength > 0.15."}
+::check {"regex":"strength\\s*>","gate":true,"difficulty":"beginner","ok":"Right: strength > 0.15 keeps the features above the cutoff. The three real drivers clear it comfortably; the five noise columns fall short and are dropped.","no":"You want the features whose strength is greater than the cutoff, so use the greater-than sign: strength > 0.15."}
 ::solution
 ```r
 keep <- names(strength)[strength > 0.15]
@@ -141,7 +141,7 @@ formula(reduced)
 #> converted ~ weekly_logins + features_used + team_size + docs_opened
 ```
 
-The search keeps the three real drivers and drops four of the five noise columns, because a noise feature usually does not pay for its complexity in AIC. Notice it hangs on to `docs_opened` here, a column with no real signal but the least innocent-looking of the noise: AIC would rather tolerate a borderline extra than risk dropping something useful. That is worth internalizing early, **selection is a heuristic, not an oracle**; treat any method's output as a shortlist to sanity-check. Wrappers usually pick a sharper subset than a filter, but they pay for it: they refit the model many times (slow on wide data), and they can overfit the *selection itself* if you tune it on the same data you evaluate on, a leak we will name in a moment.
+The search keeps the three real drivers and drops four of the five noise columns, because a noise feature usually does not pay for its complexity in AIC. Notice it hangs on to `docs_opened` here, a column with no real signal but the least innocent-looking of the noise: AIC would rather tolerate a borderline extra than risk dropping something useful. That is worth internalizing early, **selection is a heuristic, not an oracle**; treat any method's output as a shortlist to sanity-check. Wrappers usually pick a sharper subset than a filter, but they pay for it: they refit the model many times (slow on wide data), and they can overfit the *selection itself* if you tune it on the same data you evaluate on, which is its own subtle form of leakage.
 
 === step === concept
 ::eyebrow Family 3
@@ -169,10 +169,10 @@ rownames(cf)[cf[, 1] != 0]                   # the features Lasso KEPT (coeffici
 
 Lasso keeps the signal and zeros most of the noise in a single fit, with no separate search. (On this sample it, too, holds on to `docs_opened`, the same borderline column the wrapper kept, another reminder that a selected set is a shortlist, not gospel.) Tree ensembles select in their own way: a random forest ranks features by how much each one improves its splits, and you keep the top of that ranking. The chart below shows an illustrative importance ranking for this trial data, the kind an embedded method produces.
 
-::widget importance-bars {"items":[{"label":"weekly logins","value":100},{"label":"features used","value":68},{"label":"team size","value":41},{"label":"emails clicked","value":11},{"label":"docs opened","value":9},{"label":"support tickets","value":6},{"label":"page pings","value":4},{"label":"session gap days","value":3}]}
-
 [NOTE]
 Embedded methods are usually the best default: they are model-aware like a wrapper but cost one fit like a filter. One caveat: when two features are strongly correlated, the Lasso tends to keep one and zero the other almost at random, so do not read a zeroed coefficient as proof a feature is worthless.
+
+::widget importance-bars {"items":[{"label":"weekly logins","value":100},{"label":"features used","value":68},{"label":"team size","value":41},{"label":"emails clicked","value":11},{"label":"docs opened","value":9},{"label":"support tickets","value":6},{"label":"page pings","value":4},{"label":"session gap days","value":3}]}
 
 === step === quiz
 ::eyebrow Check yourself
@@ -182,7 +182,7 @@ You have just pulled in a dataset with 3,000 candidate features and a single aft
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - Filter methods: score each feature on its own against the target, fast and model-agnostic ::ok Exactly. A filter is O(one pass per feature), needs no model, and gives a model-independent ranking, which is precisely what a fast first cut over 3,000 columns calls for. Refine with an embedded method afterward.
-- Wrapper methods: search subsets, refitting the model for each candidate ::no A wrapper refits the model many times over, which is far too slow for 3,000 features in an afternoon, and its result is tied to the one model you search with, the opposite of model-agnostic.
+- Wrapper methods: search subsets, refitting the model for each candidate ::no A wrapper refits the model for every candidate subset, which is far too slow for 3,000 columns and ties the ranking to one model. Start with a filter, then refine.
 - Embedded methods: let a single model like the Lasso select during training ::no Embedded selection is excellent and you should reach for it next, but it ties the choice to one model's fit. For a fast, model-agnostic first pass over thousands of columns, the filter is the right tool.
 
 === step === concept
@@ -217,13 +217,13 @@ Every converter has a bill, no non-converter does: a perfect line-up. Drag the t
 Your trial-conversion model posts an astonishing 0.999 accuracy on the held-out test set, and almost all of the importance sits on one feature, `invoice_amount`. A teammate is thrilled and wants to ship it today. What is the most likely explanation?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The model is genuinely excellent; a 0.999 accuracy just means these features are very predictive ::no A near-perfect score driven by a single dominating feature is the classic fingerprint of leakage, not skill. Real problems almost never allow 0.999, so the first move is suspicion, not celebration.
+- The model is genuinely excellent; a 0.999 accuracy just means these features are very predictive ::no On a genuinely hard problem, near-perfect accuracy is a warning, not a triumph. Before celebrating, ask where that one dominant feature comes from and whether you would have it at prediction time.
 - The feature is target leakage: an invoice exists only after a trial converts, so it encodes the answer and will be zero (or absent) for every genuinely new trial at prediction time ::ok Exactly. `invoice_amount` is a consequence of the outcome, not a predictor of it. At prediction time, before you know whether they convert, there is no invoice, so the model loses the crutch it was leaning on and collapses.
 - The held-out test set is simply too small to give a trustworthy score ::no Test-set size is not the issue. A feature that is a proxy for the outcome inflates the score at any test size; enlarging the test set would not fix a feature that is really the answer in disguise.
 
-=== step === tryit
-::eyebrow Your turn
-## Catch it, then drop it
+=== step === concept
+::eyebrow Train your eye
+## Three tells of a leak
 
 Leaks hide in plain sight, so train yourself to look for three tells:
 
@@ -232,6 +232,10 @@ Leaks hide in plain sight, so train yourself to look for three tells:
 3. **A provenance and timing check.** For each feature ask one question: *would I know this value at the moment I make the prediction?* If it is recorded at or after the outcome, it leaks.
 
 ::widget importance-bars {"items":[{"label":"invoice amount","value":100},{"label":"weekly logins","value":29},{"label":"features used","value":21},{"label":"team size","value":13},{"label":"docs opened","value":6},{"label":"emails clicked","value":4}]}
+
+=== step === tryit
+::eyebrow Your turn
+## Catch it, then drop it
 
 The fix is blunt: a leaked feature is not a feature, so drop it before modeling and keep only inputs you would have *before* the outcome is known. Fill in the column to remove.
 
@@ -249,9 +253,6 @@ ncol(model_inputs)
 #> [1] 8
 ```
 
-[WARNING]
-The deadliest leaks are subtler than a billing column. Selection and preprocessing can leak too: if you rank features, tune a wrapper, or fit an imputer on the *whole* dataset before splitting, the test rows help make choices they are later scored on. The discipline that prevents all of it is the same one from the imputation lesson: split first, then do every learned step, including feature selection, inside the cross-validation folds, so the test set never gets a vote.
-
 === step === concept
 ::eyebrow Go deeper
 ## References
@@ -268,6 +269,6 @@ A few authoritative places to take this further:
 
 You reached the end of Feature Engineering. You can now take a pile of candidate columns and do the two things that separate a working model from a fragile one: keep the features that earn their place, and refuse the ones that cheat.
 
-You learned three ways to select: a **filter** ranks each feature on its own (fast, model-agnostic, blind to interactions), a **wrapper** lets the model judge subsets (sharper, slower), and an **embedded** method like the Lasso selects while it fits (usually the best default). And you learned the failure that no metric will warn you about: **target leakage**, a feature that encodes the answer, which you now catch with three tells, a score too good to be true, one feature dominating, and a provenance-and-timing check, and prevent by doing every learned step inside the split.
+You learned three ways to select: a **filter** ranks each feature on its own (fast, model-agnostic, blind to interactions), a **wrapper** lets the model judge subsets (sharper, slower), and an **embedded** method like the Lasso selects while it fits (usually the best default). And you learned the failure that no metric will warn you about: **target leakage**, a feature that encodes the answer, which you now catch with three tells, a score too good to be true, one feature dominating, and a provenance-and-timing check, and fix by dropping any feature you would not have at prediction time.
 
 Feature Engineering is a graded module in the Data Scientist track. Pass its assessment and it joins your verified certificate. Next up is Model Evaluation and Tuning, where honest features finally meet honest scoring: cross-validation done right, the metrics that matter, and comparing models without fooling yourself.
