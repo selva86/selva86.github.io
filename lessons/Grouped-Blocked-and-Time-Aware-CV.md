@@ -139,8 +139,8 @@ Random 5-fold gave 4.74 cups; grouped CV gave 15.32 on the same data and the sam
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - Random folds put some days from every café into every training set, so the model only ever looked up a café it had already memorized, never predicting a new one ::ok Exactly. The leak is that group identity crossed the fold boundary. Each café appeared in both training and validation, so the model was graded on memory, not on generalizing to a new café.
-- Grouped CV makes only 6 folds instead of 5, so its average is just noisier and happens to be higher ::no It is not noise: 15.32 is the *systematically* correct answer for a new café, and it is higher every time you run it, not randomly. The gap is bias from leakage, not variance from fold count.
-- Grouped CV trains on less data, so its model is weaker and scores worse ::no Training on five cafés instead of a shuffled 80% is a tiny data difference and would not triple the error. The error tripled because the task changed from "seen café" to "unseen café."
+- Grouped CV makes only 6 folds instead of 5, so its average is just noisier and happens to be higher ::no Fold count is not the culprit: 5 versus 6 folds would nudge the average, not triple it. The jump is the task changing from a café the model has seen to one it has not.
+- Grouped CV trains on less data, so its model is weaker and scores worse ::no Training on five cafés instead of a shuffled 80% is a tiny data difference and would not triple the error. The error tripled because the task changed from a seen café to an unseen one.
 
 === step === tryit
 ::eyebrow Your turn
@@ -191,7 +191,7 @@ Now score a forecasting model (a random forest on the day number and weekend fla
 
 ```r
 # Random 5-fold on time-ordered data: past and future days both land in training.
-library(randomForest)
+suppressPackageStartupMessages(library(randomForest))
 set.seed(4)
 fold    <- sample(rep(1:5, length.out = n))
 rand_ts <- numeric(5)
@@ -229,8 +229,8 @@ origins <- c(70, 80, 90, 100, 110)
 time_cv <- numeric(length(origins))
 for (j in seq_along(origins)) {
   cut        <- origins[j]
-  tr         <- dock[dock$day <= cut, ]                    # everything up to today
-  va         <- dock[dock$day > cut & dock$day <= cut + 10, ]  # the next 10 days (the future)
+  tr         <- dock[dock$day <= cut, ]                       # everything up to today
+  va         <- dock[dock$day > cut & dock$day <= cut + 10, ] # the next 10 days (the future)
   fit        <- randomForest(cups ~ day + weekend, data = tr)
   time_cv[j] <- sqrt(mean((va$cups - predict(fit, va))^2))
 }
@@ -252,17 +252,15 @@ Rolling-origin comes in two flavours. **Expanding window** keeps all history in 
 You are forecasting next quarter's demand from three years of daily sales, and you want a cross-validation score you can actually promise the business. Which resampling scheme gives an honest estimate?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Random k-fold, because it uses every day for validation exactly once and averages away the luck ::no Using every day once is fine for independent rows, but here it trains on later days to predict earlier ones. The model peeks at the future, so the score is optimistic, exactly the trap you are trying to avoid.
+- Random k-fold, because it uses every day for validation exactly once and averages away the luck ::no Random k-fold drops future days into the training set for a past validation day, which is exactly the look-ahead leak. Using every day once does not undo training on the future.
 - Rolling-origin CV that trains only on days before each cut-off and validates on the days after ::ok Right. Training always sits before validation, so the model is scored the way it will really be used: forecasting the future from the past. It is the only option here without look-ahead leakage.
-- Leave-one-out CV, because holding out a single day is the smallest possible leak ::no Holding out one day still lets the other 1,094 days, many of them *after* the held-out day, into training. Size of the holdout is not the issue; direction of time is. LOOCV still trains on the future.
+- Leave-one-out CV, because holding out a single day is the smallest possible leak ::no Holding out one day still lets the other 1,094 days, many of them after the held-out day, into training. Size of the holdout is not the issue; direction of time is. LOOCV still trains on the future.
 
 === step === concept
 ::eyebrow In practice
 ## Match the scheme to your data
 
 You now have the whole decision. Before you resample, ask what makes your rows *not* interchangeable, and pick the scheme that mirrors how the model will really be used.
-
-::widget process-flow {"steps":[{"title":"Rows independent?","sub":"one row per thing, no time order: plain k-fold from Lesson 1"},{"title":"Rows grouped?","sub":"many rows per entity (cafe, patient, user): hold out whole groups"},{"title":"Rows in time order?","sub":"future depends on the past: train on the past, test on the future"}]}
 
 In a real project you do not hand-roll these loops. The `rsample` package (part of tidymodels) builds grouped and time-aware resamples for you, and keeps them reproducible:
 
@@ -279,6 +277,8 @@ time_folds <- sliding_index(dock, index = day, lookback = Inf, assess_stop = 10)
 [KEY INSIGHT]
 The mechanics change, the principle does not: whatever information you will *not* have at prediction time must be kept out of every training fold. Grouped CV keeps out other rows of the same group; time-aware CV keeps out the future.
 
+::widget process-flow {"steps":[{"title":"Rows independent?","sub":"one row per thing, no time order: plain k-fold from Lesson 1"},{"title":"Rows grouped?","sub":"many rows per entity (cafe, patient, user): hold out whole groups"},{"title":"Rows in time order?","sub":"future depends on the past: train on the past, test on the future"}]}
+
 === step === concept
 ::eyebrow Go deeper
 ## References
@@ -286,7 +286,7 @@ The mechanics change, the principle does not: whatever information you will *not
 A few authoritative places to take this further:
 
 - [Forecasting: Principles and Practice, Time series cross-validation (free)](https://otexts.com/fpp3/tscv.html) - Hyndman and Athanasopoulos on rolling-origin evaluation, the clearest treatment of "train on the past, test on the future."
-- [scikit-learn user guide: Cross-validation](https://scikit-learn.org/stable/modules/cross_validation.html) - the GroupKFold and TimeSeriesSplit sections, with diagrams that make grouped and time-aware folds click (concepts transfer straight to R).
+- [scikit-learn user guide: Cross-validation](https://scikit-learn.org/stable/modules/cross_validation.html) - the GroupKFold and TimeSeriesSplit sections, with diagrams that make grouped and time-aware folds click (the concepts transfer straight to R).
 - [An Introduction to Statistical Learning, ch. 5 (free PDF)](https://www.statlearning.com/) - the cross-validation foundations this lesson builds on.
 - [rsample: group_vfold_cv() reference](https://rsample.tidymodels.org/reference/group_vfold_cv.html) - the real R function for grouped resampling, with worked examples.
 - [rsample: sliding_period() reference](https://rsample.tidymodels.org/reference/sliding_period.html) - time-based resampling (expanding and sliding windows) in tidymodels.
