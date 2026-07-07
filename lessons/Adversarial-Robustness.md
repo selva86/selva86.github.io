@@ -197,8 +197,10 @@ where \(\theta\) are the model parameters and \(\boldsymbol{\delta}\) is the per
 ```r
 eps <- 1.0
 dir <- sign(coef(clf)["link_ratio"])
-# Adversarial training: add a link_ratio-perturbed copy of every email (true label kept), then refit.
-adv_copies <- transform(emails, link_ratio = link_ratio - eps * dir * (2 * spam - 1))
+# Adversarial training: make a hard copy of every email by pushing its link_ratio toward the
+# WRONG class (spam toward "not spam", clean mail toward "spam"), keeping the true label.
+push <- ifelse(emails$spam == 1, -eps * dir, eps * dir)   # spam: lower link_ratio; clean: raise it
+adv_copies <- transform(emails, link_ratio = link_ratio + push)
 adv_train  <- rbind(emails, adv_copies)
 robust <- glm(spam ~ link_ratio + sender_risk, family = binomial, data = adv_train)
 
@@ -223,7 +225,7 @@ round(rbind(plain = coef(clf), robust = coef(robust)), 2)
 #> robust        0.04       0.34        1.36
 ```
 
-Adversarial training collapsed the `link_ratio` weight from **2.14 to 0.34** and leaned harder on `sender_risk`. You never told it which feature was attackable; feeding it emails whose `link_ratio` had been scrambled taught it that `link_ratio` is unreliable, so it shifted its trust onto the one signal the attacker cannot touch.
+Adversarial training collapsed the `link_ratio` weight from **2.14 to 0.34**, so `sender_risk` now dominates the decision: its weight of 1.36 far outweighs link_ratio's 0.34. You never told it which feature was attackable; feeding it emails whose `link_ratio` had been scrambled taught it that `link_ratio` is unreliable, so it shifted its trust onto the one signal the attacker cannot touch.
 
 [KEY INSIGHT]
 Robustness is always robustness *against a threat model*. The most effective defense here was not a clever loss but an honest answer to "what can the adversary change?", followed by training the model to rely on what they cannot.

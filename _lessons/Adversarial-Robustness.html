@@ -242,8 +242,10 @@ round(setNames(evade_rate, paste0(&quot;eps=&quot;, budget)), 2)
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">eps &lt;- 1.0
 dir &lt;- sign(coef(clf)[&quot;link_ratio&quot;])
-# Adversarial training: add a link_ratio-perturbed copy of every email (true label kept), then refit.
-adv_copies &lt;- transform(emails, link_ratio = link_ratio - eps * dir * (2 * spam - 1))
+# Adversarial training: make a hard copy of every email by pushing its link_ratio toward the
+# WRONG class (spam toward &quot;not spam&quot;, clean mail toward &quot;spam&quot;), keeping the true label.
+push &lt;- ifelse(emails$spam == 1, -eps * dir, eps * dir)   # spam: lower link_ratio; clean: raise it
+adv_copies &lt;- transform(emails, link_ratio = link_ratio + push)
 adv_train  &lt;- rbind(emails, adv_copies)
 robust &lt;- glm(spam ~ link_ratio + sender_risk, family = binomial, data = adv_train)
 
@@ -284,7 +286,7 @@ round(c(clean_plain  = mean((predict(clf,    type = &quot;response&quot;) &gt; 0
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Adversarial training collapsed the <code>link_ratio</code> weight from <strong>2.14 to 0.34</strong> and leaned harder on <code>sender_risk</code>. You never told it which feature was attackable; feeding it emails whose <code>link_ratio</code> had been scrambled taught it that <code>link_ratio</code> is unreliable, so it shifted its trust onto the one signal the attacker cannot touch.</p>
+<p>Adversarial training collapsed the <code>link_ratio</code> weight from <strong>2.14 to 0.34</strong>, so <code>sender_risk</code> now dominates the decision: its weight of 1.36 far outweighs link_ratio's 0.34. You never told it which feature was attackable; feeding it emails whose <code>link_ratio</code> had been scrambled taught it that <code>link_ratio</code> is unreliable, so it shifted its trust onto the one signal the attacker cannot touch.</p>
 
 <div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Robustness is always robustness <em>against a threat model</em>. The most effective defense here was not a clever loss but an honest answer to "what can the adversary change?", followed by training the model to rely on what they cannot.</div></div>
 </section>
