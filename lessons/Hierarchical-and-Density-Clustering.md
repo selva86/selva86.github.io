@@ -1,13 +1,11 @@
 ---
 title: "Unsupervised Learning Lesson 4: Hierarchical and Density Clustering"
-catalog_blurb: "Find clusters of any shape, without deciding how many groups up front."
 description: "Learn hierarchical clustering and DBSCAN in R: build a dendrogram to read every number of clusters at once, and find odd-shaped, noisy groups by density."
 keywords: "hierarchical clustering in R, hclust, dendrogram, cutree, linkage, ward, DBSCAN, density clustering, eps, minPts, unsupervised learning, clustering shapes"
-post_type: "LESSON"
-curriculum_id: "6.9.4"
-webr: true
 mathjax: true
-lesson_access: "free"
+webr: true
+curriculum_id: "6.9.4"
+post_type: "LESSON"
 course_id: "ds-unsupervised"
 course_title: "Unsupervised Learning in R"
 course_lesson: "4"
@@ -15,6 +13,8 @@ course_total: "8"
 course_landing: "R-Unsupervised-Learning-Course.html"
 course_next: "Gaussian-Mixture-Models.html"
 course_prev: "k-Means-and-Choosing-k.html"
+lesson_access: "free"
+catalog_blurb: "Find clusters of any shape, without deciding how many groups up front."
 ---
 
 === step === cover
@@ -54,10 +54,10 @@ The record of which groups merged, and at what distance, is drawn as a **dendrog
 
 Here is the payoff. Because the tree holds every merge, you get every possible clustering at once. A horizontal line sliding down through the tree turns each branch it crosses into one cluster. Cut high and you get a few big groups; cut low and you get many small ones. Drag the cut line in the dendrogram below and watch the number of clusters change: that single tree is really many clusterings stacked on top of each other, and you choose the one you want after seeing them all.
 
-::widget dendrogram {}
-
 [KEY INSIGHT]
 k-means commits to a number of clusters before it starts. A dendrogram defers that decision: it shows you the whole hierarchy first, and you pick where to cut once you can see how the groups nest.
+
+::widget dendrogram {}
 
 === step === concept
 ::eyebrow The one real choice
@@ -121,8 +121,6 @@ table(groups)
 #> 27 33 28
 ```
 
-Three groups, 88 customers split 27 / 33 / 28. Notice something, though: every single customer landed in a group, including the far-out rural dots. Hierarchical clustering, just like k-means, must give every point a home. Hold that thought, because it is exactly what our second tool refuses to do.
-
 === step === quiz
 ::eyebrow Check yourself
 ## Reading the cut
@@ -131,8 +129,8 @@ You have a finished dendrogram on screen. You cut it once and get 3 clusters, bu
 
 ::quiz {"correct":1,"gate":true,"difficulty":"beginner"}
 - Cut lower: a lower line crosses more of the vertical branches, so the tree splits into more, smaller groups ::ok Exactly. Lower down, the branches have not merged yet, so more of them are separate clusters. At the very bottom every dot is its own cluster.
-- Cut higher: higher up the tree shows finer detail ::no It is the other way around. Higher up, more branches have already merged, so a higher cut gives FEWER clusters. At the very top everything is a single group.
-- You cannot change the count: the number of clusters is fixed once the tree is built ::no The tree is fixed, but where you cut is entirely your choice, and every height gives a different number of clusters. That freedom is the whole point of the dendrogram.
+- Cut higher: higher up the tree shows finer detail ::no The tree is fixed, but where you cut is entirely your choice, and every height gives a different number of clusters. That freedom is the whole point of the dendrogram.
+- You cannot change the count: the number of clusters is fixed once the tree is built
 
 === step === concept
 ::eyebrow The other limit
@@ -192,7 +190,7 @@ DBSCAN is not magic. It assumes clusters have roughly similar density: one globa
 A different client shows you a scatter of GPS pings. The points form two long curved bands that wrap around a lake, plus a scattering of isolated pings far from either band. You do not know how many groups there are, and you want the isolated pings flagged, not forced into a group. Which method fits?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- k-means with `centers = 2` ::no k-means draws only round, straight-edged cells, so it slices each curved band in half. And it must assign every isolated ping to some cluster: it has no way to call a point noise.
+- k-means with `centers = 2`
 - DBSCAN ::ok Right. DBSCAN grows clusters along connected dense regions, so it traces curved bands of any shape, it needs no k, and it labels the isolated pings as noise instead of forcing them in.
 - k-means after standardising the coordinates ::no Scaling fixes unfair units, not shape. Round centroid cells still cannot follow a curved band, and k-means still has no way to set outliers aside as noise.
 
