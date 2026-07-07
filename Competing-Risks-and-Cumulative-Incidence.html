@@ -3,8 +3,8 @@
   <head>
     <title>Survival Analysis Lesson 6: Competing Risks and Cumulative Incidence</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Why 1 minus Kaplan-Meier overcounts a risk when events compete, how the cumulative incidence function fixes it, and the Fine-Gray model, worked in R with survival.">
-    <meta name="Keywords" content="competing risks in R, cumulative incidence function, Fine-Gray model, cause-specific hazard, subdistribution hazard, multi-state survfit, one minus Kaplan-Meier overcounting, non-relapse mortality, survival analysis">
+    <meta name="Description" content="Why 1-minus-Kaplan-Meier overcounts when events compete, how the cumulative incidence function shares the risk, and cause-specific vs Fine-Gray models in R.">
+    <meta name="Keywords" content="competing risks, cumulative incidence function, CIF, Fine-Gray model, cause-specific hazard, survfit competing risks, subdistribution hazard, 1 minus Kaplan-Meier, survival analysis in R">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Survival Analysis Lesson 6: Competing Risks and Cumulative Incidence">
-    <meta property="og:description" content="Why 1 minus Kaplan-Meier overcounts a risk when events compete, how the cumulative incidence function fixes it, and the Fine-Gray model, worked in R with survival.">
+    <meta property="og:description" content="Why 1-minus-Kaplan-Meier overcounts when events compete, how the cumulative incidence function shares the risk, and cause-specific vs Fine-Gray models in R.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Competing-Risks-and-Cumulative-Incidence.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Competing-Risks-and-Cumulative-Incidence.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Survival Analysis Lesson 6: Competing Risks and Cumulative Incidence">
-    <meta name="twitter:description" content="Why 1 minus Kaplan-Meier overcounts a risk when events compete, how the cumulative incidence function fixes it, and the Fine-Gray model, worked in R with survival.">
+    <meta name="twitter:description" content="Why 1-minus-Kaplan-Meier overcounts when events compete, how the cumulative incidence function shares the risk, and cause-specific vs Fine-Gray models in R.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Competing-Risks-and-Cumulative-Incidence.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Survival Analysis Lesson 6: Competing Risks and Cumulative Incidence",
-      "description": "Why 1 minus Kaplan-Meier overcounts a risk when events compete, how the cumulative incidence function fixes it, and the Fine-Gray model, worked in R with survival.",
+      "description": "Why 1-minus-Kaplan-Meier overcounts when events compete, how the cumulative incidence function shares the risk, and cause-specific vs Fine-Gray models in R.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Competing-Risks-and-Cumulative-Incidence.html",
-      "datePublished": "2026-07-02",
-      "dateModified": "2026-07-02",
+      "datePublished": "2026-07-08",
+      "dateModified": "2026-07-08",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -679,103 +679,134 @@
 <div class="lesson-step-eyebrow">Lesson 6 of 7</div>
 <h2>Competing Risks and Cumulative Incidence</h2>
 
-<p>Every lesson so far quietly assumed each patient faces exactly one way to have the event. Lesson 5 made you say it out loud, and it is time to break it. Dr. Rao has moved to the transplant unit. Her patients had a stem-cell transplant for leukemia, and the question the ward cares about is relapse: does the cancer come back? But there is a second exit. A patient can die in remission first, of an infection or a graft complication, before relapse ever gets its chance. Those two events compete, and the moment they do, the trusty "1 minus Kaplan-Meier" from Lesson 2 starts reporting relapse numbers that are simply too big.</p>
+<p>Every lesson so far has tracked a single kind of exit: a patient either has the event, or is censored. Dr. Rao's newest study breaks that neat picture. She is following 200 leukemia patients after a bone-marrow transplant, and each one now has two different ways to leave the study, where only one can happen first.</p>
+
+<p>The leukemia can come back, a <strong>relapse</strong>. Or the patient can <strong>die in remission</strong> from a transplant complication, an infection or graft-versus-host disease, before the leukemia ever returns. Take Anika: she dies of an infection in month 8, still in full remission. She can now never relapse. That one fact, that a patient claimed by one event is gone from the other forever, is what makes these events <strong>compete</strong>, and it quietly breaks the Kaplan-Meier estimator you have trusted for five lessons.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Explain why one competing event removes a patient from the other's risk, and why that breaks 1 minus Kaplan-Meier</li>
+<li>Explain why a competing event is not the same as a censored patient</li>
 
-<li>Estimate the cumulative incidence function (CIF) for each cause in R, the honest replacement</li>
+<li>See why "1 minus Kaplan-Meier" overcounts a cause's incidence, and by how much</li>
 
-<li>Choose between a cause-specific model and a Fine-Gray model by the question you are actually asking</li>
+<li>Estimate the cumulative incidence function for each cause in R, and fit both a cause-specific and a Fine-Gray model</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> <a href="Survival-Data-and-Censoring.html">Lesson 1</a> (the survival function and censoring), <a href="Kaplan-Meier-and-the-Log-Rank-Test.html">Lesson 2</a> (the KM staircase and 1 minus S), and <a href="Cox-Proportional-Hazards.html">Lesson 3</a> (the Cox model and the hazard ratio). You can read a coefficient table and run R.</p>
-
-<p>The stacked bands below are the whole lesson in one picture: at every month, the fraction still in remission, the fraction who have relapsed, and the fraction who have died, always summing to 100%. Drag the time point and watch the split.</p>
+<p><strong>Prerequisites:</strong> <a href="Survival-Data-and-Censoring.html">Lesson 1</a> (right-censoring, <code>Surv()</code>, the hazard), <a href="Kaplan-Meier-and-the-Log-Rank-Test.html">Lesson 2</a> (the Kaplan-Meier curve and 1 minus KM as incidence), and <a href="Cox-Proportional-Hazards.html">Lesson 3</a> (the Cox model and the hazard ratio). You can run R and read a coefficient table.</p>
 <div class="lesson-widget" data-widget-type="competing-risks" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The setup</div>
+<div class="lesson-step-eyebrow">The idea</div>
 <h2>Two exits, and only one can be first</h2>
 
-<p>Meet Ms. Anand, six months past her transplant and, so far, in remission. Two futures are open to her, and they are racing. The leukemia could relapse. Or an infection could take her while she is still in remission. Whichever arrives first closes the door on the other: a patient who dies in remission can never go on to relapse, and a patient who relapses has left the "died in remission" pool for good. That is what makes them <strong>competing risks</strong>, not two separate survival problems you can study one at a time.</p>
+<p>Line up what can happen to one of Dr. Rao's patients after the transplant. As the months pass they sit in remission, and then one of three things ends their follow-up: the leukemia relapses, or they die in remission, or the study simply ends while they are still healthy (that last one is ordinary right-censoring from Lesson 1). Relapse and death-in-remission are the two <strong>competing events</strong>: mutually exclusive endpoints racing each other, where whichever arrives first settles the patient's fate and rules the other one out.</p>
 
-<p>It helps to name the three fates precisely, because the whole lesson turns on keeping them straight.</p>
+<p>Here is the crucial difference from everything so far. When a patient is censored, we stop watching, but the event could still be coming: censoring says "unknown, maybe later." When Anika dies in remission, relapse is not unknown, it is impossible. She has left the pool of people who could ever relapse, permanently. A competing event does not hide the outcome of interest, it forecloses it.</p>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Outcome for a patient</th>
-<th>What it means here</th>
-<th>How we code it</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Event of interest</td>
-<td>Relapse of the leukemia</td>
-<td><code>relapse</code></td>
-</tr>
-<tr>
-<td>Competing event</td>
-<td>Death in remission (infection, graft complication)</td>
-<td><code>death</code></td>
-</tr>
-<tr>
-<td>Censored</td>
-<td>Still in remission at the last clinic visit</td>
-<td><code>censored</code></td>
-</tr>
-</tbody>
-</table>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Censoring pauses the clock on an event that might still happen. A competing event stops that clock forever. Treating the second like the first is the mistake this whole lesson is about.</div></div>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A competing event does not just "happen alongside" the event you care about. It removes the patient from the risk set for your event, permanently. Ignore that and every count you make will be off in a predictable direction: too high.</div></div>
-
-<p>Hold onto Ms. Anand. Everything below is really about how to count patients like her without double-booking their fate.</p>
+<p>The stacked chart below is the honest bookkeeping. At any month it splits the cohort into three shares, still event-free on top, already relapsed, already dead, and the three always add up to the whole. Drag the time toggle and watch relapse and death both grow while the event-free slice shrinks: every patient one event takes is a patient the other can no longer claim.</p>
+<div class="lesson-widget" data-widget-type="competing-risks" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="3" data-step-type="concept">
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Is a competing death just censoring?</h2>
+
+<p>Anika dies of an infection in month 8, in full remission, never having relapsed. Dr. Rao wants to estimate the incidence of <strong>relapse</strong> across her cohort. How should Anika be handled?</p>
+<section class="exercise" data-exercise-id="Competing-Risks-and-Cumulative-Incidence-step3" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">As a relapse, because a death is still an event and the analysis needs every event counted</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">As censored at month 8, exactly like a patient we simply stopped following, because we no longer observe her relapse status</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">As a competing event: she leaves the relapse risk set for good and can never contribute a future relapse</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Dropped from the dataset entirely, since she did not have the event of interest</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A competing event removes the patient from the pool that could still relapse, permanently. That is what separates it from censoring, and it is why the naive estimator you meet next goes wrong.</div><div class="lesson-qfb lesson-qfb-no">Dropping her throws away real information (she was at risk of relapse up to month 8) and biases the estimate. She belongs in the analysis, correctly coded as a competing event, not deleted.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
 <div class="lesson-step-eyebrow">The trap</div>
 <h2>Why "1 minus Kaplan-Meier" overcounts</h2>
 
-<p>Here is the natural, and wrong, first instinct. To estimate the cumulative incidence of relapse, treat relapse as the event and treat everything else, including death in remission, as ordinary censoring. Then read off \(1 - S_{\text{KM}}(t)\), exactly as you did for a single endpoint in Lesson 2.</p>
+<p>In Lesson 2 you turned a Kaplan-Meier curve into an incidence with one subtraction: if \(S(t)\) is the probability of surviving event-free past time \(t\), then \(1 - S(t)\) is the probability the event has happened by \(t\). That is exactly right when there is only one event. The temptation is to reuse it here, once per cause: to get the relapse incidence, run Kaplan-Meier for relapse and treat every death-in-remission as a censored observation. It feels reasonable. It is wrong, and in a specific, predictable direction.</p>
 
-<p>The flaw is in what censoring <em>means</em>. When Kaplan-Meier censors a patient at month 20, it assumes that patient is still out there, still able to relapse later; they were simply lost to view. That is true for someone who moved away. It is a fiction for someone who died in remission at month 20. They cannot relapse at month 30. Treating their death as censoring quietly keeps them in the pool of people who might yet relapse, and the estimator inflates the relapse curve to compensate.</p>
+<p>To see why, name the pieces. The <strong>cause-specific hazard</strong> for cause \(k\) is</p>
 
-<p>Let us watch it break. First, Dr. Rao's cohort of 300 transplant patients, built right here so this page is self-contained (run this once; later blocks reuse <code>bmt</code>):</p>
+<p>\[ h_k(t) = \lim_{\Delta t \to 0} \frac{1}{\Delta t}\, P\!\left(t \le T < t + \Delta t,\ \text{cause}=k \ \middle|\ T \ge t\right), \]</p>
+
+<p>the instantaneous rate of failing from cause \(k\) among patients still event-free at time \(t\). Here \(T\) is the time of the first event, and "cause = k" records which event it was. The chance of still being event-free at all, accounting for <strong>every</strong> cause together, is the overall survival</p>
+
+<p>\[ S(t) = \exp\!\left(-\int_0^t \big(h_{\text{relapse}}(u) + h_{\text{death}}(u)\big)\,\mathrm{d}u\right). \]</p>
+
+<p>Now look at what Kaplan-Meier-for-relapse does when it censors the deaths. It builds a survival curve as if death removed patients only temporarily, leaving them eligible to relapse later. So its "survival" is driven by \(h_{\text{relapse}}\) alone, ignoring that \(h_{\text{death}}\) was busy removing many of those same patients for good. The curve stays too high, and \(1 - \text{that curve}\) climbs too far. The dead are quietly counted as future relapses that can never occur.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">"1 minus Kaplan-Meier," applied one cause at a time, overcounts every cause. Push it far enough and the separate cause incidences can sum past 1, which is impossible: you would be claiming more than 100% of the cohort had an event. You will see exactly that in a moment.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Spot the mistake</h2>
+
+<p>A colleague analyzes Dr. Rao's data and reports: "By 36 months, 69% of patients have relapsed and 55% have died in remission." He got both numbers from separate Kaplan-Meier curves, censoring the other event each time. What is the giveaway that something is broken?</p>
+<section class="exercise" data-exercise-id="Competing-Risks-and-Cumulative-Incidence-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing is broken; running Kaplan-Meier once per cause is the standard way to get each incidence</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The two figures add to 124%, which is impossible: no more than 100% of patients can have had an event</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The numbers are fine individually, but he should have reported a hazard ratio instead</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Relapse and death cannot both be measured in the same cohort</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. 69% + 55% = 124%. Because each Kaplan-Meier curve treated the other event as if those patients could still fail from this cause, both numbers are inflated, and their impossible total is the smoking gun.</div><div class="lesson-qfb lesson-qfb-no">They can and should be, together. The fix is not to drop one, it is to estimate them jointly so the shares add up correctly.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>The cumulative incidence function</h2>
+
+<p>The honest estimator fixes the exact flaw you just spotted: it weights each cause's hazard by the chance of still being event-free, using the <strong>all-cause</strong> survival, so patients who have already left (by either event) stop contributing. That estimator is the <strong>cumulative incidence function</strong> (CIF). For cause \(k\),</p>
+
+<p>\[ F_k(t) = \int_0^t S(u^-)\, h_k(u)\,\mathrm{d}u. \]</p>
+
+<p>Read it left to right. To relapse in the small interval around time \(u\), a patient must do two things: still be event-free just before \(u\), which happens with probability \(S(u^-)\) (the little minus means "an instant before \(u\)"), and then relapse right then, at rate \(h_k(u)\). Multiply those and add up over all instants up to \(t\), and you have the probability of having relapsed by \(t\). The all-cause \(S(u^-)\) is the whole fix: because it already folds in death, a patient killed by the competing event has an \(S(u^-)\) that keeps dropping without ever adding to the relapse total. The risk is shared, not double-counted.</p>
+
+<p>That sharing is what makes the pieces add up. The event-free survivors plus everyone who has failed from each cause must be the entire cohort, so</p>
+
+<p>\[ S(t) + F_{\text{relapse}}(t) + F_{\text{death}}(t) = 1 \quad \text{for every } t. \]</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The stacked chart from the start of the lesson was these three quantities all along: the top band is \(S(t)\), the two lower bands are \(F_{\text{relapse}}(t)\) and \(F_{\text{death}}(t)\), and they tile the whole square because they must sum to 1. "1 minus Kaplan-Meier" broke that budget; the CIF respects it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Estimate the CIF with survfit</h2>
+
+<p>The <code>survival</code> package computes the CIF for you, and the switch that turns Kaplan-Meier into competing risks is small: make the status a <strong>factor</strong> with one level per cause, instead of a 0/1 flag. <code>survfit</code> then sees the several event types and returns one incidence curve per cause automatically.</p>
+
+<p>First, build Dr. Rao's cohort. Each lesson runs in a fresh R session, so we simulate it right here (run this once). Two hidden clocks tick for every patient, a relapse time and a death-in-remission time; whichever is smaller, and beats the end of follow-up, decides how they leave. Older patients have a faster death clock, which will matter later.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(survival)</span>
 <span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
-<span class="cl">n   <span class="o">&lt;-</span> <span class="m">300</span></span>
-<span class="cl">grp <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">rep</span>(<span class="nf">c</span>(<span class="s">&quot;young&quot;</span>, <span class="s">&quot;older&quot;</span>), each <span class="o">=</span> <span class="m">150</span>), levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;young&quot;</span>, <span class="s">&quot;older&quot;</span>))</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Cause-specific hazards per month. The relapse RATE is about equal in the two groups;</span></span>
-<span class="cl"><span class="c1"># death-in-remission is far more common in the older group.</span></span>
-<span class="cl">h_relapse <span class="o">&lt;-</span> <span class="nf">ifelse</span>(grp <span class="o">==</span> <span class="s">&quot;older&quot;</span>, <span class="m">0.020</span>, <span class="m">0.022</span>)</span>
-<span class="cl">h_death   <span class="o">&lt;-</span> <span class="nf">ifelse</span>(grp <span class="o">==</span> <span class="s">&quot;older&quot;</span>, <span class="m">0.030</span>, <span class="m">0.008</span>)</span>
-<span class="cl"></span>
-<span class="cl">t_relapse <span class="o">&lt;-</span> <span class="nf">rexp</span>(n, h_relapse)          <span class="c1"># if this time comes first, the patient relapses</span></span>
-<span class="cl">t_death   <span class="o">&lt;-</span> <span class="nf">rexp</span>(n, h_death)            <span class="c1"># if this comes first, the patient dies in remission</span></span>
-<span class="cl">t_first   <span class="o">&lt;-</span> <span class="nf">pmin</span>(t_relapse, t_death)    <span class="c1"># only the first event is ever observed</span></span>
-<span class="cl">cause     <span class="o">&lt;-</span> <span class="nf">ifelse</span>(t_relapse <span class="o">&lt;=</span> t_death, <span class="s">&quot;relapse&quot;</span>, <span class="s">&quot;death&quot;</span>)</span>
-<span class="cl"></span>
-<span class="cl">t_cens <span class="o">&lt;-</span> <span class="nf">runif</span>(n, <span class="m">6</span>, <span class="m">60</span>)                <span class="c1"># random dropout, with a hard stop at month 60</span></span>
-<span class="cl">time   <span class="o">&lt;-</span> <span class="nf">pmin</span>(t_first, t_cens, <span class="m">60</span>)</span>
-<span class="cl">status <span class="o">&lt;-</span> <span class="nf">ifelse</span>(t_first <span class="o">&lt;=</span> <span class="nf">pmin</span>(t_cens, <span class="m">60</span>), cause, <span class="s">&quot;censored&quot;</span>)</span>
-<span class="cl">event  <span class="o">&lt;-</span> <span class="nf">factor</span>(status, levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;censored&quot;</span>, <span class="s">&quot;relapse&quot;</span>, <span class="s">&quot;death&quot;</span>))  <span class="c1"># censored MUST be level 1</span></span>
-<span class="cl">bmt    <span class="o">&lt;-</span> <span class="nf">data.frame</span>(time <span class="o">=</span> <span class="nf">round</span>(time, <span class="m">1</span>), event <span class="o">=</span> event, grp <span class="o">=</span> grp)</span>
+<span class="cl">n <span class="o">&lt;-</span> <span class="m">200</span></span>
+<span class="cl">older     <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, <span class="m">0.5</span>)                       <span class="c1"># 1 = patient is 50 or older</span></span>
+<span class="cl">t_relapse <span class="o">&lt;-</span> <span class="nf">rexp</span>(n, rate <span class="o">=</span> <span class="m">0.030</span>)                   <span class="c1"># clock 1: time to leukemia relapse</span></span>
+<span class="cl">t_death   <span class="o">&lt;-</span> <span class="nf">rexp</span>(n, rate <span class="o">=</span> <span class="m">0.015</span> <span class="o">+</span> <span class="m">0.030</span> <span class="o">*</span> older)   <span class="c1"># clock 2: death in remission (older die faster)</span></span>
+<span class="cl">t_cens    <span class="o">&lt;-</span> <span class="nf">runif</span>(n, <span class="m">24</span>, <span class="m">60</span>)                        <span class="c1"># end of follow-up, in months</span></span>
+<span class="cl">obs_time  <span class="o">&lt;-</span> <span class="nf">pmin</span>(t_relapse, t_death, t_cens)        <span class="c1"># we only see the first thing that happens</span></span>
+<span class="cl">cause <span class="o">&lt;-</span> <span class="nf">ifelse</span>(t_relapse <span class="o">&lt;=</span> <span class="nf">pmin</span>(t_death, t_cens), <span class="s">&quot;relapse&quot;</span>,</span>
+<span class="cl">         <span class="nf">ifelse</span>(t_death   <span class="o">&lt;=</span> t_cens,                <span class="s">&quot;death&quot;</span>, <span class="s">&quot;censor&quot;</span>))</span>
+<span class="cl">bmt <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  months <span class="o">=</span> <span class="nf">round</span>(obs_time, <span class="m">1</span>),</span>
+<span class="cl">  agegrp <span class="o">=</span> <span class="nf">factor</span>(<span class="nf">ifelse</span>(older <span class="o">==</span> <span class="m">1</span>, <span class="s">&quot;50plus&quot;</span>, <span class="s">&quot;under50&quot;</span>), levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;under50&quot;</span>, <span class="s">&quot;50plus&quot;</span>)),</span>
+<span class="cl">  event  <span class="o">=</span> <span class="nf">factor</span>(cause, levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;censor&quot;</span>, <span class="s">&quot;relapse&quot;</span>, <span class="s">&quot;death&quot;</span>))   <span class="c1"># 1st level = censored</span></span>
+<span class="cl">)</span>
 <span class="cl"><span class="nf">table</span>(bmt<span class="o">$</span>event)</span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; censored  relapse    death</span></span>
-<span class="cl"><span class="c1">#&gt;       96      105       99</span></span></div>
+<span class="cl"><span class="c1">#&gt; </span></span>
+<span class="cl"><span class="c1">#&gt;  censor relapse   death </span></span>
+<span class="cl"><span class="c1">#&gt;      27      96      77 </span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -785,20 +816,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Now run the naive recipe for both causes and add the two "1 minus KM" numbers at 36 months:</p>
+<p>The <code>event</code> column is a factor whose first level, <code>censor</code>, is what <code>survival</code> reads as "no event yet"; the other two levels are the competing causes. Hand that to <code>survfit</code> with a <code>~ 1</code> (no groups), and <code>summary(..., times = )$pstate</code> reports the probability of being in each state at the times you ask for:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">km_relapse <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(time, event <span class="o">==</span> <span class="s">&quot;relapse&quot;</span>) <span class="o">~</span> <span class="m">1</span>, data <span class="o">=</span> bmt)  <span class="c1"># death treated as censoring</span></span>
-<span class="cl">km_death   <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(time, event <span class="o">==</span> <span class="s">&quot;death&quot;</span>)   <span class="o">~</span> <span class="m">1</span>, data <span class="o">=</span> bmt)  <span class="c1"># relapse treated as censoring</span></span>
-<span class="cl"></span>
-<span class="cl">naive_relapse <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(km_relapse, times <span class="o">=</span> <span class="m">36</span>)<span class="o">$</span>surv</span>
-<span class="cl">naive_death   <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(km_death,   times <span class="o">=</span> <span class="m">36</span>)<span class="o">$</span>surv</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(naive_relapse <span class="o">=</span> naive_relapse, naive_death <span class="o">=</span> naive_death,</span>
-<span class="cl">        sum <span class="o">=</span> naive_relapse <span class="o">+</span> naive_death), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; naive_relapse   naive_death           sum</span></span>
-<span class="cl"><span class="c1">#&gt;         0.535         0.504         1.039</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl">cif <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(months, event) <span class="o">~</span> <span class="m">1</span>, data <span class="o">=</span> bmt)</span>
+<span class="cl">cif<span class="o">$</span>states</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;(s0)&quot;    &quot;relapse&quot; &quot;death&quot;</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(cif, times <span class="o">=</span> <span class="nf">c</span>(<span class="m">12</span>, <span class="m">24</span>, <span class="m">36</span>))<span class="o">$</span>pstate, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;       (s0) relapse death</span></span>
+<span class="cl"><span class="c1">#&gt; [1,] 0.520   0.235 0.245</span></span>
+<span class="cl"><span class="c1">#&gt; [2,] 0.280   0.380 0.340</span></span>
+<span class="cl"><span class="c1">#&gt; [3,] 0.137   0.476 0.387</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -808,191 +838,39 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read that last number. The naive method says 53.5% have relapsed and 50.4% have died by month 36, which totals <strong>103.9%</strong> of the cohort. More than everyone. It is not a rounding wrinkle; it is the estimator promising more events than there are patients. Plot the two naive curves and their sum, and the impossibility is visible: the dashed total sails straight past the 100% line.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">grid <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">55</span>, by <span class="o">=</span> <span class="m">1</span>)</span>
-<span class="cl">nr <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(km_relapse, times <span class="o">=</span> grid)<span class="o">$</span>surv</span>
-<span class="cl">nd <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(km_death,   times <span class="o">=</span> grid)<span class="o">$</span>surv</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">plot</span>(grid, nr, type <span class="o">=</span> <span class="s">&quot;s&quot;</span>, col <span class="o">=</span> <span class="s">&quot;#c05a3c&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">1.1</span>),</span>
-<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;months since transplant&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;estimated cumulative probability&quot;</span>,</span>
-<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Naive 1 - KM double-counts&quot;</span>)</span>
-<span class="cl"><span class="nf">lines</span>(grid, nd, type <span class="o">=</span> <span class="s">&quot;s&quot;</span>, col <span class="o">=</span> <span class="s">&quot;#3a6ea5&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">lines</span>(grid, nr <span class="o">+</span> nd, type <span class="o">=</span> <span class="s">&quot;s&quot;</span>, col <span class="o">=</span> <span class="s">&quot;grey30&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, lty <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">abline</span>(h <span class="o">=</span> <span class="m">1</span>, lty <span class="o">=</span> <span class="m">3</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topleft&quot;</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, lty <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>, <span class="m">2</span>),</span>
-<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;#c05a3c&quot;</span>, <span class="s">&quot;#3a6ea5&quot;</span>, <span class="s">&quot;grey30&quot;</span>),</span>
-<span class="cl">       legend <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;naive relapse&quot;</span>, <span class="s">&quot;naive death&quot;</span>, <span class="s">&quot;their sum (impossible over 1)&quot;</span>))</span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The two curves are each computed as if the other cause did not exist, so together they promise a world where more than 100% of patients can have an event. That is the tell that you have counted competing events wrong.</p>
+<p><code>(s0)</code> is the starting state, still in remission and event-free. Read across any row and the three probabilities sum to 1: at 24 months, 28.0% are still event-free, 38.0% have relapsed, and 34.0% have died in remission. That relapse figure, 38.0%, is the honest one. Watch what the naive method claims instead.</p>
 </section>
 
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Spot the mistake</h2>
-
-<p>A colleague reports that "by two years, 45% of transplant patients have relapsed," computed as \(1 - S_{\text{KM}}(t)\) with relapse as the event and every death in remission treated as a censored observation. Why is that number too high?</p>
-<section class="exercise" data-exercise-id="Competing-Risks-and-Cumulative-Incidence-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is not too high; censoring deaths is the standard way to handle them, so the estimate is correct</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Censoring the deaths treats those patients as if they could still relapse later, so they stay in the at-risk pool and the relapse curve is pushed up</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is too high only because the sample is small; with more patients 1 minus KM would give the right cumulative incidence</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The relapse rate was estimated on the wrong time scale</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. A death in remission ends any chance of relapse, but censoring pretends the patient is still eligible, so the estimator over-attributes relapses to keep the curve consistent. Add the two naive curves and they can exceed 100%.</div><div class="lesson-qfb lesson-qfb-no">The time scale is fine. The error is treating a competing event as censoring, which misstates who is still at risk, not how time is measured.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">The fix</div>
-<h2>The cumulative incidence function</h2>
-
-<p>The honest estimator keeps every cause in view at once and lets them share the patients. It is the <strong>cumulative incidence function</strong>, or CIF: for cause \(k\), \(F_k(t)\) is the probability that a patient has had event \(k\), and had it <em>first</em>, by time \(t\).</p>
-
-<p>The formula says exactly how to count without double-booking. Writing \(h_k(u)\) for the <strong>cause-specific hazard</strong> of event \(k\) (the instantaneous rate of event \(k\) among patients still event-free at time \(u\)) and \(S(u^-)\) for the <strong>overall survival</strong>, the probability of being still event-free, having escaped <em>every</em> cause, just before time \(u\),</p>
-
-<p>\[ F_k(t) = \int_0^t S(u^-)\, h_k(u)\, \mathrm{d}u. \]</p>
-
-<p>Read it in words. At each instant \(u\), the chance of newly relapsing is "still in remission right up to \(u\)" times "relapses right now". The \(S(u^-)\) factor is the whole fix: a patient who already died in remission is not in \(S(u^-)\) anymore, so they contribute nothing to the relapse tally from that moment on. Each cause is weighted by the shrinking pool of people actually still at risk, which is why the pieces fit together instead of overflowing:</p>
-
-<p>\[ S(t) + \sum_k F_k(t) = 1 \qquad \text{for all } t. \]</p>
-
-<p>Event-free, plus relapsed, plus died in remission, equals the whole cohort, at every single time. Drag the time point in the widget below and read the three shares: they always sum to 100%, because the CIF shares one fixed budget of patients across the competing fates instead of giving each cause the whole cohort to itself.</p>
-<div class="lesson-widget" data-widget-type="competing-risks" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Estimate the CIF with survfit</h2>
-
-<p>You already know <code>survfit</code>. The one change that turns it from a Kaplan-Meier curve into a competing-risks estimator is the status you hand it: give it a <strong>factor</strong> with a level per state (censoring first), not a 0/1 indicator. <code>survfit</code> then fits a multi-state model and returns the CIF for every state at once. We built <code>bmt</code> in the setup block above; fit the CIF on it:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">cif <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(time, event) <span class="o">~</span> <span class="m">1</span>, data <span class="o">=</span> bmt)   <span class="c1"># event is a factor =&gt; competing-risks CIF</span></span>
-<span class="cl"><span class="nf">summary</span>(cif, times <span class="o">=</span> <span class="nf">c</span>(<span class="m">12</span>, <span class="m">24</span>, <span class="m">36</span>))</span>
-<span class="cl"><span class="c1">#&gt; Call: survfit(formula = Surv(time, event) ~ 1, data = bmt)</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt;  time n.risk n.event Pr((s0)) Pr(relapse) Pr(death)</span></span>
-<span class="cl"><span class="c1">#&gt;    12    178     103    0.650       0.183     0.166</span></span>
-<span class="cl"><span class="c1">#&gt;    24     85      60    0.405       0.320     0.275</span></span>
-<span class="cl"><span class="c1">#&gt;    36     33      31    0.230       0.400     0.369</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><code>Pr((s0))</code> is the starting state, still in remission. The other two columns are the CIFs. At 36 months the CIF of relapse is <strong>0.400</strong>: forty percent of the <em>whole cohort</em> has relapsed first. Compare that with the naive <code>0.535</code> from a few steps ago. The 13.5-point gap is exactly the overcount, the relapses the naive method wrongly credited to patients who had actually died in remission. And read across the row: 0.230 in remission, 0.400 relapsed, 0.369 died, which sums to 0.999, the whole cohort, as promised.</p>
-
-<p>Lay the two relapse estimates on one plot and the correction is unmistakable, the naive dashed curve floating above the solid CIF:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">cif_relapse <span class="o">&lt;-</span> <span class="nf">summary</span>(cif, times <span class="o">=</span> grid)<span class="o">$</span>pstate[, <span class="s">&quot;relapse&quot;</span>]  <span class="c1"># grid from the plot earlier</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">plot</span>(grid, nr, type <span class="o">=</span> <span class="s">&quot;s&quot;</span>, col <span class="o">=</span> <span class="s">&quot;#c05a3c&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, lty <span class="o">=</span> <span class="m">2</span>, ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0.7</span>),</span>
-<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;months since transplant&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;cumulative incidence of relapse&quot;</span>,</span>
-<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Naive 1 - KM (dashed) vs the CIF (solid)&quot;</span>)</span>
-<span class="cl"><span class="nf">lines</span>(grid, cif_relapse, type <span class="o">=</span> <span class="s">&quot;s&quot;</span>, col <span class="o">=</span> <span class="s">&quot;#c05a3c&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topleft&quot;</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, lty <span class="o">=</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">1</span>), col <span class="o">=</span> <span class="s">&quot;#c05a3c&quot;</span>,</span>
-<span class="cl">       legend <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;naive 1 - KM, overcounts&quot;</span>, <span class="s">&quot;cumulative incidence function&quot;</span>))</span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-</section>
-
-<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
 <h2>Make survfit count competing risks</h2>
 
-<p>The single most common competing-risks bug in R is handing <code>survfit</code> a logical status like <code>event == &quot;relapse&quot;</code>, which silently collapses death back into censoring and gives you the naive KM again. The fix is to pass the whole multi-level <strong>factor</strong> as the status. Fill in the blank so the fit returns the CIFs.</p>
-<section class="exercise" data-exercise-id="Competing-Risks-and-Cumulative-Incidence-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="Surv\(\s*time,\s*event\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">cif &lt;- survfit(Surv(time, ____) ~ 1, data = bmt)
-summary(cif, times = 24)$pstate     # should show Pr((s0)), Pr(relapse), Pr(death)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. Passing the whole factor event (not a logical such as event == relapse) tells survfit to track every state at once, which is what produces the CIF. Its pstate has one column per state and each row sums to 1.</span><span class="lesson-tryit-fb lesson-tryit-no">Give survfit the whole factor as the status: Surv(time, event). A logical like event == relapse turns the competing death back into censoring and you are back to a naive KM curve.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">cif &lt;- survfit(Surv(time, event) ~ 1, data = bmt)
-summary(cif, times = 24)$pstate</code></pre></details></div>
+<p>Here is the one line that decides whether you get a competing-risks CIF or a naive Kaplan-Meier. The outcome inside <code>Surv()</code> must be the multi-state <strong>factor</strong> (<code>event</code>), so <code>survfit</code> knows there are several causes. Pass a logical like <code>event == &quot;relapse&quot;</code> instead and it collapses back to a two-state Kaplan-Meier that censors the deaths, the very thing that overcounts. Fill in the blank with the column that keeps all the causes.</p>
+<section class="exercise" data-exercise-id="Competing-Risks-and-Cumulative-Incidence-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="event\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">crfit &lt;- survfit(Surv(months, ____) ~ 1, data = bmt)
+crfit$states   # should list (s0), relapse and death, not just two states</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That returns a real competing-risks fit: three states, one cumulative incidence curve per cause. The factor outcome is the whole trick.</span><span class="lesson-tryit-fb lesson-tryit-no">Pass the factor column that holds every cause: the answer is event. A logical test for a single cause would drop back to a naive Kaplan-Meier.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">crfit &lt;- survfit(Surv(months, event) ~ 1, data = bmt)
+crfit$states</code></pre></details></div>
 </section>
-</section>
-
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<div class="lesson-step-eyebrow">Modeling</div>
-<h2>Two hazards, two questions</h2>
-
-<p>Estimating the CIF for the cohort was step one. Now Dr. Rao wants a covariate effect: do older patients relapse differently? Here competing risks force a decision most survival tutorials skip, because there are two honest ways to model it and they answer two different questions.</p>
-
-<p>The <strong>cause-specific hazard</strong> model is just a Cox model on one cause, with the competing event treated as censoring for <em>this fit only</em>. It asks: among patients still in remission and therefore still able to relapse, does age change the instantaneous <strong>rate</strong> of relapse? This is the right tool for a question about biology, about the disease mechanism itself.</p>
-
-<p>The <strong>Fine-Gray subdistribution hazard</strong> model asks the other question: does age change the <strong>cumulative incidence</strong>, the actual fraction who end up relapsing? It gets there with a deliberately strange trick. Instead of removing patients who died in remission, it keeps them in the risk set (with a weight that decays over time), so that their inability to relapse is baked directly into the model. The result is a hazard ratio that maps straight onto the CIF you plotted.</p>
-
-<p>\[ h_k^{\text{cause-specific}}(t)=\text{rate among those still event-free}, \qquad h_k^{\text{sub}}(t)=\text{rate that drives } F_k(t). \]</p>
-
-<p>Why would these two ever disagree? Because incidence depends on more than rate. If older patients die in remission far more often, many of them are gone before relapse can happen, so <em>fewer of them ever relapse</em> even if their relapse rate, moment for moment, is identical to the young. Same rate, lower incidence. The cause-specific model will say "age barely matters for relapse"; the Fine-Gray model will say "older patients clearly relapse less". Both are true, about different questions.</p>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>You want to know</th>
-<th>Model</th>
-<th>What it treats competing deaths as</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Does age change the relapse rate (mechanism)?</td>
-<td>Cause-specific Cox</td>
-<td>Censored</td>
-</tr>
-<tr>
-<td>Does age change who ends up relapsing (incidence, risk to quote a patient)?</td>
-<td>Fine-Gray subdistribution</td>
-<td>Kept in the risk set, down-weighted over time</td>
-</tr>
-</tbody>
-</table>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">There is no single "hazard ratio for a competing risk". Report which one you fit. A cause-specific HR and a Fine-Gray subdistribution HR for the same cause and covariate are different numbers answering different questions, and quoting one as if it were the other is a genuine error, not a rounding difference.</div></div>
 </section>
 
 <section class="lesson-step" data-step="9" data-step-type="concept">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Both models, side by side</h2>
+<div class="lesson-step-eyebrow">The proof</div>
+<h2>See the overcount, live</h2>
 
-<p>Watch the divergence happen on Dr. Rao's data. Our two groups were built with almost the same relapse rate but very different death-in-remission rates, so this is exactly the case where the two models part ways.</p>
-
-<p>First the cause-specific Cox for relapse. Competing deaths are censored, so this is an ordinary <code>coxph</code> with a logical event:</p>
+<p>Now put the two methods side by side on Dr. Rao's real cohort. The naive way runs Kaplan-Meier once per cause, censoring the other event, and reports \(1 - S(t)\):</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">cs_relapse <span class="o">&lt;-</span> <span class="nf">coxph</span>(<span class="nf">Surv</span>(time, event <span class="o">==</span> <span class="s">&quot;relapse&quot;</span>) <span class="o">~</span> grp, data <span class="o">=</span> bmt)</span>
-<span class="cl">cs_relapse</span>
-<span class="cl"><span class="c1">#&gt; Call:</span></span>
-<span class="cl"><span class="c1">#&gt; coxph(formula = Surv(time, event == &quot;relapse&quot;) ~ grp, data = bmt)</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt;             coef exp(coef) se(coef)      z    p</span></span>
-<span class="cl"><span class="c1">#&gt; grpolder -0.1186    0.8881   0.1985 -0.598 0.55</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; Likelihood ratio test=0.36  on 1 df, p=0.5489</span></span>
-<span class="cl"><span class="c1">#&gt; n= 300, number of events= 105</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Naive &quot;1 minus KM&quot;: run KM for each cause, treating the OTHER event as censoring.</span></span>
+<span class="cl">km_relapse <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(months, event <span class="o">==</span> <span class="s">&quot;relapse&quot;</span>) <span class="o">~</span> <span class="m">1</span>, data <span class="o">=</span> bmt)</span>
+<span class="cl">km_death   <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(months, event <span class="o">==</span> <span class="s">&quot;death&quot;</span>)   <span class="o">~</span> <span class="m">1</span>, data <span class="o">=</span> bmt)</span>
+<span class="cl">naive_relapse <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(km_relapse, times <span class="o">=</span> <span class="m">36</span>)<span class="o">$</span>surv</span>
+<span class="cl">naive_death   <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(km_death,   times <span class="o">=</span> <span class="m">36</span>)<span class="o">$</span>surv</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(relapse <span class="o">=</span> naive_relapse, death <span class="o">=</span> naive_death,</span>
+<span class="cl">        total <span class="o">=</span> naive_relapse <span class="o">+</span> naive_death), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; relapse   death   total </span></span>
+<span class="cl"><span class="c1">#&gt;   0.691   0.553   1.244 </span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1002,25 +880,14 @@ summary(cif, times = 24)$pstate</code></pre></details></div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The relapse <strong>rate</strong> in older patients is 0.89 times that of the young, with p = 0.55: no real difference. Among people still in remission, age is not changing how fast relapse arrives.</p>
-
-<p>Now the Fine-Gray model. <code>finegray()</code> expands the data into the special risk sets and weights, then you fit a weighted <code>coxph</code> on its <code>fgstart</code>, <code>fgstop</code>, <code>fgstatus</code> and <code>fgwt</code> columns:</p>
+<p>There it is: a total of 1.244, claiming 124% of the cohort had an event. The CIF, computed from the same data, keeps the books straight:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">pd <span class="o">&lt;-</span> <span class="nf">finegray</span>(<span class="nf">Surv</span>(time, event) <span class="o">~</span> grp, data <span class="o">=</span> bmt, etype <span class="o">=</span> <span class="s">&quot;relapse&quot;</span>)</span>
-<span class="cl">fg_relapse <span class="o">&lt;-</span> <span class="nf">coxph</span>(<span class="nf">Surv</span>(fgstart, fgstop, fgstatus) <span class="o">~</span> grp, weight <span class="o">=</span> fgwt, data <span class="o">=</span> pd)</span>
-<span class="cl">fg_relapse</span>
-<span class="cl"><span class="c1">#&gt; Call:</span></span>
-<span class="cl"><span class="c1">#&gt; coxph(formula = Surv(fgstart, fgstop, fgstatus) ~ grp, data = pd,</span></span>
-<span class="cl"><span class="c1">#&gt;     weights = fgwt)</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt;             coef exp(coef) se(coef) robust se      z      p</span></span>
-<span class="cl"><span class="c1">#&gt; grpolder -0.3708    0.6902   0.1981    0.1842 -2.013 0.0441</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; Likelihood ratio test=3.55  on 1 df, p=0.05943</span></span>
-<span class="cl"><span class="c1">#&gt; n= 2735, number of events= 105</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(cif, times <span class="o">=</span> <span class="m">36</span>)<span class="o">$</span>pstate, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;       (s0) relapse death</span></span>
+<span class="cl"><span class="c1">#&gt; [1,] 0.137   0.476 0.387</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1030,48 +897,76 @@ summary(cif, times = 24)$pstate</code></pre></details></div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The subdistribution hazard ratio is 0.69, p = 0.044: older patients have a <strong>meaningfully lower cumulative incidence of relapse</strong>. Not because their disease is calmer, the rate said it is not, but because so many of them die in remission first that relapse never gets its turn. The CIFs confirm it directly:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">cifg <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(time, event) <span class="o">~</span> grp, data <span class="o">=</span> bmt)</span>
-<span class="cl"><span class="nf">summary</span>(cifg, times <span class="o">=</span> <span class="m">36</span>)</span>
-<span class="cl"><span class="c1">#&gt; ...</span></span>
-<span class="cl"><span class="c1">#&gt;                grp=young</span></span>
-<span class="cl"><span class="c1">#&gt;     time  n.risk n.event Pr((s0)) Pr(relapse) Pr(death)</span></span>
-<span class="cl"><span class="c1">#&gt;       36   19.00   89.00    0.281       0.495     0.223</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt;                grp=older</span></span>
-<span class="cl"><span class="c1">#&gt;     time  n.risk n.event Pr((s0)) Pr(relapse) Pr(death)</span></span>
-<span class="cl"><span class="c1">#&gt;       36   14.00  105.00    0.177       0.310     0.513</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>By 36 months, 49.5% of the young have relapsed versus 31.0% of the older, while death in remission runs the other way, 22.3% versus 51.3%. The Fine-Gray HR of 0.69 is that 31.0-versus-49.5 gap expressed as a hazard, and the cause-specific HR of 0.89 is the near-tie in the underlying rate. Two numbers, both correct, and now you know which sentence each one is allowed to say.</p>
+<p>Relapse incidence is really 47.6%, not the naive 69.1%, a 21-point overcount from a single misused estimator. And the three honest shares, 13.7% event-free, 47.6% relapsed, 38.7% dead, sum to 1.000. Same patients, same code style; one respects that a dead patient cannot relapse, and the other does not.</p>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Which model moves?</h2>
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Modeling</div>
+<h2>Two hazards, two questions</h2>
 
-<p>Suppose a new supportive-care protocol sharply cuts death in remission (non-relapse mortality) but does nothing to the biology of relapse, so the cause-specific relapse hazard is unchanged. Compared with the old protocol, what happens to the two relapse models?</p>
-<section class="exercise" data-exercise-id="Competing-Risks-and-Cumulative-Incidence-step10" data-grade-mode="self-check" data-difficulty="advanced">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both the cause-specific HR and the Fine-Gray HR for relapse stay essentially the same, since the relapse mechanism did not change</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Both move together in the same direction, because they are two estimates of the same quantity</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The cause-specific relapse HR is roughly unchanged, but the cumulative incidence of relapse rises and the Fine-Gray HR shifts accordingly</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The Fine-Gray HR is unchanged and only the cause-specific HR moves</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The rate of relapse among those still at risk is untouched, so the cause-specific model barely moves. But fewer competing deaths means more patients survive long enough to relapse, so the relapse CIF goes up and the Fine-Gray subdistribution HR changes with it. Same rate, different incidence.</div><div class="lesson-qfb lesson-qfb-no">It is the reverse. The cause-specific hazard is what stayed fixed by assumption; the cumulative incidence, which the Fine-Gray model targets, is what a change in competing mortality moves.</div></div>
-</section>
+<p>So far we described the whole cohort. The real work is comparing groups: does age change a patient's relapse experience? With competing risks there are two honest ways to ask that, and they answer genuinely different questions.</p>
+
+<p>The <strong>cause-specific hazard</strong> model takes the relapse hazard \(h_{\text{relapse}}(t)\) from before and puts a Cox model on it, treating deaths as censored. Its hazard ratio answers a question about <strong>rate</strong>: among patients still alive and in remission, does age change how fast relapse strikes? This is the model for biology and mechanism, "does age make the leukemia itself more aggressive?"</p>
+
+<p>The <strong>Fine-Gray</strong> model instead defines a <strong>subdistribution hazard</strong> \(\bar h_k(t)\), whose one strange, deliberate move is to keep patients who died of the competing event <em>in the risk set</em> rather than removing them. Its coefficient links straight to the cumulative incidence,</p>
+
+<p>\[ F_k(t) = 1 - \exp\!\left(-\int_0^t \bar h_k(u)\,\mathrm{d}u\right), \]</p>
+
+<p>so its hazard ratio answers a question about <strong>incidence</strong>: does age change the share of patients who actually end up relapsing? This is the model for prognosis and prediction, "of everyone who walks in, what fraction will relapse?"</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Cause-specific asks about the rate among those still at risk; Fine-Gray asks about the eventual incidence in everyone. They can point in opposite directions, because anything that raises the competing death rate leaves fewer patients alive to ever relapse, and so lowers the relapse incidence even when the relapse rate itself has not budged. Pick the model by the question, not by habit.</div></div>
 </section>
 
 <section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Both models, side by side</h2>
+
+<p>Fit both on the <code>agegrp</code> column already in <code>bmt</code>. The cause-specific model is an ordinary <code>coxph</code> with the competing deaths censored (<code>event == &quot;relapse&quot;</code>). The Fine-Gray model needs one extra step: <code>finegray()</code> expands the data into the special risk sets that keep the competing-event patients in, adding a weight (<code>fgwt</code>) and a start/stop interval, and then you fit a weighted <code>coxph</code> on that expanded frame:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Cause-specific: does age change the relapse RATE (deaths censored)?</span></span>
+<span class="cl">cs <span class="o">&lt;-</span> <span class="nf">coxph</span>(<span class="nf">Surv</span>(months, event <span class="o">==</span> <span class="s">&quot;relapse&quot;</span>) <span class="o">~</span> agegrp, data <span class="o">=</span> bmt)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Fine-Gray: does age change the relapse INCIDENCE (competing deaths kept in)?</span></span>
+<span class="cl">fg_data <span class="o">&lt;-</span> <span class="nf">finegray</span>(<span class="nf">Surv</span>(months, event) <span class="o">~</span> agegrp, data <span class="o">=</span> bmt, etype <span class="o">=</span> <span class="s">&quot;relapse&quot;</span>)</span>
+<span class="cl">fg <span class="o">&lt;-</span> <span class="nf">coxph</span>(<span class="nf">Surv</span>(fgstart, fgstop, fgstatus) <span class="o">~</span> agegrp, weight <span class="o">=</span> fgwt, data <span class="o">=</span> fg_data)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">rbind</span>(</span>
+<span class="cl">  cause_specific <span class="o">=</span> <span class="nf">summary</span>(cs)<span class="o">$</span>coef[, <span class="nf">c</span>(<span class="s">&quot;exp(coef)&quot;</span>, <span class="s">&quot;Pr(&gt;|z|)&quot;</span>)],</span>
+<span class="cl">  fine_gray      <span class="o">=</span> <span class="nf">summary</span>(fg)<span class="o">$</span>coef[, <span class="nf">c</span>(<span class="s">&quot;exp(coef)&quot;</span>, <span class="s">&quot;Pr(&gt;|z|)&quot;</span>)]</span>
+<span class="cl">), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;                exp(coef) Pr(&gt;|z|)</span></span>
+<span class="cl"><span class="c1">#&gt; cause_specific     1.002    0.991</span></span>
+<span class="cl"><span class="c1">#&gt; fine_gray          0.690    0.051</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two models flatly disagree, and both are right. The cause-specific hazard ratio is 1.00 (p = 0.99): among patients still in remission, being 50 or older does nothing to the relapse rate, exactly how we built the data, with an identical relapse clock for both ages. Yet the Fine-Gray subdistribution ratio is 0.69: older patients relapse noticeably <em>less</em> often overall. Nothing about the leukemia changed; older patients simply die of transplant complications first, so many never reach the relapse they were equally prone to. The rate is flat, the incidence is lower, and only asking both questions tells the full story.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which model moves, and why?</h2>
+
+<p>Dr. Rao tries a new supportive-care protocol that sharply cuts deaths in remission (fewer infections) but has no effect on the leukemia itself. Compared with the old protocol, how do the two relapse models respond?</p>
+<section class="exercise" data-exercise-id="Competing-Risks-and-Cumulative-Incidence-step12" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The cause-specific relapse HR stays about 1 (the relapse rate is untouched), while the Fine-Gray relapse HR rises above 1, because more patients now survive long enough to relapse</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Both HRs fall, because preventing deaths must reduce every bad outcome including relapse</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Both HRs stay identical, since the protocol did not change the relapse hazard</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Neither model can be used once a treatment affects the competing event</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The protocol never touched the relapse rate, so the cause-specific model, which conditions on being still at risk, barely moves. But keeping patients alive lets more of them reach relapse, so the relapse incidence, and the Fine-Gray HR, goes up.</div><div class="lesson-qfb lesson-qfb-no">Both remain valid; in fact this is exactly the situation they were designed to separate. The cause-specific model isolates the rate, the Fine-Gray model captures the incidence shift.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
@@ -1079,23 +974,23 @@ summary(cif, times = 24)$pstate</code></pre></details></div>
 
 <ul>
 
-<li><a href="https://cran.r-project.org/web/packages/survival/vignettes/compete.pdf">Therneau, "Multi-state models and competing risks" (survival package vignette, CRAN)</a> - the canonical R reference, by the package author, for the exact <code>survfit</code> and <code>finegray</code> machinery used here.</li>
+<li><a href="https://doi.org/10.1002/sim.2712">Putter, Fiocco and Geskus (2007), Tutorial in biostatistics: competing risks and multi-state models, Statistics in Medicine 26:2389</a> - the clearest end-to-end tutorial on the CIF and the multi-state view, with the estimators used here.</li>
 
-<li><a href="https://doi.org/10.1080/01621459.1999.10474144">Fine and Gray (1999), "A Proportional Hazards Model for the Subdistribution of a Competing Risk", JASA 94(446)</a> - the original paper that defined the subdistribution hazard and the model that bears their name.</li>
+<li><a href="https://doi.org/10.1080/01621459.1999.10474144">Fine and Gray (1999), A Proportional Hazards Model for the Subdistribution of a Competing Risk, JASA 94:496</a> - the original paper defining the subdistribution hazard you fit with <code>finegray()</code>.</li>
 
-<li><a href="https://doi.org/10.1002/sim.2712">Putter, Fiocco and Geskus (2007), "Tutorial in biostatistics: competing risks and multi-state models", Statistics in Medicine 26(11)</a> - the clearest full tutorial linking cause-specific hazards, the CIF, and regression.</li>
+<li><a href="https://cran.r-project.org/web/packages/survival/vignettes/compete.pdf">survival package vignette: Multi-state models and competing risks (Therneau, CRAN)</a> - the canonical R reference for multi-state <code>survfit</code> and <code>finegray</code>, by the package author.</li>
 
-<li><a href="https://doi.org/10.1161/CIRCULATIONAHA.115.017719">Austin, Lee and Fine (2016), "Introduction to the Analysis of Survival Data in the Presence of Competing Risks", Circulation 133(6)</a> - a short, applied guide to choosing cause-specific versus Fine-Gray by the clinical question.</li>
+<li><a href="https://doi.org/10.1161/CIRCULATIONAHA.115.017719">Austin, Lee and Fine (2016), Introduction to the Analysis of Survival Data in the Presence of Competing Risks, Circulation 133:601</a> - an applied, clinician-facing guide to when cause-specific and Fine-Gray models each apply.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="14" data-step-type="complete">
 <h2>Lesson 6 complete</h2>
 
-<p>You retired the assumption that had been hiding since Lesson 1. When events <strong>compete</strong>, one event removes a patient from the other's risk set, so treating a competing death as censoring inflates the estimate: the naive relapse and death curves summed to 103.9% of Dr. Rao's cohort, an impossibility. The <strong>cumulative incidence function</strong> \(F_k(t) = \int_0^t S(u^-) h_k(u)\,\mathrm{d}u\) fixes it by weighting each cause's hazard by the survivors still at risk, so the event-free fraction plus every cause's CIF sums to one; in R, a <code>survfit</code> with a <strong>factor</strong> status returns all of them at once (relapse CIF 0.400, not the naive 0.535). And for covariate effects you learned to pick the hazard by the question: the <strong>cause-specific</strong> Cox for the relapse rate (HR 0.89, unchanged by age) versus the <strong>Fine-Gray</strong> subdistribution model for the relapse incidence (HR 0.69, clearly lower in older patients, because death reached them first).</p>
+<p>You learned to count correctly when events compete. A <strong>competing event</strong> (death in remission) is not censoring: it removes a patient from the relapse risk set forever, so "1 minus Kaplan-Meier" per cause overcounts, badly enough that the separate incidences summed to an impossible 124% on Dr. Rao's cohort. The <strong>cumulative incidence function</strong> \(F_k(t) = \int_0^t S(u^-) h_k(u)\,\mathrm{d}u\) fixes it by weighting each cause's hazard with the all-cause survival, so the event-free share and both cause incidences sum to exactly 1; you estimated it with a multi-state <code>survfit</code> on a factor outcome and read the honest 47.6% relapse incidence off <code>$pstate</code>. Finally you saw the two modeling questions competing risks forces you to separate: the <strong>cause-specific</strong> hazard ratio (age 1.00, the relapse rate) and the <strong>Fine-Gray</strong> subdistribution ratio (age 0.69, the relapse incidence), which disagreed because older patients die before they can relapse.</p>
 
-<p>One thread still runs through the whole course: every model so far was one you specified by hand, a Cox form, a Weibull, a Fine-Gray. Next, Lesson 7: Survival ML and evaluation, where a random survival forest learns the shape for you, and you learn to score any survival model honestly with Harrell's C-index and the time-dependent Brier score, so the certificate rests on models you can actually trust.</p>
+<p>Next, Lesson 7: Survival ML and Evaluation. You will move from these classical models to machine-learned survival predictions, random survival forests, and, just as important, how to score any survival model honestly, with Harrell's C-index and the time-dependent Brier score, before you trust its numbers. That final lesson closes the course and your Survival Analysis certificate.</p>
 </section>
 
 
@@ -1191,7 +1086,11 @@ summary(cif, times = 24)$pstate</code></pre></details></div>
       tex2jax: {
         inlineMath: [['$','$'], ['\\(','\\)']],
         displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
@@ -1205,9 +1104,9 @@ summary(cif, times = 24)$pstate</code></pre></details></div>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=ca04edb3"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
-  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <script src="www/lesson-mode.min.js?h=378afac5"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
        scripting doesn't compete with the critical path. Events fired before
        the loader lands get buffered on window.dataLayer and flushed once
