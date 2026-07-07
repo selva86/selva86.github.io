@@ -1,8 +1,8 @@
 ---
 title: "Regression Modeling Lesson 3: Influence and Leverage"
 catalog_blurb: "How a single unusual point can dominate a regression, and how to find it."
-description: "High-leverage points vs influential observations, why leverage is only potential, and how Cook's distance measures what one row does to a regression fit in R."
-keywords: "leverage, influence, Cook's distance, hat values, influential observations, high-leverage points, regression diagnostics, outliers, hatvalues, influence.measures, R"
+description: "How one unusual data point can dominate a linear regression: leverage vs influence, hat values, Cook's distance, and how to spot and respond to influential rows in R."
+keywords: "leverage regression, influence regression, Cook's distance, hat values, hatvalues, influential observations, high leverage points, outliers in regression, influence.measures, regression diagnostics in R"
 post_type: "LESSON"
 curriculum_id: "6.20.3"
 webr: true
@@ -21,20 +21,17 @@ course_prev: "Regression-Assumptions-and-Residuals.html"
 ::eyebrow Lesson 3 of 8
 ## Influence and Leverage
 
-In Lesson 2 you learned to read a regression's residuals like a lie detector: a flat band means the assumptions hold, a funnel or a curve means trouble. But here is the catch nobody warns you about. Those plots, and the slope and p-values underneath them, can all be quietly run by a **single row** of data.
+In Lesson 2, Priya's iced-coffee cart passed its checkup: the residuals-vs-fitted plot was a flat, even band, so linearity and equal variance both held. The line looked trustworthy. But that verdict rested on 12 tidy days. What happens when day 13 is a freak?
 
-One unusual day in Priya's iced-coffee records is about to swing her whole line. By the end of this lesson you will be able to spot that row, measure exactly how much damage it does, and decide what to do about it.
+A residual plot, and the whole line behind it, can be quietly run by a single row. One unusual observation can grab the least-squares line and swing it somewhere it does not belong, while every other number still looks calm. This lesson teaches you to catch that row. Drag the far-right point below and watch the green line chase it while the grey dashed line (the fit *without* that point) stays put. That gap between the two lines is the whole lesson.
 
 By the end of this lesson you will be able to:
 
-- Tell **leverage** (a point unusual in its predictor) apart from **influence** (a point that actually moves the fit)
-- Compute hat values in R and judge them against the average leverage and the 2p/n cutoff
-- Use **Cook's distance** to put one number on how much a single row controls the model, and apply the 4/n rule
-- Respond to an influential point the right way in R, instead of just deleting it
+- Tell **leverage** (a point that is unusual in x) apart from **influence** (a point that actually moves the fit), and see why leverage alone is only the *potential* to do damage
+- Measure leverage with hat values and influence with Cook's distance, and apply the standard rules of thumb in R
+- Respond to an influential point the right way: investigate it and report the fit with and without it, instead of deleting it on sight
 
-**Prerequisites:** Lessons 1 and 2 (you can fit a line with `lm()`, read its slope and intercept, and you know a residual is actual minus predicted). You can run R and read its output. Every new term is defined as it appears.
-
-Drag the far-right point below and watch the solid line chase it while the dashed "line without that point" stays put. That swing is the whole lesson.
+**Prerequisites:** Lesson 1 (you can fit a line with `lm()` and read its slope, intercept and R-squared) and Lesson 2 (a residual is actual minus predicted, and you can read a residuals-vs-fitted plot). You can run R and read its output. Every new term is defined as it appears.
 
 ::widget leverage-point {}
 
@@ -42,196 +39,210 @@ Drag the far-right point below and watch the solid line chase it while the dashe
 ::eyebrow The problem
 ## One row can rewrite the whole story
 
-Priya's first twelve days were tidy: temperatures from 15 to 31 degrees, cups climbing steadily with the heat. Then came day thirteen, a freak 39-degree heatwave. It should have been her best day ever, but a midday power cut killed her blender for two hours and she sold only 34 cups.
+Here are Priya's 12 good days again, and the line they gave her back in Lesson 1: about **1.94** more cups per degree, with temperature explaining 96% of her daily swing (an R-squared of 0.96).
 
-Watch what that one row does. Below is the scatter of all thirteen days; the lonely point at the bottom right is the heatwave. Then we refit the line with and without it.
-
-::widget chart-plotter {"data":[{"x":15,"y":30},{"x":17,"y":36},{"x":18,"y":33},{"x":20,"y":42},{"x":21,"y":40},{"x":23,"y":47},{"x":24,"y":44},{"x":26,"y":52},{"x":27,"y":55},{"x":29,"y":56},{"x":30,"y":61},{"x":31,"y":60},{"x":39,"y":34}],"geoms":["point"],"x":"temp","y":"cups"}
+Now add day 13. A heatwave pushes the temperature to a record 39C, exactly the kind of scorcher that should sell her out. But that afternoon a power cut kills her blender for two hours, and she manages only **34 cups**. It is one row out of thirteen. Watch what it does to the model.
 
 ```r
-# Priya's 12 normal days from Lessons 1-2 (a fresh R session starts empty).
+# Priya's 12 good days from Lessons 1 and 2 (a fresh session starts empty).
 coffee <- data.frame(
   temp = c(15, 17, 18, 20, 21, 23, 24, 26, 27, 29, 30, 31),
   cups = c(30, 36, 33, 42, 40, 47, 44, 52, 55, 56, 61, 60)
 )
+fit12 <- lm(cups ~ temp, data = coffee)
 
-# Day 13: the 39-degree heatwave with the power cut. Far hotter than any normal
-# day, and far below the trend at only 34 cups. We append it as the last row.
-coffee <- rbind(coffee, data.frame(temp = 39, cups = 34))
+# Add the one freak day: 39C, but a power cut held her to 34 cups.
+coffee13 <- rbind(coffee, data.frame(temp = 39, cups = 34))
+fit13 <- lm(cups ~ temp, data = coffee13)
 
-round(coef(lm(cups ~ temp, data = coffee[-13, ])), 3)   # the 12 normal days
-#> (Intercept)        temp 
-#>       0.818       1.944 
-round(coef(lm(cups ~ temp, data = coffee)), 3)           # all 13 days
-#> (Intercept)        temp 
-#>      25.745       0.798 
+# Put the two fits side by side.
+round(rbind(with_heatwave = coef(fit13), without = coef(fit12)), 3)
+#>               (Intercept)  temp
+#> with_heatwave      25.745 0.798
+#> without             0.818 1.944
+
+round(c(R2_with = summary(fit13)$r.squared, R2_without = summary(fit12)$r.squared), 3)
+#>    R2_with R2_without
+#>      0.251      0.964
 ```
 
-Look at the slope. Without the heatwave day, each warmer degree buys Priya about **1.94** more cups, the story from Lessons 1 and 2. Add that one row and the slope collapses to **0.80**, less than half. One day out of thirteen has rewritten her entire conclusion about how temperature drives sales. The rest of this lesson is about why that happens and how to catch it.
+Read those numbers slowly. Adding a single day cut the slope from **1.944 to 0.798**, less than half its old value, and collapsed R-squared from **0.96 to 0.25**. Priya's honest "each warmer degree buys about two more cups" just became "each degree buys less than one," and a model that explained almost everything now explains almost nothing. Nothing about the other 12 days changed. Here is that one point in the picture:
+
+::widget chart-plotter {"data":[{"x":15,"y":30},{"x":17,"y":36},{"x":18,"y":33},{"x":20,"y":42},{"x":21,"y":40},{"x":23,"y":47},{"x":24,"y":44},{"x":26,"y":52},{"x":27,"y":55},{"x":29,"y":56},{"x":30,"y":61},{"x":31,"y":60},{"x":39,"y":34}],"geoms":["point"],"x":"temp","y":"cups"}
+
+Twelve points march up in a tidy line; the thirteenth sits far to the right and far too low. It is unusual in two different ways at once, and untangling those two kinds of unusual is exactly what leverage and influence are for.
 
 === step === concept
-::eyebrow Leverage
-## Leverage: a point unusual in x
+::eyebrow The first kind of unusual
+## Leverage: how far out a point sits in x
 
-Why does that single row have so much pull? Picture a seesaw. A small child sitting far out at the end tips the whole plank, while a heavy adult near the middle barely moves it. Distance from the center is what creates the swing. A regression line works the same way: a point whose **x-value** sits far from the other x-values has a long lever arm, so the line tilts to follow it. Priya's heatwave is at 39 degrees while every normal day sits between 15 and 31, so it is sitting way out at the end of the seesaw.
+Picture a seesaw. Someone sitting near the pivot barely tilts it; the same person at the very end swings the whole board with a nudge. A regression line balances the same way. A point sitting at an ordinary temperature has little pull; a point way out at the far end of the temperature axis can swing the line with a small change in its height. **Leverage** measures exactly that: how far a point sits from the center of the x values, and therefore how much power it has to move the fit.
 
-That distance-in-x has a precise name, **leverage**, and a precise formula. The vector of fitted values is a linear function of the observed responses:
+The formal version comes from how the fitted values are built. Least squares produces the vector of predictions \(\hat{\mathbf y}\) by multiplying the actual outcomes \(\mathbf y\) by one matrix:
 
-\[ \hat{y} = Hy, \qquad H = X(X^\top X)^{-1}X^\top \]
+\[ \hat{\mathbf y} = H\,\mathbf y, \qquad H = X\left(X^{\top}X\right)^{-1}X^{\top} \]
 
-Here \(y\) is the column of observed cups, \(\hat{y}\) is the column of fitted (predicted) cups, \(X\) is the design matrix (a column of 1s plus the temperatures), and \(H\) is the **hat matrix**, so called because it "puts the hat on \(y\)." The leverage of row \(i\) is the \(i\)-th diagonal entry of that matrix, written \(h_{ii}\). It measures how strongly day \(i\)'s own observed value pulls its own prediction. Two facts make \(h_{ii}\) easy to read:
+Here \(X\) is the design matrix (a column of 1s for the intercept and a column of temperatures), and \(H\) is called the **hat matrix** because it is what "puts the hat on" \(\mathbf y\), turning outcomes into predictions. The **leverage** of day \(i\) is the \(i\)-th diagonal entry of that matrix, written \(h_{ii}\): it says how much day \(i\)'s own prediction \(\hat y_i\) is determined by its own observed value \(y_i\). Leverage always lands between 0 and 1, the leverages of all rows add up to \(p\) (the number of coefficients, here 2), so the **average** leverage is exactly \(p/n\), and a common flag is any point with more than **twice** that average:
 
-\[ 0 \le h_{ii} \le 1, \qquad \sum_{i=1}^{n} h_{ii} = p \]
+\[ 0 \le h_{ii} \le 1, \qquad \sum_{i=1}^{n} h_{ii} = p, \qquad \bar h = \frac{p}{n}, \qquad \text{flag if } h_{ii} > \frac{2p}{n} \]
 
-where \(n\) is the number of rows and \(p\) is the number of estimated parameters (here \(p = 2\): an intercept and a slope). Because the leverages add up to \(p\), the **average** leverage is always \(\bar h = p/n\), and a common rule of thumb flags any point above twice that, \(h_{ii} > 2p/n\), as high leverage. Let R compute them.
+For a simple one-predictor regression there is a formula that makes the seesaw idea unmistakable:
+
+\[ h_{ii} = \frac{1}{n} + \frac{(x_i - \bar x)^2}{\sum_{j=1}^{n}(x_j - \bar x)^2} \]
+
+where \(\bar x\) is the mean temperature. Look at what is, and is not, in that formula: only the **x** values appear. Leverage depends on how far a day's temperature sits from the average temperature, and **nothing about how many cups were sold**. Let us read Priya's leverages straight from the model.
 
 ```r
-fit <- lm(cups ~ temp, data = coffee)
-h <- hatvalues(fit)            # the diagonal of the hat matrix: one leverage per row
-round(h, 3)
-#>     1     2     3     4     5     6     7     8     9    10    11    12    13 
-#> 0.250 0.185 0.159 0.117 0.101 0.082 0.078 0.081 0.088 0.113 0.131 0.153 0.464 
+# hatvalues() returns the leverage h_ii of every row.
+round(hatvalues(fit13), 3)
+#>     1     2     3     4     5     6     7     8     9    10    11    12    13
+#> 0.250 0.185 0.159 0.117 0.101 0.082 0.078 0.081 0.088 0.113 0.131 0.153 0.464
 
-mean(h)        # average leverage is always p/n; here p = 2 parameters, n = 13 rows
-#> [1] 0.1538462
-2 * mean(h)    # the "high leverage" cutoff: twice the average, i.e. 2p/n
-#> [1] 0.3076923
+# The two yardsticks: the average leverage p/n and the 2p/n flag (p = 2, n = 13).
+c(average = 2/13, cutoff = 4/13)
+#>   average    cutoff
+#> 0.1538462 0.3076923
 ```
 
-Row 13, the heatwave, has leverage **0.464**: three times the average and well past the 0.308 cutoff. It has, by far, the longest lever arm in the dataset.
+The 12 ordinary days sit near the 0.154 average. Day 13, the 39C heatwave, has a leverage of **0.464**, past the 0.308 flag and three times the typical day. It has enormous *potential* to move the line.
+
+[KEY INSIGHT]
+Leverage is set by the x values alone. A far-out point has high leverage whether it sits on the trend or wildly off it, so high leverage by itself is not proof of trouble. It is potential energy: whether that energy is ever released depends on the point's y value, which is the next idea.
 
 === step === quiz
 ::eyebrow Check yourself
-## High leverage, on the trend
+## High leverage, harmless?
 
-Suppose a different unusual day shows up: a 40-degree scorcher (far out in x, so high leverage), but this time Priya sells exactly the number of cups the existing trend predicts for 40 degrees, sitting right on the line. What happens to the fitted line when you add this point?
+The 39C heatwave day has high leverage, \(h = 0.46\), well past the 0.31 flag. Suppose the power cut had never happened and Priya sold **77 cups** that day, right where her trend line predicts a scorcher should land. Its leverage is still 0.46 (temperature has not changed). What happens to the fitted line?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- It swings sharply, because a high-leverage point always dominates the fit ::no High leverage is only the *potential* to move the line, not a guarantee. A point sitting on the trend agrees with the line, so there is nothing for it to pull toward; it leaves the slope almost unchanged.
-- It barely moves, because the point agrees with the line; leverage gives it the power to swing the fit, but it has no reason to use it ::ok Exactly. Leverage is potential, not action. A far-out point that lands on the trend confirms the line rather than fighting it. The heatwave was dangerous because it was far out in x AND far off the trend; remove either ingredient and the influence shrinks.
-- It is impossible to say without running the regression ::no You can reason it out: a point that lies on the existing line adds no conflict, so the least-squares line that already passes through it stays put. High leverage matters only when the point also disagrees with the trend.
+- The line still gets dragged just as hard, because a leverage of 0.46 is high either way ::no This is the classic trap. Leverage is only the *potential* to move the line. A far-out point that lands right on the trend simply anchors the line more firmly, it does not bend it. Refit with an on-trend 77-cup day and the slope stays 1.95 (versus 1.94 without it), essentially unchanged.
+- The line barely moves; a high-leverage point sitting ON the trend just anchors the fit, it does not tilt it. Leverage becomes real damage only when the point is also off-trend ::ok Exactly right. Same leverage (0.46), completely different outcome. With an on-trend 77-cup day the slope holds at 1.95; only the off-trend 34-cup day actually swings the line, dragging the slope down to about 0.80. Leverage is potential; it takes an off-trend y to release it.
+- The line swings in the opposite direction, cancelling out the heatwave effect ::no A single point cannot flip the line's direction like that. An on-trend high-leverage point barely changes the fit at all; it is the point being far from the trend, not merely far out in x, that moves the line.
 
 === step === concept
-::eyebrow Influence
-## Influence: leverage actually used
+::eyebrow The second kind of unusual
+## Influence: leverage that actually moves the fit
 
-The quiz holds the key distinction of this whole lesson. **Leverage** is how far out in x a point sits, its *potential* to move the line. **Influence** is how much it *actually* moves the line once you include it. They are not the same thing, and the link between them is intuitive:
+Leverage is only half the story. A point does real damage only when it combines high leverage with being **far from the trend the other points make**. That second ingredient is the point's **discrepancy**: how far its observed y sits from where the rest of the data would have predicted it, which is just its residual from Lesson 2. Roughly,
 
-\[ \text{influence} \;\approx\; \text{leverage} \;\times\; \text{discrepancy} \]
+\[ \textbf{influence} \;\approx\; \textbf{leverage} \;\times\; \textbf{discrepancy}. \]
 
-"Discrepancy" just means how far the point sits from where the line would otherwise go: its residual. A point needs **both** ingredients to be influential. A far-out point that lands on the trend (high leverage, tiny residual) barely budges the fit, as you just reasoned. A point with a big residual but sitting in the crowded middle of x (low leverage) tugs a little but cannot tip the seesaw. Only a point that is far out in x AND far off the trend, like Priya's heatwave, gets to swing the whole line.
+Read it as a product, because that is the crucial part. If either factor is near zero, the product is near zero. A point in the crowded middle (low leverage) is harmless no matter how odd its y. A far-out point that sits on the trend (low discrepancy) is harmless too. It takes **both**, a far-out x and an off-trend y, to grab the line. Priya's heatwave day has both: leverage 0.46 and a huge negative residual (34 cups where the trend expected about 77).
 
-Drag the far-right point's value below. When you park it on the trend the line holds steady; drag it up or down and watch the solid line pivot away from the dashed one. Same leverage throughout; only the discrepancy changes, and with it the influence.
+Feel it directly. The far-right point below has high leverage; drag its value up and down. When you park it on the trend line, the green fit barely twitches. Pull it far off, and the green line lunges to chase it while the grey dashed line (the fit without that point) holds still. The readout reports the slope with and without the point so you can watch influence appear and disappear while the leverage never changes.
 
 ::widget leverage-point {}
 
-The standardized residual makes the discrepancy comparable across points (it scales each residual by its expected size), so we can see both ingredients side by side.
-
-```r
-# Discrepancy: how far each day sits from the line, standardized so days compare.
-round(rstandard(fit), 2)
-#>     1     2     3     4     5     6     7     8     9    10    11    12    13 
-#> -0.93 -0.38 -0.81  0.03 -0.27  0.31 -0.10  0.60  0.84  0.79  1.26  1.08 -3.24 
-```
-
-Row 13 has a standardized residual of about **-3.2** (it sits more than three standard errors below the line) on top of its leverage of 0.46. Big lever arm times big discrepancy equals a line-swinging point. Row 11 has the next-largest residual but tiny leverage, so it stays harmless.
+[NOTE]
+This is why an outlier in a scatterplot is not automatically a problem, and why a "normal-looking" point can be. What matters for the line is not how weird a point looks on its own, but the product of its leverage and its discrepancy. We need one number that captures that product. That is Cook's distance.
 
 === step === concept
-::eyebrow Cook's distance
-## Cook's distance: one number for influence
+::eyebrow One number for total influence
+## Cook's distance
 
-"Leverage times discrepancy" is the right intuition, but you want a single number you can rank rows by. That number is **Cook's distance**, \(D_i\). It asks a wonderfully direct question: if I deleted row \(i\) and refit, how far would *all* the fitted values move? A big answer means that one row is steering the whole model.
+Cook's distance answers the most direct question you could ask: **if I deleted this one row and refit, how much would all my predictions move?** For row \(i\), leave it out, refit the model, and compare every fitted value to the original:
 
-\[ D_i = \frac{e_i^{2}}{p\,s^{2}}\cdot\frac{h_{ii}}{(1-h_{ii})^{2}} \;=\; \frac{r_i^{2}}{p}\cdot\frac{h_{ii}}{1-h_{ii}} \]
+\[ D_i = \frac{\sum_{j=1}^{n}\left(\hat y_j - \hat y_{j(i)}\right)^2}{p\,s^2} \]
 
-Read the right-hand form, because it makes the intuition exact. \(r_i\) is the standardized residual (the **discrepancy**), \(h_{ii}\) is the leverage, and \(p\) is the number of parameters. (In the equivalent left-hand form, \(e_i\) is the plain residual and \(s\) the typical size of a residual; both forms give the same number.) The first factor grows with the residual; the second factor, \(h_{ii}/(1-h_{ii})\), grows as leverage approaches 1. Multiply them and you get influence, exactly as the intuition promised. A row scores high on Cook's distance only when it is both off the trend and far out in x.
+where \(\hat y_j\) is the original prediction for day \(j\), \(\hat y_{j(i)}\) is the prediction for day \(j\) from the model refit **with row \(i\) removed**, \(p\) is the number of coefficients (2), and \(s^2\) is the residual variance (the typical squared miss). The numerator literally adds up how far every prediction shifts when row \(i\) leaves; a big \(D_i\) means that one row is holding the whole line in place.
 
-[KEY INSIGHT]
-Cook's distance fuses the two ingredients into one ranking. A common rule of thumb flags \(D_i > 4/n\) for a closer look, and any \(D_i\) near or above 1 is a loud alarm that one row is dominating the fit.
+You almost never compute it by refitting \(n\) times, because there is an equivalent formula that folds our two ingredients into one line:
+
+\[ D_i = \frac{r_i^{\,2}}{p}\cdot\frac{h_{ii}}{1 - h_{ii}}, \qquad r_i = \frac{e_i}{s\sqrt{1 - h_{ii}}} \]
+
+Here \(e_i\) is the raw residual from Lesson 2, and \(r_i\) is the **standardized residual**, the residual rescaled so that a value of about \(\pm 2\) is already unusual. Now the product is explicit: \(r_i^2\) is the **discrepancy** part (how off-trend the point is) and \(h_{ii}/(1-h_{ii})\) is the **leverage** part. Cook's distance is large only when a point is off-trend *and* has high leverage, exactly the definition of influence. Two rules of thumb flag a row for a closer look:
+
+\[ D_i > \frac{4}{n} \quad\text{(worth investigating)}, \qquad D_i \gtrsim 1 \quad\text{(a loud alarm)}. \]
+
+Let us read Priya's Cook's distances.
 
 ```r
-round(cooks.distance(fit), 3)
-#>     1     2     3     4     5     6     7     8     9    10    11    12    13 
-#> 0.143 0.017 0.061 0.000 0.004 0.004 0.000 0.016 0.034 0.039 0.120 0.105 4.549 
-4 / nrow(coffee)            # the 4/n rule of thumb: above this is worth a look
+# cooks.distance() returns D_i for every row.
+round(cooks.distance(fit13), 3)
+#>     1     2     3     4     5     6     7     8     9    10    11    12    13
+#> 0.143 0.017 0.061 0.000 0.004 0.004 0.000 0.016 0.034 0.039 0.120 0.105 4.549
+
+4 / nrow(coffee13)   # the 4/n cutoff for n = 13
 #> [1] 0.3076923
-which.max(cooks.distance(fit))   # which row dominates the fit?
-#> 13 
-#> 13 
 ```
 
-The heatwave's Cook's distance is **4.55**, against a 4/n cutoff of 0.31 and a "loud alarm" threshold of 1. Every other day sits below 0.15. There is no ambiguity: one row out of thirteen is running this regression.
+Every ordinary day sits below 0.15. The heatwave day scores **4.549**, more than four times the "loud alarm" level of 1 and fifteen times the 4/n cutoff. That single number, built from the point's leverage (0.46) and its off-trend residual, captures everything we saw: one row is running the model.
 
 === step === tryit
 ::eyebrow Your turn
 ## Flag the influential rows
 
-Reading a column of numbers by eye does not scale past a handful of rows. Instead, ask R to hand you the row numbers whose Cook's distance clears the 4/n rule of thumb. Fill in the blank with the numerator of that rule.
+The 4/n rule says: flag any row whose Cook's distance is bigger than 4 divided by \(n\). Priya's `fit13` is already built. Complete the cutoff so R returns the day numbers that trip the rule. Fill in the blank.
 
 ```r
-# Flag every day whose Cook's distance clears the 4/n rule of thumb.
-influential <- which(cooks.distance(fit) > ____ / nrow(coffee))
-influential
+n  <- nrow(coffee13)      # n = 13 days
+cd <- cooks.distance(fit13)
+which(cd > ____ / n)      # which day(s) exceed the 4/n cutoff?
 ```
-::check {"regex":"4\\s*/\\s*nrow","gate":true,"difficulty":"intermediate","ok":"Right. which() returns the positions where the test is TRUE, and only row 13 (the heatwave) clears 4/n here, so it is the single point worth investigating.","no":"The rule of thumb is 4/n, so the numerator is 4: write cooks.distance(fit) > 4 / nrow(coffee)."}
+::check {"regex":"cd\\s*>\\s*4\\s*/\\s*n","gate":true,"difficulty":"intermediate","ok":"That is the 4/n rule: which(cd > 4 / n) returns a single day, row 13, the heatwave. Every other day sits comfortably below the cutoff, so the rule cleanly isolates the one row that is running the fit.","no":"The numerator of the 4/n rule is 4: which(cd > 4 / n). It should return just row 13, the heatwave day."}
 ::solution
 ```r
-influential <- which(cooks.distance(fit) > 4 / nrow(coffee))
-influential
-#> 13 
-#> 13 
+n  <- nrow(coffee13)
+cd <- cooks.distance(fit13)
+which(cd > 4 / n)
+#> 13
+#> 13
 ```
 
 === step === concept
-::eyebrow In R
-## Reading it in R, and what to do next
+::eyebrow In R, and what to do next
+## Reading it, and responding to it
 
-You do not have to call each diagnostic by hand. `influence.measures()` reports them all at once and stars the rows worth a look, and base R draws two influence plots straight from the fitted model.
+You do not have to remember every formula. R packages the whole battery of influence diagnostics into `influence.measures()`, and `summary()` prints **only** the rows it thinks are worth a second look. Two built-in plots then show the same story at a glance.
 
 ```r
-# Every influence measure at once; rows flagged with a * are worth investigating.
-influence.measures(fit)
+# The full diagnostic battery; summary() prints only the flagged rows.
+summary(influence.measures(fit13))
+#> Potentially influential observations of
+#>          lm(formula = cups ~ temp, data = coffee13) :
+#>
+#>    dfb.1_   dfb.temp dffit    cov.r    cook.d   hat
+#> 13  10.80_* -12.63_* -13.83_*   0.00_*   4.55_*   0.46_*
 
-# Two diagnostic plots R draws for you:
-plot(fit, which = 4)   # Cook's distance: one bar per row, row 13 towers over the rest
-plot(fit, which = 5)   # residuals vs leverage, with Cook's distance contours
-
-# The honest move: report the fit BOTH ways and let the reader see the gap.
-round(coef(lm(cups ~ temp, data = coffee)), 3)        # with the heatwave day
-round(coef(lm(cups ~ temp, data = coffee[-13, ])), 3) # without it
+# The two diagnostic plots made for exactly this job:
+plot(fit13, which = 4)   # Cook's distance: one bar per day, day 13 towers over the rest
+plot(fit13, which = 5)   # residuals vs leverage, with Cook's distance contour lines
 ```
 
-Now the hard part, which is judgement, not code.
+Only row 13 is flagged, with a starred `cook.d` of 4.55 and `hat` of 0.46, the same two numbers we computed by hand. The `which = 4` plot draws one Cook's distance bar per day so the outlier towers over the rest; the `which = 5` plot puts leverage on the x-axis and standardized residuals on the y-axis, and any point drifting past its dashed Cook's distance contours is both high-leverage and off-trend, the danger zone.
+
+Now the important part, the part a formula cannot tell you: **finding an influential point is the start of the work, not the end.**
 
 [WARNING]
-A high Cook's distance is a flag, not a verdict. Never delete a row just because it is influential. First find out WHY. Priya's heatwave is a real day, not a typo, but it is unrepresentative: a power cut, not normal demand. The honest options are to report the fit with and without it, to model the heatwave regime separately, or to use a method that is less sensitive to single points (robust regression). Silently dropping the row hides exactly the surprise your reader most needs to know about.
+Never delete an influential row just because it is influential. A high Cook's distance is a question, not a verdict. First investigate: is it a **data error** (a typo, a broken sensor, the wrong units) that you can honestly correct or drop, or is it a **real but rare event** the model genuinely needs to know about? Priya's power cut was real. Deleting it would hide the truth that her demand model breaks when the equipment does. The honest report shows the fit **both ways**, with and without the point, and explains the difference, so the reader sees how much rests on that one row.
 
 === step === quiz
 ::eyebrow Check yourself
-## What do you do with it?
+## One row, huge Cook's distance
 
-Your diagnostics flag one row with a Cook's distance of 4.5, far above every other point and well past the rule of thumb. What is the right next step?
+Your diagnostics flag a single row with a Cook's distance of 4.5, far above every other row and far past the 4/n rule. What is the right next move?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Delete the row and refit; a Cook's distance that high proves the point is bad data ::no A large Cook's distance proves the point is *influential*, not that it is wrong. Deleting before you understand it can erase a genuine, important signal (a real heatwave, a real crash) and quietly bias your model.
-- Investigate why the point is extreme (data error, or a real but unusual case), then report the fit with and without it so the effect is visible ::ok Exactly. Influence is a prompt to investigate, not a licence to delete. You check whether it is an error or a real rare case, then you are transparent: show both fits, or model the unusual regime separately, rather than hiding the row.
-- Ignore it, because one row out of many cannot really matter ::no This whole lesson is the counterexample: one row out of thirteen halved Priya's slope. With high leverage and a large residual, a single point genuinely can dominate the fit, so it must be addressed, not ignored.
+- Delete the row and refit; a point that influential is bad data by definition ::no Influence is not a synonym for error. A high Cook's distance only tells you the row is *moving the fit*, not *why*. Priya's heatwave is a real, correct measurement of what happens during a power cut; deleting it would erase a true and useful fact about her demand.
+- Investigate the row first (data-entry error, or a real rare event?), then report the fit both with and without it and explain the gap ::ok Exactly. A high Cook's distance is a question, not a verdict. You look into what makes the row special, decide honestly whether to correct, keep, or set it aside, and either way you show how much the conclusion depends on that one point by reporting both fits.
+- Nothing; a high Cook's distance only affects that one row's own prediction, not the rest of the model ::no The opposite is true, and it is the whole reason Cook's distance exists: it measures how far *every* fitted value moves when that row is dropped. One high-Cook's-distance row bends the entire line, changing the slope and every prediction, as Priya's 1.94-to-0.80 collapse showed.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-A few authoritative places to take influence diagnostics further:
+A few authoritative places to take leverage and influence further:
 
-- [Cook (1977), Detection of Influential Observation in Linear Regression (Technometrics)](https://doi.org/10.2307/1268249) - the original paper that defined the Cook's distance you used here.
-- [An Introduction to Statistical Learning, ch. 3 (free PDF)](https://www.statlearning.com/) - the "Potential Problems" section explains outliers and high-leverage points and why they differ.
-- [R documentation: influence.measures](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html) - every diagnostic you called (hatvalues, cooks.distance, dffits, dfbetas) and how to read its flags.
-- [R documentation: plot.lm](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/plot.lm.html) - exactly what the which = 4 (Cook's distance) and which = 5 (residuals vs leverage) plots show.
-- [Penn State STAT 501: Regression Methods](https://online.stat.psu.edu/stat501/) - a free course with thorough, worked lessons on leverage, influence and Cook's distance.
+- [An Introduction to Statistical Learning, ch. 3 (free PDF)](https://www.statlearning.com/) - the "Potential Problems" section covers outliers, high-leverage points and the leverage statistic with the same plots you used here.
+- [The Elements of Statistical Learning, ch. 3 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - the deeper treatment of the linear model, the hat matrix, and where leverage comes from.
+- [R documentation: influence.measures](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html) - the full set of R's regression influence diagnostics (hat values, Cook's distance, DFFITS, DFBETAS) and how each is computed.
+- [Penn State STAT 501, Lesson 11: Influential Points](https://online.stat.psu.edu/stat501/lesson/11) - a free, worked course chapter on leverage, studentized residuals, Cook's distance, and the difference between an outlier and an influential point.
+- [Cook (1977), Detection of Influential Observation in Linear Regression, Technometrics 19(1)](https://doi.org/10.2307/1268249) - the original paper that introduced Cook's distance.
 
 === step === complete
 ## Lesson 3 complete
 
-You can now catch the one row that quietly controls a regression. **Leverage** (\(h_{ii}\)) is how far a point sits from the rest in its predictor, its potential to move the line; you read it against the \(p/n\) average and the \(2p/n\) cutoff. **Influence** is that potential actually spent, roughly leverage times discrepancy, and **Cook's distance** fuses both into one number that ranks how much each row steers the whole fit, with 4/n as a screening cutoff. And you know the discipline: a flag is an invitation to investigate, never an automatic delete.
+You can now spot the one row that runs a regression, and you know the two-part reason it can. **Leverage** ( the hat value \(h_{ii}\) ) measures how far a point sits out in x; it is only *potential*, because it depends on x alone. **Influence** is that potential released, roughly leverage times discrepancy, and **Cook's distance** puts a single number on it: how far every prediction moves when a row is dropped, flagged by the 4/n rule and read straight from `influence.measures()` or `plot(fit, which = 4)`. Above all, you know that finding an influential point starts an investigation, it does not end one: you look, you decide honestly, and you report the fit both ways.
 
-Next, Lesson 4: Multicollinearity in Regression. So far one row caused trouble; next you will see how two *columns* can. When predictors are correlated, the coefficients turn unstable and start contradicting common sense. You will meet the variance inflation factor and learn how to detect and fix it.
+Next, Lesson 4: Multicollinearity in Regression. So far one *row* has been the troublemaker. Next the trouble comes from the *columns*: when two predictors carry nearly the same information, the coefficients turn unstable and can even flip sign, and you will learn to detect it with the variance inflation factor and fix it.
