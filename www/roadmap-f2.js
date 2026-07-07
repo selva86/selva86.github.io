@@ -130,6 +130,24 @@
           if(m&&RM2.sections[track]){var af=(track==='analyst'||track==='foundations');
             m.textContent=RM2.sections[track].length+' sections / '+grand+(af?' lessons / all free':' lessons / Section 1 free');}}
       });
+      // DS: not-yet-built Pro sections are the road ahead, not buyable now - show
+      // "Soon" instead of a pricing link. Guarded on the catalog actually carrying
+      // DS lessons, so a partial/baked catalog never downgrades a live section;
+      // sections that upgraded above are in dsUp and skipped. Idempotent + self-
+      // correcting (a shipped section gains lessons -> upgrades -> not relabeled).
+      var dsUp=byTrack['ds'];
+      if(dsUp&&RM2.sections['ds']){
+        RM2.sections['ds'].forEach(function(s){
+          if(dsUp[s.n])return;
+          var det=document.querySelector('details.sec[data-track="ds"][data-sec="'+s.n+'"]'); if(!det)return;
+          det.querySelectorAll('a.lsn.pro').forEach(function(a){
+            var lt=a.querySelector('.lt'),span=document.createElement('span');
+            span.className='lsn soon';
+            span.innerHTML='<span class="dot"></span><span class="ltwrap"><span class="lt">'+(lt?lt.innerHTML:'')+'</span></span><span class="go">Soon</span>';
+            a.parentNode.replaceChild(span,a);
+          });
+        });
+      }
     }
     // 1) synchronous first paint from inline-baked data (no fetch dependency, every browser)
     if(window.__RMLESSONS__)applyHybrid(window.__RMLESSONS__);
