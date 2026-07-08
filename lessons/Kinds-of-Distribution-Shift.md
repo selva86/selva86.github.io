@@ -142,7 +142,7 @@ Let us watch it happen to Nadia's model.
 ::eyebrow In R
 ## Flip the rule, watch it collapse
 
-The launch rule made fraud rise with the amount: `plogis(1.5 * amount)`. Concept shift flips that sign, so small amounts become the fraudulent ones. Fill the blank with the flipped coefficient, `-1.5`, so the relationship reverses, then score Nadia's **unchanged** model on this new world.
+The launch rule made fraud rise with the amount: `plogis(1.5 * amount)`. Concept shift reverses that relationship, so small amounts become the fraudulent ones. Fill the blank with the coefficient that flips the launch rule's sign, then score Nadia's **unchanged** model on this new world.
 
 ```r
 set.seed(7)

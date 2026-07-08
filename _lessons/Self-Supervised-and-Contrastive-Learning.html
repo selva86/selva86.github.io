@@ -1,0 +1,420 @@
+---
+title: "Anomaly Detection Lesson 7: Self-Supervised and Contrastive Learning"
+description: "Learn representations without labels in R: pretext tasks, the contrastive pull-and-push idea, and why a decorrelated representation makes anomalies stand out."
+keywords: "self-supervised learning, contrastive learning, representation learning, SimCLR, InfoNCE, pretext task, Barlow Twins, decorrelation, anomaly detection, R"
+mathjax: true
+webr: true
+curriculum_id: "6.200.7"
+post_type: "LESSON"
+course_id: "ds-anomaly"
+course_title: "Anomaly and Outlier Detection"
+course_lesson: "7"
+course_total: "7"
+course_landing: "R-Anomaly-Detection-Course.html"
+course_next: ""
+course_prev: "Kernel-PCA-Sparse-PCA-and-NMF.html"
+lesson_access: "pro"
+catalog_blurb: "Learn a useful representation from unlabeled data so odd points stand out."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 7</div>
+<h2>Self-Supervised and Contrastive Learning</h2>
+
+<p>Aurora runs 50,000 home-security cameras. Every night, each camera turns its motion clip into a short numeric fingerprint: total <strong>motion</strong>, the number of moving <strong>blobs</strong> (people, pets, headlights, swaying branches), the <strong>active seconds</strong>, and the <strong>brightness</strong>. Last night one camera logged clip #201: motion 70, one moving blob, 23 seconds of activity, brightness 54. Was it a family member fetching a parcel, or an intruder? Nobody knows, because nobody has labeled which of the millions of nightly clips are break-ins. Hand-labeling them all is impossible.</p>
+
+<p>Lesson 6 upgraded PCA three ways to reshape the coordinates you score a point against. But every method so far, PCA included, is still hand-built: <strong>you</strong> pick the transform. This finale asks the machine to <em>learn</em> the representation itself, straight from the unlabeled clips, using a trick with a wonderful name: <strong>contrastive learning</strong>. Two slightly different views of the same clip should end up close together; two different clips should end up far apart. From that one rule, and no labels at all, a representation emerges in which a genuine intruder finally stands out.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say why anomaly detection is so often label-free, and what a "representation" is and why a good one matters</li>
+
+<li>Describe a <strong>pretext task</strong>: how hiding part of the data and predicting it turns unlabeled data into a learning signal</li>
+
+<li>Explain the <strong>contrastive</strong> idea, positive pairs pulled together and negatives pushed apart, and read the InfoNCE loss</li>
+
+<li>Explain <strong>representational collapse</strong>, and why a good representation must be well-spread and decorrelated</li>
+
+<li>Show, in a few lines of base R, that a decorrelated representation makes a relationship-breaking anomaly stand out</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can read base R (indexing, matrices, <code>scale</code>, <code>cov</code>, <code>lm</code>), and you have done <a href="Autoencoders-for-Anomaly-Detection.html">Lesson 4: Autoencoders</a> (scoring a point by how badly it rebuilds, and that a linear autoencoder is PCA), <a href="Kernel-PCA-Sparse-PCA-and-NMF.html">Lesson 6: Kernel PCA, Sparse PCA and NMF</a> (PCA, loadings, variance explained), and <a href="What-is-an-Anomaly.html">Lesson 1: What Is an Anomaly?</a> (the base-rate trap). No deep-learning background is needed; every idea is built here from scratch.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Unlabeled clips","sub":"thousands of night clips, none tagged normal or intruder"},{"title":"Make two views","sub":"jitter each clip into two versions of the same event"},{"title":"Pull and push","sub":"pull the two views of one clip together, push different clips apart"},{"title":"A useful map","sub":"a spread, decorrelated representation where the odd clip stands out"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>No labels, and single features lie</h2>
+
+<p>Start with what makes this hard. A <strong>representation</strong> is just a re-description of each clip as a list of numbers, chosen so that distance between two lists means "how different are these two clips." The raw fingerprint is one representation, and a poor one, as you are about to see. We have no labels, so we cannot train a classifier of normal-versus-intruder. We can only learn from the <em>shape</em> of the data itself.</p>
+
+<p>Let us build Aurora's clips and plant one intruder, then check whether any single feature gives it away. Normal clips share a simple habit: a busier night means more motion, more moving blobs, and longer activity, all rising together. The intruder (clip #201) has busy motion and long activity but only <strong>one</strong> moving blob, a lone figure where a busy clip would show many small blobs.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 200
+a &lt;- runif(n, 0, 1)                                  # latent &quot;how busy&quot; level of each clip
+motion     &lt;- round(20 + 60*a + rnorm(n, 0, 3), 1)   # busier clip -&gt; more total motion
+blobs      &lt;- round( 1 +  8*a + rnorm(n, 0, 0.5))    # busier clip -&gt; more moving blobs
+active_sec &lt;- round( 4 + 22*a + rnorm(n, 0, 1.5), 1) # busier clip -&gt; longer active time
+brightness &lt;- round(55 + rnorm(n, 0, 6), 1)          # ambient light, unrelated to how busy it is
+clips &lt;- data.frame(motion, blobs, active_sec, brightness)
+clips &lt;- rbind(clips, data.frame(motion = 70, blobs = 1, active_sec = 23, brightness = 54))
+kind  &lt;- c(rep(&quot;normal&quot;, n), &quot;INTRUDER&quot;)             # kept only to CHECK our work, never to train
+tail(clips, 2)
+#&gt;     motion blobs active_sec brightness
+#&gt; 200   66.1     7       20.8       51.8
+#&gt; 201   70.0     1       23.0       54.0
+
+# how extreme is the intruder on each single feature? (z-score against the normal clips)
+nm &lt;- kind == &quot;normal&quot;
+z  &lt;- sapply(names(clips), function(v)
+        (clips[nrow(clips), v] - mean(clips[nm, v])) / sd(clips[nm, v]))
+round(z, 2)
+#&gt;     motion      blobs active_sec brightness
+#&gt;       1.16      -1.85       1.26      -0.16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at those z-scores: 1.16, -1.85, 1.26, -0.16. Not one of them is past 2 standard deviations. Every single-feature rule, an amount fence, an IQR whisker, a per-column z-score, waves this clip through as unremarkable. Yet busy motion with a single blob is not how a normal night looks. The tell is in the <em>relationship between</em> the features, exactly the kind of anomaly Lesson 4 caught with reconstruction error. Here we will catch it a different way: by learning a representation in which that broken relationship becomes a long distance.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Self-supervision</div>
+<h2>Pretext tasks: invent a label from the data</h2>
+
+<p>If we have no labels, we manufacture one. That is the whole trick behind <strong>self-supervised learning</strong>: take a <strong>pretext task</strong>, an artificial puzzle whose answer is already hidden inside the data, and make the model solve it. The answer is free, so no human has to label anything, and to solve the puzzle the model is forced to learn the structure of normal data.</p>
+
+<p>The simplest pretext task for a table of numbers: <strong>hide one column and predict it from the others.</strong> If a model can guess a clip's active seconds from its motion, blobs and brightness, then it has discovered how the features relate. Let us measure how well that works, using an ordinary linear model as the "solver" and \(R^2\) (the fraction of variance it explains, where 1 is perfect and 0 is useless) as the score.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Xdf  &lt;- as.data.frame(scale(clips))                      # standardize each feature (mean 0, sd 1)
+fit  &lt;- lm(active_sec ~ motion + blobs + brightness, data = Xdf[nm, ])   # learn on normal clips
+pred &lt;- predict(fit, Xdf)                                # predict the hidden column for every clip
+r2   &lt;- 1 - var(Xdf$active_sec - pred) / var(Xdf$active_sec)
+round(r2, 2)
+#&gt; [1] 0.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An \(R^2\) of 0.91 means the hidden column was 91% predictable from the others: normal clips carry a strong, learnable pattern, and no labels were needed to find it. A model good at this pretext task has, as a side effect, built an internal sense of "what a normal clip looks like." That side effect is the representation we are after. Masked-feature prediction is the tabular cousin of the pretext tasks that power modern systems: fill in a blanked-out word, or un-rotate a photo. Solving the puzzle is never the goal; the <em>representation</em> you build along the way is.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">The big idea</div>
+<h2>The contrastive idea</h2>
+
+<p>Contrastive learning is a sharper pretext task, and the one that reliably builds the best representations. It rests on a single, intuitive rule about <strong>views</strong>. A <strong>view</strong> of a clip is a lightly altered copy of it: nudge each number a little, dim the brightness, briefly drop a feature. It is obviously still the same event, just seen through a slightly different filter. So:</p>
+
+<ul>
+
+<li>Two views of the <strong>same</strong> clip form a <strong>positive pair</strong>. They should land <em>close together</em> in the representation.</li>
+
+<li>Any <strong>other</strong> clip in the batch is a <strong>negative</strong>. It should land <em>far apart</em>.</li>
+
+</ul>
+
+<p>That is the entire objective: <strong>pull positives together, push negatives apart.</strong> No labels anywhere, the only "supervision" is the free fact that two views came from the same source clip. Train on that rule across thousands of clips and the representation self-organizes: similar clips cluster, the space spreads out to use every direction, and a clip that resembles nothing else, our intruder, ends up stranded far from the crowd.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Anchor","sub":"pick one clip as the anchor"},{"title":"Two views","sub":"augment it twice: the positive pair, one event seen two ways"},{"title":"Negatives","sub":"every other clip in the batch is a negative"},{"title":"Pull and push","sub":"pull the anchor and its positive together, push the negatives away"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The formal picture</div>
+<h2>The contrastive loss, precisely</h2>
+
+<p>Now the exact machinery. An <strong>encoder</strong> \(f\) maps a clip \(x\) to an embedding \(z = f(x)\), which we <strong>L2-normalize</strong> so it has length 1 (\(\lVert z \rVert = 1\)). For unit vectors, the <strong>cosine similarity</strong> is just their dot product, \(\operatorname{sim}(z_a, z_b) = z_a^\top z_b\): it runs from \(+1\) (same direction) down to \(-1\) (opposite). Take an anchor \(a\), its positive \(p\) (the other view of the same clip), and \(m\) negatives \(n_1, \dots, n_m\). The <strong>InfoNCE</strong> loss for the anchor is</p>
+
+<p>\( \ell = -\log \dfrac{\exp\!\big(\operatorname{sim}(z_a, z_p)/\tau\big)}{\exp\!\big(\operatorname{sim}(z_a, z_p)/\tau\big) + \sum_{k=1}^{m}\exp\!\big(\operatorname{sim}(z_a, z_{n_k})/\tau\big)} \)</p>
+
+<p>Read it as a softmax: the numerator is the anchor's agreement with its positive, the denominator adds in its agreement with every negative, and \(\tau > 0\) (the <strong>temperature</strong>) sharpens the contrast. Making \(\ell\) small means making the positive similarity large <em>relative to</em> the negatives, which is exactly "pull the positive close, push the negatives away."</p>
+
+<p>Let us watch the two halves of that rule on real numbers. We do not have a trained encoder yet, so we use the standardized fingerprint itself as a stand-in embedding, just to see the arithmetic of the loss.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X &lt;- scale(clips)                                    # our stand-in embedding: the standardized clip
+augment &lt;- function(x, sd = 0.15) x + rnorm(length(x), 0, sd)   # a &quot;view&quot;: jitter each feature a little
+set.seed(42)
+v1 &lt;- augment(X[7, ]); v2 &lt;- augment(X[7, ])         # two views of the SAME clip (#7): a positive pair
+vn &lt;- augment(X[150, ])                              # a view of a DIFFERENT clip: a negative
+round(rbind(view1 = v1, view2 = v2), 2)
+#&gt;       motion blobs active_sec brightness
+#&gt; view1   1.89  1.64       1.26      -1.30
+#&gt; view2   1.75  1.71       1.43      -1.41
+
+unit    &lt;- function(z) z / sqrt(sum(z^2))            # L2-normalize: rescale to length 1
+cos_pos &lt;- sum(unit(v1) * unit(v2))                  # same clip     -&gt; should be high
+cos_neg &lt;- sum(unit(v1) * unit(vn))                  # different clip -&gt; should be lower
+round(c(positive_pair = cos_pos, negative_pair = cos_neg), 3)
+#&gt; positive_pair negative_pair
+#&gt;         0.997         0.727</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The positive pair agrees at 0.997, the negative at 0.727: the rule already separates them. Now assemble the full InfoNCE loss for this anchor with one positive and three negatives.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tau    &lt;- 0.2                                        # temperature: smaller = sharper contrast
+others &lt;- rbind(v2, vn, augment(X[42, ]), augment(X[99, ]))   # row 1 = positive, rows 2 to 4 = negatives
+sims   &lt;- apply(others, 1, function(o) sum(unit(v1) * unit(o)) / tau)
+loss   &lt;- -log(exp(sims[1]) / sum(exp(sims)))        # positive share of the softmax
+round(unname(loss), 3)
+#&gt; [1] 0.773</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A loss of 0.773. Training an encoder means adjusting \(f\) to drive that number down across millions of anchors, which nudges every positive pair closer and every negative farther, one gradient step at a time.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What is contrastive learning actually doing?</h2>
+
+<p>Aurora's night clips have no labels at all. Which statement correctly describes what a contrastive model does with them?</p>
+<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It needs each clip tagged normal or intruder first, then it learns to separate the two labeled groups</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It pulls the two augmented views of one clip together and pushes different clips apart, so similar clips end up grouped without any labels</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The negatives in each batch are the anomalies, so the loss is really flagging intruders while it trains</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The positive pair (two views of one clip) is pulled together; every other clip is a negative and pushed apart. The supervision is manufactured from the data itself, which is what "self-supervised" means.</div><div class="lesson-qfb lesson-qfb-no">No: a "negative" just means "a different clip", almost always another normal clip. Negatives are the contrast that keeps every clip from collapsing to one point, not anomalies. Flagging happens later, using the learned representation.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>Collapse: the easy way to cheat</h2>
+
+<p>There is a lazy way for the encoder to make every positive pair close: <strong>map every clip to the same point.</strong> Then all embeddings are identical, every positive similarity is a perfect 1, and the "pull together" half of the loss is trivially satisfied. This is <strong>representational collapse</strong>, and a collapsed representation is worthless: if every clip sits on top of every other, no clip can ever be an outlier. This is why the negatives matter. They punish collapse.</p>
+
+<p>Put \(z_a = z_p = z_{n_k} = c\) into the InfoNCE loss. Every similarity equals \(1\), so every exponential equals \(e^{1/\tau}\), and</p>
+
+<p>\( \ell = -\log \dfrac{e^{1/\tau}}{(1+m)\, e^{1/\tau}} = \log(1+m) \)</p>
+
+<p>which is the <em>largest</em> value the loss can take, not the smallest. Collapse is the worst solution, not a shortcut: the denominator's negatives make sure of it. But InfoNCE guards against only the crudest collapse. A subtler failure remains, where the representation does not collapse to a point but wastes itself by making its features redundant. Look at the correlation between our four raw features across the clips.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cor(X), 2)
+#&gt;            motion blobs active_sec brightness
+#&gt; motion       1.00  0.93       0.95       0.02
+#&gt; blobs        0.93  1.00       0.91       0.02
+#&gt; active_sec   0.95  0.91       1.00       0.00
+#&gt; brightness   0.02  0.02       0.00       1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Motion, blobs and active seconds are near-duplicates of one another (correlations around 0.93). The raw representation <em>looks</em> four-dimensional but really carries only about two independent directions. Three of its axes are saying the same thing three times, and that redundancy is what will let the intruder hide.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Spread out and decorrelate</h2>
+
+<p>A good representation needs two properties, and researchers have names for both. <strong>Alignment</strong>: positive pairs land close (the "pull together" we already have). <strong>Uniformity</strong>: the embeddings spread out to fill the space instead of clumping, which is the same as saying the representation's features should be <strong>decorrelated</strong>, each axis carrying its own, non-redundant information. Methods such as <strong>Barlow Twins</strong> and <strong>VICReg</strong> make this explicit: they drive the cross-correlation matrix \(C\) of the two views' embeddings toward the identity,</p>
+
+<p>\( \mathcal{L} = \sum_i (1 - C_{ii})^2 \;+\; \lambda \sum_{i \neq j} C_{ij}^2 \)</p>
+
+<p>pushing the diagonal to 1 (each feature agrees with itself across the two views, alignment) and the off-diagonal to 0 (different features stop copying each other, decorrelation). We cannot train a deep network in the browser, but we can do the exact linear version and see decorrelation happen: <strong>whitening</strong>. Whitening rotates and rescales the data so that its covariance becomes the identity matrix, every direction equal spread, zero correlation left over.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">S  &lt;- cov(X)                                         # covariance of the raw representation
+E  &lt;- eigen(S)                                       # its principal directions and spreads
+Wz &lt;- E$vectors %*% diag(1 / sqrt(E$values)) %*% t(E$vectors)   # the ZCA whitening matrix
+Z  &lt;- X %*% Wz                                        # the DECORRELATED representation
+round(cor(Z), 2)
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    1    0    0    0
+#&gt; [2,]    0    1    0    0
+#&gt; [3,]    0    0    1    0
+#&gt; [4,]    0    0    0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The correlation matrix of the new representation <code>Z</code> is the identity: the redundancy is gone, and all four directions now carry independent information.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Contrastive learning wants alignment (positives close) AND uniformity (a spread, decorrelated representation). Alignment alone allows collapse. It is the second property, decorrelation, that makes distance in the representation meaningful, and that is precisely what surfaces an anomaly.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Why this catches the intruder</h2>
+
+<p>Now the reward, and the reason this whole course cares about representations. Score every clip by how far it sits from the centre of the normal clips, and compare two rulers: plain distance in the raw standardized space, versus distance in the decorrelated space. Distance in the whitened space has a classic name, the <strong>Mahalanobis distance</strong>,</p>
+
+<p>\( d_M(x)^2 = (x - \mu)^\top \Sigma^{-1} (x - \mu) \)</p>
+
+<p>where \(\mu\) and \(\Sigma\) are the mean and covariance of the normal clips. Dividing by \(\Sigma\) is exactly the whitening from the last step, so Mahalanobis distance <em>is</em> Euclidean distance measured in the decorrelated representation.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctr   &lt;- colMeans(X[nm, ])                           # centre of the normal clips
+d_raw &lt;- sqrt(rowSums(sweep(X, 2, ctr)^2))           # plain distance in the raw representation
+d_dec &lt;- mahalanobis(X, ctr, cov(X[nm, ]))           # distance in the DECORRELATED representation
+cat(&quot;intruder rank by raw distance:         &quot;, rank(-d_raw)[nrow(clips)], &quot;of&quot;, nrow(clips), &quot;\n&quot;)
+cat(&quot;intruder rank by decorrelated distance:&quot;, rank(-d_dec)[nrow(clips)], &quot;of&quot;, nrow(clips), &quot;\n&quot;)
+#&gt; intruder rank by raw distance:          44 of 201
+#&gt; intruder rank by decorrelated distance: 1 of 201
+o &lt;- order(-d_dec)[1:3]
+data.frame(rank = 1:3, kind = kind[o], decorrelated_dist = round(d_dec[o], 1))
+#&gt;   rank     kind decorrelated_dist
+#&gt; 1    1 INTRUDER             104.9
+#&gt; 2    2   normal              12.2
+#&gt; 3    3   normal              11.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In the raw representation the intruder is buried at rank 44 of 201, lost in the crowd, because plain distance lets the three redundant "busy-ness" features drown out the one direction that matters. In the decorrelated representation it leaps to rank 1, and not by a whisker: its distance is 104.9 against about 12 for the next clip. Decorrelating the space stretched the thin "busy motion, few blobs" direction that normal clips barely use, and the intruder, which lives exactly there, shot to the top. The picture below shows the same idea: in a spread representation, items separate into groups and a point belonging to none sits alone.</p>
+<div class="lesson-widget" data-widget-type="pca-projection" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Rank the clips in the decorrelated space</h2>
+
+<p>Put it together. Score every clip by its distance from the normal centre, but measured in the decorrelated representation. <code>mahalanobis(points, center, cov)</code> returns exactly that: the squared distance after whitening by a covariance. Fill the blank with the covariance that decorrelates the space, the covariance of the <strong>normal</strong> clips, so the intruder rises to the top.</p>
+<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mahalanobis\(X, ctr, cov"><textarea class="lesson-tryit-input" spellcheck="false">ctr   &lt;- colMeans(X[nm, ])                 # centre of the normal clips
+d_dec &lt;- mahalanobis(X, ctr, ____)         # distance in the DECORRELATED space
+kind[order(-d_dec)[1]]                      # the single most anomalous clip</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. cov(X[nm, ]) is the covariance of the normal clips, and dividing distance by it (whitening) puts every direction on equal footing. The intruder, sitting along a direction the normal clips barely use, jumps to the top with a decorrelated distance of 104.9 versus about 12 for the next clip; in the raw space it was only 44th.</span><span class="lesson-tryit-fb lesson-tryit-no">The third argument is the covariance that defines the SHAPE of normal, and it must come from the normal clips: cov(X[nm, ]). That is what whitens the space so a clip breaking the normal relationship stands out, because mahalanobis divides the distance by this covariance.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">ctr   &lt;- colMeans(X[nm, ])
+d_dec &lt;- mahalanobis(X, ctr, cov(X[nm, ]))
+kind[order(-d_dec)[1]]
+#&gt; [1] &quot;INTRUDER&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did the decorrelated distance win?</h2>
+
+<p>Raw distance ranked the intruder 44th of 201; the decorrelated (Mahalanobis) distance ranked it 1st, at 104.9 versus about 12 for the next clip. Which statement best explains why?</p>
+<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because the intruder clip has the largest, most extreme feature values, so it is far from everything by any ruler</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because raw distance already ranked it near the top, and decorrelating only reshuffled a few ties</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because whitening rescales the correlated directions to equal footing, so a clip that breaks the motion-blobs-activity relationship lands far out along a direction normal clips barely use</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Motion, blobs and active seconds are highly correlated for normal clips, so the normal cloud is razor-thin in the "busy motion, few blobs" direction. Whitening stretches that thin direction, and the intruder, which lives exactly there, shoots to a Mahalanobis distance of 104.9.</div><div class="lesson-qfb lesson-qfb-no">No: raw distance put it at 44th, deep in the normal crowd. Decorrelation did not fine-tune the order, it moved the intruder from 44th all the way to 1st.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know the limits</div>
+<h2>When it breaks, and the real thing</h2>
+
+<p>The linear whitening you built is the honest, runnable core of the idea, but be clear about its limits, and about what a full contrastive system adds.</p>
+
+<ul>
+
+<li><strong>Clean-ish normal data.</strong> Like every method in this course, it learns "normal" from the training clips. Salt them with undetected intruders and the covariance widens to include that pattern, and the flag goes quiet. Curate the training set.</li>
+
+<li><strong>Augmentations must preserve identity.</strong> A "view" has to be a clip that is still recognizably the same event. Jitter and small dropout are safe; an augmentation that erases the very signal you care about would teach the encoder to ignore it.</li>
+
+<li><strong>Whitening is linear.</strong> It can only decorrelate along straight axes. Real clip fingerprints often lie on a curved manifold, and that is where a genuine contrastive <strong>neural</strong> encoder earns its keep: same pull-and-push rule, but a nonlinear \(f\) that can bend the representation.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A real contrastive encoder (SimCLR, MoCo) trains a neural network with a deep-learning toolkit, which does not run in the browser. Here it is for reference only, to run locally. Notice it is the same rule you just learned, an encoder, augmented views, and the InfoNCE loss, only nonlinear:</div></div>
+
+<pre><code class="language-r"># A real contrastive encoder (torch): a NONLINEAR representation, not just linear whitening.
+# torch needs a native backend, so run this locally, not in the browser.
+library(torch)
+encoder &lt;- nn_sequential(nn_linear(4, 16), nn_relu(), nn_linear(16, 8))   # f: clip -&gt; 8-d embedding
+augment &lt;- function(x) x + torch_randn_like(x) * 0.15                     # a random view
+info_nce &lt;- function(z, tau = 0.2) {                                      # z: 2N x d, rows i and i+N paired
+  z   &lt;- nnf_normalize(z, dim = 2)                                        # L2-normalize each embedding
+  sim &lt;- torch_mm(z, z$t()) / tau                                         # all pairwise cosine similarities
+  nnf_cross_entropy(sim, target_indices)                                  # positives vs the rest (softmax)
+}
+opt &lt;- optim_adam(encoder$parameters, lr = 1e-3)
+for (step in 1:2000) {                                                    # train on NORMAL clips only
+  batch &lt;- normal_clips[sample(nrow(normal_clips), 256), ]
+  z &lt;- encoder(torch_cat(list(augment(batch), augment(batch))))
+  loss &lt;- info_nce(z); opt$zero_grad(); loss$backward(); opt$step()
+}</code></pre>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Five authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://arxiv.org/abs/2002.05709">Chen, Kornblith, Norouzi and Hinton (2020), A Simple Framework for Contrastive Learning (SimCLR)</a> - the paper that made the augment-and-contrast recipe and the InfoNCE (NT-Xent) loss a standard, with careful ablations of which augmentations matter.</li>
+
+<li><a href="https://arxiv.org/abs/1807.03748">van den Oord, Li and Vinyals (2018), Representation Learning with Contrastive Predictive Coding</a> - where the InfoNCE loss you used comes from, framed as maximizing mutual information.</li>
+
+<li><a href="https://arxiv.org/abs/2103.03230">Zbontar, Jing, Misra, LeCun and Deny (2021), Barlow Twins: Self-Supervised Learning via Redundancy Reduction</a> - the decorrelation objective this lesson leaned on: drive the cross-correlation matrix toward the identity, no negatives needed.</li>
+
+<li><a href="https://arxiv.org/abs/2005.10242">Wang and Isola (2020), Understanding Contrastive Learning through Alignment and Uniformity</a> - the theory behind the two properties we kept returning to, alignment and uniformity (spread), on the unit sphere.</li>
+
+<li><a href="https://arxiv.org/abs/2007.08176">Tack, Mo, Jeong and Shin (2020), CSI: Novelty Detection via Contrastive Learning</a> - contrastive representations used directly for anomaly and novelty detection, the exact bridge from this lesson to this course.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>Lesson 7 complete, and the course with it</h2>
+
+<p>You just closed the loop that this whole course has been building toward. When there are no labels, you do not give up, you <strong>manufacture</strong> a learning signal from the data itself. A pretext task (hide a feature, predict it) already extracts real structure; contrastive learning sharpens it into a single rule, pull two views of one clip together and push different clips apart, and from that rule, with no labels, a representation self-organizes. You saw why it must avoid <strong>collapse</strong> and instead be well-spread and <strong>decorrelated</strong> (alignment plus uniformity, the target that Barlow Twins and VICReg optimize directly), and then you cashed the payoff in a few lines of base R: a decorrelated representation, via whitening and Mahalanobis distance, lifted a relationship-breaking intruder from rank 44 to rank 1, a clip that every single-feature rule had waved through.</p>
+
+<p>Step back and look at the seven detectors you now command. Isolation forests fence off a point with random cuts; the Local Outlier Factor compares a point's density to its neighbours'; one-class SVMs and autoencoders learn the shape of normal and flag whatever falls off it; time-series methods strip out rhythm before judging a point; kernel PCA, sparse PCA and NMF reshape the space you score against; and now self-supervised, contrastive learning lets the machine <em>learn</em> that space from unlabeled data. Every one of them, in the end, answers the same question in its own way: how surprising is this point, given everything normal? You can now pick the right tool for the data in front of you, build it in R, and, remembering Lesson 1, judge it honestly by precision and recall rather than accuracy. That is anomaly detection, from the ground up.</p>
+</section>
+
+{% endraw %}

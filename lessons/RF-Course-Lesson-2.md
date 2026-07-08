@@ -54,6 +54,17 @@ Each tree below is grown deep (the jagged, overfitting kind from Lesson 1) on it
 
 No single tree got better. You did not prune or tune them. The average simply cancels their individual mistakes.
 
+=== step === quiz
+::eyebrow Check yourself
+## Where did the accuracy come from?
+
+As you dragged the slider and averaged more trees, the boundary smoothed and accuracy climbed. What actually got better?
+
+::quiz {"correct":2,"gate":true,"difficulty":"beginner"}
+- Each tree slowly became more accurate as the forest grew ::no The individual trees never changed. Each is still the same jagged, overfitting tree; only their average improved.
+- Nothing about any single tree changed; averaging cancelled their random errors ::ok Right. Each tree stays noisy, but their mistakes point in different directions, so the average lands closer to the truth.
+- The slider pruned each tree to make it simpler ::no Nothing was pruned. Every tree stays deep and overfit; averaging is the only thing at work.
+
 === step === concept
 ::eyebrow The catch
 ## Clones do not help
@@ -125,9 +136,10 @@ Each tree is a low-bias, high-variance learner. Bootstrap and random features ma
 ::eyebrow Your turn
 ## Grow the forest in R
 
-First, the churn data to grow the forest on. Each lesson runs in a fresh R session, so we build it right here (run this once):
+First, load the randomForest package and build the churn data to grow the forest on. Each lesson runs in a fresh R session, so we set it all up right here (run this once):
 
 ```r
+library(randomForest)
 set.seed(42)
 n <- 800
 train <- data.frame(

@@ -1,0 +1,531 @@
+---
+title: "Anomaly Detection Lesson 5: Time-Series Anomaly Detection"
+description: "Detect anomalies in a time series in R: point, contextual and collective outliers, a robust rolling median and MAD control band, and STL decomposition residuals."
+keywords: "time series anomaly detection, point contextual collective outliers, rolling median MAD control band, STL decomposition, seasonal anomaly, remainder residuals, R"
+mathjax: true
+webr: true
+curriculum_id: "6.200.5"
+post_type: "LESSON"
+course_id: "ds-anomaly"
+course_title: "Anomaly and Outlier Detection"
+course_lesson: "5"
+course_total: "7"
+course_landing: "R-Anomaly-Detection-Course.html"
+course_next: "Kernel-PCA-Sparse-PCA-and-NMF.html"
+course_prev: "Autoencoders-for-Anomaly-Detection.html"
+lesson_access: "pro"
+catalog_blurb: "Spot the day that breaks a series once its rhythm is accounted for."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 7</div>
+<h2>Time-Series Anomaly Detection</h2>
+
+<p>Every detector so far, from the isolation forest to the autoencoder, judged each point on its own: it looked at a data point's features and asked "does this sit where normal points sit?" Order did not matter; you could shuffle the rows and nothing changed. This lesson breaks that assumption. Here the data arrives in time order, and <strong>when</strong> a value happens is part of what makes it normal or not.</p>
+
+<p>Follow one running example: <strong>Rosa's bakery</strong> takes online orders, and Rosa has 16 weeks of daily order counts. Business is growing, weekends are busy, midweek is quiet. Against that steady rhythm, three strange things happen: one Wednesday a post goes viral, one Saturday a snowstorm empties the town, and one week the oven breaks. Each is a different KIND of anomaly, and by the end you will catch all three, in a few lines of base R.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Tell the three kinds of time-series anomaly apart: <strong>point</strong>, <strong>contextual</strong>, and <strong>collective</strong></li>
+
+<li>Explain why a single flat "mean plus or minus three standard deviations" band is the wrong tool for a series with a trend and a weekly rhythm</li>
+
+<li>Build a robust <strong>rolling median / MAD control band</strong> and use it to flag point anomalies</li>
+
+<li>Strip out trend and seasonality with <strong>STL decomposition</strong> and flag the leftover <strong>remainder</strong>, catching the contextual and collective anomalies the band misses</li>
+
+<li>Score a detector by <strong>precision and recall</strong> (not accuracy), and tell a one-off anomaly from lasting <strong>drift</strong></li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read base R (indexing, <code>which</code>, <code>sapply</code>, a <code>data.frame</code>); you have done <a href="What-is-an-Anomaly.html">Lesson 1: What Is an Anomaly?</a> (the base-rate trap, why accuracy is the wrong score) and the four point-by-point detectors up to <a href="Autoencoders-for-Anomaly-Detection.html">Lesson 4: Autoencoders</a>. Time series, trend, seasonality and the modified z-score are all defined here from scratch.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":49},{"x":2,"y":45},{"x":3,"y":58},{"x":4,"y":54},{"x":5,"y":62},{"x":6,"y":85},{"x":7,"y":80},{"x":8,"y":51},{"x":9,"y":47},{"x":10,"y":60},{"x":11,"y":56},{"x":12,"y":64},{"x":13,"y":88},{"x":14,"y":83},{"x":15,"y":52},{"x":16,"y":48},{"x":17,"y":168},{"x":18,"y":57},{"x":19,"y":65},{"x":20,"y":89},{"x":21,"y":84},{"x":22,"y":54},{"x":23,"y":50},{"x":24,"y":61},{"x":25,"y":58},{"x":26,"y":66},{"x":27,"y":90},{"x":28,"y":85}],"geoms":["line","point"],"x":"day","y":"orders"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>Meet Rosa's series</h2>
+
+<p>A <strong>time series</strong> is just a value measured at regular time steps, in order: here, the number of online orders on each of 112 consecutive days. Two patterns run underneath it, and naming them now is what lets us spot the odd days later.</p>
+
+<ul>
+
+<li><strong>Trend:</strong> a slow drift in the overall level. Rosa's bakery is getting more popular, so the baseline climbs gently over the 16 weeks.</li>
+
+<li><strong>Seasonality:</strong> a pattern that repeats on a fixed cycle. Rosa's cycle is weekly: quiet Monday to Friday, busy on the weekend. Every seven days the shape repeats.</li>
+
+</ul>
+
+<p>Each lesson runs in a fresh R session, so let us build Rosa's series right here (run this once). We plant the three anomalies now and study them for the rest of the lesson.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(20)
+day    &lt;- 1:112                                    # 16 weeks of daily online orders
+dow    &lt;- ((day - 1) %% 7) + 1                      # day of week: 1 = Mon, ..., 6 = Sat, 7 = Sun
+season &lt;- c(-8, -12, -9, -5, 3, 28, 23)[dow]        # weekly rhythm: quiet midweek, busy weekend
+trend  &lt;- 52 + 0.18 * day                           # slow, steady growth
+orders &lt;- round(trend + season + rnorm(112, 0, 4))  # the normal series, plus small noise
+
+# now plant three anomalies of three different kinds:
+orders[45]    &lt;- 175                 # a Wednesday: a post goes viral        (point)
+orders[76]    &lt;- 33                  # a Saturday buried by a snowstorm      (contextual)
+orders[92:98] &lt;- orders[92:98] - 30  # the oven broke for a whole week       (collective)
+
+bakery &lt;- data.frame(day, dow, orders)
+head(bakery)
+#&gt;   day dow orders
+#&gt; 1   1   1     49
+#&gt; 2   2   2     38
+#&gt; 3   3   3     51
+#&gt; 4   4   4     42
+#&gt; 5   5   5     54
+#&gt; 6   6   6     83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the first week: the count creeps up Monday to Friday, then jumps to 83 on Saturday (day 6). That weekend jump is the seasonality. Plot the whole series and you can see both patterns at once: the gentle upward slope (trend) and the repeating weekend spikes (seasonality).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(day, orders, type = &quot;l&quot;, col = &quot;grey55&quot;,
+     xlab = &quot;day&quot;, ylab = &quot;orders&quot;, main = &quot;Rosa's daily online orders, 16 weeks&quot;)
+points(day, orders, pch = 16, cex = 0.5, col = &quot;grey30&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One point towers over everything (the viral Wednesday). The other two anomalies are hiding in plain sight, and finding them is the whole job.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The three kinds</div>
+<h2>Point, contextual, and collective</h2>
+
+<p>Not all anomalies look the same, and the differences decide which tool you need. There are three kinds, and Rosa's series has one of each.</p>
+
+<ul>
+
+<li>A <strong>point anomaly</strong> is a single value that is extreme against the whole series. Day 45's 175 orders is far above anything else, on any day of the week. You could spot it with your eyes shut.</li>
+
+<li>A <strong>contextual anomaly</strong> is a value that is perfectly ordinary <em>in general</em> but wrong <em>for its moment</em>. Day 76's 33 orders would be a fine Tuesday, but it lands on a Saturday, when Rosa normally does about 90. It is only anomalous <strong>in its weekly context</strong>.</li>
+
+<li>A <strong>collective anomaly</strong> is a stretch of points that is unremarkable one day at a time but jointly wrong as a run. Days 92 to 98 are each a bit low; together they form a week-long slump (the broken oven) that no single day announces.</li>
+
+</ul>
+
+<p>The plot below colours each kind. Notice how obvious the point anomaly is and how quietly the other two sit inside the normal range.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kind &lt;- rep(&quot;normal&quot;, 112)
+kind[45] &lt;- &quot;point&quot;; kind[76] &lt;- &quot;contextual&quot;; kind[92:98] &lt;- &quot;collective&quot;
+cols &lt;- c(normal = &quot;grey70&quot;, point = &quot;#d1495b&quot;,
+          contextual = &quot;#2e7d5b&quot;, collective = &quot;#e8a13a&quot;)
+plot(day, orders, type = &quot;l&quot;, col = &quot;grey80&quot;, xlab = &quot;day&quot;, ylab = &quot;orders&quot;)
+points(day, orders, pch = 16, cex = 1.1, col = cols[kind])
+legend(&quot;topleft&quot;, legend = names(cols), col = cols, pch = 16, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The point anomaly stands out against the whole series; the contextual and collective anomalies only stand out once you know the expected level for that day of the week. That single distinction drives the whole lesson: to catch the last two, you must first model the rhythm and then look at what is left over.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which kind is the snowstorm Saturday?</h2>
+
+<p>Day 76 has 33 orders. On a weekday, 33 orders would be completely ordinary, well inside Rosa's normal midweek range. But day 76 is a Saturday, when she usually does about 90. Which kind of anomaly is it?</p>
+<section class="exercise" data-exercise-id="Time-Series-Anomaly-Detection-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A point anomaly: 33 is simply an extreme value that stands out against the whole series</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A contextual anomaly: 33 is a fine weekday number but far too low for a busy Saturday, so it is only anomalous in its time-of-week context</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A collective anomaly: it is part of a run of days that are jointly unusual</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The value is normal in general and wrong only for its context (a Saturday). That is the defining feature of a contextual anomaly, and it is invisible until you account for the weekly rhythm.</div><div class="lesson-qfb lesson-qfb-no">A collective anomaly is a stretch of consecutive points (like the broken-oven week). Day 76 is a single isolated day, so it does not qualify.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The obvious tool, and why it fails</div>
+<h2>One flat band flags only the spike</h2>
+
+<p>The instinct from earlier lessons is a <strong>control band</strong>: compute the mean and standard deviation, then flag anything more than three standard deviations away. Write \(\bar{x}\) for the mean of all the orders and \(s\) for their standard deviation; the band is \(\bar{x} \pm 3s\), and you flag any day outside it. Let us try it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gmean &lt;- mean(orders)
+gsd   &lt;- sd(orders)
+band  &lt;- c(lower = gmean - 3 * gsd, upper = gmean + 3 * gsd)
+round(c(mean = gmean, sd = gsd, band), 1)
+#&gt;  mean    sd lower upper
+#&gt;  63.9  21.2   0.3 127.5
+which(orders &gt; band[&quot;upper&quot;] | orders &lt; band[&quot;lower&quot;])   # what the flat band flags
+#&gt; [1] 45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The band is a single horizontal pair of lines from 0.3 to 127.5, and it catches exactly one day: the viral Wednesday. It misses the snowstorm Saturday (33 is comfortably above the lower line of 0.3) and the whole broken-oven week. Two reasons it fails:</p>
+
+<ul>
+
+<li><strong>Wrong shape.</strong> A flat band ignores the trend and the weekly rhythm entirely. It cannot know that 33 is fine on a Tuesday but alarming on a Saturday, because it holds one threshold for every day.</li>
+
+<li><strong>A fragile yardstick.</strong> That single 175-order spike inflated \(s\) to 21.2, widening the band so much that the genuinely low Saturday hides inside it. This is the same masking trap you met with the plain z-score: one big outlier swells the spread and hides the others.</li>
+
+</ul>
+
+<p>We need a band that <strong>moves with the series</strong> and a scale that <strong>one spike cannot inflate</strong>.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">A band that moves</div>
+<h2>The rolling median / MAD control band</h2>
+
+<p>Fix both problems at once by making the band <strong>local</strong> and <strong>robust</strong>.</p>
+
+<ul>
+
+<li><strong>Local:</strong> instead of one global mean, use a rolling window. For each day, take the <strong>median</strong> of the orders in a window around it. The median of a two-week window tracks the trend and slides up as the baseline climbs, so the band follows the series instead of sitting flat.</li>
+
+<li><strong>Robust:</strong> measure the local spread with the <strong>MAD</strong> (median absolute deviation), the median of the distances from the local median. A single spike creates one large distance, and the median of the distances ignores it, so the scale stays honest.</li>
+
+</ul>
+
+<p>Put them together into a <strong>local modified z-score</strong>. For day \(t\), let \(m_t\) be the median of the window around it and \(\mathrm{MAD}_t\) the MAD of that window. The score is</p>
+
+<p>\( M_t = \dfrac{x_t - m_t}{\mathrm{MAD}_t} \)</p>
+
+<p>R's <code>mad()</code> already multiplies by the constant \(1.4826\), which puts \(\mathrm{MAD}_t\) on the same footing as a standard deviation for bell-shaped data, so \(M_t\) reads like an ordinary z-score and the usual cut-off is \(|M_t| > 3.5\). Let us build it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">k &lt;- 15                                             # a two-week window (odd, as runmed needs)
+h &lt;- (k - 1) / 2
+n &lt;- length(orders)
+center   &lt;- as.numeric(runmed(orders, k))           # local median: a robust trend line
+roll_mad &lt;- sapply(seq_len(n), function(i) {
+  lo &lt;- max(1, i - h); hi &lt;- min(n, i + h)
+  mad(orders[lo:hi])                                # local spread, robust to a spike
+})
+mz &lt;- (orders - center) / roll_mad                  # local modified z-score
+flag_roll &lt;- which(abs(mz) &gt; 3.5)
+flag_roll
+#&gt; [1]  45 104
+round(mz[c(45, 76, 95)], 2)                         # point, contextual, mid-slump
+#&gt; [1]  8.99 -1.66 -1.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The point spike screams at \(M = 8.99\) and is flagged. But look at the other two: the snowstorm Saturday scores only \(-1.66\) and the middle of the broken-oven week only \(-1.50\), both comfortably inside the band. The band even flags day 104, an ordinary busy Saturday that happened to poke through: a false alarm. Plot it to see the band hug the series while missing the quiet anomalies.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(day, orders, type = &quot;l&quot;, col = &quot;grey55&quot;, xlab = &quot;day&quot;, ylab = &quot;orders&quot;)
+lines(day, center + 3.5 * roll_mad, col = &quot;#3b6ea5&quot;, lty = 2)   # upper band
+lines(day, center - 3.5 * roll_mad, col = &quot;#3b6ea5&quot;, lty = 2)   # lower band
+points(day[flag_roll], orders[flag_roll], pch = 16, col = &quot;#d1495b&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Make the local scale robust</h2>
+
+<p>The rolling band's power comes entirely from measuring the local spread with a scale that a spike cannot inflate. Fill in that robust scale (the median absolute deviation) and confirm it flags the point spike.</p>
+<section class="exercise" data-exercise-id="Time-Series-Anomaly-Detection-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mad\s*\("><textarea class="lesson-tryit-input" spellcheck="false">center   &lt;- as.numeric(runmed(orders, 15))          # local median
+roll_mad &lt;- sapply(seq_len(112), function(i) {
+  lo &lt;- max(1, i - 7); hi &lt;- min(112, i + 7)
+  ____(orders[lo:hi])                               # a local spread one spike cannot inflate
+})
+mz &lt;- (orders - center) / roll_mad
+which(abs(mz) &gt; 3.5)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. mad() is the robust local scale; the band flags day 45 (the viral spike) and day 104 (a busy Saturday false alarm), but never the quiet contextual and collective anomalies.</span><span class="lesson-tryit-fb lesson-tryit-no">Use mad(), the median absolute deviation: mad(orders[lo:hi]) is the local spread that a single spike cannot inflate.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">center   &lt;- as.numeric(runmed(orders, 15))
+roll_mad &lt;- sapply(seq_len(112), function(i) {
+  lo &lt;- max(1, i - 7); hi &lt;- min(112, i + 7)
+  mad(orders[lo:hi])
+})
+mz &lt;- (orders - center) / roll_mad
+which(abs(mz) &gt; 3.5)
+#&gt; [1]  45 104</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The limit</div>
+<h2>What the moving band cannot see</h2>
+
+<p>The rolling band is genuinely useful: it is the right, simple tool for <strong>point</strong> anomalies on a trending series, and unlike the flat band its scale is not wrecked by the spike. But list what it actually caught against the nine days we know are anomalous, and the gap is stark.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">planted &lt;- c(45, 76, 92:98)     # the days we planted: viral, snowstorm, broken-oven week
+flag_roll                       # what the moving band flagged
+#&gt; [1]  45 104
+setdiff(planted, flag_roll)     # real anomalies the band missed
+#&gt; [1] 76 92 93 94 95 96 97 98</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It missed eight of the nine, for two reasons that both trace back to seasonality:</p>
+
+<ul>
+
+<li><strong>The contextual Saturday hides.</strong> The window around day 76 mixes quiet weekdays and busy weekends, so the local MAD is large. Measured against that wide local spread, a low Saturday looks unremarkable. The band has no idea that Saturdays "should" be high.</li>
+
+<li><strong>The collective slump masks itself.</strong> As the rolling median passes through the broken-oven week, it is dragged down toward the low values, so the band sinks with the slump and the low days sit inside it. A sustained anomaly quietly redefines its own "normal."</li>
+
+</ul>
+
+<p>The fix is to stop fighting the seasonality and instead <strong>model it explicitly</strong>, subtract it out, and look only at what is left.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Split the series</div>
+<h2>STL: trend plus seasonal plus remainder</h2>
+
+<p><strong>STL</strong> (Seasonal-Trend decomposition using Loess) splits a series into three added-up parts. Writing \(y_t\) for the orders on day \(t\):</p>
+
+<p>\( y_t = T_t + S_t + R_t \)</p>
+
+<ul>
+
+<li>\(T_t\) is the <strong>trend</strong>: the slow-moving level (Rosa's growth).</li>
+
+<li>\(S_t\) is the <strong>seasonal</strong> part: the repeating weekly shape (the weekend lift, the midweek dip).</li>
+
+<li>\(R_t\) is the <strong>remainder</strong>: everything trend and season do not explain. On a normal day it is small noise. On an anomalous day it is large, because trend and season have already accounted for what the day <em>should</em> have been.</li>
+
+</ul>
+
+<p>That is the whole trick: once the expected level and weekly shape are removed, an anomaly has nowhere to hide. Fit it in one call. The arguments matter, so read the comments:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">series &lt;- ts(orders, frequency = 7)     # tell R the season repeats every 7 days
+fit &lt;- stl(series,
+           s.window = &quot;periodic&quot;,       # one fixed weekly shape, learned from all weeks
+           t.window = 41,               # a stiff trend, so a week-long dip is NOT smoothed away
+           robust = TRUE)               # down-weight outliers so they do not distort the fit
+plot(fit)                               # trend, seasonal and remainder, stacked</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two choices earn their keep. <code>robust = TRUE</code> stops the viral spike from bending the trend around it. And a deliberately stiff <code>t.window = 41</code> keeps the trend from chasing the broken-oven week: a flexible trend would bend down into that dip, absorb it, and leave nothing in the remainder. Stiffen the trend and the whole slump stays where we can see it.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Flag the remainder</h2>
+
+<p>Now apply the same robust rule as before, but to the <strong>remainder</strong> instead of the raw orders. Because the remainder has the trend and weekly shape removed, it is roughly flat noise, and every kind of anomaly shows up as a large residual.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">remainder &lt;- as.numeric(fit$time.series[, &quot;remainder&quot;])
+rz &lt;- (remainder - median(remainder)) / mad(remainder)   # modified z on the remainder
+flag_stl &lt;- which(abs(rz) &gt; 3.5)
+flag_stl
+#&gt; [1] 45 76 92 93 94 95 96 97 98
+round(rz[c(45, 76, 95)], 1)                              # point, contextual, mid-slump
+#&gt; [1]  35.5 -17.7  -8.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All nine anomalous days, and only those days, are flagged. The contextual Saturday that the rolling band scored a sleepy \(-1.66\) now scores \(-17.7\). Here is exactly why:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(orders    = orders[76],
+  seasonal  = as.numeric(round(fit$time.series[76, &quot;seasonal&quot;], 1)),
+  trend     = as.numeric(round(fit$time.series[76, &quot;trend&quot;], 1)),
+  remainder = round(remainder[76], 1))
+#&gt;    orders  seasonal     trend remainder
+#&gt;      33.0      26.6      68.7     -62.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>STL expected this Saturday to sit at trend plus season, \(68.7 + 26.6 \approx 95\) orders. It saw 33. The 62-order shortfall lands entirely in the remainder, and a 62-order miss on a series whose normal noise is a handful of orders is enormous. The collective slump surfaces the same way: with the trend held stiff, each broken-oven day carries its full 30-order shortfall into the remainder, so the whole week is flagged, not just its edges.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Model the season, then look at what is left</h2>
+
+<p>Reproduce the STL detector. The one argument that makes it a <em>seasonal</em> decomposition is <code>s.window</code>; set it so STL learns a single repeating weekly shape from all the weeks.</p>
+<section class="exercise" data-exercise-id="Time-Series-Anomaly-Detection-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="periodic"><textarea class="lesson-tryit-input" spellcheck="false">fit &lt;- stl(ts(orders, frequency = 7),
+           s.window = ____,               # learn ONE repeating weekly shape
+           t.window = 41, robust = TRUE)
+rem &lt;- fit$time.series[, &quot;remainder&quot;]
+which(abs((rem - median(rem)) / mad(rem)) &gt; 3.5)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. s.window = "periodic" locks one weekly shape across all 16 weeks; subtract it and the trend, and all nine anomalous days fall out of the remainder.</span><span class="lesson-tryit-fb lesson-tryit-no">Use s.window = "periodic" (in quotes): it tells STL to fit a single, fixed weekly pattern rather than one that drifts week to week.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">fit &lt;- stl(ts(orders, frequency = 7),
+           s.window = &quot;periodic&quot;,
+           t.window = 41, robust = TRUE)
+rem &lt;- fit$time.series[, &quot;remainder&quot;]
+which(abs((rem - median(rem)) / mad(rem)) &gt; 3.5)
+#&gt; [1] 45 76 92 93 94 95 96 97 98</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did STL catch the Saturday the band missed?</h2>
+
+<p>The rolling median / MAD band scored the snowstorm Saturday a sleepy \(-1.66\) and waved it through. STL scored the very same day \(-17.7\) and flagged it. What changed?</p>
+<section class="exercise" data-exercise-id="Time-Series-Anomaly-Detection-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">STL simply used a lower threshold than the rolling band</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">STL removed the weekly seasonal pattern first, so the expected busy-Saturday level is subtracted out and the shortfall becomes a large remainder, while the rolling band's local spread (mixing quiet weekdays and busy weekends) was too wide to notice it</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The rolling band's window was too small; a wider window would have caught it</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. STL knows a Saturday should be about 95, so 33 leaves a 62-order remainder. The rolling band had no model of the weekly rhythm; its local scale, blended across weekdays and weekends, was too wide for the low Saturday to stand out.</div><div class="lesson-qfb lesson-qfb-no">Widening the window does not help: it blends even more weekdays with weekends, making the local spread wider still. The problem is not window size but that the band never models the weekly cycle. STL does.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">Score it honestly</div>
+<h2>Precision and recall, not accuracy</h2>
+
+<p>Lesson 1's warning still holds: at a low anomaly rate, accuracy lies. Nine of Rosa's 112 days are anomalous, so a lazy detector that flags nothing is already 92% "accurate" and completely useless. Score by <strong>precision</strong> (of the days you flagged, how many were truly anomalous) and <strong>recall</strong> (of the truly anomalous days, how many you caught) instead.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">truth &lt;- rep(FALSE, 112)
+truth[c(45, 76, 92:98)] &lt;- TRUE          # the 9 planted anomaly-days
+score &lt;- function(idx) {
+  pred &lt;- rep(FALSE, 112); pred[idx] &lt;- TRUE
+  tp &lt;- sum(pred &amp; truth); fp &lt;- sum(pred &amp; !truth); fn &lt;- sum(!pred &amp; truth)
+  c(flagged = sum(pred), precision = round(tp / (tp + fp), 2),
+    recall = round(tp / (tp + fn), 2))
+}
+rbind(rolling_band = score(flag_roll),
+      stl_remainder = score(flag_stl))
+#&gt;               flagged precision recall
+#&gt; rolling_band        2       0.5   0.11
+#&gt; stl_remainder       9       1.0   1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numbers make the whole lesson concrete. The rolling band flagged two days, one real and one false alarm: precision 0.5, recall 0.11. It caught the point spike and nothing else. The STL remainder flagged exactly the nine anomalous days: precision 1.0, recall 1.0. Modelling the rhythm first, then flagging the leftovers, is what turned a detector that saw one anomaly into one that saw all three kinds.</p>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">When the anomaly is the new normal</div>
+<h2>Anomaly or drift?</h2>
+
+<p>One honest caveat before you ship this. A collective slump that <strong>ends</strong> (the oven gets fixed) is an anomaly: the series returns to its old pattern, and flagging the slump was the right call. But a shift that <strong>persists</strong> is not an anomaly at all, it is <strong>drift</strong>: the new level <em>is</em> the new normal, and a detector that keeps firing on it is just crying wolf.</p>
+
+<p>Telling them apart is a monitoring question, not a single-flag question. The standard move is to compare the recent distribution of the series against the reference distribution it used to follow, with a <strong>population stability index (PSI)</strong>: small PSI means the stream still looks like its old self, a large PSI means the world has moved and it is time to retrain your baseline rather than page someone at 3am. Slide the monitor below and watch the live distribution pull away from the training reference until the PSI trips the alert.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Rule of thumb: a large residual that returns to normal is an anomaly to investigate; a residual that stays out and shifts the whole distribution is drift to adapt to. Rosa's broken oven is the first; a permanent new delivery partner that lifts every day's orders is the second. Same big residual on day one, opposite right response.</div></div>
+<div class="lesson-widget" data-widget-type="drift-monitor" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/decomposition.html">Hyndman & Athanasopoulos, Forecasting: Principles and Practice (3rd ed): Time series decomposition</a> - the free, definitive walk through STL and what trend, seasonal and remainder mean.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html">R documentation: stl()</a> - the exact function you used, with <code>s.window</code>, <code>t.window</code> and <code>robust</code> explained, and the Cleveland et al. (1990) STL paper cited.</li>
+
+<li><a href="https://doi.org/10.1016/j.jesp.2013.03.013">Leys et al. (2013), Detecting outliers: use absolute deviation around the median</a> - the published case for the median and MAD over the mean and SD, the robust scale behind your control band.</li>
+
+<li><a href="https://arxiv.org/abs/1704.07706">Hochenbaum, Vallis & Kejariwal (2017), Automatic Anomaly Detection in the Cloud Via Statistical Learning</a> - the S-H-ESD method (seasonal-decomposition plus a robust test) that productionised exactly this idea at scale.</li>
+
+<li><a href="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc31.htm">NIST/SEMATECH e-Handbook: control charts</a> - the classical grounding for control bands and out-of-control rules.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You added time to your toolkit. Where every earlier detector judged a point on its own, you saw that in a series <strong>when</strong> a value happens is part of whether it is normal, giving three kinds of anomaly: the <strong>point</strong> spike that stands out against everything, the <strong>contextual</strong> value that is wrong only for its moment, and the <strong>collective</strong> run that is jointly off. You learned why a flat mean-and-SD band is the wrong shape and too fragile, built a robust <strong>rolling median / MAD band</strong> that catches point anomalies, and then saw it go blind to the other two because it never models the weekly rhythm. <strong>STL decomposition</strong> fixed that: strip out trend and seasonal, flag the large <strong>remainder</strong>, and all three kinds fell out cleanly, precision and recall both 1.0. Finally you learned to score honestly with precision and recall, and to tell a passing anomaly from lasting drift.</p>
+
+<p>Next, Lesson 6: <strong>Kernel PCA, Sparse PCA and NMF</strong>. The linear autoencoder in Lesson 4 could only bend its manifold into a flat subspace. Next you go beyond plain PCA, to curved structure with kernel PCA, readable components with sparse PCA, and additive parts-based decompositions with non-negative matrix factorization.</p>
+</section>
+
+{% endraw %}

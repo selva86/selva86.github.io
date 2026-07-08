@@ -1,8 +1,8 @@
 ---
 title: "Gradient Boosting Lesson 1: Gradient Boosting from Scratch"
-catalog_blurb: "How boosting corrects its own errors, one small tree at a time."
-description: "Build gradient boosting from scratch in R: how each shallow tree fits the previous model's errors (the residuals), what the learning rate does, and how boosting differs from bagging."
-keywords: "gradient boosting, boosting from scratch, residuals, learning rate, shrinkage, gradient boosting in R, additive model, bagging vs boosting, decision stump, ensemble"
+catalog_blurb: "How boosting fixes its own mistakes one correction at a time."
+description: "Build a gradient booster by hand in R: start at the average, fit each shallow tree to what is still wrong, add a shrunken slice, and watch the error fall."
+keywords: "gradient boosting, boosting from scratch, residuals, learning rate, shrinkage, boosting vs bagging, gradient descent, rpart, machine learning, R"
 post_type: "LESSON"
 curriculum_id: "6.40.1"
 webr: true
@@ -21,189 +21,295 @@ course_prev: ""
 ::eyebrow Lesson 1 of 6
 ## Gradient Boosting from Scratch
 
-Welcome to the Gradient Boosting track. A random forest grows hundreds of trees in parallel and lets them vote. Boosting takes the opposite path: it grows trees one at a time, and each new tree exists for a single job, to fix the mistakes the trees before it are still making.
-
-Meet Sam, who runs a bike-rental kiosk by the river. Sam wants to predict how many bikes get rented from the day's high temperature. The pattern is a hump: rentals climb as it warms up, peak on pleasant days, then fall off in punishing heat. No single short rule captures that shape. But a stack of short rules, each patching the leftover error of the last, can. That stack is gradient boosting, and in this lesson you build it from nothing.
+Gradient boosting wins more tabular machine-learning contests than any other method. Underneath the famous names (XGBoost, LightGBM, CatBoost) sits one plain idea you can build by hand: make a rough guess, look at what it got wrong, and add a small correction. Do that a few hundred times and a pile of weak little trees becomes a very strong model. You will build that loop yourself for Sam, who rents bikes from a kiosk by the river and wants to predict how many will go out on a given day from the temperature.
 
 By the end of this lesson you will be able to:
 
-- Explain boosting as sequential error-correction: each new tree is trained on what the current model still gets wrong
-- Say what the learning rate does and why small steps beat big ones
-- Build a booster by hand in R and see its error fall, tree by tree
+- Explain boosting as sequential error-correction: each tree fixes what the last model still got wrong
+- Grow a gradient-boosted model in R and watch the error fall
+- Say what the learning rate does, and how boosting differs from a random forest
 
-**Prerequisites:** you can run R, you know what a decision tree and a training/test set are, and you have met overfitting (the [Bias-Variance Tradeoff](The-Bias-Variance-Tradeoff.html) lesson). Bagging and random forests show up only for one contrast near the end.
+**Prerequisites:** you can run R, and you know what a decision tree is and that one deep tree overfits (the [Random Forests course](RF-Course-Lesson-1.html)).
 
-The widget below starts at round 0, the worst possible model: one flat line at the average. Drag the slider to add boosting rounds and watch the fit bend toward the points.
-
-::widget gradient-boosting {}
+::widget gradient-boosting {"rounds":8}
 
 === step === concept
-::eyebrow The idea
-## How boosting works
+::eyebrow The big idea
+## Learn from your own mistakes
 
-Think about how you would study for a hard exam. You take a practice test, see which questions you got wrong, and spend your next session on exactly those. Take another test, find the new weak spots, drill those. Each round you are not relearning everything, you are correcting what you still get wrong. Boosting trains a model the same way.
+In the Random Forests course you built trees in parallel: hundreds of deep trees, each on its own resample, all voting at once. Averaging cancelled their scattered errors. Boosting takes the opposite path, and it is worth pausing on the contrast.
 
-It starts with the dumbest possible guess: predict the same number for every day, the average rentals. That guess is wrong by different amounts on different days. The amount it is wrong on a given day is the **residual**, the actual value minus the current prediction:
-
-\[ r_i = y_i - F(x_i) \]
-
-Here \(y_i\) is the real rentals on day \(i\), \(F(x_i)\) is the model's current prediction for that day, and \(r_i\) is the leftover error. Now the key move: fit a small tree not to the rentals, but to those residuals. That tree learns the *pattern in the mistakes*, where the model runs high and where it runs low. Add a slice of its corrections back into the model, and the predictions get a little better everywhere. Then compute the new (smaller) residuals and repeat.
-
-Written as a formula, the model is built up one tree at a time. Start at the mean, then on each round \(m\) add a new tree \(h_m\) fit to the current residuals:
-
-\[ F_0(x) = \bar y, \qquad F_m(x) = F_{m-1}(x) + \nu\, h_m(x) \]
-
-where \(\bar y\) is the average rentals, \(h_m\) is the small tree trained on round \(m\)'s residuals, and \(\nu\) (the Greek letter "nu") is the **learning rate**, a small number that shrinks each tree's contribution. We come back to \(\nu\) shortly.
+A booster grows trees one after another. It starts with a single crude guess, measures how far off that guess is on every row, and grows a small tree whose only job is to predict those leftover errors. It adds that correction, measures the new (smaller) errors, and grows another tree for those. Each tree cleans up after the one before it.
 
 [KEY INSIGHT]
-"Gradient" is not just a brand name. For squared-error loss \(L = \tfrac{1}{2}(y - F)^2\), the derivative with respect to the prediction \(F\) is \(-(y - F) = -r\). The residual *is* the negative gradient of the loss. So fitting each tree to the residuals is literally doing gradient descent, one tree-shaped step at a time. That is where gradient boosting gets its name.
+A random forest builds many independent experts and averages them. A booster builds one long chain of specialists, where each new specialist studies only the mistakes the team is still making. Same raw material (trees), opposite strategy.
 
-::widget process-flow {"steps":[{"title":"Start at the mean","sub":"predict one flat number for every day, the average"},{"title":"Fit a tree to the residuals","sub":"a small tree learns where the model runs high or low"},{"title":"Add a shrunken slice, repeat","sub":"nudge the prediction, recompute residuals, grow the next tree"}]}
-
-=== step === widget
-::eyebrow The key experiment
-## Watch the residuals shrink
-
-Here is the whole idea, live. The black dots are Sam's bike days. The orange stems are the residuals, the gap between each day and the model's current line. At round 0 the line is flat (the mean) and the stems are long: the model is wrong everywhere.
-
-Drag the **rounds** slider. Each round fits one short tree to the current residuals and adds a shrunken slice of it. Watch the line bend to hug the hump while the orange stems collapse toward zero and the RMSE (the typical leftover error) falls. No single tree did this; the stack of small corrections did.
-
-::widget gradient-boosting {}
-
-Notice the fit is built from little flat steps. Each step is one shallow tree. Pile up enough of them and the staircase traces a smooth curve.
-
-=== step === quiz
-::eyebrow Check yourself
-## What does the next tree learn?
-
-A booster has already fit its first tree and made predictions. Now it grows a second tree. What target does that second tree try to predict?
-
-::quiz {"correct":2,"gate":true,"difficulty":"beginner"}
-- The original rentals again, exactly like the first tree did ::no That would just grow another copy of the first tree, learning nothing new. The whole point is to attack what the first tree missed, not to repeat it. (Re-fitting the original target on resampled data is bagging, a different method.)
-- The residuals: what the current model still gets wrong (actual minus current prediction) ::ok Exactly. Each new tree is trained on the leftover errors, so it specializes in fixing them. Add its correction and the residuals shrink, which is why the fit improves round after round.
-- A fresh bootstrap resample of the original rentals ::no That is bagging's trick (random forests). Boosting does not resample the outcome; it re-targets the same data onto the current residuals, so every tree corrects the ones before it.
+That "study the leftover mistakes" step is the whole trick, so let us make it concrete with a real, tiny example.
 
 === step === concept
-::eyebrow The one real dial
-## The learning rate
+::eyebrow Meet the data
+## Sam's bike kiosk
 
-When a new tree predicts the residuals, you could add its full correction to the model. Boosting almost never does. Instead it adds only a small slice, scaled by the **learning rate** \(\nu\), typically something like 0.1. A tree that says "push this day up by 40" only moves it up by 4.
+Sam rents bikes from a kiosk by the river. Warm days bring crowds, but a scorching day keeps people home, so the number of bikes rented rises with temperature and then falls again. Here are six of Sam's recent Saturdays: the day's high temperature and how many bikes went out.
 
-Why hold back? Because full-size corrections overshoot. They lunge at the training data, chase its noise, and overfit in just a few rounds. Small steps creep toward the answer instead: each tree nudges the model a little, the next tree cleans up what is left, and the final fit is smoother and generalizes better to new days. The cost is more trees, and the rule of thumb is simple.
+```r
+# Six of Sam's Saturdays: the day's high temperature and the bikes rented
+temp   <- c(8, 12, 16, 20, 24, 28)   # daily high, degrees C
+rented <- c(30, 44, 60, 72, 68, 50)  # bikes rented that day
+data.frame(temp, rented)
+#>   temp rented
+#> 1    8     30
+#> 2   12     44
+#> 3   16     60
+#> 4   20     72
+#> 5   24     68
+#> 6   28     50
+```
 
-[KEY INSIGHT]
-Halve the learning rate and you roughly double the number of trees needed to reach the same fit. Smaller steps are safer but slower. A small rate (0.01 to 0.1) with many trees is the standard recipe for a booster that holds up on new data.
+The scatter below plots those six points. Notice the hump: rentals climb from the cold mornings up to a comfortable 20 degrees, then drop off when it gets too hot. No single straight line fits this well, and neither does one shallow tree. That gap is exactly what boosting will close, piece by piece.
 
-The widget below uses a learning rate of **0.1**, gentler than the one a few steps back (which used 0.3). Drag it to the same number of rounds you tried earlier: the fit moves more cautiously and needs more rounds to tighten. That is shrinkage at work.
-
-::widget gradient-boosting {"lr":0.1}
+::widget chart-plotter {"data":[{"x":8,"y":30},{"x":12,"y":44},{"x":16,"y":60},{"x":20,"y":72},{"x":24,"y":68},{"x":28,"y":50}],"geoms":["point"],"x":"temp","y":"rented"}
 
 === step === concept
-::eyebrow In R
-## Boost it by hand
+::eyebrow Step zero
+## The flat guess, and what it gets wrong
 
-No package magic. We will build a booster from `rpart` stumps (depth-1 trees) so you can see every moving part. Each lesson runs in a fresh R session, so we type Sam's 24 days in directly, then start from the dumbest model: predict the mean for every day.
+Every model has to start somewhere. The simplest possible model ignores temperature and predicts the same number for every day: the average. Call that first prediction \(\hat{y}^{(0)} = \bar{y}\), where \(\bar{y}\) is the mean of the six counts and \(\hat{y}^{(0)}\) reads "our prediction at round zero."
 
-```r
-library(rpart)
-
-# 24 days at Sam's kiosk: the day's high temperature (deg C) and bikes rented.
-bikes <- data.frame(
-  temp    = c(1, 3, 4, 6, 8, 9, 11, 13, 14, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31, 33, 34, 12, 23),
-  rentals = c(93, 156, 139, 204, 212, 267, 262, 309, 272, 328, 337, 318, 366, 336, 365, 325, 355, 363, 322, 357, 308, 323, 309, 322)
-)
-
-rmse <- function(actual, pred) sqrt(mean((actual - pred)^2))
-
-pred <- rep(mean(bikes$rentals), nrow(bikes))   # round 0: one flat guess, the mean
-rmse(bikes$rentals, pred)                        # typical error of the flat guess
-#> [1] 74.19
-```
-
-The flat guess is off by about 74 bikes on a typical day. Now the boosting loop, exactly the algorithm from earlier: each round fits a stump to the current residuals and adds a shrunken slice of it.
+Now the important part. For each day \(i\) we measure the **residual**: the actual count minus what we predicted, \(r_i = y_i - \hat{y}_i\). Here \(y_i\) is the real number of bikes rented on day \(i\) and \(\hat{y}_i\) is the model's current prediction for that day. A positive residual means we predicted too low; a negative one means too high.
 
 ```r
-lr <- 0.1                                  # learning rate: add 10% of each tree
-for (m in 1:200) {
-  resid <- bikes$rentals - pred            # what the model still gets wrong
-  stump <- rpart(resid ~ temp, data = bikes,
-                 control = rpart.control(maxdepth = 1, cp = 0, minsplit = 2))
-  pred  <- pred + lr * predict(stump)      # add a shrunken correction
-}
-rmse(bikes$rentals, pred)                   # typical error after boosting
-#> [1] 12.40
+guess <- mean(rented)   # the flat model: predict this same number every day
+guess
+#> [1] 54
+resid <- rented - guess # residual = actual minus current prediction
+resid
+#> [1] -24 -10   6  18  14  -4
 ```
 
-From 74 bikes of error down to about 12, built only from one-split stumps and one rule: keep fitting the leftover error. The very first stump splits the days near 8.5 degrees (it pushes cold days down and warm days up); every stump after it cleans up a smaller piece of the hump.
+So the flat guess of 54 is 24 too high on the coldest day and 18 too low on the best day. The interactive below shows the same starting point on a bigger, curvier example: at round 0 the prediction is one flat line (the mean) and the orange stems are the residuals, one per point. They are long, because a flat line ignores everything. Those stems are what the next tree will attack.
+
+::widget gradient-boosting {"rounds":0}
 
 === step === tryit
 ::eyebrow Your turn
-## Add one more shrunken round
+## Compute the residuals
 
-Here is a single boosting round, written out. The new stump predicts the leftover error (the residuals). The catch is the last line: you must add only a **shrunken** slice of the stump's correction, scaled by the learning rate `lr`, not the whole thing. Fill in the blank so the correction is shrunk.
+A residual is just actual minus predicted. Fill in the blank so `resid` holds how far the flat guess was from each day's real count.
 
 ```r
-resid <- bikes$rentals - pred            # what the model still gets wrong
-stump <- rpart(resid ~ temp, data = bikes,
-               control = rpart.control(maxdepth = 1, cp = 0, minsplit = 2))
-
-pred  <- pred + ____ * predict(stump)    # add a SHRUNKEN slice, not the full correction
-rmse(bikes$rentals, pred)
+guess <- mean(rented)     # predict this same number every day
+resid <- rented - ____    # residual: actual bikes minus the current prediction
+resid
 ```
-::check {"regex":"lr\\s*\\*\\s*predict","gate":true,"difficulty":"beginner","ok":"That is shrinkage: the model takes only a small step toward the new tree's correction, so it improves cautiously instead of overshooting. Smaller lr, more trees.","no":"Scale the correction by the learning rate: pred + lr * predict(stump). Adding the full predict(stump) would let one tree lunge at the data and overfit."}
+::check {"regex":"rented\\s*-\\s*guess","gate":true,"difficulty":"beginner","ok":"That is the residual: each day's actual count minus the current prediction. These leftovers are what the next tree learns to predict.","no":"Subtract the current prediction from the actual: rented - guess."}
 ::solution
 ```r
-resid <- bikes$rentals - pred
-stump <- rpart(resid ~ temp, data = bikes,
-               control = rpart.control(maxdepth = 1, cp = 0, minsplit = 2))
-
-pred  <- pred + lr * predict(stump)
-rmse(bikes$rentals, pred)
+guess <- mean(rented)
+resid <- rented - guess
+resid
+#> [1] -24 -10   6  18  14  -4
 ```
 
 === step === concept
-::eyebrow Two ways to combine trees
-## Bagging vs boosting
+::eyebrow The core move
+## Fit a small tree to the leftovers
 
-You have now met both great tree ensembles, and they are near opposites. A random forest is **bagging**: grow many deep trees in parallel, each on its own random resample, then average them to cancel their variance. Boosting grows shallow trees in sequence, each fixing the last, to drive down bias. The differences all flow from that one choice, parallel versus sequential.
+Here is the heart of boosting. We grow a shallow tree, but not to predict the bike counts. We grow it to predict the **residuals**. In other words, the tree's target is the column `resid`, not `rented`. It learns a rule like "cold days were overpredicted, so nudge them down; mild days were underpredicted, so nudge them up."
 
-| | Bagging (random forest) | Boosting |
-|---|---|---|
-| Trees are built | in parallel, independently | one after another, each fixing the last |
-| Each tree is fit to | a bootstrap resample of the data | the current model's residuals |
-| Tree depth | deep (low bias, high variance) | shallow (a stump or small tree) |
-| Mainly reduces | variance | bias (and some variance) |
-| More trees | never overfit, the error just settles | can overfit if you boost too long |
-| Tuning effort | light | more careful (rate, trees, depth) |
+A shallow tree could split those six residuals like this. Cold days (below 14 degrees) were badly overpredicted by the flat guess, so they get large negative corrections. The mild middle days were underpredicted, so they get a positive push. The single too-hot day gets a small negative one. Every number on a leaf below is the average residual of the days that land there, the correction the tree recommends.
 
-[WARNING]
-That last row is the catch with boosting, and it is the opposite of a forest. Because every round deliberately fits the leftover error, enough rounds will start fitting *noise*, and test error climbs even as training error keeps falling. A random forest never has this problem; a booster does. Knowing when to stop is its own skill, which is exactly what later lessons (early stopping and learning curves) are about.
+::widget tree-diagram {"root":"temp below 14 deg?","l":"temp below 10 deg?","r":"temp below 26 deg?","leaves":["-24 bikes","-10 bikes","+13 bikes","-4 bikes"]}
+
+We do not trust that correction fully. We add only a fraction of it to the current prediction, then repeat. Written out, the update at round \(m\) is
+
+\[ \hat{y}^{(m)} = \hat{y}^{(m-1)} + \eta \, f_m(x) \]
+
+where \(\hat{y}^{(m-1)}\) is the prediction so far, \(f_m(x)\) is the new tree fit to the current residuals, and \(\eta\) (the Greek letter eta, a small positive number like 0.1) is the **learning rate** that shrinks each correction. After the update, the residuals get smaller, and the next tree works on what is left.
+
+=== step === widget
+::eyebrow The key experiment
+## Watch it correct itself, live
+
+This is a real booster running in your browser. At round 0 it is the flat mean line, with long orange residual stems. Drag the slider to add trees one at a time. Each new shallow tree fits the current stems and pulls the fit toward the points it still gets wrong. Watch the stems collapse and the RMSE (the typical size of a residual) fall.
+
+::widget gradient-boosting {}
+
+No single tree here is any good on its own. Each one only nudges. But stacked in sequence, each cleaning up the last one's leftovers, they trace the whole curve.
 
 === step === quiz
 ::eyebrow Check yourself
-## Why can more trees hurt a booster?
+## What does the next tree predict?
 
-You train a gradient booster and keep adding trees. Training error keeps dropping, but the error on held-out days has started to *rise*. When you did the same with a random forest, adding trees never hurt. What explains the difference?
+You start with the flat guess (the average), then grow the first tree. What is that tree trained to predict?
 
-::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
-- Boosting builds trees sequentially to reduce bias, so extra rounds eventually fit noise and overfit; a forest's trees are independent and only average out variance, so more never hurt ::ok Exactly. Each boosting round chases the current residuals, so past a point it starts memorizing noise and held-out error rises. Bagging averages independent trees, which only stabilizes the prediction, so extra trees converge rather than overfit. This is why boosting needs early stopping and a forest does not.
-- Random forests use shallower trees than boosters, so they cannot overfit no matter how many you add ::no It is the other way around: forests use deep trees and boosters use shallow ones. Depth is not what saves the forest; independence is. Averaging independent trees cancels variance without chasing noise.
-- The booster's learning rate grows with each tree, which is what causes the late overfitting ::no The learning rate is a fixed small constant you choose; it does not grow. The overfitting comes from adding too many sequential correction trees, not from a changing rate.
+::quiz {"correct":1,"gate":true,"difficulty":"beginner"}
+- The residuals: how far each day's actual count sits from the current prediction ::ok Right. Every tree after the first is fit to the leftover errors of the model so far, not to the original counts. Chasing the residuals is what makes it boosting.
+- The original bike counts again, learned fresh from scratch ::no That is what a single stand-alone tree does. A booster's later trees never see the raw counts; they only see what the current model still gets wrong, the residuals.
+- The average count across all days ::no The average is only the starting guess (round 0). From then on each tree predicts the residuals of the model built so far.
+
+=== step === concept
+::eyebrow The safety dial
+## The learning rate: small, safe steps
+
+Why add only a fraction \(\eta\) of each tree instead of the whole correction? Because one tree's idea of the fix is noisy. If you apply it in full, the model lurches, overshoots, and starts chasing the quirks of your particular data. Shrinking every correction (a typical \(\eta\) is between 0.01 and 0.3) means no single tree can dominate. The model creeps toward a good fit in many small, safe steps instead of a few reckless leaps.
+
+There is a trade. A smaller \(\eta\) needs more trees to travel the same distance, so \(\eta = 0.05\) with 500 trees often beats \(\eta = 0.5\) with 50. Slower but steadier almost always generalizes better.
+
+The widget below shows the same small-steps idea on a simple bowl-shaped error surface, where the lowest point is the best model. Slide the learning rate and step downhill: too small and it crawls, just right and it settles into the bottom, too large and it overshoots and bounces around. A booster feels exactly this.
+
+::widget gradient-descent {}
+
+=== step === quiz
+::eyebrow Check yourself
+## Turning down the learning rate
+
+You cut the learning rate from 0.3 down to 0.05 and keep everything else the same. What is the right expectation?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- It makes no difference, as long as you run the same number of trees ::no It does make a difference. Each tree now moves the prediction only about a sixth as far, so with the same number of trees the model underfits. You need more trees to make up the distance.
+- Each tree moves the prediction less, so you need more trees, but the final fit usually generalizes better ::ok Exactly. Smaller steps are safer: no single tree can overshoot, so the model tends to generalize better. The cost is that you must grow more trees to cover the same ground.
+- A smaller rate always gives a worse model, because the steps are too small ::no Not worse, just slower. Small steps plus enough trees is the combination that usually generalizes best; the rate and the number of trees are turned together.
+
+=== step === concept
+::eyebrow Why the name
+## Why "gradient" boosting?
+
+The word gradient is not decoration. Measure how wrong a single prediction is with squared-error loss, \(L(y, \hat{y}) = \tfrac{1}{2}(y - \hat{y})^2\), where \(y\) is the actual count and \(\hat{y}\) is the prediction. Ask how the loss changes as we nudge the prediction, which is its slope, or gradient, with respect to \(\hat{y}\):
+
+\[ \frac{\partial L}{\partial \hat{y}} = -(y - \hat{y}) = -r \]
+
+The residual \(r\) is exactly the **negative gradient** of the loss. So when each tree fits the residuals, it is fitting the negative gradient, and adding a shrunken slice is a step downhill on the loss. That is ordinary gradient descent, taken one tree at a time, which is why the bowl widget on the last step felt so familiar.
+
+[KEY INSIGHT]
+Fitting the residuals is not a lucky shortcut. For squared-error loss the residual IS the negative gradient, so boosting is gradient descent in the space of predictions. Swap in a different loss (say absolute error for robustness to outliers) and you fit the negative gradient of that loss instead. Same machine, any loss you like.
+
+=== step === concept
+::eyebrow The other ensemble
+## Boosting versus bagging
+
+You now know two ways to turn many trees into one strong model, and they are near mirror images. A random forest uses **bagging**: grow deep trees in parallel, each on its own bootstrap sample, and average them to cancel their variance. Boosting grows shallow trees in sequence, each fitting the previous model's residuals, to grind down bias.
+
+| | Bagging (random forest) | Boosting |
+|---|---|---|
+| How trees are built | in parallel, each independent | one after another, each fixes the last |
+| What each tree learns | its own bootstrap sample of the rows | the residuals of the model so far |
+| Each tree on its own | deep, low bias, overfits | shallow, weak, underfits |
+| How they combine | averaged, an equal vote | added in sequence, a shrunken slice each |
+| Mainly reduces | variance | bias |
+| Adding more trees | never hurts, error just flattens | keeps helping, then can overfit |
+
+The last row is the one to remember. A forest cannot overfit from extra trees, it only converges. A booster can, because every tree pushes harder on the training data, so at some point it starts memorizing noise. That is why the later lessons in this course spend real time on early stopping. To feel the forest's parallel-averaging side again, drag the slider below: many independent trees, averaged at once, the opposite of a boosting chain.
+
+::widget forest-averaging {}
+
+=== step === quiz
+::eyebrow Check yourself
+## Same thing, or not?
+
+A colleague says a random forest and a gradient booster are basically the same idea, just many trees combined. What is the key difference?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- There is no real difference; both just average a pile of independent trees ::no Only bagging averages independent trees. Boosting's trees are not independent at all: each one is grown specifically to fix the errors of the trees before it.
+- A forest grows trees in parallel and averages them to cut variance; a booster grows them in sequence, each fitting the last model's residuals, to cut bias ::ok Right. Parallel-and-average versus sequential-and-correct is the whole distinction, and it is why one reduces variance while the other reduces bias.
+- A booster averages its trees, while a forest adds its trees up one by one ::no It is the other way round. The forest averages; the booster adds shrunken corrections in sequence.
+
+=== step === concept
+::eyebrow The recipe
+## The boosting loop, in three rules
+
+Strip away the detail and gradient boosting is just three steps on a loop.
+
+1. **Start at the average.** The first prediction for every row is the mean of the target.
+2. **Fit a shallow tree to the residuals.** Grow a small tree whose target is what the model still gets wrong.
+3. **Add a shrunken slice.** Update the prediction by the learning rate times the new tree, then go back to step 2.
+
+::widget process-flow {"steps":[{"title":"Start at the average","sub":"the first prediction for every row is the mean of the target"},{"title":"Fit a tree to the residuals","sub":"grow a shallow tree whose target is what the model still gets wrong"},{"title":"Add a shrunken slice","sub":"update by learning-rate times the new tree, then repeat"}]}
+
+That is the entire algorithm. Everything the famous boosters add (histogram splits, clever regularization, native categoricals) is speed and polish on top of these three lines. Time to run the three lines yourself.
+
+=== step === tryit
+::eyebrow Build it
+## Boost it in R
+
+Sam kept a full summer of daily counts, so here are 120 days built inline. Start every prediction at the mean, then loop: compute the residuals, fit a one-split stump to them, and add a shrunken slice. Fill in the blank so each round adds the new stump's prediction.
+
+```r
+library(rpart)
+set.seed(1)
+sam <- data.frame(temp = runif(120, 5, 33))                             # 120 summer days, degrees C
+sam$rentals <- 30 + 4 * sam$temp - 0.11 * sam$temp^2 + rnorm(120, 0, 6) # real demand plus noise
+
+pred <- rep(mean(sam$rentals), nrow(sam))   # round 0: one flat guess, the average
+lr   <- 0.1                                  # learning rate: add only a slice of each tree
+for (m in 1:50) {
+  r     <- sam$rentals - pred                # what the model still gets wrong
+  stump <- rpart(r ~ temp, data = sam, control = rpart.control(maxdepth = 1, cp = 0))
+  pred  <- pred + lr * ____                  # add a shrunken slice of the new tree
+}
+sqrt(mean((sam$rentals - pred)^2))           # RMSE after boosting (was 8.65 at round 0)
+```
+::check {"regex":"predict\\(\\s*stump\\s*\\)","gate":true,"difficulty":"intermediate","ok":"That is the loop: residuals, fit a stump, add a shrunken slice of its prediction. Fifty rounds pull the RMSE from 8.65 down to about 5.14.","no":"Add the new tree's prediction, shrunk by the rate: pred + lr * predict(stump)."}
+::solution
+```r
+library(rpart)
+set.seed(1)
+sam <- data.frame(temp = runif(120, 5, 33))
+sam$rentals <- 30 + 4 * sam$temp - 0.11 * sam$temp^2 + rnorm(120, 0, 6)
+
+pred <- rep(mean(sam$rentals), nrow(sam))
+lr   <- 0.1
+for (m in 1:50) {
+  r     <- sam$rentals - pred
+  stump <- rpart(r ~ temp, data = sam, control = rpart.control(maxdepth = 1, cp = 0))
+  pred  <- pred + lr * predict(stump)
+}
+sqrt(mean((sam$rentals - pred)^2))
+#> [1] 5.141449
+```
+
+=== step === concept
+::eyebrow Know your tool
+## Where boosting shines, where it bites
+
+You just built the real algorithm. Here is the honest picture of when to reach for it.
+
+**Strengths**
+
+- Usually the most accurate model on tabular data, often the winner on structured problems
+- Turns weak, shallow trees into a strong learner with a low, tunable bias
+- Fits any differentiable loss, so the same machine handles regression, classification, and ranking
+
+**Costs and cautions**
+
+- It can overfit if you run too many trees or set the learning rate too high, so it needs a validation set and early stopping
+- Trees are grown in sequence, so training does not parallelize the way a forest does
+- More knobs to turn (trees, learning rate, tree depth) than a random forest's near-automatic fit
+
+In real work you would not hand-roll the loop. The production boosters do the same thing far faster, with better trees and built-in shrinkage. Here is the same model with the `gbm` package (install and run it in your own R):
+
+```r-static
+# The same idea, done for real by a package. Run this locally.
+library(gbm)
+fit <- gbm(rentals ~ temp, data = sam, distribution = "gaussian",
+           n.trees = 500, shrinkage = 0.05, interaction.depth = 3)
+sqrt(mean((sam$rentals - predict(fit, sam, n.trees = 500))^2))
+```
+
+Meeting the fast, modern versions of exactly this, LightGBM and CatBoost, is Lesson 2.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-A few authoritative places to take this further:
-
-- [Friedman (2001), Greedy Function Approximation: A Gradient Boosting Machine, Annals of Statistics](https://doi.org/10.1214/aos/1013203451) - the paper that defined gradient boosting as gradient descent in function space.
-- [The Elements of Statistical Learning, ch. 10 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - "Boosting and Additive Trees", the full theory behind what you built here.
-- [An Introduction to Statistical Learning, ch. 8 (free PDF)](https://www.statlearning.com/) - the gentler companion treatment of boosting and tree methods.
-- [XGBoost: Introduction to Boosted Trees](https://xgboost.readthedocs.io/en/stable/tutorials/model.html) - a clear, modern derivation of regularized gradient boosting and why shrinkage helps.
+- [Friedman (2001), Greedy Function Approximation: A Gradient Boosting Machine, Annals of Statistics 29(5)](https://doi.org/10.1214/aos/1013203451) - the paper that framed boosting as gradient descent on a loss.
+- [The Elements of Statistical Learning, ch. 10 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - boosting, the additive model, and shrinkage, with the full math.
+- [An Introduction to Statistical Learning, ch. 8 (free PDF)](https://www.statlearning.com/) - the gentler companion on tree ensembles, boosting included.
+- [XGBoost docs: Introduction to Boosted Trees](https://xgboost.readthedocs.io/en/stable/tutorials/model.html) - the residual-and-gradient story you built here, in a production booster's own words.
 
 === step === complete
 ## Lesson 1 complete
 
-You built gradient boosting from the ground up: start at the mean, fit each new tree to the residuals (which, for squared error, are the negative gradient of the loss), and add a shrunken slice scaled by the learning rate. You watched the error fall tree by tree, coded the loop by hand, and saw why a booster, unlike a forest, can overfit if you run it too long.
+You built gradient boosting from the ground up: start at the average, fit a shallow tree to the residuals, add a shrunken slice, and repeat. You saw why fitting the residuals is really gradient descent (the residual is the negative gradient of squared-error loss), what the learning rate buys you (small, safe steps that generalize), and how boosting mirrors bagging (sequential and bias-cutting, versus parallel and variance-cutting).
 
-Next, Lesson 2: LightGBM and CatBoost in R. The hand-rolled stump loop you wrote is the honest core of every modern booster; now you will meet the fast, production-grade ones, histogram splits, native categorical handling, and when to reach for which.
+Next, Lesson 2: LightGBM and CatBoost in R. Sam's kiosk grows into a citywide bike-share with millions of rides, and the hand-rolled loop is far too slow. You will meet the histogram-split trick that makes boosting fast, and the native way modern boosters swallow hundreds of categories without a one-hot explosion.

@@ -3,8 +3,8 @@
   <head>
     <title>Imbalanced Classification Lesson 2: Class Imbalance and Resampling</title>
     <meta charset="utf-8">
-    <meta name="Description" content="How class imbalance makes accuracy lie, how undersampling, oversampling and SMOTE rebalance a rare class in R, and how to resample without leaking into your test set.">
-    <meta name="Keywords" content="class imbalance, imbalanced classification, resampling, SMOTE, oversampling, undersampling, themis, data leakage, recall, R">
+    <meta name="Description" content="Fix class imbalance in R: why accuracy lies, undersampling, oversampling and SMOTE, resampling only the training data to avoid leakage, and when not to resample.">
+    <meta name="Keywords" content="class imbalance, resampling, SMOTE, oversampling, undersampling, themis, data leakage, imbalanced classification, minority class, recall, R">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Imbalanced Classification Lesson 2: Class Imbalance and Resampling">
-    <meta property="og:description" content="How class imbalance makes accuracy lie, how undersampling, oversampling and SMOTE rebalance a rare class in R, and how to resample without leaking into your test set.">
+    <meta property="og:description" content="Fix class imbalance in R: why accuracy lies, undersampling, oversampling and SMOTE, resampling only the training data to avoid leakage, and when not to resample.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Class-Imbalance-and-Resampling.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Class-Imbalance-and-Resampling.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Imbalanced Classification Lesson 2: Class Imbalance and Resampling">
-    <meta name="twitter:description" content="How class imbalance makes accuracy lie, how undersampling, oversampling and SMOTE rebalance a rare class in R, and how to resample without leaking into your test set.">
+    <meta name="twitter:description" content="Fix class imbalance in R: why accuracy lies, undersampling, oversampling and SMOTE, resampling only the training data to avoid leakage, and when not to resample.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Class-Imbalance-and-Resampling.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Imbalanced Classification Lesson 2: Class Imbalance and Resampling",
-      "description": "How class imbalance makes accuracy lie, how undersampling, oversampling and SMOTE rebalance a rare class in R, and how to resample without leaking into your test set.",
+      "description": "Fix class imbalance in R: why accuracy lies, undersampling, oversampling and SMOTE, resampling only the training data to avoid leakage, and when not to resample.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Class-Imbalance-and-Resampling.html",
-      "datePublished": "2026-07-01",
-      "dateModified": "2026-07-01",
+      "datePublished": "2026-07-07",
+      "dateModified": "2026-07-07",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -595,7 +595,7 @@
 
     
     
-        <link rel="stylesheet" href="www/lesson-mode.min.css?h=5f5f1fcb">
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
     <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
   </head>
 
@@ -679,64 +679,55 @@
 <div class="lesson-step-eyebrow">Lesson 2 of 6</div>
 <h2>Class Imbalance and Resampling</h2>
 
-<p>A bank's fraud detector sees 3,000 card transactions. Only 150 of them are fraud. A model that flags nothing at all is 95% accurate, and completely useless: it catches zero fraud.</p>
+<p>Priya is a fraud analyst at a bank. Last month's data has 10,000 card transactions, and exactly 52 of them were fraud. That is one fraud for every 191 legitimate transactions. She trains a classifier, and it comes back 99.5% accurate. She is thrilled, until she checks how many of the 52 frauds it actually caught: zero.</p>
 
-<p>That is class imbalance, and it quietly breaks the metric most people trust first. In this lesson you will fix it by changing the data the model trains on.</p>
+<p>That is the trap of an imbalanced problem, where one class is far rarer than the other. This lesson is about seeing the trap, and the main tool for climbing out of it: <strong>resampling</strong> the training data so the rare class stops being invisible.</p>
 
 <p>By the end you will be able to:</p>
 
 <ul>
 
-<li>Explain why plain accuracy lies on a rare-class problem, and what to watch instead</li>
+<li>Explain why plain accuracy is misleading when one class is rare, and read recall and precision instead</li>
 
-<li>Rebalance a training set by under- and oversampling, and watch a model start catching the rare class</li>
+<li>Tell undersampling, oversampling and <strong>SMOTE</strong> apart, and describe what each does to the training rows</li>
 
-<li>Explain what SMOTE does that plain copying does not</li>
+<li>Rebalance a training set in R and measure whether it actually helped</li>
 
-<li>Resample the right way, so you never leak the fix into your test score</li>
+<li>Resample the <strong>training data only</strong>, so you never leak the fix into your own evaluation</li>
+
+<li>Judge when to reach for resampling, and when a different tool is better</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can fit a basic classifier in R, and you know what a train/test split is (<a href="Train-Validation-Test-and-Data-Leakage.html">Train, Validation, Test and Data Leakage</a>). Lesson 1 handled many classes at once; this one handles the case where one class is rare.</p>
+<p><strong>Prerequisites:</strong> Lesson 1 of this course, <a href="Beyond-Binary-Multiclass-Classification.html">Beyond Binary: Multiclass Classification</a> (the confusion matrix, precision and recall); a classifier that outputs a probability, from <a href="Reading-a-Classifier.html">Reading a Classifier</a>; a <a href="Train-Validation-Test-and-Data-Leakage.html">train/test split and what leakage is</a>; and you can <a href="Your-First-End-to-End-Model-in-R.html">fit a model in R</a>.</p>
+
+<p>The panel below is Priya's problem in miniature: a sea of ordinary transactions (blue) with a handful of frauds (orange) huddled in one corner. Toggle the buttons to see the two fixes this lesson builds.</p>
 <div class="lesson-widget" data-widget-type="imbalance-resample" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The problem</div>
-<h2>When accuracy lies</h2>
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>The 99.5% trap</h2>
 
-<p>Back to the bank. Of every 100 transactions, 95 are legitimate and 5 are fraud. Call the common class (legit) the <strong>majority</strong> and the rare class (fraud) the <strong>minority</strong>. The <em>imbalance ratio</em> is just how lopsided that is, \(\text{IR} = N_{\text{majority}} / N_{\text{minority}}\); here it is \(1900/100 = 19\) to one.</p>
-
-<p>Let us build that data and try the laziest model imaginable: predict "legit" every single time. Each lesson runs in a fresh R session, so we build the transactions right here.</p>
+<p>Let us rebuild Priya's month from scratch so every number here is real. Each transaction has a size, an hour, a count of recent declined attempts, and whether the card is foreign. Fraud is rare and tends to be large, late, foreign, and preceded by declines.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 3,000 card transactions; fraud is rare and looks a little different.</span></span>
-<span class="cl"><span class="nf">set.seed</span>(<span class="m">42</span>)</span>
-<span class="cl">make_txns <span class="o">&lt;-</span> <span class="kr">function</span>(n_legit, n_fraud) {</span>
-<span class="cl">  legit <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
-<span class="cl">    amount  <span class="o">=</span> <span class="nf">round</span>(<span class="nf">rlnorm</span>(n_legit, <span class="m">3.3</span>, <span class="m">0.8</span>), <span class="m">2</span>),          <span class="c1"># everyday spend</span></span>
-<span class="cl">    hour    <span class="o">=</span> <span class="nf">sample</span>(<span class="m">6</span><span class="o">:</span><span class="m">23</span>, n_legit, replace <span class="o">=</span> <span class="kc">TRUE</span>),        <span class="c1"># mostly daytime</span></span>
-<span class="cl">    foreign <span class="o">=</span> <span class="nf">rbinom</span>(n_legit, <span class="m">1</span>, <span class="m">0.04</span>),                     <span class="c1"># rarely abroad</span></span>
-<span class="cl">    class   <span class="o">=</span> <span class="s">&quot;legit&quot;</span></span>
-<span class="cl">  )</span>
-<span class="cl">  fraud <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
-<span class="cl">    amount  <span class="o">=</span> <span class="nf">round</span>(<span class="nf">rlnorm</span>(n_fraud, <span class="m">3.9</span>, <span class="m">0.9</span>), <span class="m">2</span>),          <span class="c1"># a bit larger</span></span>
-<span class="cl">    hour    <span class="o">=</span> <span class="nf">sample</span>(<span class="m">0</span><span class="o">:</span><span class="m">23</span>, n_fraud, replace <span class="o">=</span> <span class="kc">TRUE</span>),        <span class="c1"># any hour</span></span>
-<span class="cl">    foreign <span class="o">=</span> <span class="nf">rbinom</span>(n_fraud, <span class="m">1</span>, <span class="m">0.30</span>),                     <span class="c1"># more often abroad</span></span>
-<span class="cl">    class   <span class="o">=</span> <span class="s">&quot;fraud&quot;</span></span>
-<span class="cl">  )</span>
-<span class="cl">  d <span class="o">&lt;-</span> <span class="nf">rbind</span>(legit, fraud)</span>
-<span class="cl">  d<span class="o">$</span>class <span class="o">&lt;-</span> <span class="nf">factor</span>(d<span class="o">$</span>class, levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;legit&quot;</span>, <span class="s">&quot;fraud&quot;</span>))</span>
-<span class="cl">  d[<span class="nf">sample</span>(<span class="nf">nrow</span>(d)), ]                                       <span class="c1"># shuffle the rows</span></span>
-<span class="cl">}</span>
-<span class="cl">train <span class="o">&lt;-</span> <span class="nf">make_txns</span>(<span class="m">1900</span>, <span class="m">100</span>)   <span class="c1"># 2,000 rows, 5% fraud</span></span>
-<span class="cl">test  <span class="o">&lt;-</span> <span class="nf">make_txns</span>(<span class="m">950</span>,  <span class="m">50</span>)    <span class="c1"># 1,000 rows, 5% fraud, kept untouched</span></span>
-<span class="cl"><span class="nf">table</span>(train<span class="o">$</span>class)</span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; legit fraud </span></span>
-<span class="cl"><span class="c1">#&gt;  1900   100</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
+<span class="cl">n <span class="o">&lt;-</span> <span class="m">10000</span></span>
+<span class="cl">tx <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  amount     <span class="o">=</span> <span class="nf">round</span>(<span class="nf">rlnorm</span>(n, <span class="m">3.4</span>, <span class="m">1.0</span>), <span class="m">2</span>),   <span class="c1"># transaction size in dollars</span></span>
+<span class="cl">  hour       <span class="o">=</span> <span class="nf">sample</span>(<span class="m">0</span><span class="o">:</span><span class="m">23</span>, n, replace <span class="o">=</span> <span class="kc">TRUE</span>),  <span class="c1"># hour of day, 0 to 23</span></span>
+<span class="cl">  n_declines <span class="o">=</span> <span class="nf">rpois</span>(n, <span class="m">0.3</span>),                    <span class="c1"># recent declined attempts</span></span>
+<span class="cl">  foreign    <span class="o">=</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, <span class="m">0.08</span>)                <span class="c1"># foreign card? 1 = yes</span></span>
+<span class="cl">)</span>
+<span class="cl">risk <span class="o">&lt;-</span> <span class="m">-6.4</span> <span class="o">+</span> <span class="m">0.004</span><span class="o">*</span>tx<span class="o">$</span>amount <span class="o">+</span> <span class="m">0.8</span><span class="o">*</span>(tx<span class="o">$</span>hour <span class="o">&lt;</span> <span class="m">5</span>) <span class="o">+</span> <span class="m">0.9</span><span class="o">*</span>tx<span class="o">$</span>n_declines <span class="o">+</span> <span class="m">1.1</span><span class="o">*</span>tx<span class="o">$</span>foreign</span>
+<span class="cl">tx<span class="o">$</span>fraud <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">ifelse</span>(<span class="nf">runif</span>(n) <span class="o">&lt;</span> <span class="nf">plogis</span>(risk), <span class="s">&quot;yes&quot;</span>, <span class="s">&quot;no&quot;</span>), levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;no&quot;</span>, <span class="s">&quot;yes&quot;</span>))</span>
+<span class="cl"><span class="nf">table</span>(tx<span class="o">$</span>fraud)</span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt;   no  yes</span></span>
+<span class="cl"><span class="c1">#&gt; 9948   52</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -746,20 +737,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
+<p>There it is: 9,948 legitimate transactions and 52 frauds. Now split off a test set to grade the model honestly, exactly as you would in real life.</p>
+
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># The laziest possible model: call every transaction &quot;legit&quot;.</span></span>
-<span class="cl">always_legit <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">rep</span>(<span class="s">&quot;legit&quot;</span>, <span class="nf">nrow</span>(test)), levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;legit&quot;</span>, <span class="s">&quot;fraud&quot;</span>))</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">mean</span>(always_legit <span class="o">==</span> test<span class="o">$</span>class)                      <span class="c1"># accuracy</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 0.95</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">table</span>(prediction <span class="o">=</span> always_legit, actual <span class="o">=</span> test<span class="o">$</span>class) <span class="c1"># where did the fraud go?</span></span>
-<span class="cl"><span class="c1">#&gt;           actual</span></span>
-<span class="cl"><span class="c1">#&gt; prediction legit fraud</span></span>
-<span class="cl"><span class="c1">#&gt;      legit   950    50</span></span>
-<span class="cl"><span class="c1">#&gt;      fraud     0     0</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">train_idx <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">nrow</span>(tx), <span class="m">7000</span>)   <span class="c1"># 70% to train on</span></span>
+<span class="cl">train <span class="o">&lt;-</span> tx[train_idx, ]</span>
+<span class="cl">test  <span class="o">&lt;-</span> tx[<span class="o">-</span>train_idx, ]             <span class="c1"># 30% held out, never trained on</span></span>
+<span class="cl"><span class="nf">table</span>(test<span class="o">$</span>fraud)</span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt;   no  yes</span></span>
+<span class="cl"><span class="c1">#&gt; 2986   14</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -769,225 +759,354 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Ninety-five percent accurate, and it caught none of the 50 real fraud cases. Accuracy counts every correct call equally, so a model can score high just by nailing the majority. The metric that exposes this is <strong>recall</strong> (also called sensitivity): of all the transactions that really were fraud, what fraction did we catch?</p>
+<p>Fourteen of the test frauds are what we need the model to catch. Fit a logistic regression on the training data and look at how it does on the held-out test set. The table has the truth down the rows and the model's guess across the columns.</p>
 
-<p>\[ \text{Recall} = \frac{TP}{TP + FN} \]</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">model <span class="o">&lt;-</span> <span class="nf">glm</span>(fraud <span class="o">~</span> amount <span class="o">+</span> hour <span class="o">+</span> n_declines <span class="o">+</span> foreign, data <span class="o">=</span> train, family <span class="o">=</span> binomial)</span>
+<span class="cl">pred  <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">ifelse</span>(<span class="nf">predict</span>(model, test, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>) <span class="o">&gt;</span> <span class="m">0.5</span>, <span class="s">&quot;yes&quot;</span>, <span class="s">&quot;no&quot;</span>),</span>
+<span class="cl">                levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;no&quot;</span>, <span class="s">&quot;yes&quot;</span>))</span>
+<span class="cl"><span class="nf">table</span>(actual <span class="o">=</span> test<span class="o">$</span>fraud, predicted <span class="o">=</span> pred)</span>
+<span class="cl"><span class="c1">#&gt;       predicted</span></span>
+<span class="cl"><span class="c1">#&gt; actual   no  yes</span></span>
+<span class="cl"><span class="c1">#&gt;    no  2986    0</span></span>
+<span class="cl"><span class="c1">#&gt;    yes   14    0</span></span>
+<span class="cl"><span class="nf">mean</span>(pred <span class="o">==</span> test<span class="o">$</span>fraud)   <span class="c1"># overall accuracy</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.9953333</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>Here \(TP\) (true positives) is fraud we correctly flagged and \(FN\) (false negatives) is fraud we missed. The lazy model has \(TP = 0\), so its recall is \(0/50 = 0\).</p>
+<p>Look at that bottom row. The model labelled every single transaction "no fraud". It caught <strong>0 of the 14</strong> frauds, and still scored <strong>99.5% accuracy</strong>, because guessing the majority class is almost always right when the majority is 99.5% of the data. Accuracy rewarded the model for ignoring exactly the thing Priya cares about.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">On an imbalanced problem, accuracy is dominated by the majority class. Track recall on the minority class (and precision alongside it: of everything you flag as fraud, the fraction that truly is) so a model cannot hide behind the easy 95%.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">When one class is rare, a model can score sky-high accuracy by never predicting the rare class at all. Accuracy measures the wrong thing here. You need a score that notices the minority.</div></div>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>A very accurate, very useless model</h2>
+<h2>Why is 99.5% not good enough?</h2>
 
-<p>Your fraud model reports <strong>95% accuracy</strong> on the test set. You then notice it flagged <strong>zero</strong> transactions as fraud. What is going on?</p>
+<p>Priya's model is 99.5% accurate on the held-out test set but catches 0 of the 14 frauds. What is the real problem?</p>
 <section class="exercise" data-exercise-id="Class-Imbalance-and-Resampling-step3" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model is excellent; 95% is a strong score</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The model just needs more training data to improve</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Accuracy is the wrong metric here; it scores high by always predicting the majority, while recall on fraud is 0</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. With 95% legit, predicting "legit" everywhere is 95% accurate and catches nothing. Recall exposes the failure.</div><div class="lesson-qfb lesson-qfb-no">More data of the same 95/5 mix will not help; the problem is the imbalance and the metric, not the sample size.</div></div>
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model is basically fine; 99.5% accuracy is excellent and a few missed frauds is unavoidable</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Accuracy is the wrong yardstick here: with 99.5% legitimate transactions, always guessing "no fraud" scores 99.5% while catching nothing</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The model needs more training data before it can work</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The base rate alone gives you 99.5%. A useful score has to measure how many of the 52 frauds you actually catch, not how often you are right overall.</div><div class="lesson-qfb lesson-qfb-no">More rows of the same 191-to-1 mix would not help; the model would still find "always predict no" the easiest way to be accurate. The metric, not the data volume, is the problem.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="concept">
-<div class="lesson-step-eyebrow">The first fix</div>
-<h2>Rebalance the training data</h2>
+<div class="lesson-step-eyebrow">The right scorecard</div>
+<h2>A scorecard that notices the rare class</h2>
 
-<p>If the model ignores fraud because fraud is rare, make it less rare, in the training data. Two moves do this:</p>
+<p>To measure a rare-class model you count four outcomes on the fraud class: true positives \(TP\) (frauds correctly flagged), false negatives \(FN\) (frauds missed), false positives \(FP\) (good transactions wrongly flagged), and true negatives \(TN\). Two numbers built from these tell the real story.</p>
+
+<p><strong>Recall</strong> is the fraction of actual frauds you caught: \( \text{recall} = \dfrac{TP}{TP + FN} \). Priya's model caught 0 of 14, so its recall is 0.</p>
+
+<p><strong>Precision</strong> is the fraction of your fraud alarms that were right: \( \text{precision} = \dfrac{TP}{TP + FP} \). When the model never raises an alarm, precision is undefined (you cannot divide by zero alarms).</p>
+
+<p>They trade off, so people often combine them into the <strong>F1 score</strong>, their harmonic mean: \( F_1 = 2 \cdot \dfrac{\text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}} \). And <strong>balanced accuracy</strong>, \( \tfrac{1}{2}\left(\text{recall}_\text{fraud} + \text{recall}_\text{legit}\right) \), averages the two classes' recalls so the rare class counts as much as the common one.</p>
+
+<p>Compute recall and precision for Priya's model to confirm what the confusion matrix already told us.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">recall    <span class="o">&lt;-</span> <span class="kr">function</span>(actual, pred) <span class="nf">sum</span>(pred <span class="o">==</span> <span class="s">&quot;yes&quot;</span> <span class="o">&amp;</span> actual <span class="o">==</span> <span class="s">&quot;yes&quot;</span>) <span class="o">/</span> <span class="nf">sum</span>(actual <span class="o">==</span> <span class="s">&quot;yes&quot;</span>)</span>
+<span class="cl">precision <span class="o">&lt;-</span> <span class="kr">function</span>(actual, pred) {</span>
+<span class="cl">  flagged <span class="o">&lt;-</span> <span class="nf">sum</span>(pred <span class="o">==</span> <span class="s">&quot;yes&quot;</span>)</span>
+<span class="cl">  <span class="kr">if</span> (flagged <span class="o">==</span> <span class="m">0</span>) <span class="kc">NA</span> <span class="kr">else</span> <span class="nf">sum</span>(pred <span class="o">==</span> <span class="s">&quot;yes&quot;</span> <span class="o">&amp;</span> actual <span class="o">==</span> <span class="s">&quot;yes&quot;</span>) <span class="o">/</span> flagged</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">c</span>(recall <span class="o">=</span> <span class="nf">recall</span>(test<span class="o">$</span>fraud, pred), precision <span class="o">=</span> <span class="nf">precision</span>(test<span class="o">$</span>fraud, pred))</span>
+<span class="cl"><span class="c1">#&gt;    recall precision</span></span>
+<span class="cl"><span class="c1">#&gt;         0        NA</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Recall 0, precision undefined. This is the honest scorecard, and it is what resampling is going to move.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<div class="lesson-step-eyebrow">The fix, three flavours</div>
+<h2>Three ways to rebalance</h2>
+
+<p>The model ignores fraud because fraud is drowned out during training: for every fraud it sees roughly 191 non-frauds, so "always say no" minimises its training error. Resampling changes the training set's balance so the rare class gets a real say. There are three common moves. Toggle them below and watch the minority region fill in.</p>
 
 <ul>
 
-<li><strong>Undersampling:</strong> throw away most of the 1,900 legit rows until legit and fraud are even. Simple, but you discard real data.</li>
+<li><strong>Undersampling</strong>: throw away most of the majority rows until the classes are even. Fast, but you discard real data.</li>
 
-<li><strong>Oversampling:</strong> duplicate the 100 fraud rows until the two classes match. You keep every legit row, but the copies carry no new information.</li>
+<li><strong>Oversampling</strong>: copy the minority rows until the classes are even. Keeps all the data, but the copies are exact duplicates, which can lead the model to memorise those few points.</li>
+
+<li><strong>SMOTE</strong>: instead of copying minority points, <em>synthesise</em> new ones between existing minority neighbours. Balanced counts, and more variety than plain duplication.</li>
 
 </ul>
 
-<p>Toggle between them below. Watch the minority region fill in and the class counts even out.</p>
-
-<p>Now do it for real. We fit the same tree twice, once on the raw imbalanced data and once after oversampling the training minority, and score both on the untouched test set with recall and precision.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(rpart)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># recall: of all real fraud, the fraction we catch.</span></span>
-<span class="cl"><span class="c1"># precision: of everything we flag as fraud, the fraction that truly is.</span></span>
-<span class="cl">recall    <span class="o">&lt;-</span> <span class="kr">function</span>(p, a) <span class="nf">sum</span>(p <span class="o">==</span> <span class="s">&quot;fraud&quot;</span> <span class="o">&amp;</span> a <span class="o">==</span> <span class="s">&quot;fraud&quot;</span>) <span class="o">/</span> <span class="nf">sum</span>(a <span class="o">==</span> <span class="s">&quot;fraud&quot;</span>)</span>
-<span class="cl">precision <span class="o">&lt;-</span> <span class="kr">function</span>(p, a) <span class="nf">sum</span>(p <span class="o">==</span> <span class="s">&quot;fraud&quot;</span> <span class="o">&amp;</span> a <span class="o">==</span> <span class="s">&quot;fraud&quot;</span>) <span class="o">/</span> <span class="nf">sum</span>(p <span class="o">==</span> <span class="s">&quot;fraud&quot;</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Train on the raw, imbalanced data.</span></span>
-<span class="cl">fit_imb  <span class="o">&lt;-</span> <span class="nf">rpart</span>(class <span class="o">~</span> amount <span class="o">+</span> hour <span class="o">+</span> foreign, data <span class="o">=</span> train, method <span class="o">=</span> <span class="s">&quot;class&quot;</span>)</span>
-<span class="cl">pred_imb <span class="o">&lt;-</span> <span class="nf">predict</span>(fit_imb, test, type <span class="o">=</span> <span class="s">&quot;class&quot;</span>)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(recall <span class="o">=</span> <span class="nf">recall</span>(pred_imb, test<span class="o">$</span>class),</span>
-<span class="cl">        precision <span class="o">=</span> <span class="nf">precision</span>(pred_imb, test<span class="o">$</span>class)), <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;    recall precision </span></span>
-<span class="cl"><span class="c1">#&gt;      0.42      0.66</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Oversample: duplicate minority rows until the classes are even (TRAIN ONLY).</span></span>
-<span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
-<span class="cl">min_i    <span class="o">&lt;-</span> <span class="nf">which</span>(train<span class="o">$</span>class <span class="o">==</span> <span class="s">&quot;fraud&quot;</span>)</span>
-<span class="cl">extra    <span class="o">&lt;-</span> <span class="nf">sample</span>(min_i, <span class="nf">sum</span>(train<span class="o">$</span>class <span class="o">==</span> <span class="s">&quot;legit&quot;</span>) <span class="o">-</span> <span class="nf">length</span>(min_i), replace <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl">train_up <span class="o">&lt;-</span> train[<span class="nf">c</span>(<span class="nf">seq_len</span>(<span class="nf">nrow</span>(train)), extra), ]</span>
-<span class="cl"><span class="nf">table</span>(train_up<span class="o">$</span>class)</span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt; legit fraud </span></span>
-<span class="cl"><span class="c1">#&gt;  1900  1900</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Same model, same test set, now trained on the balanced data.</span></span>
-<span class="cl">fit_bal  <span class="o">&lt;-</span> <span class="nf">rpart</span>(class <span class="o">~</span> amount <span class="o">+</span> hour <span class="o">+</span> foreign, data <span class="o">=</span> train_up, method <span class="o">=</span> <span class="s">&quot;class&quot;</span>)</span>
-<span class="cl">pred_bal <span class="o">&lt;-</span> <span class="nf">predict</span>(fit_bal, test, type <span class="o">=</span> <span class="s">&quot;class&quot;</span>)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(recall <span class="o">=</span> <span class="nf">recall</span>(pred_bal, test<span class="o">$</span>class),</span>
-<span class="cl">        precision <span class="o">=</span> <span class="nf">precision</span>(pred_bal, test<span class="o">$</span>class)), <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;    recall precision </span></span>
-<span class="cl"><span class="c1">#&gt;      0.68      0.20</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Same algorithm, same features, same test set. Oversampling lifted recall from 0.42 to 0.68: the tree now catches two-thirds of the fraud instead of under half. But precision fell from 0.66 to 0.20, because the balanced model flags many more transactions and most of the extra flags are false alarms.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Rebalancing is a trade, not a free win. Here it caught far more fraud (recall up) but made four of every five flags a false alarm (precision 0.20). Whether that is worth it depends on the cost of a missed fraud versus a false alarm, which is exactly what Lesson 3 makes explicit. Always judge on an untouched, still-imbalanced test set.</div></div>
+<p>Notice the trade in the readout: oversampling and SMOTE both reach balanced counts, but SMOTE spreads new points through the minority region rather than stacking copies on the same spots. Next we build a SMOTE point by hand so it is not magic.</p>
 <div class="lesson-widget" data-widget-type="imbalance-resample" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">A smarter oversample</div>
-<h2>SMOTE: synthesise, do not just copy</h2>
-
-<p>Plain oversampling has a weakness: it stacks identical copies of the same 100 fraud rows. The model sees those exact points over and over and can memorise them, which overfits.</p>
-
-<p><strong>SMOTE</strong> (Synthetic Minority Over-sampling Technique) fixes this by inventing <em>new</em> minority points instead of copying old ones. For a minority point \(x_i\), it picks one of its minority nearest neighbours \(x_j\) (another fraud case sitting close to it in the data) and drops a synthetic point somewhere on the line between them:</p>
-
-<p>\[ x_{\text{new}} = x_i + \lambda\,(x_j - x_i), \qquad \lambda \sim \text{Uniform}(0,1) \]</p>
-
-<p>Here \(\lambda\) is a random fraction between 0 and 1, so \(x_{\text{new}}\) lands between two real fraud cases rather than exactly on one. The class is balanced <em>and</em> more varied. Move the widget in the previous step to SMOTE to see the new points appear between the real ones.</p>
-
-<p>In R, the tidymodels package <strong>themis</strong> does SMOTE as a recipe step. A recipe learns everything on the training data only, so it cannot leak into your test set (the whole point of the next step). Run this one in your local R session:</p>
-
-<pre><code class="language-r">library(recipes)
-library(themis)
-
-rec &lt;- recipe(class ~ amount + hour + foreign, data = train) |&gt;
-  step_smote(class)                 # synthesise minority points to balance the class
-
-train_smote &lt;- prep(rec) |&gt; bake(new_data = NULL)   # apply to the training data
-table(train_smote$class)
-#&gt; 
-#&gt; legit fraud 
-#&gt;  1900  1900</code></pre>
-</section>
-
 <section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">The pitfall that fools everyone</div>
-<h2>Resample after you split, never before</h2>
+<div class="lesson-step-eyebrow">How SMOTE works</div>
+<h2>How SMOTE invents a new case</h2>
 
-<p>Here is the mistake that inflates scores across countless projects: balance the whole dataset first, <em>then</em> split into train and test. It feels tidy. It quietly cheats.</p>
+<p>Copying a fraud row teaches the model nothing new, it just sees the same point twice. SMOTE (Synthetic Minority Over-sampling Technique) is cleverer: it takes a real fraud, picks one of its fraud neighbours, and drops a brand-new point somewhere on the straight line between them.</p>
 
-<p>When you oversample or SMOTE before splitting, copies (or synthetic children) of the same fraud rows land in <strong>both</strong> the training and the test set. The model is then tested partly on data it already saw. Your recall looks great in the notebook and collapses in production.</p>
+<p>If \(x_i\) is a real fraud transaction and \(x_j\) is a nearby fraud, SMOTE creates</p>
 
-<p>The rule is simple: <strong>split first, and resample only the training fold</strong> (the rows you kept for training). The test set must keep the real, imbalanced class rates, because that is what production looks like.</p>
+<p>\[ x_\text{new} = x_i + \lambda\,(x_j - x_i), \qquad \lambda \sim \text{Uniform}(0, 1) \]</p>
 
-<p>This is exactly why themis lives inside a recipe: a recipe is fit on the training fold during cross-validation (repeated train/test rounds that rotate which rows are held out), so the resampling is redone fresh on each fold and never sees held-out rows.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split first","sub":"hold out the test set BEFORE you touch the class balance"},{"title":"Resample the training fold only","sub":"oversample or SMOTE inside the training rows, never the test rows"},{"title":"Fit the model","sub":"train on the rebalanced training fold"},{"title":"Evaluate on the untouched test set","sub":"the test set keeps the real 95 / 5 class rates"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>where \(\lambda\) (lambda) is a random number between 0 and 1 saying how far along the line to go: \(\lambda = 0\) lands on \(x_i\), \(\lambda = 1\) lands on \(x_j\), and \(\lambda = 0.5\) sits exactly halfway. Let us build one from two of Priya's real frauds, using just the amount and hour so we can read it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">3</span>)</span>
+<span class="cl">minority  <span class="o">&lt;-</span> train[train<span class="o">$</span>fraud <span class="o">==</span> <span class="s">&quot;yes&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;amount&quot;</span>, <span class="s">&quot;hour&quot;</span>)]  <span class="c1"># the real frauds</span></span>
+<span class="cl">x_i       <span class="o">&lt;-</span> minority[<span class="m">1</span>, ]           <span class="c1"># one real fraud</span></span>
+<span class="cl">x_j       <span class="o">&lt;-</span> minority[<span class="m">6</span>, ]           <span class="c1"># another real fraud</span></span>
+<span class="cl">lambda    <span class="o">&lt;-</span> <span class="nf">runif</span>(<span class="m">1</span>)                <span class="c1"># how far along the line, 0 to 1</span></span>
+<span class="cl">synthetic <span class="o">&lt;-</span> x_i <span class="o">+</span> lambda <span class="o">*</span> (x_j <span class="o">-</span> x_i)</span>
+<span class="cl"><span class="nf">rbind</span>(real_i <span class="o">=</span> x_i, real_j <span class="o">=</span> x_j, synthetic <span class="o">=</span> <span class="nf">round</span>(synthetic, <span class="m">2</span>))</span>
+<span class="cl"><span class="c1">#&gt;           amount  hour</span></span>
+<span class="cl"><span class="c1">#&gt; real_i     10.70 11.00</span></span>
+<span class="cl"><span class="c1">#&gt; real_j      4.86  6.00</span></span>
+<span class="cl"><span class="c1">#&gt; synthetic   9.72 10.16</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here \(\lambda\) came out at 0.168, so the synthetic fraud sits about 17% of the way from the first real fraud toward the second: amount 9.72 (between 10.70 and 4.86) and hour 10.16 (between 11 and 6). It is a plausible fraud the model has never seen, built entirely from two that really happened. Repeat this until the minority is as large as the majority and you have SMOTE.</p>
 </section>
 
 <section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Where does SMOTE belong?</h2>
+<h2>SMOTE vs plain oversampling</h2>
 
-<p>You have an imbalanced fraud dataset and want to use SMOTE. At which point do you apply it?</p>
+<p>Plain oversampling and SMOTE both end with a balanced training set. What does SMOTE do that plain oversampling does not?</p>
 <section class="exercise" data-exercise-id="Class-Imbalance-and-Resampling-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">To the whole dataset first, then split into train and test</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">To both the training and the test set, so they are balanced the same way</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">To the training fold only, after the split</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Correct. Split first, resample only the training data. The test set stays untouched and imbalanced, so its score is honest.</div><div class="lesson-qfb lesson-qfb-no">Never touch the test set. It must keep the real, imbalanced rates that production will show.</div></div>
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It removes majority rows to make room for the minority</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It weights the minority rows more heavily in the loss function without changing their count</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It creates new, in-between minority points instead of exact copies, giving the minority class more variety</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Oversampling stacks identical copies on the same spots; SMOTE interpolates new points between real neighbours, so the model sees a more varied minority region instead of a few points repeated.</div><div class="lesson-qfb lesson-qfb-no">That is class weighting, a different technique (we meet it at the end). SMOTE physically adds new rows to the data.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Oversample the training minority</h2>
+<h2>Balance the training set</h2>
 
-<p>Balance the training set by duplicating fraud rows up to the number of legit rows. There are 100 fraud rows but you need 1,800 more, so you must draw the same rows repeatedly. Fill in the blank that allows that.</p>
+<p>The simplest fix is plain oversampling: duplicate random minority rows until the two classes are even. The trick is that you must sample <strong>with replacement</strong>, so the same minority row can be picked more than once (there are only 38 frauds in the training set but you need thousands of copies). Fill in the blank.</p>
 <section class="exercise" data-exercise-id="Class-Imbalance-and-Resampling-step8" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="replace\s*=\s*TRUE"><textarea class="lesson-tryit-input" spellcheck="false">min_i    &lt;- which(train$class == &quot;fraud&quot;)
-n_needed &lt;- sum(train$class == &quot;legit&quot;) - length(min_i)   # 1900 - 100 = 1800
-extra    &lt;- sample(min_i, n_needed, replace = ____)        # draw duplicate rows
-train_up &lt;- train[c(seq_len(nrow(train)), extra), ]
-table(train_up$class)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. With replacement you can draw the same 100 fraud rows as many times as needed to reach 1,900.</span><span class="lesson-tryit-fb lesson-tryit-no">You need 1,800 draws from only 100 rows, so you must sample WITH replacement: replace = TRUE.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">min_i    &lt;- which(train$class == &quot;fraud&quot;)
-n_needed &lt;- sum(train$class == &quot;legit&quot;) - length(min_i)
-extra    &lt;- sample(min_i, n_needed, replace = TRUE)
-train_up &lt;- train[c(seq_len(nrow(train)), extra), ]
-table(train_up$class)</code></pre></details></div>
+<div class="lesson-tryit" data-check-regex="replace\s*=\s*TRUE"><textarea class="lesson-tryit-input" spellcheck="false">minority_rows &lt;- which(train$fraud == &quot;yes&quot;)
+n_needed      &lt;- sum(train$fraud == &quot;no&quot;) - length(minority_rows)  # how many copies to add
+set.seed(42)                                                       # so the draw is reproducible
+extra         &lt;- sample(minority_rows, n_needed, replace = ____)
+balanced      &lt;- train[c(seq_len(nrow(train)), extra), ]
+table(balanced$fraud)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: replace = TRUE lets the 38 real frauds be drawn thousands of times, filling the minority up to the majority count.</span><span class="lesson-tryit-fb lesson-tryit-no">You are drawing thousands of rows from only 38 frauds, so you must sample WITH replacement: set replace = TRUE.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">minority_rows &lt;- which(train$fraud == &quot;yes&quot;)
+n_needed      &lt;- sum(train$fraud == &quot;no&quot;) - length(minority_rows)
+set.seed(42)
+extra         &lt;- sample(minority_rows, n_needed, replace = TRUE)
+balanced      &lt;- train[c(seq_len(nrow(train)), extra), ]
+table(balanced$fraud)
+#&gt;
+#&gt;   no  yes
+#&gt; 6962 6962</code></pre></details></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="9" data-step-type="concept">
-<div class="lesson-step-eyebrow">Know your options</div>
-<h2>Beyond resampling</h2>
+<div class="lesson-step-eyebrow">Did it work?</div>
+<h2>Did it actually help?</h2>
 
-<p>Resampling is the most direct fix, but not the only one, and not always the best. Three alternatives to keep in your pocket:</p>
+<p>Now retrain on the balanced training set and grade it on the <strong>same untouched test set</strong> as before. If resampling works, the frauds the raw model missed should start getting caught.</p>
 
-<ol>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">model_bal <span class="o">&lt;-</span> <span class="nf">glm</span>(fraud <span class="o">~</span> amount <span class="o">+</span> hour <span class="o">+</span> n_declines <span class="o">+</span> foreign, data <span class="o">=</span> balanced, family <span class="o">=</span> binomial)</span>
+<span class="cl">pred_bal  <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">ifelse</span>(<span class="nf">predict</span>(model_bal, test, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>) <span class="o">&gt;</span> <span class="m">0.5</span>, <span class="s">&quot;yes&quot;</span>, <span class="s">&quot;no&quot;</span>),</span>
+<span class="cl">                    levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;no&quot;</span>, <span class="s">&quot;yes&quot;</span>))</span>
+<span class="cl"><span class="nf">table</span>(actual <span class="o">=</span> test<span class="o">$</span>fraud, predicted <span class="o">=</span> pred_bal)</span>
+<span class="cl"><span class="c1">#&gt;       predicted</span></span>
+<span class="cl"><span class="c1">#&gt; actual   no  yes</span></span>
+<span class="cl"><span class="c1">#&gt;    no  2150  836</span></span>
+<span class="cl"><span class="c1">#&gt;    yes    7    7</span></span>
+<span class="cl"><span class="nf">c</span>(recall <span class="o">=</span> <span class="nf">recall</span>(test<span class="o">$</span>fraud, pred_bal), precision <span class="o">=</span> <span class="nf">precision</span>(test<span class="o">$</span>fraud, pred_bal))</span>
+<span class="cl"><span class="c1">#&gt;      recall   precision</span></span>
+<span class="cl"><span class="c1">#&gt; 0.500000000 0.008303677</span></span>
+<span class="cl"><span class="nf">mean</span>(pred_bal <span class="o">==</span> test<span class="o">$</span>fraud)   <span class="c1"># accuracy, on purpose lower</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.719</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<li><strong>Class weights.</strong> Instead of changing the rows, tell the model to care more about the rare class. Many R models take a weight or cost argument (<code>randomForest(classwt = ...)</code>, <code>glm(weights = ...)</code>, <code>rpart(parms = list(loss = ...))</code>). No data is duplicated or discarded.</li>
+<p>Recall went from 0 to <strong>0.5</strong>: the model now catches 7 of the 14 frauds instead of none. But look at the cost. It flagged <strong>836 legitimate transactions</strong> as fraud, so precision is a dismal 0.8%, and overall accuracy fell from 99.5% to 72%.</p>
 
-<li><strong>Move the threshold.</strong> A classifier outputs a probability; the default cutoff of 0.5 is arbitrary. Lowering it flags more fraud without retraining at all. That is the whole of Lesson 3.</li>
-
-<li><strong>Recalibrate afterwards.</strong> Resampling changes the base rate the model thinks it sees, so its predicted probabilities come out too high. If you need trustworthy probabilities (not just a yes/no), you have to recalibrate. That is Lesson 5.</li>
-
-</ol>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Resampling is a training-time trick, not a metric. It can lift recall while distorting predicted probabilities and denting precision. Always judge the result on an untouched, still-imbalanced test set, using recall and precision, not accuracy.</div></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Resampling did its one job: it stopped the model ignoring the rare class, so recall jumped. It also bought that recall with a flood of false alarms. That trade is expected, not a bug. Later lessons recover the balance by moving the decision threshold (<a href="Thresholds-Under-Asymmetric-Costs.html">Lesson 3</a>) and calibrating the probabilities (<a href="Calibrating-Predicted-Probabilities.html">Lesson 5</a>). Resampling's job is just to make the minority visible in the first place.</div></div>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="concept">
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<div class="lesson-step-eyebrow">The dangerous mistake</div>
+<h2>The leak that flatters you</h2>
+
+<p>There is one way to use resampling that quietly ruins everything, and almost everyone does it once. The rule is simple: <strong>resample the training data only, after the split, and never let it touch the data you score on.</strong> Here is the correct order.</p>
+
+<p>Break that order, by balancing the whole dataset <em>before</em> you split, and duplicated or synthetic copies of the same frauds land in both train and test. The model effectively studies the answers to its own exam. Watch the reported recall balloon.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">11</span>)</span>
+<span class="cl">all_min <span class="o">&lt;-</span> <span class="nf">which</span>(tx<span class="o">$</span>fraud <span class="o">==</span> <span class="s">&quot;yes&quot;</span>)</span>
+<span class="cl">all_maj <span class="o">&lt;-</span> <span class="nf">which</span>(tx<span class="o">$</span>fraud <span class="o">==</span> <span class="s">&quot;no&quot;</span>)</span>
+<span class="cl">tx_bal  <span class="o">&lt;-</span> tx[<span class="nf">c</span>(<span class="nf">seq_len</span>(<span class="nf">nrow</span>(tx)),</span>
+<span class="cl">                <span class="nf">sample</span>(all_min, <span class="nf">length</span>(all_maj) <span class="o">-</span> <span class="nf">length</span>(all_min), replace <span class="o">=</span> <span class="kc">TRUE</span>)), ]</span>
+<span class="cl">leak_idx  <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">nrow</span>(tx_bal), <span class="m">0.7</span> <span class="o">*</span> <span class="nf">nrow</span>(tx_bal))       <span class="c1"># split AFTER balancing (wrong)</span></span>
+<span class="cl">leak_fit  <span class="o">&lt;-</span> <span class="nf">glm</span>(fraud <span class="o">~</span> amount <span class="o">+</span> hour <span class="o">+</span> n_declines <span class="o">+</span> foreign,</span>
+<span class="cl">                 data <span class="o">=</span> tx_bal[leak_idx, ], family <span class="o">=</span> binomial)</span>
+<span class="cl">leak_test <span class="o">&lt;-</span> tx_bal[<span class="o">-</span>leak_idx, ]</span>
+<span class="cl">leak_pred <span class="o">&lt;-</span> <span class="nf">factor</span>(<span class="nf">ifelse</span>(<span class="nf">predict</span>(leak_fit, leak_test, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>) <span class="o">&gt;</span> <span class="m">0.5</span>, <span class="s">&quot;yes&quot;</span>, <span class="s">&quot;no&quot;</span>),</span>
+<span class="cl">                    levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;no&quot;</span>, <span class="s">&quot;yes&quot;</span>))</span>
+<span class="cl"><span class="nf">recall</span>(leak_test<span class="o">$</span>fraud, leak_pred)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.7255426</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This pipeline reports <strong>73% recall</strong>, versus the honest <strong>50%</strong> you measured the correct way. That extra 23 points is pure illusion: copies of the same frauds sat on both sides of the split. Deploy this model on genuinely new transactions and it will quietly fall back to 50%, and you will have promised your boss a number you cannot deliver.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split first","sub":"hold out a test set before touching the classes"},{"title":"Resample the training rows only","sub":"oversample or SMOTE inside the training set"},{"title":"Fit the model","sub":"train on the rebalanced training data"},{"title":"Score the untouched test","sub":"evaluate on the real, imbalanced test set"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Before or after the split?</h2>
+
+<p>You want to use SMOTE on Priya's imbalanced data and report an honest recall. When do you apply it?</p>
+<section class="exercise" data-exercise-id="Class-Imbalance-and-Resampling-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Apply SMOTE to the whole dataset first, then split into train and test, so both sets are balanced</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Split into train and test first, then apply SMOTE to the training set only, and score on the untouched test</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Balance the test set too, otherwise the test recall is not comparable</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. The test set stays a real, imbalanced sample of the world, so its recall is an honest estimate. Only the training data is rebalanced.</div><div class="lesson-qfb lesson-qfb-no">The test set must mirror reality, which is imbalanced. Balancing it would flatter the score and hide how the model behaves on the true 191-to-1 mix it will actually face.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">In practice</div>
+<h2>In a real pipeline: themis inside a recipe</h2>
+
+<p>Doing the split-then-resample dance by hand is error-prone, and it gets worse under cross-validation, where the training set is itself re-split into folds and each fold must be resampled separately. In practice you let a pipeline handle it. In R, the <strong>themis</strong> package adds resampling as recipe steps, and the recipe is re-estimated on each fold's training rows only, so the leak above is impossible by construction.</p>
+
+<pre><code class="language-r">library(recipes)
+library(themis)     # SMOTE, upsampling and downsampling as recipe steps
+library(rsample)
+
+rec &lt;- recipe(fraud ~ ., data = train) |&gt;
+  step_smote(fraud)              # oversample the minority INSIDE the recipe
+
+# Under cross-validation the recipe is re-prepped on each fold's analysis
+# rows only; the held-out assessment rows are never resampled. Leak-safe.
+folds &lt;- vfold_cv(train, v = 5, strata = fraud)</code></pre>
+
+<p>Run that locally in a tidymodels workflow and you get the leak-safe version of everything above, with <code>step_downsample()</code> and <code>step_upsample()</code> available as alternatives. The mechanics are exactly what you built by hand; the recipe just makes the correct order automatic.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>When to reach for resampling, and when not to</h2>
+
+<p>Resampling is one tool, not the whole answer. Knowing its edges is what separates a practitioner from someone who reaches for SMOTE on reflex.</p>
+
+<p><strong>Reach for it when</strong></p>
+
+<ul>
+
+<li>Your model ignores the rare class entirely (recall near zero), and you have too few minority rows for the model to learn their pattern.</li>
+
+<li>You are using a model that has no built-in way to weight classes.</li>
+
+</ul>
+
+<p><strong>Prefer something else when</strong></p>
+
+<ul>
+
+<li>You mostly need to <em>rank</em> or set a cutoff: often just <strong>moving the decision threshold</strong> (<a href="Thresholds-Under-Asymmetric-Costs.html">Lesson 3</a>) recovers the rare class without inventing any rows.</li>
+
+<li>Your model supports <strong>class weights</strong> (<code>glm</code> weights, <code>randomForest</code>'s <code>classwt</code>, <code>xgboost</code>'s <code>scale_pos_weight</code>): weighting penalises minority mistakes without duplicating or synthesising data.</li>
+
+<li>You need trustworthy <strong>probabilities</strong>, not just labels. Resampling distorts the base rate, so a resampled model's "0.7" no longer means a 70% chance; you must recalibrate afterwards (<a href="Calibrating-Predicted-Probabilities.html">Lesson 5</a>).</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">SMOTE interpolates numerically, so it mangles non-continuous features: on a count like <code>n_declines</code> it will invent 0.83 of a declined attempt, and on a categorical code it produces values that mean nothing. It also weakens in high dimensions, where "between two neighbours" stops being meaningful. Treat resampling as a targeted fix for a real recall failure, not a default first move.</div></div>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Your model is drowning in false alarms</h2>
+
+<p>You SMOTE'd the training data and refit. Recall is now high, but the model flags 30% of all legitimate transactions as fraud, far too many to review. What is the best next move?</p>
+<section class="exercise" data-exercise-id="Class-Imbalance-and-Resampling-step14" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Add even more synthetic minority points to push recall higher still</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Balance the test set to match, so the false-positive rate looks reasonable</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Raise the decision threshold (or calibrate the probabilities) so only the most confident fraud alarms fire</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Resampling made the minority visible; now you tune precision against recall by moving the threshold or calibrating, which is exactly what Lessons 3 and 5 are for. That trims false alarms without discarding the recall you gained.</div><div class="lesson-qfb lesson-qfb-no">Never touch the test set. Its imbalance is the reality the model faces; balancing it just hides the false alarms instead of fixing them.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
 <ul>
 
-<li><a href="https://doi.org/10.1613/jair.953">Chawla et al. (2002), SMOTE: Synthetic Minority Over-sampling Technique, JAIR 16</a> - the original SMOTE paper, with the interpolation idea in full.</li>
+<li><a href="https://doi.org/10.1613/jair.953">Chawla, Bowyer, Hall & Kegelmeyer (2002), SMOTE, JAIR 16</a> - the original paper that defined the method you built by hand here.</li>
 
-<li><a href="https://doi.org/10.1109/TKDE.2008.239">He & Garcia (2009), Learning from Imbalanced Data, IEEE TKDE</a> - the standard survey of imbalance methods and metrics.</li>
+<li><a href="https://doi.org/10.1109/TKDE.2008.239">He & Garcia (2009), Learning from Imbalanced Data, IEEE TKDE</a> - the canonical survey of the whole problem: metrics, sampling, and cost-sensitive methods.</li>
 
-<li><a href="https://themis.tidymodels.org/">themis package documentation (tidymodels)</a> - the R package for step_smote, step_upsample and step_downsample.</li>
+<li><a href="https://themis.tidymodels.org/">themis (tidymodels)</a> - the R package for leak-safe resampling as recipe steps, including SMOTE, up- and down-sampling.</li>
 
-<li><a href="https://www.tidymodels.org/learn/models/sub-sampling/">tidymodels: subsampling for class imbalances</a> - the leak-free way to resample inside cross-validation.</li>
-
-<li><a href="https://doi.org/10.1093/pan/9.2.137">King and Zeng (2001), Logistic Regression in Rare Events Data</a> - why rare-event models need probability correction, the seed of Lesson 5.</li>
+<li><a href="https://doi.org/10.1093/jamia/ocac093">van den Goorbergh et al. (2022), The harm of class imbalance corrections, JAMIA</a> - honest counter-evidence that resampling can wreck probability calibration; read it before resampling by reflex.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="complete">
+<section class="lesson-step" data-step="16" data-step-type="complete">
 <h2>Lesson 2 complete</h2>
 
-<p>You saw why accuracy lies on a rare class, rebalanced a training set by over- and undersampling, met SMOTE's synthetic points, and, most importantly, learned to resample the training fold only so the fix never leaks into your test score.</p>
+<p>You saw the imbalance trap for real: a 99.5%-accurate model that caught 0 of 52 frauds, and the scorecard (recall and precision) that exposes it. You rebalanced the training data three ways, built a SMOTE point from scratch, and, most importantly, learned to resample the training data only, after the split, so you never lie to yourself about the result.</p>
 
-<p>You also saw the honest catch: resampling lifts recall but can cost precision and distort probabilities. That sets up the next two ideas.</p>
+<p>Resampling made the rare class visible, but it left you flooded with false alarms. That is the next problem to solve.</p>
 
-<p>Next, Lesson 3: Thresholds Under Asymmetric Costs. When a missed fraud costs far more than a false alarm, you do not touch the data at all, you move the decision cutoff, and let the cost of each mistake decide where it goes.</p>
+<p>Up next, Lesson 3: Thresholds Under Asymmetric Costs. When a missed fraud costs far more than a false alarm, the 0.5 cutoff is arbitrary. You will learn to move the decision threshold to the point that actually minimises what your errors cost.</p>
 </section>
 
 
@@ -1075,7 +1194,7 @@ table(train_up$class)</code></pre></details></div>
     }
   })();
   </script>
-  <script src="www/toc.min.js?h=db578404"></script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
   <!-- MathJax Script -->
   
   <script type="text/x-mathjax-config">
@@ -1083,7 +1202,11 @@ table(train_up$class)</code></pre></details></div>
       tex2jax: {
         inlineMath: [['$','$'], ['\\(','\\)']],
         displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
@@ -1093,13 +1216,13 @@ table(train_up$class)</code></pre></details></div>
 
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
-  <script src="www/webr-init.min.js?h=92549f4e"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=0f30f7dd"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
-  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <script src="www/lesson-mode.min.js?h=378afac5"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
        scripting doesn't compete with the critical path. Events fired before
        the loader lands get buffered on window.dataLayer and flushed once

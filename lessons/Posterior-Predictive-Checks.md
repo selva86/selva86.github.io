@@ -136,9 +136,9 @@ Step 1 of the recipe matters as much as step 2. Each fake run lives in its own p
 To invent one sixty-day run, the recipe first draws a fresh plausible mean from the posterior, then simulates sixty days with it. A colleague proposes a shortcut: fix the mean at its posterior best guess, 1.68, for all 3,000 fakes, and skip the drawing. What would the shortcut change?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Nothing: across 3,000 fakes the day-to-day randomness averages out to the same overall spread either way ::no The day-to-day noise is only one of the two doubts. The posterior still is not sure the mean IS 1.68 (it says 1.68 give or take 0.18), and the shortcut erases that second doubt entirely: every fake is built on exactly 1.68.
+- Nothing: across 3,000 fakes the day-to-day randomness averages out to the same overall spread either way
 - The fakes would be slightly too alike: they would carry the day-to-day noise but none of the remaining doubt about the mean, making the check overconfident, and more so the smaller the dataset ::ok Right. Sixty days pin the mean down well (give or take 0.18), so here the damage is small. But with six days of data the posterior would be wide, and plug-in fakes would be far too well-behaved, flagging healthy models as misfits and excusing sick ones.
-- Every fake run would come out identical, since the only random step was removed ::no Only the parameter draw was removed. Each fake still simulates sixty noisy days around 1.68, so the runs still differ from one another day by day.
+- Every fake run would come out identical, since the only random step was removed
 - The shortcut has it backwards: each individual day, not each run, should get its own mean drawn from the posterior ::no One invented run plays out under ONE state of the world: a single mean governs all sixty of its days, just as one true demand level governed Asha's real two months. Redrawing the mean every day would inject parameter doubt where day-to-day noise belongs.
 
 === step === concept
@@ -155,10 +155,10 @@ In words: the share of invented datasets whose statistic is at least as large as
 
 Feel it below. The histogram is \(T\), the number of zeros, across two thousand invented datasets; the red line is Asha's observed 15. Toggle which fitted model does the inventing and watch where the line stands.
 
-::widget ppc-overlay {}
-
 [NOTE]
 The code beneath the widget runs the check in a quick plug-in form, fixing the parameter at its single best estimate, which is why its p-values differ from ours in the second decimal. You will run the full version, posterior draws and all, two steps from now; with sixty days of data the difference is cosmetic.
+
+::widget ppc-overlay {}
 
 === step === concept
 ::eyebrow The fix
@@ -265,8 +265,6 @@ round(p_max, 2)
 
 Step back and look at what you just did, because it was not a one-off trick. It was one full turn of the loop that organizes all serious Bayesian practice:
 
-::widget process-flow {"steps":[{"title":"Model","sub":"write the story: a likelihood for the data plus priors for its parameters"},{"title":"Fit","sub":"conjugate math or MCMC turns prior plus data into a posterior"},{"title":"Check","sub":"sampling diagnostics first, then posterior predictive checks"},{"title":"Expand","sub":"fix what the check exposed, then go around again"}]}
-
 You wrote a Normal model and fit it with Lesson 2 machinery. You checked it two ways: the sampling diagnostics had nothing to catch (the update was closed-form), and the posterior predictive check caught everything (negative kits, missing blanks, p = 0.03). You expanded: swapped the likelihood for a Poisson, refit, rechecked, and the new model survived. In real work the loop keeps turning, because surviving today's suite closes nothing: the Poisson makes its own strong promise, that the variance of daily counts equals their mean, and if kit orders arrive in weekend bursts that promise breaks. The same machinery with \(T\) = the variance-to-mean ratio would catch it on the next turn.
 
 The loop also scales. Lesson 5 ended by promising that the hierarchical model would be made to simulate months of its own, and that is exactly this machinery pointed at a bigger model: draw \(\mu_0\), \(\tau\) and the eight family means from their joint posterior, simulate a full 121-order month, compute per-family statistics, and compare against the month Asha actually had. Checking is the same idea at every scale, which is why it earned a permanent stage in the loop.
@@ -274,15 +272,17 @@ The loop also scales. Lesson 5 ended by promising that the hierarchical model wo
 With Stan-based tools the whole lesson collapses into one call. Read it now, run it when you have a local R with Stan installed:
 
 ```r-static
-# The same check with Stan tooling (local R; Stan cannot run in a browser session)
-library(brms)
-fit <- brm(kits ~ 1, data = data.frame(kits = y), family = poisson())
-pp_check(fit, type = "hist")                                  # replicate overlays
-pp_check(fit, type = "stat", stat = function(d) sum(d == 0))  # the zeros statistic
+# The same check with Stan tooling (local R; Stan cannot run in a browser session).
+# Locally you would attach the brms package first, then:
+fit <- brms::brm(kits ~ 1, data = data.frame(kits = y), family = poisson())
+brms::pp_check(fit, type = "hist")                                  # replicate overlays
+brms::pp_check(fit, type = "stat", stat = function(d) sum(d == 0))  # the zeros statistic
 ```
 
 [WARNING]
 Three honest limits before you lean on this tool. First, the same sixty days were used twice, once to fit and once to judge, so the check is lenient: a model molded to a dataset finds that dataset easier to reproduce. Second, because of that leniency, a PPC p-value is not a classical p-value: there is no 0.05 ritual and no rejection ceremony, only a reading (mid-range: feature reproduced; either tail: investigate). Third, a pass is the absence of one specific failure, never a certificate: a feature you did not test can still be badly wrong. The cure for the double use of data is to stop reusing it, and that is exactly where this course goes next.
+
+::widget process-flow {"steps":[{"title":"Model","sub":"write the story: a likelihood for the data plus priors for its parameters"},{"title":"Fit","sub":"conjugate math or MCMC turns prior plus data into a posterior"},{"title":"Check","sub":"sampling diagnostics first, then posterior predictive checks"},{"title":"Expand","sub":"fix what the check exposed, then go around again"}]}
 
 === step === quiz
 ::eyebrow Check yourself
@@ -291,8 +291,8 @@ Three honest limits before you lean on this tool. First, the same sixty days wer
 A colleague re-runs the suite under the Normal model, looks only at the mean statistic, reads p = 0.55, and announces: "The model has passed a posterior predictive check, so it is validated." What is the sharpest correction?
 
 ::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- He should require p above 0.95 before declaring a pass, and 0.55 falls short ::no A p near 1 is not a stronger pass; it is the other alarm. It would mean the fakes systematically overshoot the real value, which is misfit in the opposite direction. The comfortable reading is the middle, and 0.55 is squarely there.
-- He is right: 0.55 is close to 0.5, the ideal value, and one clear pass is enough to certify a model ::no A check can expose a model, never certify one. And this particular statistic could not even expose it: the model was fit to match the mean, so passing on the mean was guaranteed from the start.
+- He should require p above 0.95 before declaring a pass, and 0.55 falls short
+- He is right: 0.55 is close to 0.5, the ideal value, and one clear pass is enough to certify a model
 - The mean is a toothless statistic here: the model was tuned to reproduce it, so the pass was near-automatic and says nothing about the zeros, where the same model already failed at p = 0.03. A pass is the absence of one failure, never proof ::ok Right, on both counts. Power comes from statistics the model was not fit to match, and no collection of passes ever adds up to a certificate; the zeros verdict against the Normal still stands.
 - The check is meaningless either way, because the same sixty days were used to fit and to judge, so every statistic will always pass ::no The double use makes checks lenient, not blind. The zeros statistic convicted this very model at p = 0.03 on those same sixty days. Reused data softens the judge; it does not put the judge to sleep.
 

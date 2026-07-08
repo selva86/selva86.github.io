@@ -3,8 +3,8 @@
   <head>
     <title>Unsupervised Learning Lesson 6: Cluster Validation and Stability</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Validate clustering in R from scratch: read a silhouette, use the gap statistic to test whether clusters exist at all, and check stability with the bootstrap.">
-    <meta name="Keywords" content="cluster validation in R, silhouette, gap statistic, clusGap, cluster stability, bootstrap clustering, choosing k, internal validation, unsupervised learning, clusterboot">
+    <meta name="Description" content="Validate clusters in R: the silhouette for cohesion and separation, the gap statistic versus a null, and bootstrap stability to judge whether clusters are real.">
+    <meta name="Keywords" content="cluster validation in R, silhouette, gap statistic, cluster stability, bootstrap clustering, choosing k, unsupervised learning, internal validation, are clusters real">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Unsupervised Learning Lesson 6: Cluster Validation and Stability">
-    <meta property="og:description" content="Validate clustering in R from scratch: read a silhouette, use the gap statistic to test whether clusters exist at all, and check stability with the bootstrap.">
+    <meta property="og:description" content="Validate clusters in R: the silhouette for cohesion and separation, the gap statistic versus a null, and bootstrap stability to judge whether clusters are real.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Cluster-Validation-and-Stability.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Cluster-Validation-and-Stability.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Unsupervised Learning Lesson 6: Cluster Validation and Stability">
-    <meta name="twitter:description" content="Validate clustering in R from scratch: read a silhouette, use the gap statistic to test whether clusters exist at all, and check stability with the bootstrap.">
+    <meta name="twitter:description" content="Validate clusters in R: the silhouette for cohesion and separation, the gap statistic versus a null, and bootstrap stability to judge whether clusters are real.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Cluster-Validation-and-Stability.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Unsupervised Learning Lesson 6: Cluster Validation and Stability",
-      "description": "Validate clustering in R from scratch: read a silhouette, use the gap statistic to test whether clusters exist at all, and check stability with the bootstrap.",
+      "description": "Validate clusters in R: the silhouette for cohesion and separation, the gap statistic versus a null, and bootstrap stability to judge whether clusters are real.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Cluster-Validation-and-Stability.html",
-      "datePublished": "2026-07-01",
-      "dateModified": "2026-07-01",
+      "datePublished": "2026-07-07",
+      "dateModified": "2026-07-07",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -595,7 +595,7 @@
 
     
     
-        <link rel="stylesheet" href="www/lesson-mode.min.css?h=5f5f1fcb">
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
     <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
   </head>
 
@@ -679,163 +679,457 @@
 <div class="lesson-step-eyebrow">Lesson 6 of 8</div>
 <h2>Cluster Validation and Stability</h2>
 
-<p>Back in Lesson 3, k-means sorted Maria's 90 coffee-shop regulars into three neat loyalty tiers: the occasional crowd, the regulars, and the devotees. Lessons 4 and 5 gave her other ways to draw the same map. Every one of them handed back tidy groups.</p>
+<p>Dr. Nadia, an entomologist, measured 150 beetles. For each one she wrote down two numbers with calipers: its body length and its antenna length, both in millimetres. She ran k-means, asked for three groups, and got three tidy clusters back. She is about to write "our beetles fall into three species" in her paper.</p>
 
-<p>Here is the uncomfortable question none of those methods can answer for her: <strong>are the three tiers real?</strong> k-means will just as happily carve three tiers out of pure random noise. It never tells you whether it found structure or invented it. This lesson is the reality check, the set of tools that tell genuine groups from a pattern the algorithm merely painted on.</p>
+<p>But here is the uncomfortable question this lesson answers: k-means would have handed her three tidy groups even if the beetles had no species at all. Finding clusters is easy; the algorithm always finds them. Knowing whether they are <strong>real</strong> is the hard part, and it is a separate job.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Explain why a clustering algorithm always returns groups, even when there are none, so a clustering must be validated rather than trusted</li>
+<li>Explain why a tidy clustering is not evidence that the groups are real</li>
 
-<li>Read a silhouette as a validation score, and use the gap statistic to test whether clusters exist at all, k=1 included</li>
+<li>Score cohesion and separation with the <strong>silhouette</strong>, and use it to pick the number of clusters</li>
 
-<li>Check whether your clusters are stable by resampling the data and measuring how often the same groups come back</li>
+<li>Test for structure at all with the <strong>gap statistic</strong>, which can vote "there are no clusters"</li>
+
+<li>Measure <strong>stability</strong> by resampling, and combine all three into an honest verdict</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can run R and read its output, and you have done <a href="k-Means-and-Choosing-k.html">Lesson 3 on k-means</a> (clustering, distance, scaling, the within-cluster spread W, the elbow, and the silhouette). <a href="Gaussian-Mixture-Models.html">Lesson 5 on Gaussian mixtures</a> helps but is not required. Every symbol is re-defined as it appears.</p>
+<p><strong>Prerequisites:</strong> the earlier lessons in this course, where you learned to run a clustering (k-means in Lesson 3, hierarchical and density in Lesson 4, Gaussian mixtures in Lesson 5). You should be comfortable running R and reading its output, and know what a mean, a standard deviation, a Euclidean distance, and a scatter plot are. No linear algebra is assumed; every symbol is defined as it appears.</p>
 
-<p>The scatter below is what we are putting on trial: Maria's customers, coloured by the tier k-means gave them.</p>
-<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":3,"y":4.0,"fill":"occasional"},{"x":5,"y":4.4,"fill":"occasional"},{"x":4,"y":3.9,"fill":"occasional"},{"x":6,"y":4.3,"fill":"occasional"},{"x":12,"y":5.1,"fill":"regular"},{"x":14,"y":4.8,"fill":"regular"},{"x":13,"y":5.3,"fill":"regular"},{"x":11,"y":4.9,"fill":"regular"},{"x":19,"y":8.6,"fill":"devotee"},{"x":21,"y":9.0,"fill":"devotee"},{"x":20,"y":8.9,"fill":"devotee"},{"x":22,"y":8.7,"fill":"devotee"}],"geoms":["point"],"x":"visits","y":"spend"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The problem</div>
-<h2>Clustering always gives an answer</h2>
-
-<p>Ask k-means for three groups and it will find three groups. That is the trap: it is a machine that partitions, and a partition exists for any data you feed it, structured or not. To feel how empty that guarantee is, let us cluster data we KNOW has no groups, 90 points scattered completely at random inside a square.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
-<span class="cl">noise <span class="o">&lt;-</span> <span class="nf">matrix</span>(<span class="nf">runif</span>(<span class="m">180</span>), ncol <span class="o">=</span> <span class="m">2</span>)     <span class="c1"># 90 points, thrown down at random - NO real groups</span></span>
-<span class="cl"><span class="nf">table</span>(<span class="nf">kmeans</span>(noise, centers <span class="o">=</span> <span class="m">3</span>, nstart <span class="o">=</span> <span class="m">10</span>)<span class="o">$</span>cluster)</span>
-<span class="cl"><span class="c1">#&gt; </span></span>
-<span class="cl"><span class="c1">#&gt;  1  2  3</span></span>
-<span class="cl"><span class="c1">#&gt; 29 31 30</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Three tidy groups, all a similar size. If you coloured them on a scatter they would look like three tiers, exactly like Maria's picture on the previous step. But we built this data ourselves: there is nothing there. The tiers are an artefact of asking for three.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A clustering algorithm cannot tell you whether its groups are real. It optimises a number (for k-means, the within-cluster spread W), and it will optimise that number on noise just as eagerly as on genuine structure. Validation is a separate job, and it is yours.</div></div>
-
-<p>So we need outside evidence. The rest of this lesson builds three independent checks: <strong>the silhouette</strong> (are the groups well separated?), <strong>the gap statistic</strong> (is there any grouping at all?), and <strong>stability</strong> (do the groups survive a reshuffle?). We run all three on Maria's tiers and see whether they hold up.</p>
-</section>
-
-<section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">Check 1</div>
-<h2>The silhouette: how well does each point fit?</h2>
-
-<p>You met the silhouette in Lesson 3 as a way to pick k. It is also the most direct internal check on a finished clustering, because it scores every single point on how well it sits in its assigned group.</p>
-
-<p>For one customer \(i\), let \(a(i)\) be their average distance to the other members of their OWN cluster (how snug the fit is), and \(b(i)\) their average distance to the members of the nearest OTHER cluster (how far the next-best group is). The silhouette width is</p>
-
-<p>\[ s(i) = \frac{b(i) - a(i)}{\max\big(a(i),\, b(i)\big)} \]</p>
-
-<p>It runs from \(-1\) to \(1\): near \(1\) the point sits deep inside its own group and far from any other (a clean fit); near \(0\) it straddles the border between two groups; <strong>negative</strong> means it is on average closer to a neighbouring group than to its own, a sign it may be in the wrong cluster. Two numbers turn this into a verdict: the <strong>overall average</strong> width (one score for the whole clustering) and the <strong>per-cluster average</strong> width (which reveals a single weak group that a good overall score would hide). As a rough guide (Kaufman and Rousseeuw), an overall width above 0.7 is strong, 0.5 to 0.7 is reasonable, and below 0.25 means no real structure.</p>
-
-<p>First rebuild Maria's data, since each lesson runs in a fresh R session, then score the k-means clustering.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">42</span>)</span>
-<span class="cl">make_group <span class="o">&lt;-</span> <span class="kr">function</span>(n, v, s) <span class="nf">data.frame</span>(</span>
-<span class="cl">  visits <span class="o">=</span> <span class="nf">round</span>(<span class="nf">pmax</span>(<span class="nf">rnorm</span>(n, v, <span class="m">1.6</span>), <span class="m">1</span>), <span class="m">1</span>),   <span class="c1"># coffees per month</span></span>
-<span class="cl">  spend  <span class="o">=</span> <span class="nf">round</span>(<span class="nf">pmax</span>(<span class="nf">rnorm</span>(n, s, <span class="m">0.5</span>), <span class="m">1</span>), <span class="m">2</span>)    <span class="c1"># average dollars per visit</span></span>
-<span class="cl">)</span>
-<span class="cl">cafe <span class="o">&lt;-</span> <span class="nf">rbind</span>(<span class="nf">make_group</span>(<span class="m">30</span>,  <span class="m">4</span>, <span class="m">4.2</span>),    <span class="c1"># occasional</span></span>
-<span class="cl">              <span class="nf">make_group</span>(<span class="m">30</span>, <span class="m">13</span>, <span class="m">5.0</span>),    <span class="c1"># regulars</span></span>
-<span class="cl">              <span class="nf">make_group</span>(<span class="m">30</span>, <span class="m">20</span>, <span class="m">8.8</span>))    <span class="c1"># devotees</span></span>
-<span class="cl">cafe <span class="o">&lt;-</span> cafe[<span class="nf">sample</span>(<span class="nf">nrow</span>(cafe)), ]        <span class="c1"># shuffle so row order hides the groups</span></span>
-<span class="cl"><span class="nf">rownames</span>(cafe) <span class="o">&lt;-</span> <span class="kc">NULL</span></span>
-<span class="cl">x  <span class="o">&lt;-</span> <span class="nf">scale</span>(cafe)                         <span class="c1"># standardise: visits and spend get an equal say</span></span>
-<span class="cl">km <span class="o">&lt;-</span> <span class="nf">kmeans</span>(x, centers <span class="o">=</span> <span class="m">3</span>, nstart <span class="o">=</span> <span class="m">25</span>)</span>
-<span class="cl">km<span class="o">$</span>size</span>
-<span class="cl"><span class="c1">#&gt; [1] 30 30 30</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(cluster)                          <span class="c1"># ships with R; provides silhouette()</span></span>
-<span class="cl">sil <span class="o">&lt;-</span> <span class="nf">silhouette</span>(km<span class="o">$</span>cluster, <span class="nf">dist</span>(x))</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">mean</span>(sil[, <span class="s">&quot;sil_width&quot;</span>]), <span class="m">2</span>)        <span class="c1"># overall average silhouette width</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 0.74</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(sil)<span class="o">$</span>clus.avg.widths, <span class="m">2</span>)    <span class="c1"># average width within each tier</span></span>
-<span class="cl"><span class="c1">#&gt;    1    2    3</span></span>
-<span class="cl"><span class="c1">#&gt; 0.67 0.81 0.73</span></span>
-<span class="cl"><span class="nf">mean</span>(sil[, <span class="s">&quot;sil_width&quot;</span>] <span class="o">&lt;</span> <span class="m">0</span>)              <span class="c1"># share of customers who fit better elsewhere</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 0</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>An overall width around 0.74 is a strong, well-separated clustering (comfortably past the 0.7 mark), and no customer has a negative width, so nobody is obviously misfiled. Notice the per-tier line, though: one tier (0.67) is a little less tight than the other two (0.81 and 0.73). That is the silhouette earning its keep, pointing straight at the group whose separation is weakest.</p>
-
-<p>The interactive below lets you feel the silhouette across values of k. Switch to the <strong>silhouette</strong> view and drag the k marker: it peaks at the k with the cleanest separation, and slumps when you ask for too many or too few groups.</p>
+<p>The panel above previews the two curves you will learn to read: an elbow that bends at the right number of clusters, and silhouette bars that peak there. Move the slider to get a feel for them, then let us build the real thing on Nadia's beetles.</p>
 <div class="lesson-widget" data-widget-type="cluster-validate" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where we are</div>
+<h2>Every method hands you clusters</h2>
+
+<p>Over the last three lessons you clustered data three different ways: k-means split it into round groups (Lesson 3), hierarchical and density methods found groups of other shapes (Lesson 4), and Gaussian mixtures gave soft, probabilistic memberships (Lesson 5). They disagree on the how, but they share one habit: <strong>every one of them returns clusters, whatever you feed it.</strong> Ask for three groups and you get three groups. The algorithm never says "actually, there are no groups here."</p>
+
+<p>So the real question, and the whole subject of this lesson, is: once you have a clustering, how do you know it reflects real structure in the data rather than lines the algorithm drew through a shapeless cloud?</p>
+
+<p>Let us meet Nadia's data. We simulate the beetles as three species so that, at the very end, we can check the verdict against the truth. Real data never comes with an answer key, which is exactly why the validation tools in this lesson exist.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Dr. Nadia&#39;s 150 beetles: body length and antenna length, in millimetres.</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">42</span>)</span>
+<span class="cl">blob <span class="o">&lt;-</span> <span class="kr">function</span>(n, body_mu, antenna_mu, spread)</span>
+<span class="cl">  <span class="nf">data.frame</span>(body    <span class="o">=</span> <span class="nf">rnorm</span>(n, body_mu,    spread),</span>
+<span class="cl">             antenna <span class="o">=</span> <span class="nf">rnorm</span>(n, antenna_mu, spread))</span>
+<span class="cl">beetles <span class="o">&lt;-</span> <span class="nf">rbind</span>(<span class="nf">blob</span>(<span class="m">50</span>,  <span class="m">9</span>,  <span class="m">5.5</span>, <span class="m">0.8</span>),   <span class="c1"># small body, short antenna</span></span>
+<span class="cl">                 <span class="nf">blob</span>(<span class="m">50</span>, <span class="m">15</span>,  <span class="m">9.5</span>, <span class="m">0.9</span>),   <span class="c1"># large body, long antenna</span></span>
+<span class="cl">                 <span class="nf">blob</span>(<span class="m">50</span>, <span class="m">10</span>, <span class="m">12.0</span>, <span class="m">0.9</span>))   <span class="c1"># small body, long antenna</span></span>
+<span class="cl">beetles<span class="o">$</span>body    <span class="o">&lt;-</span> <span class="nf">round</span>(beetles<span class="o">$</span>body, <span class="m">1</span>)</span>
+<span class="cl">beetles<span class="o">$</span>antenna <span class="o">&lt;-</span> <span class="nf">round</span>(beetles<span class="o">$</span>antenna, <span class="m">1</span>)</span>
+<span class="cl">truth <span class="o">&lt;-</span> <span class="nf">rep</span>(<span class="nf">c</span>(<span class="s">&quot;A&quot;</span>, <span class="s">&quot;B&quot;</span>, <span class="s">&quot;C&quot;</span>), each <span class="o">=</span> <span class="m">50</span>)   <span class="c1"># the answer key; set aside until the end</span></span>
+<span class="cl"><span class="nf">head</span>(beetles, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;   body antenna</span></span>
+<span class="cl"><span class="c1">#&gt; 1 10.1     5.8</span></span>
+<span class="cl"><span class="c1">#&gt; 2  8.5     4.9</span></span>
+<span class="cl"><span class="c1">#&gt; 3  9.3     6.8</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because there are only two measurements, we can simply plot every beetle and look. How many groups do you see?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(ggplot2)</span>
+<span class="cl"><span class="nf">ggplot</span>(beetles, <span class="nf">aes</span>(body, antenna)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_point</span>(size <span class="o">=</span> <span class="m">2</span>, alpha <span class="o">=</span> <span class="m">0.8</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(x <span class="o">=</span> <span class="s">&quot;body length (mm)&quot;</span>, y <span class="o">=</span> <span class="s">&quot;antenna length (mm)&quot;</span>,</span>
+<span class="cl">       title <span class="o">=</span> <span class="s">&quot;Nadia&#39;s 150 beetles - how many groups do you see?&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The clustering</div>
+<h2>Nadia asks for three groups</h2>
+
+<p>Nadia standardizes the two columns (so body length, which has bigger numbers, does not dominate the distance) and runs k-means for three clusters.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># scale() puts each column on a mean-0, standard-deviation-1 footing.</span></span>
+<span class="cl">x <span class="o">&lt;-</span> <span class="nf">scale</span>(beetles)</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
+<span class="cl">km <span class="o">&lt;-</span> <span class="nf">kmeans</span>(x, centers <span class="o">=</span> <span class="m">3</span>, nstart <span class="o">=</span> <span class="m">25</span>)   <span class="c1"># ask for 3 groups</span></span>
+<span class="cl">km<span class="o">$</span>size                                      <span class="c1"># how many beetles per group</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 50 50 50</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three clean groups of fifty. Coloured in, it looks convincing:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(ggplot2)</span>
+<span class="cl">plotdf <span class="o">&lt;-</span> beetles</span>
+<span class="cl">plotdf<span class="o">$</span>cluster <span class="o">&lt;-</span> <span class="nf">factor</span>(km<span class="o">$</span>cluster)</span>
+<span class="cl"><span class="nf">ggplot</span>(plotdf, <span class="nf">aes</span>(body, antenna, colour <span class="o">=</span> cluster)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_point</span>(size <span class="o">=</span> <span class="m">2</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(x <span class="o">=</span> <span class="s">&quot;body length (mm)&quot;</span>, y <span class="o">=</span> <span class="s">&quot;antenna length (mm)&quot;</span>,</span>
+<span class="cl">       colour <span class="o">=</span> <span class="s">&quot;k-means group&quot;</span>, title <span class="o">=</span> <span class="s">&quot;The three groups k-means returned&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That picture is exactly what makes clustering dangerous: it looks like a result. Before we believe it, we have to rule out the possibility that k-means would draw the same tidy picture on data with no groups at all.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>The same three groups, from nothing</h2>
+
+<p>Let us feed k-means a <strong>structureless cloud</strong>: 150 points spread uniformly over the same two ranges, with no groups planted anywhere. If tidy output meant real groups, k-means should struggle here. It does not.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># A cloud with NO structure: uniform over the same ranges as the beetles.</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">noise <span class="o">&lt;-</span> <span class="nf">apply</span>(x, <span class="m">2</span>, <span class="kr">function</span>(col) <span class="nf">runif</span>(<span class="m">150</span>, <span class="nf">min</span>(col), <span class="nf">max</span>(col)))</span>
+<span class="cl">kmn <span class="o">&lt;-</span> <span class="nf">kmeans</span>(noise, centers <span class="o">=</span> <span class="m">3</span>, nstart <span class="o">=</span> <span class="m">25</span>)<span class="o">$</span>cluster</span>
+<span class="cl"><span class="nf">table</span>(kmn)                     <span class="c1"># three full groups, from data with no groups</span></span>
+<span class="cl"><span class="c1">#&gt; kmn</span></span>
+<span class="cl"><span class="c1">#&gt;  1  2  3</span></span>
+<span class="cl"><span class="c1">#&gt; 57 47 46</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(ggplot2)</span>
+<span class="cl">noisedf <span class="o">&lt;-</span> <span class="nf">as.data.frame</span>(noise)</span>
+<span class="cl">noisedf<span class="o">$</span>cluster <span class="o">&lt;-</span> <span class="nf">factor</span>(kmn)</span>
+<span class="cl"><span class="nf">ggplot</span>(noisedf, <span class="nf">aes</span>(body, antenna, colour <span class="o">=</span> cluster)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_point</span>(size <span class="o">=</span> <span class="m">2</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(colour <span class="o">=</span> <span class="s">&quot;k-means group&quot;</span>, title <span class="o">=</span> <span class="s">&quot;Three tidy groups, carved out of pure noise&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">k-means partitioned a shapeless cloud into three neat regions that look just as convincing as Nadia's. A clustering is not evidence of structure. Something has to test the structure independently, and that is what the rest of this lesson builds.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Reading the two numbers</h2>
+<h2>What can you conclude?</h2>
 
-<p>You cluster a new dataset and get an <strong>overall</strong> average silhouette width of 0.62, which looks healthy. But the <strong>per-cluster</strong> widths are 0.81, 0.79, and 0.06. What is the most useful reading?</p>
-<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The clustering is uniformly good; 0.62 is above the 0.5 "reasonable" line, so all three groups are well separated</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Two groups are well separated but the third (width 0.06) is essentially not a real cluster; its members sit on the border and would be worth re-examining</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A width of 0.06 is fine because it is still positive, and only negative widths signal a problem</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. The per-cluster widths are exactly what the overall average conceals. A 0.06 group is not separated from its neighbours, so the honest move is to question that third group, maybe the true k is 2.</div><div class="lesson-qfb lesson-qfb-no">Positive but near zero means "sitting on the boundary," not "well fitted." You reserve alarm for negatives, but a near-zero cluster is still a weak, questionable group.</div></div>
+<p>You run k-means with <code>centers = 3</code> on a dataset and get three clean-looking groups of roughly equal size. Based on that alone, what can you conclude?</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There are three real groups in the data</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing yet: k-means returns k groups on any data, even noise, so the tidiness has to be validated before you trust it</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The clustering failed, because real groups never come out this evenly</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The clustering is a hypothesis, not a finding. Silhouette, the gap statistic, and stability are the tests that turn it into one.</div><div class="lesson-qfb lesson-qfb-no">Even sizes are not a failure signal. The point is the opposite: k-means produces clean, balanced-looking groups even when none exist.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">Check 2</div>
-<h2>The gap statistic: is there any grouping at all?</h2>
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 1: quality</div>
+<h2>Silhouette: is each point in the right group?</h2>
 
-<p>The silhouette has a blind spot. It is only defined for two or more clusters, because \(b(i)\), the distance to the nearest OTHER group, needs another group to exist. So it can rank k=2 against k=3, but it can never test the most important hypothesis of all: <strong>k=1, there are no groups</strong>. That is the gap statistic's job.</p>
+<p>The first tool asks, for <strong>every single beetle</strong>, a simple question: is it closer to the beetles in its own group than to the beetles in the nearest neighbouring group? A point that sits snugly inside its own group and far from every other group is well clustered. A point wedged on a border is not.</p>
 
-<p>The idea is a comparison against a null. Recall from Lesson 3 the within-cluster spread \(W_k\), the total squared distance from every point to its cluster centre; it always shrinks as k grows. The gap statistic asks: does \(W_k\) shrink FASTER for our data than it would for structureless data spread over the same range? It measures that against a <strong>uniform reference</strong> (points scattered at random across the data's range, the same kind of structureless noise we built two steps ago) and defines</p>
+<p>To make that precise we need two average distances for a beetle \(i\):</p>
 
-<p>\[ \mathrm{Gap}(k) = \underbrace{E_n^*\!\left[\log W_k\right]}_{\text{null: averaged over random references}} - \; \log W_k \]</p>
+<ul>
 
-<p>where \(E_n^*[\log W_k]\) is the average \(\log W_k\) across many random reference datasets, and \(\log W_k\) is the value for your real data. A big gap means your data clusters much more tightly than random noise would; a gap near zero means it is no better than noise. You pick k by the <strong>one-standard-error rule</strong>: the smallest k whose gap is within one standard error of the following one,</p>
+<li>\(a(i)\) = the average distance from beetle \(i\) to the <strong>other beetles in its own cluster</strong>. Small \(a(i)\) means its group is tight around it (good <strong>cohesion</strong>).</li>
 
-<p>\[ \text{choose the smallest } k \text{ such that } \mathrm{Gap}(k) \ge \mathrm{Gap}(k+1) - s_{k+1} \]</p>
+<li>\(b(i)\) = the average distance from beetle \(i\) to the beetles of the <strong>single nearest other cluster</strong>. Large \(b(i)\) means the next group is far away (good <strong>separation</strong>).</li>
 
-<p>where \(s_{k+1}\) is the standard error of the reference average at \(k+1\). Crucially, this rule can land on <strong>k=1</strong>, its way of saying "stop, there are no real clusters here." The <code>clusGap()</code> function in the <code>cluster</code> package does the whole computation, references and all.</p>
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A well-clustered point has small \(a(i)\) and large \(b(i)\): close to its own, far from the rest. The silhouette is just the gap between those two, scaled so it always lands between -1 and +1.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The formula</div>
+<h2>The silhouette score, shown on a point</h2>
+
+<p>Rousseeuw's silhouette combines those two distances into one number for each point:</p>
+
+<p>\[ s(i) = \frac{b(i) - a(i)}{\max\{\,a(i),\, b(i)\,\}} \]</p>
+
+<p>The numerator \(b(i) - a(i)\) is "how much farther the nearest other group is than my own group." Dividing by the larger of the two, \(\max\{a(i), b(i)\}\), pins the result to the range \(-1 \le s(i) \le 1\). Read it like this: near <strong>+1</strong> the point is deep inside its own cluster; near <strong>0</strong> it sits on the border between two clusters; <strong>negative</strong> means it is actually closer to a neighbouring cluster than to its own, a sign it was probably put in the wrong group.</p>
+
+<p>Rather than take that on faith, compute it on two concrete points. First, a beetle that is comfortably in its own group:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">a <span class="o">&lt;-</span> <span class="m">0.5</span>      <span class="c1"># average distance to its OWN cluster (close)</span></span>
+<span class="cl">b <span class="o">&lt;-</span> <span class="m">2.0</span>      <span class="c1"># average distance to the NEAREST other cluster (far)</span></span>
+<span class="cl">(b <span class="o">-</span> a) <span class="o">/</span> <span class="nf">max</span>(a, b)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.75</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A score of 0.75: firmly in its own cluster. Now a beetle that is closer to a neighbour than to its own group:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">a <span class="o">&lt;-</span> <span class="m">2.0</span>      <span class="c1"># far from its own cluster</span></span>
+<span class="cl">b <span class="o">&lt;-</span> <span class="m">0.8</span>      <span class="c1"># but close to a neighbouring one</span></span>
+<span class="cl">(b <span class="o">-</span> a) <span class="o">/</span> <span class="nf">max</span>(a, b)</span>
+<span class="cl"><span class="c1">#&gt; [1] -0.6</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A negative score. This point is almost certainly assigned to the wrong cluster. Averaging \(s(i)\) over every point gives the <strong>average silhouette width</strong>, a single 0-to-1 score for the whole clustering.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Complete the silhouette</h2>
+
+<p>A beetle sits on average 0.6 units from its own cluster and 1.8 units from the nearest other cluster. Fill in the <strong>denominator</strong> of the silhouette so the score stays between -1 and 1, then check it.</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="max\(\s*a\s*,\s*b\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">a &lt;- 0.6   # distance to its own cluster
+b &lt;- 1.8   # distance to the nearest other cluster
+(b - a) / ____</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: you divide by max(a, b), the larger of the two averages. That is what keeps the silhouette pinned between -1 and 1.</span><span class="lesson-tryit-fb lesson-tryit-no">The silhouette divides by max(a, b), the LARGER of the two average distances, not by a + b and not by b alone. That scaling keeps s(i) in the -1 to 1 range.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">a &lt;- 0.6
+b &lt;- 1.8
+(b - a) / max(a, b)
+#&gt; [1] 0.6666667</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">On the real data</div>
+<h2>Silhouette on Nadia's beetles</h2>
+
+<p>Now compute it from scratch on the actual clustering. <code>dist(x)</code> gives every pairwise distance; the helper turns those into \(a(i)\), \(b(i)\), and \(s(i)\) for each beetle.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">D  <span class="o">&lt;-</span> <span class="nf">as.matrix</span>(<span class="nf">dist</span>(x))     <span class="c1"># 150 x 150 matrix of distances between beetles</span></span>
+<span class="cl">cl <span class="o">&lt;-</span> km<span class="o">$</span>cluster</span>
+<span class="cl"></span>
+<span class="cl">sil_one <span class="o">&lt;-</span> <span class="kr">function</span>(i, cl) {</span>
+<span class="cl">  own <span class="o">&lt;-</span> cl <span class="o">==</span> cl[i]</span>
+<span class="cl">  a <span class="o">&lt;-</span> <span class="nf">mean</span>(D[i, own <span class="o">&amp;</span> (<span class="nf">seq_along</span>(cl) <span class="o">!=</span> i)])                 <span class="c1"># dist to own cluster</span></span>
+<span class="cl">  b <span class="o">&lt;-</span> <span class="nf">min</span>(<span class="nf">sapply</span>(<span class="nf">setdiff</span>(<span class="nf">unique</span>(cl), cl[i]),                 <span class="c1"># nearest other cluster</span></span>
+<span class="cl">                  <span class="kr">function</span>(g) <span class="nf">mean</span>(D[i, cl <span class="o">==</span> g])))</span>
+<span class="cl">  (b <span class="o">-</span> a) <span class="o">/</span> <span class="nf">max</span>(a, b)</span>
+<span class="cl">}</span>
+<span class="cl">s <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="nf">seq_along</span>(cl), sil_one, cl <span class="o">=</span> cl)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">mean</span>(s), <span class="m">3</span>)            <span class="c1"># average silhouette width for the whole clustering</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.734</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An average width of 0.734 is strong (Rousseeuw's rough guide: above 0.7 is strong structure, 0.5 to 0.7 reasonable, below 0.25 essentially none). It is worth looking per cluster too, because one weak group can hide inside a good average:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">tapply</span>(s, cl, mean), <span class="m">2</span>)   <span class="c1"># average silhouette within each cluster</span></span>
+<span class="cl"><span class="c1">#&gt; 1    2    3</span></span>
+<span class="cl"><span class="c1">#&gt; 0.74 0.69 0.77</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three groups are cohesive. Compare that with the noise cloud, where the same computation gives an average width around 0.38: weak, and exactly what a clustering imposed on structureless data looks like.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<div class="lesson-step-eyebrow">Feel it</div>
+<h2>Move k, watch both curves</h2>
+
+<p>Here are the two curves you will use to choose the number of clusters, on a worked example. The <strong>elbow</strong> (total within-cluster spread) drops steeply while extra clusters are still capturing real structure, then flattens once you are just splitting hairs. The <strong>silhouette</strong> rises to a peak at the natural number of groups, then falls. Drag the slider and watch where they agree.</p>
+<div class="lesson-widget" data-widget-type="cluster-validate" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing k</div>
+<h2>Let the curves pick the number of groups</h2>
+
+<p>Two numbers, read across a range of <code>k</code>, tell you how many clusters to keep. First the <strong>elbow</strong>: total within-cluster spread \(W_k\) always falls as <code>k</code> rises (more centres always fit tighter), so you look for the <code>k</code> where it stops falling <em>sharply</em>.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
-<span class="cl">gap <span class="o">&lt;-</span> <span class="nf">clusGap</span>(x, FUN <span class="o">=</span> kmeans, nstart <span class="o">=</span> <span class="m">10</span>, K.max <span class="o">=</span> <span class="m">6</span>, B <span class="o">=</span> <span class="m">25</span>)   <span class="c1"># x = Maria&#39;s scaled data</span></span>
-<span class="cl"><span class="nf">round</span>(gap<span class="o">$</span>Tab[, <span class="s">&quot;gap&quot;</span>], <span class="m">3</span>)                                        <span class="c1"># the gap at k = 1..6</span></span>
-<span class="cl"><span class="c1">#&gt; [1] -0.062  0.228  0.649  0.593  0.545  0.533</span></span>
-<span class="cl"><span class="nf">maxSE</span>(gap<span class="o">$</span>Tab[, <span class="s">&quot;gap&quot;</span>], gap<span class="o">$</span>Tab[, <span class="s">&quot;SE.sim&quot;</span>], method <span class="o">=</span> <span class="s">&quot;firstSEmax&quot;</span>)</span>
+<span class="cl">wss <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">6</span>, <span class="kr">function</span>(k) <span class="nf">kmeans</span>(x, centers <span class="o">=</span> k, nstart <span class="o">=</span> <span class="m">10</span>)<span class="o">$</span>tot.withinss)</span>
+<span class="cl"><span class="nf">round</span>(wss, <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 298.0 128.8  28.7  24.7  21.2  18.1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The drop from k=2 to k=3 is huge (129 down to 29), and after k=3 it barely moves. The bend is at three. Now the silhouette across the same range: it should <strong>peak</strong> at the right <code>k</code>.</p>
+
+<p>The average silhouette width is highest at k=3 (0.734) and falls away on either side. Both curves agree, which is the reassuring case. When the elbow and the silhouette disagree, treat it as a warning that the number of groups is genuinely ambiguous.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2,"y":0.573},{"x":3,"y":0.734},{"x":4,"y":0.596},{"x":5,"y":0.456},{"x":6,"y":0.325}],"geoms":["bar","point","line"],"x":"k","y":"avg_silhouette"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading a silhouette</h2>
+
+<p>A colleague clusters a different dataset and reports an average silhouette width of 0.15. What does that number tell you?</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The clusters are excellent and well separated</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The structure is weak and possibly artificial: points sit almost as close to a neighbouring cluster as to their own</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Exactly 15% of the points are in the wrong cluster</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. On Rousseeuw's scale anything below about 0.25 signals little real structure. The clustering may just be lines through a cloud.</div><div class="lesson-qfb lesson-qfb-no">The silhouette is an average of separation scores between -1 and 1, not a misclassification rate. It does not translate into a percentage of wrong assignments.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 2: is there anything?</div>
+<h2>The gap statistic: more structure than random?</h2>
+
+<p>The silhouette measures how good a clustering is, but it needs at least two clusters to compute, so it can never tell you the honest answer might be "there are no clusters here at all." For that you need a baseline: <strong>how much would the within-cluster spread shrink just by chance, if the data had no structure?</strong></p>
+
+<p>That is the idea behind the gap statistic. Cluster the real data and record \(\log W_k\). Then generate many fake datasets with <strong>no</strong> structure (points scattered uniformly over the same ranges), cluster each, and record their \(\log W_k\) too. If the real data has genuine groups, its spread shrinks <em>faster</em> than the structureless clouds' as <code>k</code> rises. The gap between them measures that head start.</p>
+
+<ul>
+
+<li>Big gap that grows then flattens: real structure, and the flattening point is a good <code>k</code>.</li>
+
+<li>Gap near zero at every <code>k</code>: the data clusters no better than random noise. There are no real groups.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">The formula</div>
+<h2>The gap, precisely</h2>
+
+<p>Let \(W_k\) be the total within-cluster spread with <code>k</code> clusters, the same quantity as the elbow:</p>
+
+<p>\[ W_k = \sum_{c=1}^{k} \; \sum_{i \in C_c} \lVert x_i - \bar{x}_c \rVert^2 \]</p>
+
+<p>where \(C_c\) is cluster \(c\), \(\bar{x}_c\) is its centre, and \(\lVert x_i - \bar{x}_c \rVert^2\) is the squared distance from point \(i\) to that centre. The gap at <code>k</code> compares the real \(\log W_k\) to its average over the structureless reference datasets:</p>
+
+<p>\[ \operatorname{Gap}(k) = \operatorname{E}^{*}_{n}\!\left[\log W_k\right] - \log W_k \]</p>
+
+<p>Here \(\operatorname{E}^{*}_{n}[\log W_k]\) is that reference average (the star marks it as the null, no-cluster world). Because the reference is random, its average carries a standard error \(s_k\). Tibshirani's rule picks the smallest <code>k</code> that is already within one standard error of the next:</p>
+
+<p>\[ \hat{k} = \text{the smallest } k \text{ with } \operatorname{Gap}(k) \ge \operatorname{Gap}(k+1) - s_{k+1} \]</p>
+
+<p>In plain words: keep adding clusters only while the gap keeps climbing meaningfully; stop as soon as the next <code>k</code> fails to beat the current one by more than noise.</p>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">On the real data</div>
+<h2>The gap on beetles, then on noise</h2>
+
+<p>Compute it from scratch. <code>Wk()</code> is the within-cluster spread; <code>gap_ref()</code> averages \(\log W_k\) over <code>B</code> structureless clouds.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">Wk <span class="o">&lt;-</span> <span class="kr">function</span>(mat, k) {</span>
+<span class="cl">  <span class="kr">if</span> (k <span class="o">==</span> <span class="m">1</span>) <span class="kr">return</span>(<span class="nf">sum</span>(<span class="nf">scale</span>(mat, scale <span class="o">=</span> <span class="kc">FALSE</span>)<span class="o">^</span><span class="m">2</span>))   <span class="c1"># k=1: spread about the mean</span></span>
+<span class="cl">  <span class="nf">sum</span>(<span class="nf">kmeans</span>(mat, centers <span class="o">=</span> k, nstart <span class="o">=</span> <span class="m">10</span>)<span class="o">$</span>withinss)</span>
+<span class="cl">}</span>
+<span class="cl">gap_ref <span class="o">&lt;-</span> <span class="kr">function</span>(mat, k, B <span class="o">=</span> <span class="m">20</span>) {</span>
+<span class="cl">  logW <span class="o">&lt;-</span> <span class="nf">replicate</span>(B, {</span>
+<span class="cl">    ref <span class="o">&lt;-</span> <span class="nf">apply</span>(mat, <span class="m">2</span>, <span class="kr">function</span>(col) <span class="nf">runif</span>(<span class="nf">nrow</span>(mat), <span class="nf">min</span>(col), <span class="nf">max</span>(col)))</span>
+<span class="cl">    <span class="nf">log</span>(<span class="nf">Wk</span>(ref, k))</span>
+<span class="cl">  })</span>
+<span class="cl">  <span class="nf">c</span>(mean <span class="o">=</span> <span class="nf">mean</span>(logW), sd <span class="o">=</span> <span class="nf">sd</span>(logW))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
+<span class="cl">Wobs      <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">6</span>, <span class="kr">function</span>(k) <span class="nf">Wk</span>(x, k))</span>
+<span class="cl">ref_stats <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">6</span>, <span class="kr">function</span>(k) <span class="nf">gap_ref</span>(x, k))</span>
+<span class="cl">gap <span class="o">&lt;-</span> ref_stats[<span class="s">&quot;mean&quot;</span>, ] <span class="o">-</span> <span class="nf">log</span>(Wobs)</span>
+<span class="cl"><span class="nf">round</span>(gap, <span class="m">3</span>)                                  <span class="c1"># the gap at k = 1..6</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.276 0.569 1.581 1.310 1.258 1.160</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gap jumps to 1.58 at k=3 and then drifts down. Apply Tibshirani's rule:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">s_k  <span class="o">&lt;-</span> ref_stats[<span class="s">&quot;sd&quot;</span>, ] <span class="o">*</span> <span class="nf">sqrt</span>(<span class="m">1</span> <span class="o">+</span> <span class="m">1</span><span class="o">/</span><span class="m">20</span>)      <span class="c1"># standard error of the reference</span></span>
+<span class="cl"><span class="nf">which</span>(gap[<span class="m">-6</span>] <span class="o">&gt;=</span> (gap[<span class="m">-1</span>] <span class="o">-</span> s_k[<span class="m">-1</span>]))[<span class="m">1</span>]         <span class="c1"># smallest k that beats the next</span></span>
 <span class="cl"><span class="c1">#&gt; [1] 3</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -846,14 +1140,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The gap climbs steeply, peaks at k=3, and then falls back, so the one-SE rule selects <strong>k=3</strong>. Maria's three tiers pass. Now the acid test: run the identical procedure on the pure-noise data, which we know has no groups.</p>
+<p>The gap picks three, agreeing with the elbow and the silhouette. Now the acid test: run the identical procedure on the structureless cloud from earlier.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
-<span class="cl">gap0 <span class="o">&lt;-</span> <span class="nf">clusGap</span>(noise, FUN <span class="o">=</span> kmeans, nstart <span class="o">=</span> <span class="m">10</span>, K.max <span class="o">=</span> <span class="m">6</span>, B <span class="o">=</span> <span class="m">25</span>)</span>
-<span class="cl"><span class="nf">maxSE</span>(gap0<span class="o">$</span>Tab[, <span class="s">&quot;gap&quot;</span>], gap0<span class="o">$</span>Tab[, <span class="s">&quot;SE.sim&quot;</span>], method <span class="o">=</span> <span class="s">&quot;firstSEmax&quot;</span>)</span>
+<span class="cl">Wobs_n      <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">6</span>, <span class="kr">function</span>(k) <span class="nf">Wk</span>(noise, k))</span>
+<span class="cl">ref_stats_n <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">6</span>, <span class="kr">function</span>(k) <span class="nf">gap_ref</span>(noise, k))</span>
+<span class="cl">gap_n <span class="o">&lt;-</span> ref_stats_n[<span class="s">&quot;mean&quot;</span>, ] <span class="o">-</span> <span class="nf">log</span>(Wobs_n)</span>
+<span class="cl"><span class="nf">round</span>(gap_n, <span class="m">3</span>)                                  <span class="c1"># near zero everywhere</span></span>
+<span class="cl"><span class="c1">#&gt; [1]  0.088  0.031 -0.016  0.031  0.059  0.021</span></span>
+<span class="cl">s_kn <span class="o">&lt;-</span> ref_stats_n[<span class="s">&quot;sd&quot;</span>, ] <span class="o">*</span> <span class="nf">sqrt</span>(<span class="m">1</span> <span class="o">+</span> <span class="m">1</span><span class="o">/</span><span class="m">20</span>)</span>
+<span class="cl"><span class="nf">which</span>(gap_n[<span class="m">-6</span>] <span class="o">&gt;=</span> (gap_n[<span class="m">-1</span>] <span class="o">-</span> s_kn[<span class="m">-1</span>]))[<span class="m">1</span>]     <span class="c1"># the honest answer</span></span>
 <span class="cl"><span class="c1">#&gt; [1] 1</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -864,49 +1163,99 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>On the noise, the gap statistic returns <strong>k=1</strong>. It refuses to invent tiers where there are none.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Of the three checks, only the gap statistic can vote "no clusters." The elbow and the silhouette both assume you have already decided to cluster and only help you tune k; the gap tests the prior question of whether you should cluster at all. Run it first.</div></div>
-
-<p>The panel below is the elbow view of that same \(W_k\) curve, the raw material the gap statistic compares against a random baseline.</p>
-<div class="lesson-widget" data-widget-type="cluster-validate" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Where each tool stops</h2>
-
-<p>A colleague hands you a dataset, insists it has "obviously three segments," and shows you a silhouette that peaks at k=3. You are not convinced the data has ANY real segments. Which check settles it, and why?</p>
-<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step6" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The gap statistic, because it compares the data against a structureless reference and can return k=1, the verdict that there are no genuine segments</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The silhouette at k=3 already proves the segments are real; a peak is conclusive</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither can tell; you would have to eyeball the scatter plot and decide by hand</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. A silhouette peaking at k=3 only means 3 beats 2 or 4; it cannot say whether even one split is justified, because it is undefined at k=1. The gap statistic tests against random noise, so it alone can conclude "no clusters."</div><div class="lesson-qfb lesson-qfb-no">Eyeballing is a fine sanity check but not a settled answer, and it fails in more than two dimensions. The gap statistic gives a principled test of exactly this question.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="7" data-step-type="concept">
-<div class="lesson-step-eyebrow">Check 3</div>
-<h2>Stability: do the groups survive a reshuffle?</h2>
-
-<p>A silhouette and a gap both judge one fixed clustering of one fixed dataset. But a real, meaningful grouping should be <strong>stable</strong>: if Maria had happened to log a slightly different sample of customers, she should get essentially the same tiers back. If tiny changes to the data reshuffle everyone into different groups, the structure was fragile and probably not real.</p>
-
-<p>We test that with the <strong>bootstrap</strong>: resample the customers with replacement to make a slightly different dataset, re-cluster it, and measure how much the new grouping agrees with the original. Repeat many times and average the agreement. The widget shows one bootstrap draw, some customers picked more than once, some left out.</p>
-
-<p>To turn "agree" into a number we use the <strong>Rand index</strong>: over every possible pair of customers, what fraction of pairs do the two clusterings treat the same way, both-together or both-apart? It runs from 0 to 1; near 1 means the two groupings are nearly identical. There is a neat one-liner for it: <code>outer(a, a, &quot;==&quot;)</code> builds the table of "are customers \(i\) and \(j\) in the same group?", and comparing that table for the two clusterings gives the fraction of pairs that agree.</p>
+<p>On noise the gap hovers around zero and the rule votes <strong>k = 1</strong>: no real clusters. This is the one internal check that can say "there is nothing to cluster here." Plotting both makes the contrast obvious:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Rand index: the share of customer PAIRS on which two clusterings agree</span></span>
-<span class="cl">coagree <span class="o">&lt;-</span> <span class="kr">function</span>(a, b) <span class="nf">mean</span>(<span class="nf">outer</span>(a, a, <span class="s">&quot;==&quot;</span>) <span class="o">==</span> <span class="nf">outer</span>(b, b, <span class="s">&quot;==&quot;</span>))</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># assign every original customer to the nearest centre of a new clustering</span></span>
-<span class="cl">assign_to <span class="o">&lt;-</span> <span class="kr">function</span>(x, centers) {</span>
-<span class="cl">  d <span class="o">&lt;-</span> <span class="nf">as.matrix</span>(<span class="nf">dist</span>(<span class="nf">rbind</span>(centers, x)))</span>
-<span class="cl">  k <span class="o">&lt;-</span> <span class="nf">nrow</span>(centers)</span>
-<span class="cl">  <span class="nf">max.col</span>(<span class="o">-</span>d[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span>k), <span class="nf">seq_len</span>(k)])          <span class="c1"># for each point, the closest centre</span></span>
-<span class="cl">}</span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(<span class="m">1</span><span class="o">:</span><span class="m">6</span>, gap, type <span class="o">=</span> <span class="s">&quot;b&quot;</span>, pch <span class="o">=</span> <span class="m">19</span>, ylim <span class="o">=</span> <span class="nf">range</span>(<span class="nf">c</span>(gap, gap_n)),</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;number of clusters k&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;gap statistic&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Gap: real beetles vs a structureless cloud&quot;</span>)</span>
+<span class="cl"><span class="nf">lines</span>(<span class="m">1</span><span class="o">:</span><span class="m">6</span>, gap_n, type <span class="o">=</span> <span class="s">&quot;b&quot;</span>, pch <span class="o">=</span> <span class="m">19</span>, col <span class="o">=</span> <span class="s">&quot;red&quot;</span>)</span>
+<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;right&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;beetles&quot;</span>, <span class="s">&quot;noise&quot;</span>), col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;black&quot;</span>, <span class="s">&quot;red&quot;</span>), pch <span class="o">=</span> <span class="m">19</span>, lty <span class="o">=</span> <span class="m">1</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When the gap says nothing</h2>
+
+<p>You run the gap statistic on a dataset and it is near zero at every <code>k</code>, and largest at k=1. What is the honest conclusion?</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step16" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Report a single cluster as your main finding</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The data has no real cluster structure: it clusters no better than a structureless cloud, so there is nothing to cluster</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The method failed; keep increasing k until the gap turns clearly positive</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A flat, near-zero gap peaking at k=1 is precisely the "no clusters" verdict. Any k-means grouping here would be an artefact.</div><div class="lesson-qfb lesson-qfb-no">The gap did not fail, it answered. Forcing a larger k would manufacture groups that the data does not support.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 3: does it hold up?</div>
+<h2>Stability: would a different sample agree?</h2>
+
+<p>A clustering can look cohesive and still be fragile. Nadia collected 150 beetles, but she could just as easily have caught a slightly different 150. If her three groups are real, a slightly different sample should recover essentially the same groups. If they are an artefact, a new sample would carve the cloud up differently.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Real structure is reproducible. Stability asks: if I perturb the data a little, do the same clusters come back? Groups that survive resampling are trustworthy; groups that reshuffle every time are not.</div></div>
+
+<p>The standard way to perturb without collecting new beetles is the <strong>bootstrap</strong>: draw a resample of the same size, with replacement, re-cluster it, and see how well the new clusters match the originals. Repeat many times and average.</p>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="concept">
+<div class="lesson-step-eyebrow">The measure</div>
+<h2>Jaccard: how much do two groups overlap?</h2>
+
+<p>To compare an original cluster with a cluster from a resample, we need a number for "how much do these two sets of beetles overlap?" The <strong>Jaccard similarity</strong> is exactly that: the share of members they have in common out of all the distinct members between them.</p>
+
+<p>\[ J(A, B) = \frac{\lvert A \cap B \rvert}{\lvert A \cup B \rvert} \]</p>
+
+<p>Here \(\lvert A \cap B \rvert\) is the count of members in both sets and \(\lvert A \cup B \rvert\) is the count in either. It runs from 0 (no overlap) to 1 (identical). See it on two small sets:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">jaccard <span class="o">&lt;-</span> <span class="kr">function</span>(a, b) <span class="nf">length</span>(<span class="nf">intersect</span>(a, b)) <span class="o">/</span> <span class="nf">length</span>(<span class="nf">union</span>(a, b))</span>
+<span class="cl"><span class="nf">jaccard</span>(<span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>, <span class="m">3</span>, <span class="m">4</span>), <span class="nf">c</span>(<span class="m">3</span>, <span class="m">4</span>, <span class="m">5</span>, <span class="m">6</span>))   <span class="c1"># share {3,4}; 6 distinct in all -&gt; 2/6</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.3333333</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="concept">
+<div class="lesson-step-eyebrow">On the real data</div>
+<h2>Bootstrap stability, beetles vs noise</h2>
+
+<p>Cluster the full data once to get the reference groups. Then, many times over, resample the rows with replacement, re-cluster, and record each original cluster's <strong>best Jaccard match</strong> among the new clusters. The average, per cluster, is its stability.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ref <span class="o">&lt;-</span> km<span class="o">$</span>cluster</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
+<span class="cl">B    <span class="o">&lt;-</span> <span class="m">40</span></span>
+<span class="cl">stab <span class="o">&lt;-</span> <span class="nf">matrix</span>(<span class="kc">NA</span>, B, <span class="m">3</span>)</span>
+<span class="cl"><span class="kr">for</span> (bb <span class="kr">in</span> <span class="m">1</span><span class="o">:</span>B) {</span>
+<span class="cl">  idx  <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">nrow</span>(x), replace <span class="o">=</span> <span class="kc">TRUE</span>)                 <span class="c1"># a bootstrap resample</span></span>
+<span class="cl">  cl_b <span class="o">&lt;-</span> <span class="nf">kmeans</span>(x[idx, ], centers <span class="o">=</span> <span class="m">3</span>, nstart <span class="o">=</span> <span class="m">10</span>)<span class="o">$</span>cluster</span>
+<span class="cl">  <span class="kr">for</span> (g <span class="kr">in</span> <span class="m">1</span><span class="o">:</span><span class="m">3</span>) {</span>
+<span class="cl">    members     <span class="o">&lt;-</span> <span class="nf">which</span>(ref[idx] <span class="o">==</span> g)                   <span class="c1"># resampled rows from cluster g</span></span>
+<span class="cl">    stab[bb, g] <span class="o">&lt;-</span> <span class="nf">max</span>(<span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">3</span>, <span class="kr">function</span>(h) <span class="nf">jaccard</span>(members, <span class="nf">which</span>(cl_b <span class="o">==</span> h))))</span>
+<span class="cl">  }</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">colMeans</span>(stab), <span class="m">2</span>)     <span class="c1"># mean Jaccard per cluster</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 1 1 1</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -916,93 +1265,158 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The plan: bootstrap-resample the rows, cluster the resample, project its centres back onto ALL the original customers, and compare that labelling to the original with <code>coagree()</code>. A high average across many resamples means the tiers keep coming back.</p>
-<div class="lesson-widget" data-widget-type="bootstrap-sample" data-widget-config='{"tail":"Re-cluster this resample and compare it back to the original tiers."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>All three beetle clusters score 1.0: every resample reproduces them exactly. Now the same on the noise cloud:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
+<span class="cl">ref_n  <span class="o">&lt;-</span> <span class="nf">kmeans</span>(noise, centers <span class="o">=</span> <span class="m">3</span>, nstart <span class="o">=</span> <span class="m">25</span>)<span class="o">$</span>cluster</span>
+<span class="cl">stab_n <span class="o">&lt;-</span> <span class="nf">matrix</span>(<span class="kc">NA</span>, B, <span class="m">3</span>)</span>
+<span class="cl"><span class="kr">for</span> (bb <span class="kr">in</span> <span class="m">1</span><span class="o">:</span>B) {</span>
+<span class="cl">  idx  <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">nrow</span>(noise), replace <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">  cl_b <span class="o">&lt;-</span> <span class="nf">kmeans</span>(noise[idx, ], centers <span class="o">=</span> <span class="m">3</span>, nstart <span class="o">=</span> <span class="m">10</span>)<span class="o">$</span>cluster</span>
+<span class="cl">  <span class="kr">for</span> (g <span class="kr">in</span> <span class="m">1</span><span class="o">:</span><span class="m">3</span>) {</span>
+<span class="cl">    members       <span class="o">&lt;-</span> <span class="nf">which</span>(ref_n[idx] <span class="o">==</span> g)</span>
+<span class="cl">    stab_n[bb, g] <span class="o">&lt;-</span> <span class="nf">max</span>(<span class="nf">sapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">3</span>, <span class="kr">function</span>(h) <span class="nf">jaccard</span>(members, <span class="nf">which</span>(cl_b <span class="o">==</span> h))))</span>
+<span class="cl">  }</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">colMeans</span>(stab_n), <span class="m">2</span>)   <span class="c1"># the noise &quot;clusters&quot; reshuffle every time</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.73 0.67 0.69</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">barplot</span>(<span class="nf">rbind</span>(beetles <span class="o">=</span> <span class="nf">colMeans</span>(stab), noise <span class="o">=</span> <span class="nf">colMeans</span>(stab_n)),</span>
+<span class="cl">        beside <span class="o">=</span> <span class="kc">TRUE</span>, ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">1</span>), col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;steelblue&quot;</span>, <span class="s">&quot;grey70&quot;</span>),</span>
+<span class="cl">        names.arg <span class="o">=</span> <span class="nf">paste</span>(<span class="s">&quot;cluster&quot;</span>, <span class="m">1</span><span class="o">:</span><span class="m">3</span>), ylab <span class="o">=</span> <span class="s">&quot;bootstrap Jaccard stability&quot;</span>,</span>
+<span class="cl">        legend.text <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;beetles&quot;</span>, <span class="s">&quot;noise&quot;</span>),</span>
+<span class="cl">        main <span class="o">=</span> <span class="s">&quot;Real clusters survive resampling; noise clusters drift&quot;</span>)</span>
+<span class="cl"><span class="nf">abline</span>(h <span class="o">=</span> <span class="m">0.75</span>, lty <span class="o">=</span> <span class="m">2</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Hennig's rough thresholds for bootstrap Jaccard: above <strong>0.85</strong> is highly stable, <strong>0.75 to 0.85</strong> is a valid, stable pattern, <strong>0.6 to 0.75</strong> indicates a pattern but with real doubt, and below <strong>0.5</strong> the cluster is "dissolved", not a real group. The beetle clusters are as stable as it gets; the noise clusters sit in the doubtful band and never settle.</div></div>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
-<div class="lesson-step-eyebrow">Your turn</div>
-<h2>Measure the stability of Maria's tiers</h2>
+<section class="lesson-step" data-step="20" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading a stability score</h2>
 
-<p>Below is the stability loop. The one thing that makes it a bootstrap is drawing the resample <strong>with replacement</strong>, so some customers repeat and some drop out, giving each resample its own slightly different shape. Fill in the blank that does that. (<code>km</code>, <code>x</code>, <code>coagree</code> and <code>assign_to</code> were built in the previous steps.)</p>
-<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step8" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="replace\s*=\s*TRUE"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(7)
-ref &lt;- km$cluster                          # the original tiers we want to trust
-stability &lt;- replicate(50, {
-  idx &lt;- sample(nrow(x), ____)             # a bootstrap resample of the customers
-  cb  &lt;- kmeans(x[idx, ], centers = 3, nstart = 10)
-  coagree(ref, assign_to(x, cb$centers))   # how well this resample's tiers match the original
-})
-round(mean(stability), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: sampling with replacement is what makes it a bootstrap. Maria's tiers come back with essentially 1.00 agreement across resamples - very stable.</span><span class="lesson-tryit-fb lesson-tryit-no">A bootstrap resamples WITH replacement: sample(nrow(x), replace = TRUE).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">set.seed(7)
-ref &lt;- km$cluster
-stability &lt;- replicate(50, {
-  idx &lt;- sample(nrow(x), replace = TRUE)
-  cb  &lt;- kmeans(x[idx, ], centers = 3, nstart = 10)
-  coagree(ref, assign_to(x, cb$centers))
-})
-round(mean(stability), 2)
-#&gt; [1] 1</code></pre></details></div>
+<p>One cluster in your solution has a bootstrap Jaccard stability of 0.40. What does that mean?</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step20" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The cluster is correct 40% of the time</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The cluster dissolves under resampling: a different sample would not reproduce it, so it is not a trustworthy group</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">40% of the cluster's points are outliers</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Below about 0.5 the group reshuffles every time you perturb the data. It reflects the sample, not a real structure.</div><div class="lesson-qfb lesson-qfb-no">The score says nothing about outliers within the cluster. It is about whether the whole cluster reappears when the data is resampled.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="concept">
+<section class="lesson-step" data-step="21" data-step-type="concept">
 <div class="lesson-step-eyebrow">Putting it together</div>
-<h2>Three checks, one honest verdict</h2>
+<h2>The four-question verdict</h2>
 
-<p>No single number certifies a clustering. You triangulate:</p>
+<p>No single number decides whether clusters are real. You triangulate. Run these four questions in order, and let the weakest link govern your confidence.</p>
 
-<ul>
+<p>For Nadia's beetles all four agree: the gap says structure exists and picks three, the elbow and silhouette both point to three, every cluster is cohesive, and every cluster is perfectly stable. That is a clustering you can defend. Because we simulated the data, we can now lift the lid and check against the answer key:</p>
 
-<li><strong>Gap statistic first</strong> - does the data cluster at all, or is k=1 the honest answer?</li>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">table</span>(km<span class="o">$</span>cluster, truth)     <span class="c1"># each found cluster is exactly one species</span></span>
+<span class="cl"><span class="c1">#&gt;    truth</span></span>
+<span class="cl"><span class="c1">#&gt;      A  B  C</span></span>
+<span class="cl"><span class="c1">#&gt;   1  0 50  0</span></span>
+<span class="cl"><span class="c1">#&gt;   2  0  0 50</span></span>
+<span class="cl"><span class="c1">#&gt;   3 50  0  0</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<li><strong>Silhouette</strong> - if it does cluster, are the groups well separated, overall AND per cluster?</li>
-
-<li><strong>Stability</strong> - do the same groups survive resampling, or do they dissolve?</li>
-
-</ul>
-
-<p>Maria's tiers passed all three: a gap that selected k=3, a strong silhouette, and near-perfect bootstrap agreement. That is a clustering you can build a loyalty program on. When the three disagree, treat k as genuinely uncertain and let the decision the clusters will drive break the tie.</p>
-
-<p>In production R you would not hand-roll the stability loop. The <code>fpc</code> package wraps exactly this idea in <code>clusterboot()</code>, reporting a bootstrap Jaccard stability per cluster (rule of thumb: above 0.85 stable, below 0.6 probably not real).</p>
-
-<pre><code class="language-r">library(fpc)
-# clusterboot resamples B times, re-clusters, and scores each cluster's mean
-# Jaccard similarity to the original. Run this in your own R session (fpc is
-# not preinstalled in the interactive R here).
-cb &lt;- clusterboot(scale(cafe), B = 100, clustermethod = kmeansCBI,
-                  krange = 3, seed = 7)
-cb$bootmean          # one stability score per tier: higher is more reproducible</code></pre>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Validation cannot conjure structure that is not there. If the gap says k=1 and the silhouette never clears 0.25, the honest report is "no clusters," not a prettier k. In Lesson 7 you will meet t-SNE and UMAP, which draw striking 2-D pictures of high-dimensional data, and precisely because they always produce a compelling picture, these same validation instincts are what stop you from reading groups into an embedding that has none.</div></div>
+<p>Every found cluster is one pure species. The validation was right, and on real data those four checks are all you would have.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Is there any structure?","sub":"gap statistic vs a random null; if it votes k=1, stop, there are no real clusters"},{"title":"How many groups?","sub":"the within-SS elbow and the peak of the average silhouette should agree on k"},{"title":"Are the groups cohesive?","sub":"average silhouette above ~0.5, and no cluster with a negative or tiny width"},{"title":"Do they survive resampling?","sub":"bootstrap Jaccard above ~0.75 is stable; below ~0.5 the cluster dissolves"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="concept">
+<section class="lesson-step" data-step="22" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When the checks disagree</h2>
+
+<p>A clustering scores a healthy average silhouette of 0.68, but its bootstrap Jaccard stability is only 0.35. Do you trust the clusters?</p>
+<section class="exercise" data-exercise-id="Cluster-Validation-and-Stability-step22" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes: a silhouette above 0.5 already confirms the clusters are real</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: stability below ~0.5 means the groups vanish under resampling, so the clustering is not trustworthy however good the silhouette looks on one sample</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Yes, but only after increasing k</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The weakest link governs. An unstable clustering describes the sample you happened to draw, not the population, no matter how clean it looks once.</div><div class="lesson-qfb lesson-qfb-no">More clusters will not fix instability; it usually makes it worse. The signal here is that the structure is not reproducible.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="23" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know the limits</div>
+<h2>Where these tools break</h2>
+
+<p>The three checks are powerful, but they carry assumptions, and knowing them keeps you honest.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The elbow, the silhouette, and the standard gap statistic all lean on <strong>compact, roughly round clusters</strong> measured by Euclidean distance. On elongated, curved, or nested shapes (the kind DBSCAN finds), a low silhouette can be misleading rather than damning, so pair these indices with a density-aware check. None of them is proof: they are evidence that, together, make a clustering defensible. And validation never rescues structureless data, it only tells you it is structureless, which is itself a valuable finding.</div></div>
+
+<p>In practice you would not hand-roll these computations. The <code>cluster</code> and <code>fpc</code> packages provide them directly (run this in a full local R session):</p>
+
+<pre><code class="language-r">library(cluster)
+sil &lt;- silhouette(km$cluster, dist(x))       # per-point silhouette widths
+summary(sil)$avg.width                       # the average silhouette width
+gp  &lt;- clusGap(x, FUN = kmeans, nstart = 25, K.max = 6, B = 50)
+maxSE(gp$Tab[, &quot;gap&quot;], gp$Tab[, &quot;SE.sim&quot;])    # the chosen k by the gap rule
+
+library(fpc)
+boot &lt;- clusterboot(x, B = 50, clustermethod = kmeansCBI, k = 3)
+boot$bootmean                                # per-cluster bootstrap Jaccard stability</code></pre>
+
+<p>Hand-rolling them once, as we did, is the best way to understand what those functions return.</p>
+</section>
+
+<section class="lesson-step" data-step="24" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
-<p>Five solid places to take cluster validation further:</p>
-
 <ul>
 
-<li><a href="https://doi.org/10.1111/1467-9868.00293">Tibshirani, Walther and Hastie (2001), Estimating the number of clusters via the gap statistic, JRSS-B</a> - the paper that introduced the gap statistic and the one-SE selection rule you used.</li>
+<li><a href="https://doi.org/10.1016/0377-0427(87">Rousseeuw (1987), Silhouettes: a graphical aid to the interpretation and validation of cluster analysis</a>90125-7) - the original silhouette, with the cohesion-vs-separation reasoning.</li>
 
-<li><a href="https://doi.org/10.1016/0377-0427(87">Rousseeuw (1987), Silhouettes, J. Computational and Applied Mathematics</a>90125-7) - the original silhouette paper, with the \(s(i)\) definition in full.</li>
+<li><a href="https://doi.org/10.1111/1467-9868.00293">Tibshirani, Walther & Hastie (2001), Estimating the number of clusters via the gap statistic (JRSS-B)</a> - the gap statistic and the one-standard-error selection rule used here.</li>
 
-<li><a href="https://doi.org/10.1016/j.csda.2006.11.025">Hennig (2007), Cluster-wise assessment of cluster stability, Comp. Statistics and Data Analysis</a> - the bootstrap-and-Jaccard stability idea behind <code>fpc::clusterboot</code>.</li>
+<li><a href="https://doi.org/10.1016/j.csda.2006.11.025">Hennig (2007), Cluster-wise assessment of cluster stability</a> - the bootstrap-Jaccard stability idea and its interpretation thresholds.</li>
 
-<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, chapter 12 (free PDF)</a> - clustering with a clear, honest treatment of its practical pitfalls.</li>
+<li><a href="https://cran.r-project.org/package=cluster">cluster: the R package</a> - production <code>silhouette()</code> and <code>clusGap()</code>, the tools behind the from-scratch code.</li>
 
-<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/cluster/html/clusGap.html">clusGap {cluster}: the R function you used</a> - every argument of the gap-statistic implementation, and the <code>maxSE</code> selection methods.</li>
+<li><a href="https://cran.r-project.org/package=fpc">fpc: the R package</a> - <code>clusterboot()</code>, bootstrap cluster stability out of the box.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="complete">
-<h2>Lesson 6 complete</h2>
+<section class="lesson-step" data-step="25" data-step-type="complete">
+<h2>Lesson complete</h2>
 
-<p>You can now interrogate a clustering instead of trusting it. You saw that k-means will carve tiers out of pure noise, so validation is a separate job. You read the silhouette as a per-point and per-cluster score of separation, used the gap statistic to test the prior question of whether any clustering is justified (watching it return k=1 on noise and k=3 on Maria's real tiers), and measured stability by bootstrap-resampling the customers and checking how often the same groups came back. Together those three checks turn "the algorithm found groups" into "the groups are real."</p>
+<p>You can now tell a real clustering from an imposed one. You saw that every algorithm returns clusters even on pure noise, so a tidy result is a hypothesis, not a finding. Then you built the three tests that turn it into one: the <strong>silhouette</strong> (is each point closer to its own group than to the nearest other?), the <strong>gap statistic</strong> (does the data cluster better than a structureless cloud, and is the honest answer maybe "no"?), and <strong>bootstrap stability</strong> (do the groups survive resampling?). The four-question verdict combines them, and the weakest link decides.</p>
 
-<p>Next, Lesson 7: t-SNE and UMAP. These methods make gorgeous two-dimensional maps of high-dimensional data, and their very persuasiveness is the danger. You will learn to read those embeddings, and to spot the traps that make them show groups and distances that are not really there.</p>
+<p>Next, Lesson 7: t-SNE and UMAP. So far you have clustered and validated in the raw coordinate space. These nonlinear maps squeeze high-dimensional data onto a flat picture where clusters can leap out at the eye, along with some seductive traps in reading them that your new validation instincts will help you avoid.</p>
 </section>
 
 
@@ -1090,7 +1504,7 @@ cb$bootmean          # one stability score per tier: higher is more reproducible
     }
   })();
   </script>
-  <script src="www/toc.min.js?h=db578404"></script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
   <!-- MathJax Script -->
   
   <script type="text/x-mathjax-config">
@@ -1108,11 +1522,11 @@ cb$bootmean          # one stability score per tier: higher is more reproducible
 
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
-  <script src="www/webr-init.min.js?h=92549f4e"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=0f30f7dd"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
   <script src="www/lesson-mode.min.js?h=7923c824"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of

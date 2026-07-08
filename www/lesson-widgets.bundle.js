@@ -176,6 +176,91 @@
 })();
 
 ;
+/* adversarial-perturb.js */
+/* adversarial-perturb.js - adversarial robustness, made visible. A classifier can be confidently
+ * right on a point and then confidently WRONG after a perturbation too small to see, because a
+ * step along the gradient (the sign of the weights, the FGSM attack) walks the input straight
+ * across the decision boundary. Toggle the perturbation budget from none to small and watch a
+ * class-1 point flip to class 0 while barely moving. Emits the same logistic-model attack in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var EPS = { none: 0, small: 0.5, large: 0.9 };
+  var W1 = 2.5, W2 = 2.5;                 // model weights (boundary x1 + x2 = 0)
+  var PT = { x1: 0.35, x2: 0.30 };        // the input under attack (class 1)
+  function prob(x1, x2) { return 1 / (1 + Math.exp(-(W1 * x1 + W2 * x2))); }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var lvl = 'none';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ad-seg" style="margin-bottom:12px">' + u.seg([{ v: 'none', label: 'Original' }, { v: 'small', label: '+ tiny perturbation' }, { v: 'large', label: '+ larger' }], 'none') + '</div>' +
+      '<div class="ad-plot"></div>' +
+      '<div class="ad-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'An adversarial (FGSM) perturbation flips a logistic prediction, base R' });
+
+    var plot = el.querySelector('.ad-plot'), read = el.querySelector('.ad-read');
+    var W = 300, H = 200, PAD = 16, LO = -1.6, HI = 1.6;
+    function px(x) { return PAD + (x - LO) / (HI - LO) * (W - 2 * PAD); }
+    function py(y) { return (H - PAD) - (y - LO) / (HI - LO) * (H - 2 * PAD); }
+    function draw() {
+      var eps = EPS[lvl];
+      var ax1 = PT.x1 - eps, ax2 = PT.x2 - eps;              // FGSM: step against sign(w) = -eps each
+      var p0 = prob(PT.x1, PT.x2), p1 = prob(ax1, ax2);
+      // decision boundary x1 + x2 = 0 -> line from (-1.6,1.6) to (1.6,-1.6)
+      var bx1 = px(LO), by1 = py(-LO), bx2 = px(HI), by2 = py(-HI);
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="adversarial perturbation">';
+      // class regions (above-right = class 1)
+      svg += '<polygon points="' + px(HI) + ',' + py(HI) + ' ' + bx1 + ',' + by1 + ' ' + bx2 + ',' + by2 + '" fill="' + P.c0 + '" opacity="0.07"/>';
+      svg += '<polygon points="' + px(LO) + ',' + py(LO) + ' ' + bx1 + ',' + by1 + ' ' + bx2 + ',' + by2 + '" fill="' + P.bad + '" opacity="0.07"/>';
+      svg += '<line x1="' + bx1.toFixed(1) + '" y1="' + by1.toFixed(1) + '" x2="' + bx2.toFixed(1) + '" y2="' + by2.toFixed(1) + '" stroke="' + P.mut + '" stroke-width="1.5" stroke-dasharray="4 3"/>';
+      svg += '<text x="' + (px(1.1)) + '" y="' + (py(1.35)) + '" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.c0 + '">class 1</text>';
+      svg += '<text x="' + (px(-1.5)) + '" y="' + (py(-1.2)) + '" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.bad + '">class 0</text>';
+      // original point + arrow to adversarial point
+      svg += '<circle cx="' + px(PT.x1).toFixed(1) + '" cy="' + py(PT.x2).toFixed(1) + '" r="4" fill="' + P.c0 + '"/>';
+      if (eps > 0) {
+        svg += '<line x1="' + px(PT.x1).toFixed(1) + '" y1="' + py(PT.x2).toFixed(1) + '" x2="' + px(ax1).toFixed(1) + '" y2="' + py(ax2).toFixed(1) + '" stroke="' + P.ink + '" stroke-width="1.5"/>';
+        svg += '<circle cx="' + px(ax1).toFixed(1) + '" cy="' + py(ax2).toFixed(1) + '" r="4" fill="' + (p1 > 0.5 ? P.c0 : P.bad) + '"/>';
+      }
+      svg += '<text x="' + (W / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.mut + '">feature space (attack steps toward the boundary)</text></svg>';
+      plot.innerHTML = svg;
+      read.innerHTML = eps === 0
+        ? 'The input sits in <b style="color:' + P.c0 + '">class 1</b> with probability <b>' + p0.toFixed(2) + '</b>, confidently correct.'
+        : 'A perturbation of just <b>' + eps + '</b> per feature ' + (p1 > 0.5 ? 'moves the point toward the boundary (prob ' + p1.toFixed(2) + '), still class 1.' : 'pushes it <b>across the boundary</b>: prediction flips to <b style="color:' + P.bad + '">class 0</b> at probability <b>' + p1.toFixed(2) + '</b>, confidently WRONG, from a nudge you can barely see.');
+    }
+    u.wireSeg(el.querySelector('.ad-seg'), function (v) { lvl = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Adversarial example: a tiny perturbation flips a confident logistic prediction. Base R.',
+      'set.seed(3)',
+      'n <- 800; X <- matrix(rnorm(n * 2), n, 2); colnames(X) <- c("x1", "x2")',
+      'y <- rbinom(n, 1, plogis(2.5 * X[, 1] + 2.5 * X[, 2]))',
+      'fit <- glm(y ~ x1 + x2, binomial, data = data.frame(y, X))',
+      'w <- coef(fit)[c("x1", "x2")]',
+      '',
+      'pt  <- data.frame(x1 = 0.35, x2 = 0.30)          # confidently classified as class 1',
+      'eps <- 0.5                                       # a tiny per-feature budget',
+      'adv <- data.frame(x1 = pt$x1 - eps * sign(w["x1"]),   # FGSM: step against the gradient',
+      '                  x2 = pt$x2 - eps * sign(w["x2"]))',
+      'round(c(orig_prob = predict(fit, pt,  type = "response"),',
+      '        adv_prob  = predict(fit, adv, type = "response"),',
+      '        Linf_perturb = eps), 3)',
+      '#> orig_prob  adv_prob Linf_perturb',
+      '#>     0.858     0.318        0.500   # prediction flips 1 -> 0'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('adversarial-perturb', mount);
+})();
+
+;
 /* agent-loop.js */
 /* agent-loop.js - the ReAct agent cycle (Thought -> Action -> Observation,
  * repeating until it can Answer), stepped through a worked trace. The cycle
@@ -314,6 +399,206 @@
   }
 
   window.LessonWidgets.register('assoc-rules', mount);
+})();
+
+;
+/* autoencoder-recon.js */
+/* autoencoder-recon.js - anomaly detection by reconstruction error.
+ * An autoencoder squeezes each point through a narrow bottleneck and rebuilds it. Trained on normal
+ * data, it learns the manifold the normal points live on, so it rebuilds them well. A point off that
+ * manifold cannot be rebuilt from the bottleneck, so its reconstruction error is large. The linear
+ * case is exactly PCA: the bottleneck is the top principal directions, and the error is the distance
+ * to that subspace. Here the manifold is a line; the residual dropped to the line IS the error.
+ * Toggle a normal point vs the off-manifold anomaly and compare. Emits the PCA reconstruction in base R.
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function gauss(r) { return Math.sqrt(-2 * Math.log(Math.max(r(), 1e-9))) * Math.cos(6.2831853 * r()); }
+
+  function build() {
+    var r = rng(5), pts = [], i, x;
+    for (i = 0; i < 90; i++) { x = 1.7 * gauss(r); pts.push([x, 0.7 * x + 0.18 * gauss(r)]); }  // hug the line y=0.7x
+    pts.push([1.6, -1.6]);   // anomaly far off the line (last index)
+    return pts;
+  }
+
+  // 2x2 PCA: centre, top eigenvector, project each point onto it, reconstruct, residual error.
+  function pca1(pts) {
+    var n = pts.length, mx = 0, my = 0, i;
+    for (i = 0; i < n; i++) { mx += pts[i][0]; my += pts[i][1]; } mx /= n; my /= n;
+    var a = 0, b = 0, c = 0, dx, dy;
+    for (i = 0; i < n; i++) { dx = pts[i][0] - mx; dy = pts[i][1] - my; a += dx * dx; b += dx * dy; c += dy * dy; }
+    a /= n; b /= n; c /= n;
+    var lam = (a + c) / 2 + Math.sqrt(((a - c) / 2) * ((a - c) / 2) + b * b);
+    var vx = b, vy = lam - a; if (Math.abs(b) < 1e-9 && Math.abs(vy) < 1e-9) { vx = 1; vy = 0; }
+    var nv = Math.sqrt(vx * vx + vy * vy) || 1; vx /= nv; vy /= nv;
+    var out = pts.map(function (p) {
+      var px = p[0] - mx, py = p[1] - my, t = px * vx + py * vy;
+      var rx = mx + t * vx, ry = my + t * vy;               // reconstruction on the line
+      var ex = p[0] - rx, ey = p[1] - ry;
+      return { recon: [rx, ry], err: ex * ex + ey * ey };
+    });
+    return { mean: [mx, my], v: [vx, vy], pts: out };
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var pts = build(), anom = pts.length - 1, sel = 'normal', model = pca1(pts);
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ae-seg" style="margin-bottom:12px">' + u.seg([{ v: 'normal', label: 'A normal point' }, { v: 'anomaly', label: 'The anomaly' }], 'normal') + '</div>' +
+      '<div class="ae-plot"></div>' +
+      '<div class="ae-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Autoencoder anomaly detection = PCA reconstruction error, base R' });
+
+    var plot = el.querySelector('.ae-plot'), read = el.querySelector('.ae-read');
+    var W = 340, H = 240, PAD = 16, LO = -3, HI = 3;
+    function sx(x) { return PAD + (x - LO) / (HI - LO) * (W - 2 * PAD); }
+    function sy(y) { return H - PAD - (y - LO) / (HI - LO) * (H - 2 * PAD); }
+    var median = (function () { var e = model.pts.slice(0, anom).map(function (o) { return o.err; }).sort(function (a, b) { return a - b; }); return e[Math.floor(e.length / 2)]; })();
+
+    function draw() {
+      var pIdx = sel === 'anomaly' ? anom : 7;
+      var m = model.mean, v = model.v, L = 4.2;
+      var line = '<line x1="' + sx(m[0] - v[0] * L).toFixed(1) + '" y1="' + sy(m[1] - v[1] * L).toFixed(1) + '" x2="' + sx(m[0] + v[0] * L).toFixed(1) + '" y2="' + sy(m[1] + v[1] * L).toFixed(1) + '" stroke="' + P.mut + '" stroke-width="1.5" stroke-dasharray="4 3"/>';
+      var resid = model.pts.map(function (o, i) { var p = pts[i]; var bold = i === pIdx; return '<line x1="' + sx(p[0]).toFixed(1) + '" y1="' + sy(p[1]).toFixed(1) + '" x2="' + sx(o.recon[0]).toFixed(1) + '" y2="' + sy(o.recon[1]).toFixed(1) + '" stroke="' + (bold ? P.bad : P.line2) + '" stroke-width="' + (bold ? 2 : 1) + '" opacity="' + (bold ? 1 : 0.5) + '"/>'; }).join('');
+      var dots = pts.map(function (p, i) { var isSel = i === pIdx, isA = i === anom; return '<circle cx="' + sx(p[0]).toFixed(1) + '" cy="' + sy(p[1]).toFixed(1) + '" r="' + (isSel ? 5 : 3) + '" fill="' + (isSel ? P.bad : isA ? P.del : P.c0) + '" opacity="' + (isSel ? 1 : 0.6) + '"' + (isSel ? ' stroke="#fff" stroke-width="1.5"' : '') + '/>'; }).join('');
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="reconstruction residuals to the bottleneck line">' +
+        line + resid + dots +
+        '<text x="' + (W - 8) + '" y="18" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">dashed = bottleneck manifold</text>' +
+        '<text x="' + (W - 8) + '" y="31" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.bad + '">red = reconstruction error</text></svg>';
+      var err = model.pts[pIdx].err;
+      read.innerHTML = 'The ' + (sel === 'anomaly' ? '<b style="color:' + P.del + '">anomaly</b>' : '<b>normal point</b>') + ' reconstructs with squared error <b style="color:' + P.bad + '">' + err.toFixed(2) + '</b>, against a typical normal error of about <b>' + median.toFixed(3) + '</b>. ' +
+        (sel === 'anomaly' ? 'It sits off the manifold the bottleneck learned, so it cannot be rebuilt from one component: a large error flags it.' : 'It lies on the manifold, so one component rebuilds it almost perfectly: a tiny error, no flag.');
+    }
+    u.wireSeg(el.querySelector('.ae-seg'), function (v) { sel = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Autoencoder anomaly detection: reconstruct through a 1-component (PCA) bottleneck. Base R.',
+      '# A linear autoencoder IS PCA; error = distance to the learned manifold (here a line).',
+      'set.seed(1)',
+      'n <- 200',
+      'x <- rnorm(n); Y <- cbind(x, 0.7*x + rnorm(n, 0, 0.15))   # 2D data hugging a line',
+      'Y <- rbind(Y, c(1.5, -1.5))                                # anomaly far off the line (row 201)',
+      'pca   <- prcomp(Y, center = TRUE, rank. = 1)               # encoder: keep 1 of 2 dims (bottleneck)',
+      'recon <- sweep(predict(pca) %*% t(pca$rotation[, 1, drop = FALSE]), 2, pca$center, "+")  # decode',
+      'err   <- rowSums((Y - recon)^2)                            # reconstruction error per point',
+      'round(c(median_normal = median(err[1:200]), anomaly = err[201]), 3)',
+      '#> median_normal       anomaly',
+      '#>         0.007         4.346'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('autoencoder-recon', mount);
+})();
+
+;
+/* bandit-explore.js */
+/* bandit-explore.js - explore vs exploit in a multi-armed bandit, made visible. Three arms
+ * with unknown reward rates; a strategy must learn which is best while paying for every pull
+ * of a worse one. That running cost is REGRET. epsilon-greedy explores blindly at a fixed
+ * rate; Thompson sampling explores in proportion to its uncertainty and stops wasting pulls
+ * on clearly-worse arms, so its regret curve flattens sooner. Toggle the two and compare the
+ * cumulative-regret curves. Emits the same bandit simulation in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var RATES = [0.30, 0.50, 0.55], BEST = 0.55, T = 400;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+
+  function simulate(strategy) {
+    var r = rng(strategy === 'thompson' ? 7 : 19), spare = null;
+    function rnorm() { if (spare !== null) { var v = spare; spare = null; return v; } var a = Math.max(r(), 1e-12), b = r(), m = Math.sqrt(-2 * Math.log(a)); spare = m * Math.sin(2 * Math.PI * b); return m * Math.cos(2 * Math.PI * b); }
+    var K = RATES.length, succ = [0, 0, 0], n = [0, 0, 0], regret = 0, curve = [];
+    for (var t = 0; t < T; t++) {
+      var pick = 0;
+      if (strategy === 'egreedy') {
+        if (r() < 0.1) { pick = Math.floor(r() * K); }
+        else { var bm = -1; for (var k = 0; k < K; k++) { var mean = n[k] ? succ[k] / n[k] : 1; if (mean > bm) { bm = mean; pick = k; } } }
+      } else { // thompson: sample each arm's rate from its Beta posterior (normal approx), pick the max
+        var best = -1;
+        for (var k2 = 0; k2 < K; k2++) {
+          var a = succ[k2] + 1, b2 = n[k2] - succ[k2] + 1, tot = a + b2;
+          var mn = a / tot, vr = a * b2 / (tot * tot * (tot + 1));
+          var draw = Math.min(0.999, Math.max(0.001, mn + Math.sqrt(vr) * rnorm()));
+          if (draw > best) { best = draw; pick = k2; }
+        }
+      }
+      var reward = r() < RATES[pick] ? 1 : 0;
+      succ[pick] += reward; n[pick]++;
+      regret += BEST - RATES[pick];
+      curve.push(regret);
+    }
+    return { curve: curve, regret: regret, n: n };
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var strat = 'thompson';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ba-seg" style="margin-bottom:12px">' + u.seg([{ v: 'egreedy', label: 'epsilon-greedy' }, { v: 'thompson', label: 'Thompson sampling' }], 'thompson') + '</div>' +
+      '<div class="ba-plot"></div>' +
+      '<div class="ba-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'A three-arm bandit: epsilon-greedy vs Thompson, base R' });
+
+    var plot = el.querySelector('.ba-plot'), read = el.querySelector('.ba-read');
+    var eg = simulate('egreedy'), th = simulate('thompson');
+    var YMAX = Math.max(eg.regret, th.regret) * 1.05;
+    var W = 340, H = 185, PAD = 30;
+    function px(t) { return PAD + (t / T) * (W - PAD - 8); }
+    function py(v) { return (H - 22) - (v / YMAX) * (H - 34); }
+    function path(c) { return c.map(function (v, t) { return px(t).toFixed(1) + ',' + py(v).toFixed(1); }).join(' '); }
+    function draw() {
+      var sel = strat === 'thompson' ? th : eg, other = strat === 'thompson' ? eg : th;
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="cumulative regret over rounds">' +
+        '<polyline points="' + path(other.curve) + '" fill="none" stroke="' + P.line2 + '" stroke-width="1.5" stroke-dasharray="3 3"/>' +
+        '<polyline points="' + path(sel.curve) + '" fill="none" stroke="' + P.c0 + '" stroke-width="2.5"/>' +
+        '<text x="' + (W - 8) + '" y="12" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">cumulative regret</text>' +
+        '<text x="' + (W / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">round (1 to ' + T + ')</text></svg>';
+      read.innerHTML = '<b>' + (strat === 'thompson' ? 'Thompson sampling' : 'epsilon-greedy') + '</b> ends ' + T + ' rounds with total regret <b style="color:' + P.c0 + '">' + sel.regret.toFixed(1) + '</b> (the dashed line is the other strategy at ' + other.regret.toFixed(1) + '). ' +
+        (strat === 'thompson' ? 'Its curve bends toward flat: once an arm looks clearly worse, Thompson almost stops pulling it.' : 'It keeps spending a fixed 10% of pulls exploring at random forever, so its regret keeps climbing even after the best arm is obvious.');
+    }
+    u.wireSeg(el.querySelector('.ba-seg'), function (v) { strat = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Three-arm bandit: epsilon-greedy vs Thompson sampling, scored by cumulative regret. Base R.',
+      'rates <- c(0.30, 0.50, 0.55); best <- max(rates); T <- 400',
+      '',
+      'run <- function(strategy) {',
+      '  succ <- rep(0, 3); n <- rep(0, 3); regret <- 0',
+      '  for (t in 1:T) {',
+      '    if (strategy == "egreedy") {',
+      '      pick <- if (runif(1) < 0.1) sample(3, 1) else which.max(ifelse(n > 0, succ / n, 1))',
+      '    } else {',
+      '      pick <- which.max(rbeta(3, succ + 1, n - succ + 1))   # Thompson: draw from each arm\'s Beta',
+      '    }',
+      '    reward <- rbinom(1, 1, rates[pick])',
+      '    succ[pick] <- succ[pick] + reward; n[pick] <- n[pick] + 1',
+      '    regret <- regret + (best - rates[pick])',
+      '  }',
+      '  c(regret = regret, pulls_best = n[which.max(rates)])',
+      '}',
+      'set.seed(7)',
+      'round(rbind(egreedy = run("egreedy"), thompson = run("thompson")), 1)',
+      '# Thompson ends with lower regret and far more pulls on the best arm.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('bandit-explore', mount);
 })();
 
 ;
@@ -1235,6 +1520,107 @@
 })();
 
 ;
+/* conformal-bands.js */
+/* conformal-bands.js - split conformal prediction intervals, made visible.
+ * Fit a model, then set a band half-width from a high quantile of the calibration residuals. The
+ * band y-hat +/- q-hat is guaranteed to cover at least the target fraction of new points, with no
+ * assumption about the error distribution. Raise the target coverage and watch the band widen and
+ * the empirical coverage track the target. Emits split conformal from scratch in base R.
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function gauss(r) { return Math.sqrt(-2 * Math.log(Math.max(r(), 1e-9))) * Math.cos(6.2831853 * r()); }
+
+  // linear data: y = 2 + 1.5 x + noise; split into a calibration set and a test set
+  function build() {
+    var r = rng(4), cal = [], te = [], i, x;
+    for (i = 0; i < 120; i++) { x = 10 * r(); cal.push([x, 2 + 1.5 * x + 2 * gauss(r)]); }
+    for (i = 0; i < 120; i++) { x = 10 * r(); te.push([x, 2 + 1.5 * x + 2 * gauss(r)]); }
+    return { cal: cal, te: te };
+  }
+  function ols(pts) {
+    var n = pts.length, mx = 0, my = 0, i;
+    for (i = 0; i < n; i++) { mx += pts[i][0]; my += pts[i][1]; } mx /= n; my /= n;
+    var sxy = 0, sxx = 0, dx;
+    for (i = 0; i < n; i++) { dx = pts[i][0] - mx; sxy += dx * (pts[i][1] - my); sxx += dx * dx; }
+    var b = sxy / sxx, a = my - b * mx;
+    return function (x) { return a + b * x; };
+  }
+  function qConformal(res, alpha) {              // the split-conformal quantile of |residuals|
+    var s = res.slice().sort(function (a, b) { return a - b; }), n = s.length;
+    var k = Math.ceil((n + 1) * (1 - alpha));    // rank guaranteeing coverage
+    return s[Math.min(n - 1, k - 1)];
+  }
+
+  var LV = { '0.8': { a: 0.2, pct: '80%' }, '0.9': { a: 0.1, pct: '90%' }, '0.95': { a: 0.05, pct: '95%' } };
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var d = build(), f = ols(d.cal), level = '0.9';
+    var resCal = d.cal.map(function (p) { return Math.abs(p[1] - f(p[0])); });
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cb-seg" style="margin-bottom:12px">' + u.seg([{ v: '0.8', label: 'Target 80%' }, { v: '0.9', label: 'Target 90%' }, { v: '0.95', label: 'Target 95%' }], '0.9') + '</div>' +
+      '<div class="cb-plot"></div>' +
+      '<div class="cb-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Split conformal prediction: guaranteed-coverage band, base R' });
+
+    var plot = el.querySelector('.cb-plot'), read = el.querySelector('.cb-read');
+    var W = 340, H = 220, PAD = 26;
+    var ally = d.cal.concat(d.te).map(function (p) { return p[1]; });
+    var ymin = Math.min.apply(null, ally) - 1, ymax = Math.max.apply(null, ally) + 1;
+    function sx(x) { return PAD + x / 10 * (W - PAD - 8); }
+    function sy(y) { return H - PAD - (y - ymin) / (ymax - ymin) * (H - PAD - 8); }
+
+    function draw() {
+      var a = LV[level].a, qhat = qConformal(resCal, a);
+      var xs = [0, 10];
+      var band = '<polygon points="' + sx(xs[0]).toFixed(1) + ',' + sy(f(xs[0]) + qhat).toFixed(1) + ' ' + sx(xs[1]).toFixed(1) + ',' + sy(f(xs[1]) + qhat).toFixed(1) + ' ' + sx(xs[1]).toFixed(1) + ',' + sy(f(xs[1]) - qhat).toFixed(1) + ' ' + sx(xs[0]).toFixed(1) + ',' + sy(f(xs[0]) - qhat).toFixed(1) + '" fill="' + P.acc + '" fill-opacity="0.12"/>';
+      var line = '<line x1="' + sx(xs[0]).toFixed(1) + '" y1="' + sy(f(xs[0])).toFixed(1) + '" x2="' + sx(xs[1]).toFixed(1) + '" y2="' + sy(f(xs[1])).toFixed(1) + '" stroke="' + P.acc + '" stroke-width="1.5"/>';
+      var inside = 0;
+      var dots = d.te.map(function (p) {
+        var yhat = f(p[0]), inb = Math.abs(p[1] - yhat) <= qhat; if (inb) inside++;
+        return '<circle cx="' + sx(p[0]).toFixed(1) + '" cy="' + sy(p[1]).toFixed(1) + '" r="2.6" fill="' + (inb ? P.c0 : P.bad) + '" opacity="' + (inb ? 0.6 : 0.95) + '"/>';
+      }).join('');
+      var cover = inside / d.te.length;
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="conformal prediction band">' +
+        '<line x1="' + PAD + '" y1="' + (H - PAD) + '" x2="' + (W - 8) + '" y2="' + (H - PAD) + '" stroke="' + P.line + '"/>' +
+        '<line x1="' + PAD + '" y1="8" x2="' + PAD + '" y2="' + (H - PAD) + '" stroke="' + P.line + '"/>' +
+        band + line + dots +
+        '<text x="' + (W - 8) + '" y="16" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">test points; red = outside band</text></svg>';
+      read.innerHTML = 'At a target of <b>' + LV[level].pct + '</b> coverage, the calibration residuals set the band half-width to <b>q&#770; = ' + qhat.toFixed(2) + '</b>. On fresh test points the band actually covers <b style="color:' + P.acc + '">' + Math.round(cover * 100) + '%</b>, at or above target: that is conformal prediction\'s finite-sample guarantee, with no assumption about the error shape. Raise the target and the band widens to keep the promise.';
+    }
+    u.wireSeg(el.querySelector('.cb-seg'), function (v) { level = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Split conformal prediction: a band with GUARANTEED coverage, from residual quantiles. Base R.',
+      'set.seed(1)',
+      'n <- 600; x <- runif(n, 0, 10); y <- 2 + 1.5 * x + rnorm(n, 0, 2)',
+      'd <- data.frame(x, y)',
+      'tr <- 1:300; cal <- 301:450; te <- 451:600        # train / calibrate / test',
+      'fit <- lm(y ~ x, d[tr, ])                          # 1) fit on the training split',
+      'res <- abs(d$y[cal] - predict(fit, d[cal, ]))      # 2) nonconformity = |residual| on calibration',
+      'alpha <- 0.1                                        # want >= 90% coverage',
+      'k    <- ceiling((length(cal) + 1) * (1 - alpha)) / length(cal)',
+      'qhat <- quantile(res, k)                            # 3) the conformal quantile = band half-width',
+      'pred <- predict(fit, d[te, ])                       # 4) band is pred +/- qhat on new points',
+      'cover <- mean(d$y[te] >= pred - qhat & d$y[te] <= pred + qhat)',
+      'round(c(qhat = unname(qhat), target = 1 - alpha, coverage = cover), 3)',
+      '#>     qhat   target coverage',
+      '#>    3.615    0.900    0.913'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('conformal-bands', mount);
+})();
+
+;
 /* control-flow.js */
 /* control-flow.js - foundations: watch a for-loop with an if/else execute one
  * iteration at a time. Step through it; see the counter, which branch the
@@ -1406,6 +1792,83 @@
   }
 
   window.LessonWidgets.register('count-dist', mount);
+})();
+
+;
+/* cuped-variance.js */
+/* cuped-variance.js - variance reduction with pre-experiment data (CUPED), made visible.
+ * If a covariate measured BEFORE the experiment (last week's spend, a pre-period metric)
+ * correlates with the outcome, subtracting its predictable part shrinks the estimator's
+ * variance by exactly a factor of 1 - rho^2, with zero bias. The confidence interval on the
+ * treatment effect narrows for free. Toggle the pre-period correlation and watch the CI
+ * collapse. Emits the same raw-vs-CUPED standard errors in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var RHOS = { weak: 0.3, moderate: 0.6, strong: 0.85 };
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var lvl = 'moderate';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cu-seg" style="margin-bottom:12px">' + u.seg([{ v: 'weak', label: 'Weak (rho=0.3)' }, { v: 'moderate', label: 'Moderate (0.6)' }, { v: 'strong', label: 'Strong (0.85)' }], 'moderate') + '</div>' +
+      '<div class="cu-plot"></div>' +
+      '<div class="cu-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'CUPED variance reduction, base R' });
+
+    var plot = el.querySelector('.cu-plot'), read = el.querySelector('.cu-read');
+    var W = 340, H = 130, CX = W / 2, RAW_HALF = 120;   // raw CI half-width in px (illustrative)
+    function bar(y, half, col, lab) {
+      return '<line x1="' + (CX - half) + '" y1="' + y + '" x2="' + (CX + half) + '" y2="' + y + '" stroke="' + col + '" stroke-width="3"/>' +
+        '<line x1="' + (CX - half) + '" y1="' + (y - 6) + '" x2="' + (CX - half) + '" y2="' + (y + 6) + '" stroke="' + col + '" stroke-width="2"/>' +
+        '<line x1="' + (CX + half) + '" y1="' + (y - 6) + '" x2="' + (CX + half) + '" y2="' + (y + 6) + '" stroke="' + col + '" stroke-width="2"/>' +
+        '<circle cx="' + CX + '" cy="' + y + '" r="3.5" fill="' + col + '"/>' +
+        '<text x="8" y="' + (y - 10) + '" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + col + '">' + lab + '</text>';
+    }
+    function draw() {
+      var rho = RHOS[lvl], factor = Math.sqrt(1 - rho * rho), cupHalf = RAW_HALF * factor;
+      var reduct = Math.round(rho * rho * 100);
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CUPED confidence interval shrink">' +
+        '<line x1="' + CX + '" y1="18" x2="' + CX + '" y2="' + (H - 10) + '" stroke="' + P.line2 + '" stroke-width="1" stroke-dasharray="2 3"/>' +
+        bar(46, RAW_HALF, P.mut, 'raw 95% CI') +
+        bar(96, cupHalf, P.c0, 'CUPED 95% CI') +
+        '</svg>';
+      read.innerHTML = 'A pre-period covariate correlated <b>' + rho + '</b> with the outcome shrinks the estimator variance by <b>1 &minus; ' + rho + '&sup2; = ' + (1 - rho * rho).toFixed(2) + '</b>, so the CI narrows by a factor of <b style="color:' + P.c0 + '">' + factor.toFixed(2) + '</b> (a <b>' + reduct + '%</b> variance cut) with no bias. ' +
+        (lvl === 'weak' ? 'A weak pre-period signal barely helps.' : lvl === 'strong' ? 'A strong pre-period signal is like running the experiment on a much larger sample, for free.' : 'Equivalent to collecting ' + Math.round(1 / (1 - rho * rho)) + 'x the sample at no extra cost.');
+    }
+    u.wireSeg(el.querySelector('.cu-seg'), function (v) { lvl = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# CUPED: use a pre-experiment covariate to shrink the variance of an A/B estimate. Base R.',
+      'set.seed(1)',
+      'n   <- 4000',
+      'pre <- rnorm(n)                                  # a metric measured BEFORE the test',
+      'rho <- 0.6                                       # its correlation with the outcome',
+      'y   <- rho * pre + sqrt(1 - rho^2) * rnorm(n)    # outcome, partly predicted by pre',
+      'arm <- rep(0:1, each = n / 2)',
+      'y   <- y + 0.05 * arm                            # a true treatment lift of 0.05',
+      '',
+      'g <- n / 2',
+      'raw_se <- sqrt(var(y[arm == 1]) / g + var(y[arm == 0]) / g)   # ordinary difference in means',
+      '',
+      'theta <- cov(y, pre) / var(pre)                  # CUPED: regress out the pre-covariate',
+      'yc    <- y - theta * (pre - mean(pre))',
+      'cuped_se <- sqrt(var(yc[arm == 1]) / g + var(yc[arm == 0]) / g)',
+      '',
+      'round(c(raw_se = raw_se, cuped_se = cuped_se,',
+      '        ratio = cuped_se / raw_se, predicted = sqrt(1 - rho^2)), 3)',
+      '# the SE ratio lands right on sqrt(1 - rho^2): a real variance cut, no bias.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('cuped-variance', mount);
 })();
 
 ;
@@ -1967,6 +2430,95 @@
   }
 
   window.LessonWidgets.register('dendrogram', mount);
+})();
+
+;
+/* did-parallel.js */
+/* did-parallel.js - difference-in-differences geometry, made visible. Two groups measured
+ * before and after a policy: the treated line and the control line. Under PARALLEL TRENDS,
+ * the control group's pre-to-post change is what the treated group WOULD have done without
+ * treatment, so the dashed counterfactual runs parallel to control. The DiD estimate is the
+ * gap between the treated group's actual post value and that counterfactual, a double
+ * difference that a naive post-only comparison gets wrong whenever the groups started at
+ * different levels. Toggle Naive vs DiD and read the gap. Emits lm(y ~ treat*post) in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  // clean illustrative values (the runnable R shows the noisy-data version)
+  var cPre = 20, cPost = 26, tPre = 18, tPost = 30;      // control +6, treated +12
+  var cf = tPre + (cPost - cPre);                         // counterfactual: 18 + 6 = 24
+  var did = tPost - cf;                                   // 30 - 24 = 6 (true effect)
+  var naive = tPost - cPost;                              // 30 - 26 = 4 (biased)
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mode = 'did';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="dd-seg" style="margin-bottom:12px">' + u.seg([{ v: 'naive', label: 'Naive (post only)' }, { v: 'did', label: 'Difference-in-differences' }], 'did') + '</div>' +
+      '<div class="dd-plot"></div>' +
+      '<div class="dd-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Difference-in-differences with lm(y ~ treat*post), base R' });
+
+    var plot = el.querySelector('.dd-plot'), read = el.querySelector('.dd-read');
+    var W = 340, H = 200, L = 34, R = 90, T = 16, B = 26;
+    var xPre = L, xPost = W - R, ymin = 14, ymax = 34;
+    function py(v) { return T + (ymax - v) / (ymax - ymin) * (H - T - B); }
+    function line(x1, y1, x2, y2, col, dash, wid) { return '<line x1="' + x1 + '" y1="' + py(y1).toFixed(1) + '" x2="' + x2 + '" y2="' + py(y2).toFixed(1) + '" stroke="' + col + '" stroke-width="' + (wid || 2.5) + '"' + (dash ? ' stroke-dasharray="4 3"' : '') + '/>'; }
+    function dot(x, v, col) { return '<circle cx="' + x + '" cy="' + py(v).toFixed(1) + '" r="3.5" fill="' + col + '"/>'; }
+    function draw() {
+      var gapX = mode === 'did' ? xPost + 14 : xPost + 14;
+      var top = mode === 'did' ? tPost : tPost, bot = mode === 'did' ? cf : cPost;
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="difference in differences">';
+      // control (orange), treated (blue), counterfactual (dashed blue)
+      svg += line(xPre, cPre, xPost, cPost, P.c1) + dot(xPre, cPre, P.c1) + dot(xPost, cPost, P.c1);
+      svg += line(xPre, tPre, xPost, tPost, P.c0) + dot(xPre, tPre, P.c0) + dot(xPost, tPost, P.c0);
+      if (mode === 'did') svg += line(xPre, tPre, xPost, cf, P.c0, true, 2) + dot(xPost, cf, P.c0);
+      // the highlighted gap bracket at post
+      svg += '<line x1="' + gapX + '" y1="' + py(top).toFixed(1) + '" x2="' + gapX + '" y2="' + py(bot).toFixed(1) + '" stroke="' + P.bad + '" stroke-width="2"/>';
+      svg += '<text x="' + (gapX + 4) + '" y="' + ((py(top) + py(bot)) / 2 + 4).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" font-size="12" font-weight="600" fill="' + P.bad + '">' + (mode === 'did' ? did : naive) + '</text>';
+      svg += '<text x="' + xPre + '" y="' + (H - 8) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">before</text>';
+      svg += '<text x="' + xPost + '" y="' + (H - 8) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">after</text>';
+      svg += '<text x="' + (xPre + 4) + '" y="' + (py(tPre) - 6).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c0 + '">treated</text>';
+      svg += '<text x="' + (xPre + 4) + '" y="' + (py(cPre) + 14).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c1 + '">control</text>';
+      svg += '</svg>';
+      plot.innerHTML = svg;
+      read.innerHTML = mode === 'naive'
+        ? 'The <b>naive</b> comparison subtracts the two post values: ' + tPost + ' &minus; ' + cPost + ' = <b style="color:' + P.bad + '">' + naive + '</b>. But the groups began at different levels (' + tPre + ' vs ' + cPre + '), so this is biased.'
+        : 'The dashed line is the counterfactual: where treated would land if it moved parallel to control (' + tPre + ' + ' + (cPost - cPre) + ' = ' + cf + '). <b>DiD</b> = ' + tPost + ' &minus; ' + cf + ' = <b style="color:' + P.bad + '">' + did + '</b>, the double difference, valid only if the trends really are parallel.';
+    }
+    u.wireSeg(el.querySelector('.dd-seg'), function (v) { mode = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Difference-in-differences: two groups, before and after a policy. Base R.',
+      'set.seed(1)',
+      'n <- 200',
+      'd <- expand.grid(unit = 1:n, post = 0:1)',
+      'd$treat <- ifelse(d$unit <= n / 2, 0, 1)',
+      'base   <- ifelse(d$treat == 1, 18, 20)              # treated start lower',
+      'trend  <- ifelse(d$post == 1, 6, 0)                  # common time trend',
+      'effect <- ifelse(d$treat == 1 & d$post == 1, 6, 0)   # TRUE DiD effect = 6',
+      'd$y <- base + trend + effect + rnorm(nrow(d), 0, 4)',
+      '',
+      'cell <- tapply(d$y, list(treat = d$treat, post = d$post), mean)',
+      'did  <- (cell["1","1"] - cell["1","0"]) - (cell["0","1"] - cell["0","0"])',
+      'c(naive_post_gap = cell["1","1"] - cell["0","1"], did = did)',
+      '#> naive_post_gap            did',
+      '#>           4.09           6.67',
+      '',
+      'round(coef(lm(y ~ treat * post, data = d)), 2)   # the treat:post term IS the DiD',
+      '#> (Intercept)       treat        post  treat:post',
+      '#>       20.44       -2.59        5.68        6.67'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('did-parallel', mount);
 })();
 
 ;
@@ -2975,6 +3527,205 @@
 })();
 
 ;
+/* isolation-forest.js */
+/* isolation-forest.js - why anomalies isolate faster.
+ * An isolation tree splits the space with random axis-aligned cuts. A point in a dense cluster needs
+ * many cuts to fence off on its own; a point out in empty space is fenced off in just a few. The
+ * average number of cuts (path length) over many trees becomes the anomaly score. Toggle between a
+ * cluster point and the outlier and watch the isolating path get much shorter for the outlier.
+ * Emits a from-scratch isolation forest in base R.
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function gauss(r) { return Math.sqrt(-2 * Math.log(Math.max(r(), 1e-9))) * Math.cos(6.2831853 * r()); }
+
+  // fixed point cloud in [0,1]^2: a tight cluster + one far outlier (last index)
+  function build() {
+    var r = rng(7), pts = [];
+    for (var i = 0; i < 70; i++) pts.push([0.5 + 0.075 * gauss(r), 0.52 + 0.075 * gauss(r)]);
+    pts.push([0.9, 0.12]); // the outlier
+    return pts;
+  }
+
+  // one isolation path for point p among pts: random axis-aligned cuts, shrink the box to the side
+  // holding p, until p is alone. Returns the list of cut segments (for drawing) and the path length.
+  function isoPath(pts, pIdx, seed) {
+    var r = rng(seed), box = [0, 1, 0, 1], idx = pts.map(function (_, i) { return i; }), cuts = [], guard = 0;
+    while (idx.length > 1 && guard++ < 40) {
+      var j = r() < 0.5 ? 0 : 1;
+      var vals = idx.map(function (i) { return pts[i][j]; });
+      var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+      if (hi - lo < 1e-6) break;
+      var sp = lo + (hi - lo) * r();
+      cuts.push({ axis: j, at: sp, box: box.slice() });
+      var pv = pts[pIdx][j], keepLow = pv < sp;
+      if (j === 0) box[keepLow ? 1 : 0] = sp; else box[keepLow ? 3 : 2] = sp;
+      idx = idx.filter(function (i) { return (pts[i][j] < sp) === keepLow; });
+    }
+    return { cuts: cuts, len: cuts.length };
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var pts = build(), outlier = pts.length - 1, sel = 'cluster';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="if-seg" style="margin-bottom:12px">' + u.seg([{ v: 'cluster', label: 'A cluster point' }, { v: 'outlier', label: 'The outlier' }], 'cluster') + '</div>' +
+      '<div class="if-plot"></div>' +
+      '<div class="if-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Isolation forest from scratch: average path length -> anomaly score, base R' });
+
+    var plot = el.querySelector('.if-plot'), read = el.querySelector('.if-read');
+    var W = 340, H = 260, PAD = 14;
+    function sx(x) { return PAD + x * (W - 2 * PAD); }
+    function sy(y) { return H - PAD - y * (H - 2 * PAD); }
+    // approximate average path length over many trees (JS mini-forest), for the honest readout
+    function avgLen(pIdx) { var s = 0, N = 60; for (var t = 0; t < N; t++) s += isoPath(pts, pIdx, 1000 + t * 7 + pIdx).len; return s / N; }
+    var cn = 2 * (Math.log(pts.length - 1) + 0.5772157) - 2 * (pts.length - 1) / pts.length;
+
+    function draw() {
+      var pIdx = sel === 'outlier' ? outlier : 3;
+      var path = isoPath(pts, pIdx, 42 + pIdx), avg = avgLen(pIdx), score = Math.pow(2, -avg / cn);
+      var lines = path.cuts.map(function (c) {
+        if (c.axis === 0) return '<line x1="' + sx(c.at).toFixed(1) + '" y1="' + sy(c.box[3]).toFixed(1) + '" x2="' + sx(c.at).toFixed(1) + '" y2="' + sy(c.box[2]).toFixed(1) + '" stroke="' + P.acc + '" stroke-width="1" opacity="0.6"/>';
+        return '<line x1="' + sx(c.box[0]).toFixed(1) + '" y1="' + sy(c.at).toFixed(1) + '" x2="' + sx(c.box[1]).toFixed(1) + '" y2="' + sy(c.at).toFixed(1) + '" stroke="' + P.acc + '" stroke-width="1" opacity="0.6"/>';
+      }).join('');
+      var dots = pts.map(function (p, i) {
+        var isSel = i === pIdx, isOut = i === outlier;
+        return '<circle cx="' + sx(p[0]).toFixed(1) + '" cy="' + sy(p[1]).toFixed(1) + '" r="' + (isSel ? 5 : 3) + '" fill="' + (isSel ? P.bad : isOut ? P.del : P.c0) + '" opacity="' + (isSel ? 1 : 0.6) + '"' + (isSel ? ' stroke="#fff" stroke-width="1.5"' : '') + '/>';
+      }).join('');
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="isolation forest splits">' +
+        '<rect x="' + PAD + '" y="' + PAD + '" width="' + (W - 2 * PAD) + '" height="' + (H - 2 * PAD) + '" fill="none" stroke="' + P.line + '"/>' +
+        lines + dots +
+        '<text x="' + (W - 8) + '" y="18" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">' + path.len + ' cuts to isolate</text></svg>';
+      read.innerHTML = 'This ' + (sel === 'outlier' ? '<b style="color:' + P.del + '">outlier</b>' : '<b>cluster point</b>') + ' is fenced off on its own after <b>' + path.len + '</b> random cuts here, and <b>' + avg.toFixed(1) + '</b> on average over many trees, giving an anomaly score of <b style="color:' + P.acc + '">' + score.toFixed(2) + '</b>. ' +
+        (sel === 'outlier' ? 'Out in empty space, a few cuts suffice, so the short path scores near 1: anomalous.' : 'Buried among neighbours, it takes many cuts, so the long path scores near 0.5: normal.');
+    }
+    u.wireSeg(el.querySelector('.if-seg'), function (v) { sel = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Isolation Forest from scratch: anomalies isolate in fewer random splits (shorter paths). Base R.',
+      'set.seed(1)',
+      'X <- rbind(matrix(rnorm(200), 100, 2), c(4.5, 4.5))   # 100 normal points + 1 anomaly (row 101)',
+      'cn <- function(n) if (n > 2) 2*(log(n-1)+0.5772157) - 2*(n-1)/n else if (n==2) 1 else 0  # avg path in a random tree',
+      'ipath <- function(x, d, e = 0) {                      # depth of random splits to isolate x within d',
+      '  n <- nrow(d)',
+      '  if (n <= 1 || e > 30) return(e + cn(n))',
+      '  j <- sample(ncol(d), 1); lo <- min(d[,j]); hi <- max(d[,j])',
+      '  if (lo == hi) return(e + cn(n))',
+      '  sp <- runif(1, lo, hi)                              # random split on a random feature',
+      '  side <- if (x[j] < sp) d[,j] < sp else d[,j] >= sp',
+      '  ipath(x, d[side, , drop = FALSE], e + 1)            # recurse into the side holding x',
+      '}',
+      'score <- function(i, trees = 100)                     # anomaly score = 2^(-avg path / cn)',
+      '  2^(-mean(replicate(trees, ipath(X[i,], X))) / cn(nrow(X)))',
+      'round(c(normal_pt = score(1), anomaly_pt = score(101)), 3)',
+      '#>  normal_pt anomaly_pt',
+      '#>      0.382      0.834'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('isolation-forest', mount);
+})();
+
+;
+/* iv-2stage.js */
+/* iv-2stage.js - instrumental variables / two-stage least squares, made visible. When an
+ * unobserved confounder drives both treatment and outcome, the naive regression slope is
+ * biased. An instrument Z shifts the treatment X but touches the outcome only through X, so
+ * the part of X that Z explains is exogenous. IV recovers the true slope from that part
+ * (equivalently, the Wald ratio cov(Z,Y)/cov(Z,X)). A WEAK instrument, one barely related to
+ * X, makes the ratio's denominator tiny and the estimate wild. Toggle strong vs weak and
+ * watch the IV line settle or swing. Emits the two-stage lm() fit in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  var STR = { strong: 0.8, weak: 0.12 };
+
+  function build(zcoef) {
+    var r = rng(3), spare = null;
+    function rnorm() { if (spare !== null) { var v = spare; spare = null; return v; } var a = Math.max(r(), 1e-12), b = r(), m = Math.sqrt(-2 * Math.log(a)); spare = m * Math.sin(2 * Math.PI * b); return m * Math.cos(2 * Math.PI * b); }
+    var z = [], x = [], y = [];
+    for (var i = 0; i < 400; i++) { var zi = rnorm(), ui = rnorm(); var xi = zcoef * zi + 1.2 * ui + rnorm(); var yi = 2 * xi + 3 * ui + rnorm(); z.push(zi); x.push(xi); y.push(yi); }
+    return { z: z, x: x, y: y };
+  }
+  function mean(a) { return a.reduce(function (s, v) { return s + v; }, 0) / a.length; }
+  function cov(a, b) { var ma = mean(a), mb = mean(b), s = 0; for (var i = 0; i < a.length; i++) s += (a[i] - ma) * (b[i] - mb); return s / (a.length - 1); }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var strength = 'strong';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="iv-seg" style="margin-bottom:12px">' + u.seg([{ v: 'strong', label: 'Strong instrument' }, { v: 'weak', label: 'Weak instrument' }], 'strong') + '</div>' +
+      '<div class="iv-plot"></div>' +
+      '<div class="iv-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Two-stage least squares (IV) by hand, base R' });
+
+    var plot = el.querySelector('.iv-plot'), read = el.querySelector('.iv-read');
+    var W = 340, H = 200, PAD = 10;
+    function draw() {
+      var d = build(STR[strength]);
+      var mx = mean(d.x), my = mean(d.y);
+      var naive = cov(d.x, d.y) / cov(d.x, d.x);
+      var iv = cov(d.z, d.y) / cov(d.z, d.x);
+      var fstrength = cov(d.z, d.x) * cov(d.z, d.x) / (cov(d.z, d.z) * cov(d.x, d.x)) * (d.x.length - 2) / Math.max(1e-6, 1 - cov(d.z, d.x) * cov(d.z, d.x) / (cov(d.z, d.z) * cov(d.x, d.x)));
+      var xr = [Math.min.apply(null, d.x), Math.max.apply(null, d.x)], yr = [Math.min.apply(null, d.y), Math.max.apply(null, d.y)];
+      function px(x) { return PAD + (x - xr[0]) / (xr[1] - xr[0]) * (W - 2 * PAD); }
+      function py(y) { return H - 22 - (y - yr[0]) / (yr[1] - yr[0]) * (H - 32); }
+      var dots = d.x.map(function (xi, i) { return '<circle cx="' + px(xi).toFixed(1) + '" cy="' + py(d.y[i]).toFixed(1) + '" r="1.6" fill="' + P.faint + '" opacity="0.6"/>'; }).join('');
+      function seg(slope, col, dash) { var x1 = xr[0], x2 = xr[1]; var y1 = my + slope * (x1 - mx), y2 = my + slope * (x2 - mx); return '<line x1="' + px(x1).toFixed(1) + '" y1="' + py(y1).toFixed(1) + '" x2="' + px(x2).toFixed(1) + '" y2="' + py(y2).toFixed(1) + '" stroke="' + col + '" stroke-width="2.5"' + (dash ? ' stroke-dasharray="5 3"' : '') + '/>'; }
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="instrumental variables">' +
+        dots + seg(naive, P.bad) + seg(iv, P.acc, true) +
+        '<text x="' + (W - 8) + '" y="14" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.bad + '">naive OLS ' + naive.toFixed(2) + '</text>' +
+        '<text x="' + (W - 8) + '" y="28" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.acc + '">IV ' + iv.toFixed(2) + '</text>' +
+        '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">treatment x -> outcome y</text></svg>';
+      read.innerHTML = 'Naive OLS reads a slope of <b style="color:' + P.bad + '">' + naive.toFixed(2) + '</b>, biased by the hidden confounder; IV recovers <b style="color:' + P.acc + '">' + iv.toFixed(2) + '</b> (true effect 2) from the instrument-driven part of x. ' +
+        (strength === 'weak'
+          ? 'First-stage F &asymp; <b style="color:' + P.bad + '">' + fstrength.toFixed(0) + '</b>: a <b>weak</b> instrument barely moves x, so the Wald ratio\'s denominator is tiny and the estimate is unstable (rule of thumb: need F &gt; 10).'
+          : 'First-stage F &asymp; <b>' + fstrength.toFixed(0) + '</b>, comfortably above the F &gt; 10 rule: a strong instrument gives a stable estimate.');
+    }
+    u.wireSeg(el.querySelector('.iv-seg'), function (v) { strength = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Instrumental variables (2SLS): recover a causal slope despite an unobserved confounder. Base R.',
+      'set.seed(3)',
+      'n <- 1000',
+      'z <- rnorm(n)                       # instrument (random encouragement)',
+      'u <- rnorm(n)                       # UNOBSERVED confounder',
+      'x <- 0.8 * z + 1.2 * u + rnorm(n)    # treatment: driven by z AND u',
+      'y <- 2 * x + 3 * u + rnorm(n)        # TRUE effect of x is 2; u confounds',
+      '',
+      'naive <- coef(lm(y ~ x))["x"]        # biased upward by u',
+      'xhat  <- fitted(lm(x ~ z))           # stage 1: the exogenous, z-driven part of x',
+      'iv    <- coef(lm(y ~ xhat))["xhat"]  # stage 2',
+      'round(c(true = 2, naive_ols = unname(naive), iv_2sls = unname(iv)), 2)',
+      '#>      true naive_ols  iv_2sls',
+      '#>      2.00      3.16     1.85',
+      '',
+      'summary(lm(x ~ z))$fstatistic[1]     # first-stage strength (need F > 10)',
+      '#>    value',
+      '#>    257.8'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('iv-2stage', mount);
+})();
+
+;
 /* join-diagram.js */
 /* join-diagram.js - two keyed tables + a join-type switch + the live result.
  * cfg: { left:{cols,rows}, right:{cols,rows}, key:"dept", op:"inner" }
@@ -3573,6 +4324,94 @@
 })();
 
 ;
+/* lof-density.js */
+/* lof-density.js - Local Outlier Factor made visible.
+ * LOF compares a point's local density to the density of its neighbours. Deep inside a cluster,
+ * a point is as crowded as its neighbours, so LOF ~ 1. A point in a sparse pocket, whose neighbours
+ * are themselves crowded, has far lower density than them, so LOF >> 1. Unlike a global cutoff, LOF
+ * adapts to each region, catching a point that is only locally sparse. Slide k and read each point's
+ * LOF off its colour. Emits a from-scratch LOF in base R.
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function gauss(r) { return Math.sqrt(-2 * Math.log(Math.max(r(), 1e-9))) * Math.cos(6.2831853 * r()); }
+
+  function build() {
+    var r = rng(11), pts = [], i;
+    for (i = 0; i < 40; i++) pts.push([0.35 + 0.08 * gauss(r), 0.55 + 0.08 * gauss(r)]);   // dense cluster A
+    for (i = 0; i < 20; i++) pts.push([0.72 + 0.05 * gauss(r), 0.35 + 0.05 * gauss(r)]);   // tighter cluster B
+    pts.push([0.6, 0.8]);   // locally sparse point between the clusters (the interesting outlier)
+    return pts;
+  }
+
+  function dist(a, b) { var dx = a[0] - b[0], dy = a[1] - b[1]; return Math.sqrt(dx * dx + dy * dy); }
+  function lofAll(pts, k) {
+    var n = pts.length, D = [], i, j;
+    for (i = 0; i < n; i++) { D[i] = []; for (j = 0; j < n; j++) D[i][j] = dist(pts[i], pts[j]); }
+    function knn(i) { var o = D[i].map(function (d, j) { return [d, j]; }).sort(function (a, b) { return a[0] - b[0]; }); return o.slice(1, k + 1).map(function (x) { return x[1]; }); }
+    var NN = pts.map(function (_, i) { return knn(i); });
+    function kdist(i) { return D[i][NN[i][k - 1]]; }
+    function lrd(i) { var s = 0; NN[i].forEach(function (o) { s += Math.max(D[i][o], kdist(o)); }); return 1 / (s / k); }
+    return pts.map(function (_, i) { var s = 0; NN[i].forEach(function (o) { s += lrd(o); }); return (s / k) / lrd(i); });
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var pts = build(), outlier = pts.length - 1, k = 8;
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="lf-seg" style="margin-bottom:12px">' + u.seg([{ v: '5', label: 'k = 5' }, { v: '8', label: 'k = 8' }, { v: '12', label: 'k = 12' }], '8') + '</div>' +
+      '<div class="lf-plot"></div>' +
+      '<div class="lf-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Local Outlier Factor from scratch: local density ratio, base R' });
+
+    var plot = el.querySelector('.lf-plot'), read = el.querySelector('.lf-read');
+    var W = 340, H = 250, PAD = 14;
+    function sx(x) { return PAD + x * (W - 2 * PAD); }
+    function sy(y) { return H - PAD - y * (H - 2 * PAD); }
+    function col(lof) { return lof > 1.8 ? P.bad : lof > 1.3 ? '#e08a2e' : P.c0; }
+
+    function draw() {
+      var lof = lofAll(pts, k);
+      var dots = pts.map(function (p, i) {
+        var isOut = i === outlier;
+        return '<circle cx="' + sx(p[0]).toFixed(1) + '" cy="' + sy(p[1]).toFixed(1) + '" r="' + (isOut ? 6 : 3.5 + Math.min(3, (lof[i] - 1) * 3)) + '" fill="' + col(lof[i]) + '" opacity="0.8"' + (isOut ? ' stroke="#fff" stroke-width="1.5"' : '') + '/>';
+      }).join('');
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LOF colored scatter">' +
+        '<rect x="' + PAD + '" y="' + PAD + '" width="' + (W - 2 * PAD) + '" height="' + (H - 2 * PAD) + '" fill="none" stroke="' + P.line + '"/>' +
+        dots +
+        '<text x="' + (W - 8) + '" y="18" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">bigger, redder = higher LOF</text></svg>';
+      var clusterMean = 0, cc = 0; lof.forEach(function (v, i) { if (i !== outlier) { clusterMean += v; cc++; } });
+      read.innerHTML = 'At <b>k = ' + k + '</b>, the highlighted point scores <b style="color:' + P.bad + '">LOF = ' + lof[outlier].toFixed(2) + '</b>, while ordinary cluster points sit near <b>' + (clusterMean / cc).toFixed(2) + '</b>. An LOF near 1 means "as dense as my neighbours"; well above 1 means "in a far sparser pocket than the points around me", the local signal a single global distance cutoff would miss.';
+    }
+    u.wireSeg(el.querySelector('.lf-seg'), function (v) { k = parseInt(v, 10); draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Local Outlier Factor from scratch: an outlier is far less dense than its own neighbours. Base R.',
+      'set.seed(1)',
+      'X <- rbind(matrix(rnorm(100), 50, 2), c(3.5, 3.5))   # 50-point cluster + 1 outlier (row 51)',
+      'k <- 5; D <- as.matrix(dist(X))',
+      'knn   <- function(i) order(D[i,])[2:(k+1)]           # k nearest neighbours (drop self)',
+      'kdist <- function(i) D[i, knn(i)[k]]                 # distance to the k-th neighbour',
+      'rd    <- function(i, o) max(D[i, o], kdist(o))       # reachability distance of i from o',
+      'lrd   <- function(i) 1 / mean(sapply(knn(i), function(o) rd(i, o)))   # local reachability density',
+      'lof   <- function(i) mean(sapply(knn(i), lrd)) / lrd(i)               # neighbour density / my density',
+      'round(c(cluster_pt = lof(1), outlier_pt = lof(51)), 2)',
+      '#> cluster_pt outlier_pt',
+      '#>       1.02       3.80'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('lof-density', mount);
+})();
+
+;
 /* logistic-curve.js */
 /* logistic-curve.js - logistic regression as a probability + a threshold.
  * The S-curve maps a feature to P(y=1). Slide the decision threshold: the cutoff
@@ -3660,6 +4499,101 @@
   }
 
   window.LessonWidgets.register('logistic-curve', mount);
+})();
+
+;
+/* matching-overlap.js */
+/* matching-overlap.js - propensity-score overlap and covariate balance, made visible.
+ * When treatment is confounded, treated and control units have different propensity-score
+ * distributions: the treated pile up at high scores, controls at low ones, and a naive
+ * difference in outcomes is biased. Matching (or IP-weighting) keeps only the region of
+ * common support and reshapes control to look like treated, collapsing the standardized
+ * mean difference toward zero. Toggle before/after and watch the two mirrored histograms
+ * line up and the balance number fall. Emits the same propensity + nearest-neighbour match
+ * in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function plogis(z) { return 1 / (1 + Math.exp(-z)); }
+
+  // deterministic sample: x ~ N(0,1), treat ~ Bernoulli(plogis(0.8 x)), ps = plogis(0.8 x)
+  function build() {
+    var r = rng(1), spare = null;
+    function rnorm() { if (spare !== null) { var v = spare; spare = null; return v; } var a = Math.max(r(), 1e-12), b = r(), m = Math.sqrt(-2 * Math.log(a)); spare = m * Math.sin(2 * Math.PI * b); return m * Math.cos(2 * Math.PI * b); }
+    var trt = [], ctrl = [];
+    for (var i = 0; i < 600; i++) { var x = rnorm(), ps = plogis(0.8 * x); if (r() < ps) trt.push(ps); else ctrl.push(ps); }
+    // nearest-neighbour match: each treated -> closest control ps (with replacement)
+    var matched = trt.map(function (p) { var bi = 0, bd = 2; for (var j = 0; j < ctrl.length; j++) { var d = Math.abs(ctrl[j] - p); if (d < bd) { bd = d; bi = j; } } return ctrl[bi]; });
+    return { trt: trt, ctrl: ctrl, matched: matched };
+  }
+  function mean(a) { return a.reduce(function (s, v) { return s + v; }, 0) / a.length; }
+  function vari(a) { var m = mean(a); return a.reduce(function (s, v) { return s + (v - m) * (v - m); }, 0) / (a.length - 1); }
+  function smd(a, b) { return (mean(a) - mean(b)) / Math.sqrt((vari(a) + vari(b)) / 2); }
+  function hist(a, nb) { var h = new Array(nb).fill(0); a.forEach(function (v) { var k = Math.min(nb - 1, Math.floor(v * nb)); h[k]++; }); return h; }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var phase = 'before';
+    var d = build();
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="mo-seg" style="margin-bottom:12px">' + u.seg([{ v: 'before', label: 'Before matching' }, { v: 'after', label: 'After matching' }], 'before') + '</div>' +
+      '<div class="mo-plot"></div>' +
+      '<div class="mo-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Propensity score + nearest-neighbour matching, base R' });
+
+    var plot = el.querySelector('.mo-plot'), read = el.querySelector('.mo-read');
+    var NB = 20, W = 340, H = 190, MID = H / 2, bw = (W - 8) / NB;
+    function draw() {
+      var control = phase === 'before' ? d.ctrl : d.matched;
+      var ht = hist(d.trt, NB), hc = hist(control, NB);
+      var mx = Math.max(Math.max.apply(null, ht), Math.max.apply(null, hc)) || 1;
+      var sc = (MID - 16) / mx;
+      function bars(h, up) { return h.map(function (c, k) { var hh = c * sc; var y = up ? MID - hh : MID; return '<rect x="' + (4 + k * bw).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + (bw - 1).toFixed(1) + '" height="' + hh.toFixed(1) + '" fill="' + (up ? P.c0 : P.c1) + '" opacity="0.6"/>'; }).join(''); }
+      var s = smd(d.trt, control);
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="propensity overlap">' +
+        bars(ht, true) + bars(hc, false) +
+        '<line x1="4" y1="' + MID + '" x2="' + (W - 4) + '" y2="' + MID + '" stroke="' + P.mut + '" stroke-width="1"/>' +
+        '<text x="8" y="14" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.c0 + '">treated</text>' +
+        '<text x="8" y="' + (H - 6) + '" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.c1 + '">control</text>' +
+        '<text x="' + (W - 6) + '" y="' + (MID + 14) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">propensity score ->' + '</text></svg>';
+      read.innerHTML = phase === 'before'
+        ? 'Treated units pile up at <b>high</b> propensity scores and controls at <b>low</b> ones: standardized mean difference <b style="color:' + P.bad + '">' + s.toFixed(2) + '</b>. A raw outcome gap here is confounded.'
+        : 'Each treated unit is paired with its nearest-propensity control, so the two histograms now line up: standardized mean difference <b style="color:' + P.acc + '">' + s.toFixed(2) + '</b> (under 0.1 is good balance). The matched comparison is fair.';
+    }
+    u.wireSeg(el.querySelector('.mo-seg'), function (v) { phase = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Confounded treatment: recover the true effect with propensity-score matching. Base R.',
+      'set.seed(1)',
+      'n <- 600; x <- rnorm(n)',
+      'treat <- rbinom(n, 1, plogis(0.8 * x))   # treatment depends on x (a confounder)',
+      'y <- 2 * treat + 1.5 * x + rnorm(n)       # the TRUE treatment effect is 2',
+      '',
+      'naive <- mean(y[treat == 1]) - mean(y[treat == 0])   # biased: ignores x',
+      'ps <- glm(treat ~ x, family = binomial)$fitted.values',
+      'ctrl <- which(treat == 0); trt <- which(treat == 1)',
+      'match <- sapply(trt, function(i) ctrl[which.min(abs(ps[ctrl] - ps[i]))])',
+      'att <- mean(y[trt] - y[match])            # matched difference',
+      'round(c(true = 2, naive = naive, matched = att), 2)',
+      '#>    true   naive matched',
+      '#>    2.00    3.02    2.01',
+      '',
+      'smd <- function(a, b) (mean(a) - mean(b)) / sqrt((var(a) + var(b)) / 2)',
+      'round(c(before = smd(x[trt], x[ctrl]), after = smd(x[trt], x[match])), 2)  # covariate balance',
+      '#> before  after',
+      '#>   0.74    0.01'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('matching-overlap', mount);
 })();
 
 ;
@@ -4088,6 +5022,91 @@
 })();
 
 ;
+/* ood-detect.js */
+/* ood-detect.js - out-of-distribution detection by a novelty score + threshold, made visible.
+ * Fit the training data's shape (here a Gaussian, scored by Mahalanobis distance), then flag any
+ * new point whose score exceeds a threshold as out-of-distribution. The threshold trades a false-
+ * positive rate on genuine inliers against the detection rate on true outliers: a strict cutoff
+ * misses subtle novelties, a loose one cries wolf. Toggle the cutoff and read both rates off the
+ * two score histograms. Emits the same Mahalanobis + chi-square-threshold detector in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  // chi-square 2df thresholds (Mahalanobis^2 cutoffs) at 3 percentiles
+  var THR = { strict: { q: 13.82, pct: '99.9%' }, medium: { q: 9.21, pct: '99%' }, loose: { q: 5.99, pct: '95%' } };
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function build() {
+    var r = rng(2);
+    // inlier score ~ chi-square(2df) = Exponential(mean 2); OOD ~ inlier + offset ~32 (a point ~4 sd away)
+    var inl = [], ood = [];
+    for (var i = 0; i < 400; i++) { inl.push(-2 * Math.log(Math.max(r(), 1e-9))); ood.push(-2 * Math.log(Math.max(r(), 1e-9)) + 26 + 12 * r()); }
+    return { inl: inl, ood: ood };
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var level = 'medium'; var d = build();
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="od-seg" style="margin-bottom:12px">' + u.seg([{ v: 'loose', label: 'Loose (95%)' }, { v: 'medium', label: 'Medium (99%)' }, { v: 'strict', label: 'Strict (99.9%)' }], 'medium') + '</div>' +
+      '<div class="od-plot"></div>' +
+      '<div class="od-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'OOD detection: Mahalanobis distance + chi-square threshold, base R' });
+
+    var plot = el.querySelector('.od-plot'), read = el.querySelector('.od-read');
+    var W = 340, H = 180, PAD = 10, T = 10, Bm = 22, XMAX = 55, NB = 44;
+    function px(s) { return PAD + Math.min(s, XMAX) / XMAX * (W - 2 * PAD); }
+    function hist(a) { var h = new Array(NB).fill(0); a.forEach(function (s) { var k = Math.min(NB - 1, Math.floor(s / XMAX * NB)); h[k]++; }); return h; }
+    function draw() {
+      var thr = THR[level].q;
+      var hi = hist(d.inl), ho = hist(d.ood);
+      var mx = Math.max(Math.max.apply(null, hi), Math.max.apply(null, ho)) || 1;
+      var bw = (W - 2 * PAD) / NB;
+      function bars(h, col) { return h.map(function (c, k) { var hh = c / mx * (H - T - Bm); return '<rect x="' + (PAD + k * bw).toFixed(1) + '" y="' + (H - Bm - hh).toFixed(1) + '" width="' + (bw - 0.5).toFixed(1) + '" height="' + hh.toFixed(1) + '" fill="' + col + '" opacity="0.55"/>'; }).join(''); }
+      var fpr = d.inl.filter(function (s) { return s > thr; }).length / d.inl.length;
+      var det = d.ood.filter(function (s) { return s > thr; }).length / d.ood.length;
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ood score histogram">' +
+        bars(hi, P.c0) + bars(ho, P.bad) +
+        '<line x1="' + px(thr).toFixed(1) + '" y1="' + T + '" x2="' + px(thr).toFixed(1) + '" y2="' + (H - Bm) + '" stroke="' + P.ink + '" stroke-width="1.5" stroke-dasharray="3 2"/>' +
+        '<text x="' + (px(thr) + 3).toFixed(1) + '" y="' + (T + 10) + '" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.ink + '">flag ></text>' +
+        '<text x="' + (W - 8) + '" y="14" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c0 + '">inliers</text>' +
+        '<text x="' + (W - 8) + '" y="28" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.bad + '">out-of-distribution</text>' +
+        '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">novelty score (Mahalanobis distance) -></text></svg>';
+      read.innerHTML = 'At the <b>' + THR[level].pct + '</b> cutoff, <b style="color:' + P.bad + '">' + Math.round(fpr * 100) + '%</b> of genuine inliers are wrongly flagged (false positives) and <b style="color:' + P.acc + '">' + Math.round(det * 100) + '%</b> of true out-of-distribution points are caught. ' +
+        (level === 'strict' ? 'A strict cutoff nearly eliminates false alarms but can miss subtle novelty.' : level === 'loose' ? 'A loose cutoff catches everything odd but at a higher false-alarm cost.' : 'A middle cutoff balances the two, the usual starting point.');
+    }
+    u.wireSeg(el.querySelector('.od-seg'), function (v) { level = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Out-of-distribution detection: score novelty by Mahalanobis distance, threshold it. Base R.',
+      'set.seed(2)',
+      'n <- 500; X <- cbind(rnorm(n), rnorm(n))       # training data: a 2D Gaussian blob',
+      'mu <- colMeans(X); S <- cov(X)',
+      'score <- function(pts) mahalanobis(pts, mu, S) # squared Mahalanobis distance = OOD score',
+      'thr <- qchisq(0.99, df = 2)                    # cutoff: chi-square 2 df, 99th percentile',
+      '',
+      'test_in  <- cbind(rnorm(200),    rnorm(200))    # in-distribution',
+      'test_ood <- cbind(rnorm(200, 4), rnorm(200, 4)) # out-of-distribution (shifted 4 sd away)',
+      'round(c(threshold      = thr,',
+      '        flagged_inlier = mean(score(test_in)  > thr),   # false-positive rate ~ 0.01',
+      '        flagged_ood    = mean(score(test_ood) > thr)),  # detection rate ~ 0.99',
+      '      3)',
+      '#>      threshold flagged_inlier    flagged_ood',
+      '#>          9.210          0.015          0.990'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('ood-detect', mount);
+})();
+
+;
 /* ordinal-cumlogit.js */
 /* ordinal-cumlogit.js - modeling an ordered outcome without pretending it is a number.
  * Satisfaction is low < medium < high: the order matters, but the gaps are not real
@@ -4309,6 +5328,85 @@
 })();
 
 ;
+/* power-curve.js */
+/* power-curve.js - the sample-size / power tradeoff, made visible. For a two-sample test at
+ * a fixed significance level, statistical power climbs with the per-group sample size n, and
+ * the whole curve shifts left as the true effect grows (a big effect is easy to detect with
+ * few subjects; a small one needs a crowd). Toggle the effect size and read off the n that
+ * buys 80% power. Emits the exact same numbers from base R's power.t.test.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var ZA = 1.959964;   // qnorm(0.975): two-sided test at alpha = 0.05
+  var EFFECTS = { small: 0.2, medium: 0.5, large: 0.8 };
+
+  function erf(x) {
+    var t = 1 / (1 + 0.3275911 * Math.abs(x));
+    var y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return x >= 0 ? y : -y;
+  }
+  function pnorm(x) { return 0.5 * (1 + erf(x / Math.SQRT2)); }
+  // power of a two-sample t-test (normal approximation), equal n per group
+  function power(d, n) { var ncp = d * Math.sqrt(n / 2); return pnorm(ncp - ZA) + pnorm(-ncp - ZA); }
+  // smallest n per group reaching 80% power (integer search)
+  function nFor80(d) { for (var n = 2; n < 4000; n++) { if (power(d, n) >= 0.8) return n; } return 4000; }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var eff = 'medium';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="pw-seg" style="margin-bottom:12px">' + u.seg([{ v: 'small', label: 'Small effect (d=0.2)' }, { v: 'medium', label: 'Medium (d=0.5)' }, { v: 'large', label: 'Large (d=0.8)' }], 'medium') + '</div>' +
+      '<div class="pw-plot"></div>' +
+      '<div class="pw-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Sample size for 80% power, base R power.t.test' });
+
+    var plot = el.querySelector('.pw-plot'), read = el.querySelector('.pw-read');
+    var W = 340, H = 190, NMAX = 300, PAD = 30;
+    function px(n) { return PAD + (n / NMAX) * (W - PAD - 8); }
+    function py(p) { return (H - 22) - p * (H - 34); }
+    function draw() {
+      var d = EFFECTS[eff];
+      var pts = [];
+      for (var n = 2; n <= NMAX; n += 2) pts.push(px(n).toFixed(1) + ',' + py(power(d, n)).toFixed(1));
+      var n80 = nFor80(d), x80 = px(Math.min(n80, NMAX)), y80 = py(0.8);
+      var grid = '';
+      [0.25, 0.5, 0.8].forEach(function (p) { grid += '<line x1="' + PAD + '" y1="' + py(p).toFixed(1) + '" x2="' + (W - 8) + '" y2="' + py(p).toFixed(1) + '" stroke="' + P.line + '" stroke-width="1" stroke-dasharray="3 3"/><text x="' + (PAD - 4) + '" y="' + (py(p) + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.mut + '">' + p + '</text>'; });
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="power versus sample size">' +
+        grid +
+        '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + P.c0 + '" stroke-width="2.5"/>' +
+        (n80 <= NMAX ? '<line x1="' + x80.toFixed(1) + '" y1="' + y80.toFixed(1) + '" x2="' + x80.toFixed(1) + '" y2="' + (H - 22) + '" stroke="' + P.bad + '" stroke-width="1.5" stroke-dasharray="2 2"/><circle cx="' + x80.toFixed(1) + '" cy="' + y80.toFixed(1) + '" r="3.5" fill="' + P.bad + '"/>' : '') +
+        '<text x="' + (W - 8) + '" y="12" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">power</text>' +
+        '<text x="' + (W / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">sample size n per group</text></svg>';
+      read.innerHTML = 'A <b>' + eff + '</b> effect (d = ' + d + ') needs <b style="color:' + P.bad + '">n &asymp; ' + n80 + '</b> per group to reach 80% power at &alpha; = 0.05. ' +
+        (eff === 'small' ? 'Small effects are expensive: detecting them reliably takes hundreds per arm.' : eff === 'large' ? 'Large effects are cheap to detect: a couple of dozen per arm suffices.' : 'Halve the effect and the required sample roughly quadruples: power scales with n times d squared.');
+    }
+    u.wireSeg(el.querySelector('.pw-seg'), function (v) { eff = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# How many subjects per group for 80% power? Base R, no packages.',
+      '# Two-sample t-test, alpha = 0.05 two-sided, effect measured in standard deviations (sd = 1).',
+      'sizes <- sapply(c(small = 0.2, medium = 0.5, large = 0.8), function(d)',
+      '  ceiling(power.t.test(delta = d, sd = 1, sig.level = 0.05, power = 0.80)$n))',
+      'sizes',
+      '',
+      '# and the reverse: the power you actually get from n = 64 per group',
+      'round(sapply(c(small = 0.2, medium = 0.5, large = 0.8), function(d)',
+      '  power.t.test(n = 64, delta = d, sd = 1, sig.level = 0.05)$power), 3)',
+      '# small effects need hundreds per arm; large effects only dozens.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('power-curve', mount);
+})();
+
+;
 /* ppc-overlay.js */
 /* ppc-overlay.js - the posterior predictive check, made visible. Pick a test statistic
  * (here: how many zeros a dataset has), simulate it under the fitted model many times, and
@@ -4507,6 +5605,97 @@
   }
 
   window.LessonWidgets.register('quantile-lines', mount);
+})();
+
+;
+/* rdd-cutoff.js */
+/* rdd-cutoff.js - sharp regression discontinuity, made visible. Units are treated only when
+ * a running variable crosses a cutoff (a test score, an income threshold, an age). Just below
+ * and just above the cutoff, units are near-identical except for treatment, so the vertical
+ * JUMP in the fitted outcome at the cutoff is the causal effect. Fit a separate local line on
+ * each side within a bandwidth and read the gap; a naive treated-minus-control difference is
+ * biased by the slope in the running variable. Toggle the bandwidth and watch the estimate and
+ * its wobble trade off. Emits the two local lm() fits in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  var BW = { narrow: 0.3, medium: 0.6, wide: 1.0 };
+
+  function build() {
+    var r = rng(2), spare = null;
+    function rnorm() { if (spare !== null) { var v = spare; spare = null; return v; } var a = Math.max(r(), 1e-12), b = r(), m = Math.sqrt(-2 * Math.log(a)); spare = m * Math.sin(2 * Math.PI * b); return m * Math.cos(2 * Math.PI * b); }
+    var pts = [];
+    for (var i = 0; i < 500; i++) { var x = r() * 2 - 1, t = x >= 0 ? 1 : 0; pts.push({ x: x, y: 3 + 2 * x + 4 * t + rnorm(), t: t }); }
+    return pts;
+  }
+  function ols(pts) {  // returns {a, b}: y = a + b x
+    var n = pts.length; if (n < 2) return { a: 0, b: 0 };
+    var mx = 0, my = 0; pts.forEach(function (p) { mx += p.x; my += p.y; }); mx /= n; my /= n;
+    var sxy = 0, sxx = 0; pts.forEach(function (p) { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) * (p.x - mx); });
+    var b = sxx ? sxy / sxx : 0; return { a: my - b * mx, b: b };
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var band = 'medium'; var pts = build();
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="rd-seg" style="margin-bottom:12px">' + u.seg([{ v: 'narrow', label: 'Narrow band (0.3)' }, { v: 'medium', label: 'Medium (0.6)' }, { v: 'wide', label: 'Wide (1.0)' }], 'medium') + '</div>' +
+      '<div class="rd-plot"></div>' +
+      '<div class="rd-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Sharp RDD: a local line on each side of the cutoff, base R' });
+
+    var plot = el.querySelector('.rd-plot'), read = el.querySelector('.rd-read');
+    var W = 340, H = 200, PADL = 8, PADR = 8, T = 10, Bm = 22;
+    function px(x) { return PADL + (x + 1) / 2 * (W - PADL - PADR); }
+    function py(y) { return T + (11 - y) / (11 - (-1)) * (H - T - Bm); }
+    function draw() {
+      var h = BW[band];
+      var L = pts.filter(function (p) { return p.x < 0 && p.x >= -h; });
+      var Rr = pts.filter(function (p) { return p.x >= 0 && p.x <= h; });
+      var fl = ols(L), fr = ols(Rr), jump = fr.a - fl.a;
+      var dots = pts.map(function (p) { var inb = Math.abs(p.x) <= h; return '<circle cx="' + px(p.x).toFixed(1) + '" cy="' + py(p.y).toFixed(1) + '" r="1.7" fill="' + (p.t ? P.c0 : P.c1) + '" opacity="' + (inb ? 0.7 : 0.15) + '"/>'; }).join('');
+      var x0 = px(0);
+      var lseg = '<line x1="' + px(-h).toFixed(1) + '" y1="' + py(fl.a + fl.b * -h).toFixed(1) + '" x2="' + x0.toFixed(1) + '" y2="' + py(fl.a).toFixed(1) + '" stroke="' + P.c1 + '" stroke-width="2.5"/>';
+      var rseg = '<line x1="' + x0.toFixed(1) + '" y1="' + py(fr.a).toFixed(1) + '" x2="' + px(h).toFixed(1) + '" y2="' + py(fr.a + fr.b * h).toFixed(1) + '" stroke="' + P.c0 + '" stroke-width="2.5"/>';
+      var jseg = '<line x1="' + x0.toFixed(1) + '" y1="' + py(fl.a).toFixed(1) + '" x2="' + x0.toFixed(1) + '" y2="' + py(fr.a).toFixed(1) + '" stroke="' + P.bad + '" stroke-width="3"/>';
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="regression discontinuity">' +
+        '<line x1="' + x0.toFixed(1) + '" y1="' + T + '" x2="' + x0.toFixed(1) + '" y2="' + (H - Bm) + '" stroke="' + P.line2 + '" stroke-width="1" stroke-dasharray="2 3"/>' +
+        dots + lseg + rseg + jseg +
+        '<text x="' + (x0 + 5) + '" y="' + ((py(fl.a) + py(fr.a)) / 2 + 4).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" font-size="12" font-weight="600" fill="' + P.bad + '">jump ' + jump.toFixed(2) + '</text>' +
+        '<text x="' + (x0 - 4) + '" y="' + (H - 8) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">below cutoff</text>' +
+        '<text x="' + (x0 + 4) + '" y="' + (H - 8) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">above (treated)</text></svg>';
+      read.innerHTML = 'Fitting a line just below and just above the cutoff, the outcome jumps by <b style="color:' + P.bad + '">' + jump.toFixed(2) + '</b> at the threshold (true effect 4). ' +
+        (band === 'narrow' ? 'A narrow band uses only points near the cutoff, so it is less biased but noisier.' : band === 'wide' ? 'A wide band borrows far-away points, steadier but biased if the true relationship curves.' : 'The bandwidth trades bias (wide) against variance (narrow); this is the central RDD tuning choice.');
+    }
+    u.wireSeg(el.querySelector('.rd-seg'), function (v) { band = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Sharp regression discontinuity: the outcome jumps at a cutoff. Base R.',
+      'set.seed(2)',
+      'n <- 500; x <- runif(n, -1, 1)          # running variable, cutoff at 0',
+      'treat <- as.integer(x >= 0)             # sharp: treated iff x >= cutoff',
+      'y <- 3 + 2 * x + 4 * treat + rnorm(n)    # the TRUE jump at the cutoff is 4',
+      '',
+      'h <- 0.5                                 # bandwidth: keep points within h of the cutoff',
+      'left  <- lm(y ~ x, subset = x < 0 & x >= -h)',
+      'right <- lm(y ~ x, subset = x >= 0 & x <=  h)',
+      'jump <- predict(right, data.frame(x = 0)) - predict(left, data.frame(x = 0))',
+      'round(c(true = 4, rdd = unname(jump),',
+      '        naive = mean(y[treat==1]) - mean(y[treat==0])), 2)',
+      '#>  true   rdd naive',
+      '#>  4.00  3.79  6.09   # naive is biased upward by the slope in x'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('rdd-cutoff', mount);
 })();
 
 ;
@@ -5148,6 +6337,88 @@
 })();
 
 ;
+/* shift-types.js */
+/* shift-types.js - the three kinds of distribution shift, made visible. A model trained on one
+ * distribution is deployed on another, and WHAT changed decides whether it still works.
+ * Covariate shift: the feature distribution P(x) moves but the relationship P(y|x) holds, so a
+ * well-specified model stays valid. Label shift: the class base rate P(y) changes. Concept
+ * shift: the relationship P(y|x) itself changes, which silently breaks the model. Toggle the
+ * three and watch which curve moves. Emits a base-R demo of each shift's effect on accuracy.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mode = 'covariate';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="sh-seg" style="margin-bottom:12px">' + u.seg([{ v: 'covariate', label: 'Covariate: P(x)' }, { v: 'label', label: 'Label: P(y)' }, { v: 'concept', label: 'Concept: P(y|x)' }], 'covariate') + '</div>' +
+      '<div class="sh-plot"></div>' +
+      '<div class="sh-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Which shift breaks the model? Base R' });
+
+    var plot = el.querySelector('.sh-plot'), read = el.querySelector('.sh-read');
+    var W = 340, H = 180, PAD = 12, T = 10, Bm = 24;
+    function px(x) { return PAD + (x + 4) / 8 * (W - 2 * PAD); }            // x in [-4,4]
+    function bell(mu, sd, col, dash) { var pts = []; for (var x = -4; x <= 4; x += 0.1) { var d = Math.exp(-0.5 * ((x - mu) / sd) * ((x - mu) / sd)); pts.push(px(x).toFixed(1) + ',' + (H - Bm - d * (H - T - Bm)).toFixed(1)); } return '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + col + '" stroke-width="2.3"' + (dash ? ' stroke-dasharray="5 3"' : '') + '/>'; }
+    function sigmoid(k, col, dash) { var pts = []; for (var x = -4; x <= 4; x += 0.1) { var s = 1 / (1 + Math.exp(-k * x)); pts.push(px(x).toFixed(1) + ',' + (H - Bm - s * (H - T - Bm)).toFixed(1)); } return '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + col + '" stroke-width="2.3"' + (dash ? ' stroke-dasharray="5 3"' : '') + '/>'; }
+    function draw() {
+      var body;
+      if (mode === 'covariate') {
+        body = bell(0, 1, P.c0) + bell(1.6, 1, P.c1, true) + sigmoid(1.5, P.faint);
+      } else if (mode === 'concept') {
+        body = sigmoid(1.5, P.c0) + sigmoid(-1.5, P.c1, true);
+      } else { // label: two pairs of class-proportion bars
+        var bw = 46, cx = W / 2;
+        function bar(x, h, col) { return '<rect x="' + x + '" y="' + (H - Bm - h) + '" width="' + bw + '" height="' + h + '" fill="' + col + '" opacity="0.75"/>'; }
+        body = bar(cx - 150, 0.5 * (H - T - Bm), P.c0) + bar(cx - 95, 0.5 * (H - T - Bm), P.c0) +
+               bar(cx + 55, 0.25 * (H - T - Bm), P.c1) + bar(cx + 110, 0.75 * (H - T - Bm), P.c1) +
+               '<text x="' + (cx - 120) + '" y="' + (H - 8) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.mut + '">train 50/50</text>' +
+               '<text x="' + (cx + 85) + '" y="' + (H - 8) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.mut + '">test 25/75</text>';
+      }
+      var axisLbl = mode === 'label' ? 'class 0            class 1' : (mode === 'concept' ? 'feature x  ->  P(y=1|x)' : 'feature x');
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="distribution shift">' +
+        body +
+        '<line x1="' + PAD + '" y1="' + (H - Bm) + '" x2="' + (W - PAD) + '" y2="' + (H - Bm) + '" stroke="' + P.line + '" stroke-width="1"/>' +
+        (mode !== 'label' ? '<text x="' + (W - 8) + '" y="14" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c0 + '">train</text><text x="' + (W - 8) + '" y="28" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.c1 + '">test (dashed)</text>' : '') +
+        '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">' + axisLbl + '</text></svg>';
+      read.innerHTML = mode === 'covariate'
+        ? '<b>Covariate shift:</b> the feature distribution P(x) slides (test sits to the right), but the relationship P(y|x) (grey) is unchanged. A correctly specified model stays valid, accuracy need not drop.'
+        : mode === 'concept'
+        ? '<b>Concept shift:</b> the relationship P(y|x) itself flips, train rises with x, test falls. The model is now systematically wrong (accuracy can fall below chance). This is the dangerous one.'
+        : '<b>Label shift:</b> the class base rate P(y) changes (50/50 to 25/75) while P(x|y) holds. Thresholds and calibration break even when the feature-to-label map is intact.';
+    }
+    u.wireSeg(el.querySelector('.sh-seg'), function (v) { mode = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Which kind of distribution shift actually breaks a model? Base R.',
+      'set.seed(1)',
+      'n <- 2000',
+      'x <- rnorm(n); y <- rbinom(n, 1, plogis(1.5 * x))   # TRAIN: P(y=1|x) = plogis(1.5 x)',
+      'fit <- glm(y ~ x, binomial)',
+      'acc <- function(f, xx, yy) mean((predict(f, data.frame(x = xx), type = "response") > 0.5) == yy)',
+      '',
+      'x_cov <- rnorm(n, 1.5); y_cov <- rbinom(n, 1, plogis( 1.5 * x_cov))  # covariate: P(x) moves',
+      'x_con <- rnorm(n);      y_con <- rbinom(n, 1, plogis(-1.5 * x_con))  # concept: P(y|x) flips',
+      'round(c(train         = acc(fit, x, y),',
+      '        covariate     = acc(fit, x_cov, y_cov),   # P(y|x) intact -> model still fine',
+      '        concept       = acc(fit, x_con, y_con)),  # relationship changed -> model breaks',
+      '      2)',
+      '#>     train covariate   concept',
+      '#>      0.72      0.86      0.25   # concept shift falls BELOW chance; covariate shift does not'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('shift-types', mount);
+})();
+
+;
 /* shrinkage-pool.js */
 /* shrinkage-pool.js - partial pooling, the idea at the heart of mixed models. Eight
  * clinics each measure a handful of patients; their raw averages scatter wildly because
@@ -5452,6 +6723,106 @@
     el.innerHTML = ''; el.appendChild(wrap);
   }
   if (window.LessonWidgets) window.LessonWidgets.register('styled-table', mount);
+})();
+
+;
+/* synth-control.js */
+/* synth-control.js - the synthetic control method, made visible. One treated unit (a state, a
+ * city, a product) gets a policy at a known time; there is no single good control. Build a
+ * SYNTHETIC control as a weighted blend of donor units chosen so the blend tracks the treated
+ * unit through the whole pre-treatment period. After treatment, the gap between the treated
+ * line and its synthetic twin is the causal effect. Toggle between the two trajectories and
+ * the gap plot. Emits the donor-weight fit (optim over a simplex) in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var TPRE = 20, TPOST = 10, TT = TPRE + TPOST, EFFECT = 3;
+  var W_TRUE = [0.5, 0.33, 0.17, 0, 0];
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function build() {
+    var r = rng(4), spare = null;
+    function rnorm() { if (spare !== null) { var v = spare; spare = null; return v; } var a = Math.max(r(), 1e-12), b = r(), m = Math.sqrt(-2 * Math.log(a)); spare = m * Math.sin(2 * Math.PI * b); return m * Math.cos(2 * Math.PI * b); }
+    var donors = [];
+    for (var j = 0; j < 5; j++) { var arr = [], c = 10; for (var t = 0; t < TT; t++) { c += 0.1 * (j + 1) + rnorm(); arr.push(c); } donors.push(arr); }
+    var synth = [], treated = [];
+    for (var t = 0; t < TT; t++) {
+      var s = 0; for (var k = 0; k < 5; k++) s += W_TRUE[k] * donors[k][t];
+      synth.push(s);
+      treated.push(s + rnorm() * 0.3 + (t >= TPRE ? EFFECT : 0));
+    }
+    return { synth: synth, treated: treated };
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var view = 'traj'; var d = build();
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="sc-seg" style="margin-bottom:12px">' + u.seg([{ v: 'traj', label: 'Trajectories' }, { v: 'gap', label: 'Gap (effect)' }], 'traj') + '</div>' +
+      '<div class="sc-plot"></div>' +
+      '<div class="sc-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Synthetic control: donor weights via optim, base R' });
+
+    var plot = el.querySelector('.sc-plot'), read = el.querySelector('.sc-read');
+    var W = 340, H = 200, PAD = 10, T = 10, Bm = 22;
+    function px(t) { return PAD + t / (TT - 1) * (W - 2 * PAD); }
+    function draw() {
+      var series, ylo, yhi, cutX = px(TPRE - 0.5);
+      if (view === 'traj') { series = [d.treated, d.synth]; var all = d.treated.concat(d.synth); ylo = Math.min.apply(null, all); yhi = Math.max.apply(null, all); }
+      else { series = [d.treated.map(function (v, i) { return v - d.synth[i]; })]; ylo = -1; yhi = EFFECT + 2; }
+      function py(y) { return T + (yhi - y) / (yhi - ylo) * (H - T - Bm); }
+      function path(a, col, dash) { return '<polyline points="' + a.map(function (v, i) { return px(i).toFixed(1) + ',' + py(v).toFixed(1); }).join(' ') + '" fill="none" stroke="' + col + '" stroke-width="2.3"' + (dash ? ' stroke-dasharray="5 3"' : '') + '/>'; }
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="synthetic control">';
+      svg += '<line x1="' + cutX.toFixed(1) + '" y1="' + T + '" x2="' + cutX.toFixed(1) + '" y2="' + (H - Bm) + '" stroke="' + P.line2 + '" stroke-width="1" stroke-dasharray="2 3"/>';
+      svg += '<text x="' + (cutX + 3) + '" y="' + (T + 10) + '" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.mut + '">policy</text>';
+      if (view === 'traj') {
+        svg += path(d.synth, P.c1, true) + path(d.treated, P.c0);
+        svg += '<text x="' + (W - 8) + '" y="14" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.c0 + '">treated</text>';
+        svg += '<text x="' + (W - 8) + '" y="28" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.c1 + '">synthetic</text>';
+      } else {
+        svg += '<line x1="' + px(0).toFixed(1) + '" y1="' + py(0).toFixed(1) + '" x2="' + px(TT - 1).toFixed(1) + '" y2="' + py(0).toFixed(1) + '" stroke="' + P.mut + '" stroke-width="1"/>';
+        svg += path(series[0], P.bad);
+        svg += '<text x="' + (W - 8) + '" y="14" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.bad + '">treated - synthetic</text>';
+      }
+      svg += '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">time -></text></svg>';
+      plot.innerHTML = svg;
+      read.innerHTML = view === 'traj'
+        ? 'The <b>synthetic</b> (dashed) is a weighted blend of donors tuned to track the <b>treated</b> unit before the policy. They match pre-policy, then split: the post-policy gap is the effect.'
+        : 'The gap sits near <b>zero</b> before the policy (the synthetic is a good twin), then jumps to about <b style="color:' + P.bad + '">' + EFFECT + '</b> after: the estimated causal effect. A pre-period gap near zero is what licenses reading the post-period gap.';
+    }
+    u.wireSeg(el.querySelector('.sc-seg'), function (v) { view = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Synthetic control: build a weighted donor blend that tracks the treated unit pre-policy. Base R.',
+      'set.seed(4)',
+      'Tpre <- 20; Tpost <- 10; Tt <- Tpre + Tpost',
+      'donors  <- sapply(1:5, function(j) cumsum(rnorm(Tt, 0.1 * j, 1)) + 10)   # 5 donor units',
+      'treated <- as.numeric(donors %*% c(0.5, 0.3, 0.2, 0, 0)) + rnorm(Tt, 0, 0.3)',
+      'treated[(Tpre + 1):Tt] <- treated[(Tpre + 1):Tt] + 3          # TRUE post-policy effect = 3',
+      '',
+      'pre  <- 1:Tpre                                                # fit weights on the pre-period only',
+      'loss <- function(th) { w <- exp(th)/sum(exp(th)); sum((treated[pre] - donors[pre, ] %*% w)^2) }',
+      'w    <- local({ o <- optim(rep(0, 5), loss); exp(o$par)/sum(exp(o$par)) })   # simplex weights',
+      'synth <- as.numeric(donors %*% w)',
+      'round(w, 2)',
+      '#> [1] 0.50 0.33 0.17 0.00 0.00        # recovers the true donor mix, zeroes the rest',
+      '',
+      'round(c(true = 3,',
+      '        effect   = mean(treated[(Tpre+1):Tt] - synth[(Tpre+1):Tt]),',
+      '        pre_gap  = mean(treated[pre] - synth[pre])), 2)',
+      '#>    true effect pre_gap',
+      '#>    3.00   3.00    0.01   # near-zero pre-gap licenses the post-period read'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('synth-control', mount);
 })();
 
 ;
@@ -5773,6 +7144,107 @@
 })();
 
 ;
+/* uplift-curve.js */
+/* uplift-curve.js - heterogeneous treatment effects and the Qini curve, made visible. An
+ * average treatment effect can be small while hiding units the treatment HELPS a lot and
+ * units it HURTS. An uplift model scores each unit by its predicted individual effect; ranking
+ * by that score and targeting from the top first traces the Qini curve, cumulative incremental
+ * conversions versus the fraction of the population treated. A good model's curve bulges above
+ * the random-targeting diagonal, and can even peak before 100% (past that you are treating
+ * people it hurts). Toggle model vs random. Emits a T-learner uplift model in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function plogis(z) { return 1 / (1 + Math.exp(-z)); }
+
+  function build() {
+    var r = rng(5);
+    var units = [];
+    for (var i = 0; i < 4000; i++) {
+      var x = r() * 2 - 1, treat = r() < 0.5 ? 1 : 0;
+      var tau = 0.35 * x + 0.15;                       // true per-unit uplift, varies with x
+      var p = plogis(-0.2 + 0.5 * x) + treat * tau;
+      var y = r() < Math.min(1, Math.max(0, p)) ? 1 : 0;
+      units.push({ score: x, treat: treat, y: y });   // score = x is the true uplift order
+    }
+    return units;
+  }
+  // Qini curve over units already sorted by score desc; returns array of {f, q}
+  function qini(units) {
+    var Nt = 0, Nc = 0, Yt = 0, Yc = 0, out = [{ f: 0, q: 0 }];
+    for (var i = 0; i < units.length; i++) {
+      if (units[i].treat) { Nt++; Yt += units[i].y; } else { Nc++; Yc += units[i].y; }
+      var q = Yt - (Nc ? Yc * Nt / Nc : 0);
+      if (i % 40 === 0 || i === units.length - 1) out.push({ f: (i + 1) / units.length, q: q });
+    }
+    return out;
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mode = 'model';
+    var units = build();
+    var byScore = units.slice().sort(function (a, b) { return b.score - a.score; });
+    var qModel = qini(byScore);
+    var qRand = qini(units);   // original order is effectively random wrt uplift
+    var qmax = Math.max.apply(null, qModel.map(function (d) { return d.q; }));
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="up-seg" style="margin-bottom:12px">' + u.seg([{ v: 'model', label: 'Uplift model' }, { v: 'random', label: 'Random targeting' }], 'model') + '</div>' +
+      '<div class="up-plot"></div>' +
+      '<div class="up-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'T-learner uplift model + quartile validation, base R' });
+
+    var plot = el.querySelector('.up-plot'), read = el.querySelector('.up-read');
+    var W = 340, H = 200, PADL = 30, PADR = 8, T = 10, Bm = 24;
+    function px(f) { return PADL + f * (W - PADL - PADR); }
+    function py(q) { return T + (qmax - q) / (qmax + 1e-9) * (H - T - Bm); }
+    function path(a, col, dash) { return '<polyline points="' + a.map(function (d) { return px(d.f).toFixed(1) + ',' + py(d.q).toFixed(1); }).join(' ') + '" fill="none" stroke="' + col + '" stroke-width="2.5"' + (dash ? ' stroke-dasharray="5 3"' : '') + '/>'; }
+    function draw() {
+      var sel = mode === 'model' ? qModel : qRand, other = mode === 'model' ? qRand : qModel;
+      var peak = qModel[qModel.length - 1].q, best = qmax;
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="qini uplift curve">' +
+        '<line x1="' + px(0).toFixed(1) + '" y1="' + py(0).toFixed(1) + '" x2="' + px(1).toFixed(1) + '" y2="' + py(qRand[qRand.length - 1].q).toFixed(1) + '" stroke="' + P.line + '" stroke-width="1" stroke-dasharray="2 3"/>' +
+        path(other, P.line2, true) + path(sel, mode === 'model' ? P.acc : P.mut) +
+        '<text x="' + (PADL + 4) + '" y="' + (T + 10) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">cumulative incremental conversions</text>' +
+        '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">fraction of population targeted -></text></svg>';
+      read.innerHTML = mode === 'model'
+        ? 'Ranking by predicted uplift and treating from the top bends the Qini curve <b>above</b> the random diagonal: the same budget wins far more incremental conversions. The curve peaks before 100%, past there you are treating people the offer HURTS.'
+        : 'Random targeting traces the straight diagonal: incremental conversions grow in proportion to how many you treat, with no benefit from ordering. The gap to the uplift curve is what targeting buys.';
+    }
+    u.wireSeg(el.querySelector('.up-seg'), function (v) { mode = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Uplift (heterogeneous effects): who does the treatment actually help? Base R T-learner.',
+      'set.seed(5)',
+      'n <- 4000; x <- runif(n, -1, 1); treat <- rbinom(n, 1, 0.5)   # randomized',
+      'tau <- 0.35 * x + 0.15                                # TRUE per-unit uplift varies with x',
+      'y <- rbinom(n, 1, pmin(pmax(plogis(-0.2 + 0.5*x) + treat*tau, 0), 1))',
+      '',
+      'm1 <- glm(y ~ x, binomial, subset = treat == 1)       # T-learner: one model per arm',
+      'm0 <- glm(y ~ x, binomial, subset = treat == 0)',
+      'uplift <- predict(m1, data.frame(x), type="response") - predict(m0, data.frame(x), type="response")',
+      '',
+      '# validate: actual treated-minus-control response within predicted-uplift quartiles',
+      'q <- cut(uplift, quantile(uplift, 0:4/4), labels = 1:4, include.lowest = TRUE)',
+      'round(sapply(1:4, function(g) mean(y[q==g & treat==1]) - mean(y[q==g & treat==0])), 2)',
+      '#> [1] -0.09  0.02  0.26  0.39      # rises with predicted uplift; Q1 is HURT by treatment',
+      'round(mean(y[treat==1]) - mean(y[treat==0]), 2)     # the flat average that hides all this',
+      '#> [1] 0.15'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('uplift-curve', mount);
+})();
+
+;
 /* vector-coercion.js */
 /* vector-coercion.js - foundations: an atomic vector holds ONE type, so mixing
  * types coerces the whole vector up the hierarchy logical < integer < double <
@@ -5848,4 +7320,83 @@
     el.innerHTML = ''; el.appendChild(wrap); render();
   }
   if (window.LessonWidgets) window.LessonWidgets.register('vector-coercion', mount);
+})();
+
+;
+/* worst-group.js */
+/* worst-group.js - worst-group accuracy and distributionally robust optimization, made visible.
+ * A model trained to minimize AVERAGE loss (ERM) can post a high headline accuracy while quietly
+ * failing a minority group, when a spurious feature that helps the majority points the wrong way
+ * for the minority. Reweighting to protect the worst group (a simple DRO) trades a little average
+ * accuracy for a large gain on the group that was failing. Toggle ERM vs DRO and watch the worst
+ * bar rise. Emits the same ERM-vs-reweighted comparison in base R.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var DATA = {
+    erm: { A: 0.96, B: 0.11, worst: 0.11, avg: 0.88 },
+    dro: { A: 0.71, B: 0.66, worst: 0.66, avg: 0.70 }
+  };
+  var BARS = [{ k: 'A', label: 'group A (majority)' }, { k: 'B', label: 'group B (minority)' }, { k: 'worst', label: 'worst group' }, { k: 'avg', label: 'average' }];
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var method = 'erm';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="wg-seg" style="margin-bottom:12px">' + u.seg([{ v: 'erm', label: 'ERM (average loss)' }, { v: 'dro', label: 'DRO (worst group)' }], 'erm') + '</div>' +
+      '<div class="wg-plot"></div>' +
+      '<div class="wg-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'ERM vs group-reweighted DRO: worst-group accuracy, base R' });
+
+    var plot = el.querySelector('.wg-plot'), read = el.querySelector('.wg-read');
+    var W = 340, H = 190, PADL = 10, PADR = 10, T = 14, Bm = 40;
+    function draw() {
+      var d = DATA[method], n = BARS.length, gap = (W - PADL - PADR) / n, bw = gap * 0.55;
+      var bars = BARS.map(function (b, i) {
+        var v = d[b.k], x = PADL + i * gap + (gap - bw) / 2, h = v * (H - T - Bm);
+        var col = b.k === 'worst' ? P.bad : (b.k === 'avg' ? P.mut : P.c0);
+        return '<rect x="' + x.toFixed(1) + '" y="' + (H - Bm - h).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + col + '" opacity="0.8"/>' +
+          '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - Bm - h - 4).toFixed(1) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="11" font-weight="600" fill="' + col + '">' + v.toFixed(2) + '</text>' +
+          '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - Bm + 13).toFixed(1) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="8.5" fill="' + P.mut + '">' + b.k + '</text>';
+      }).join('');
+      plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;border:1px solid ' + P.line + ';border-radius:8px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="worst-group accuracy">' +
+        '<line x1="' + PADL + '" y1="' + (H - Bm) + '" x2="' + (W - PADR) + '" y2="' + (H - Bm) + '" stroke="' + P.line + '" stroke-width="1"/>' +
+        bars +
+        '<text x="' + PADL + '" y="' + (H - 6) + '" font-family="IBM Plex Sans,sans-serif" font-size="9" fill="' + P.mut + '">accuracy per group (A majority, B minority)</text></svg>';
+      read.innerHTML = method === 'erm'
+        ? '<b>ERM</b> minimizes average loss and posts a healthy <b>0.88</b> overall, but group B (the minority, where a spurious feature reverses) sits at <b style="color:' + P.bad + '">0.11</b>, worse than a coin flip. The average hid a group in freefall.'
+        : '<b>DRO</b> upweights the failing group, lifting the worst group from 0.11 to <b style="color:' + P.acc + '">0.66</b>. Average accuracy drops from 0.88 to 0.70: the deliberate price of protecting the worst-off group.';
+    }
+    u.wireSeg(el.querySelector('.wg-seg'), function (v) { method = v; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Worst-group accuracy: ERM can pass on average and fail a minority group. Base R.',
+      'set.seed(4)',
+      'n <- 3000',
+      'grp  <- ifelse(runif(n) < 0.9, "A", "B")            # A majority 90%, B minority 10%',
+      'core <- rnorm(n); y <- rbinom(n, 1, plogis(1.2 * core))       # the TRUE signal',
+      'spur <- ifelse(grp == "A", 2*y - 1, 1 - 2*y) + rnorm(n, 0, 0.5)  # spurious: reversed for B',
+      'd <- data.frame(y, core, spur, grp)',
+      'gacc <- function(fit) { p <- predict(fit, d, type = "response") > 0.5',
+      '  aA <- mean(p[grp=="A"]==y[grp=="A"]); aB <- mean(p[grp=="B"]==y[grp=="B"])',
+      '  c(A = aA, B = aB, worst = min(aA, aB), avg = mean(p == y)) }',
+      '',
+      'erm <- glm(y ~ core + spur, binomial, data = d)                 # minimize AVERAGE loss',
+      'dro <- glm(y ~ core + spur, binomial, data = d,',
+      '           weights = ifelse(grp == "B", 9, 1))                  # upweight the minority (DRO)',
+      'round(rbind(ERM = gacc(erm), DRO = gacc(dro)), 2)',
+      '#>        A    B worst  avg',
+      '#> ERM 0.96 0.11  0.11 0.88   # great average, minority in freefall',
+      '#> DRO 0.71 0.66  0.66 0.70   # worst group rescued, small average cost'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('worst-group', mount);
 })();

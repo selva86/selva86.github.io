@@ -1,8 +1,8 @@
 ---
 title: "Causal Inference Lesson 2: Causal Diagrams with DAGs"
 catalog_blurb: "Reading confounders, colliders and mediators off a causal diagram."
-description: "Draw your causal assumptions as a DAG, then read off what to control for: adjust for confounders, never for colliders, and think twice about mediators."
-keywords: "causal diagram, DAG, confounder, collider, mediator, backdoor path, adjustment set, backdoor criterion, dagitty, causal inference in R, d-separation, do-operator"
+description: "Draw your causal assumptions as a DAG and read off the graph what to control for: adjust for confounders, never colliders or mediators. Runnable R throughout."
+keywords: "causal diagram, DAG, confounder, collider, mediator, backdoor path, backdoor criterion, adjustment set, d-separation, causal inference in R, dagitty, do-operator"
 post_type: "LESSON"
 curriculum_id: "6.10.2"
 webr: true
@@ -21,217 +21,279 @@ course_prev: "Correlation-Causation-and-Potential-Outcomes.html"
 ::eyebrow Lesson 2 of 5
 ## Causal Diagrams with DAGs
 
-In Lesson 1, Riverside Books saw customers who received a coupon spend about $18 more than those who did not. Most of that gap was an illusion: loyalty pushed customers toward *both* getting a coupon and spending more. A coin flip fixed it, because randomizing made the two groups comparable.
+Last lesson, Riverside Books mailed a coupon and randomizing it recovered its true $8 effect. But randomizing was a luxury. This month Riverside wants to know something it *cannot* randomize: does joining **Riverside Plus**, its paid membership, actually make a customer spend more? You cannot force random shoppers to join a membership, so the clean coin flip is off the table.
 
-But you cannot always flip a coin. You cannot randomly assign who is loyal, you cannot rerun last quarter, and you often inherit data someone else collected. When randomizing is off the table, you have to write down what you believe causes what, and then defend it. A causal diagram, a **DAG**, is how you put those beliefs on paper. The remarkable part: once the diagram is drawn, you can read straight off it which variables to control for and which to leave well alone.
+When you cannot randomize, you are forced to reason from assumptions instead. A **causal diagram** (a DAG) is those assumptions drawn as a picture, and its payoff is remarkable: once the picture is on paper, you can read straight off it which variables you must control for and which ones you must leave strictly alone.
 
 By the end of this lesson you will be able to:
 
-- Read a DAG: say what its nodes and arrows mean, and what "directed" and "acyclic" stand for
-- Spot whether a third variable is a confounder, a mediator, or a collider, and know the adjust-or-not rule for each
-- Use the backdoor criterion to pick what to control for, and prove in R that a confounder inflates an effect while a collider invents one from nothing
+- Draw a causal question as a DAG, where circles are variables and arrows are direct causes
+- Recognize the three shapes every diagram is built from, and give the control rule for each: a confounder, a mediator, and a collider
+- See, in real R, how controlling the wrong variable either hides a real effect or invents a fake one
+- Use the backdoor criterion to choose exactly the right set of variables to adjust for
 
-**Prerequisites:** you finished [Lesson 1](Correlation-Causation-and-Potential-Outcomes.html) (correlation is not causation, confounders, potential outcomes), and you can fit `lm()` in R and read a coefficient. Every new term is defined as it appears.
+**Prerequisites:** [Lesson 1](Correlation-Causation-and-Potential-Outcomes.html) (confounding, selection bias, and randomization), and you can fit `lm()` and read a coefficient. Every new term is defined as it appears. Toggle the three buttons below to see the whole lesson in one picture.
 
 ::widget causal-dag {}
 
 === step === concept
-::eyebrow The tool
-## Your assumptions, drawn as arrows
+::eyebrow The idea
+## Causal Diagrams with DAGs
 
-A causal diagram is deliberately simple. Each **node** is a variable you care about, and each **arrow** is one claim: that a variable is a *direct cause* of another. \(A \to B\) reads "A directly causes B." That is the entire vocabulary.
+Start by writing Riverside's belief down. We think joining Plus (call it `plus`) raises monthly `spend`. That single belief is one arrow:
 
-The name DAG spells out its three rules:
+\[ \texttt{plus} \longrightarrow \texttt{spend} \]
 
-- **D**irected: every link is an arrow with a direction. \(A \to B\) is a different claim from \(B \to A\).
-- **A**cyclic: you can never follow the arrows and arrive back where you started. Nothing causes itself, even by a long detour.
-- **G**raph: a set of nodes joined by those arrows.
+That picture is a **DAG**, short for *directed acyclic graph*, and each word earns its place:
 
-Here are Riverside's three beliefs about the coupon, written as arrows:
+- **Graph** because it is circles joined by lines. Each circle is a **node**, one variable we can measure (`plus`, `spend`, and soon others).
+- **Directed** because every line is an **arrow** with a direction. An arrow from A to B is a specific, strong claim: *A is a direct cause of B*. No arrow means you believe there is no direct causal link.
+- **Acyclic** because you can never follow the arrows in a loop back to where you started. A variable cannot end up causing itself; causes flow forward in time.
 
-| Arrow | The claim it makes |
-|---|---|
-| loyalty \(\to\) coupon | loyal customers were emailed more coupons |
-| loyalty \(\to\) spend | loyal customers spend more on their own |
-| coupon \(\to\) spend | the coupon lifts spending (the effect we want) |
+A DAG is nothing more than your causal assumptions, made explicit and drawn. That is its whole power: assumptions written this plainly can be argued about, criticized, and checked against what you know of the world, instead of hiding silently inside a regression. Building one is three honest steps.
 
-That is exactly the picture on the cover, reading \(X\) as the coupon, \(Y\) as spend, and \(Z\) as loyalty. Drawing it forces every assumption into the open: an arrow you draw is a cause you are claiming, and an arrow you leave out is a claim that there is *no* direct effect.
+::widget process-flow {"steps":[{"title":"List the variables","sub":"the treatment, the outcome, and anything that might touch either one"},{"title":"Draw the arrows","sub":"one arrow for each DIRECT cause you actually believe in"},{"title":"Check it is acyclic","sub":"no variable may cause itself by following arrows around a loop"}]}
 
 [NOTE]
-A DAG is an input, not an output. It cannot be computed from the data; it is the reasoning you bring to the data. Two analysts can draw different diagrams for the same spreadsheet, and the numbers alone cannot say who is right. That is the point: the diagram makes your assumptions visible and arguable.
+A DAG does not come from the data. It comes from you, from what you know about how Riverside's customers behave. The data cannot draw the arrows for you; it can only be interpreted once the arrows are drawn.
 
-=== step === widget
-::eyebrow Three shapes
-## The three ways a third variable sits between cause and effect
+=== step === concept
+::eyebrow The building blocks
+## A path, and the three shapes it can take
 
-Almost every causal question is "does \(X\) cause \(Y\)?" with some third variable \(Z\) lurking nearby. Where \(Z\) sits relative to the arrows changes everything. There are exactly three shapes, and the widget below switches between them. In each, read \(X\) as the coupon and \(Y\) as spend.
+The `plus` and `spend` nodes are almost never alone. Other variables connect them, and a **path** is any trail of arrows you can walk from one node to another, *ignoring which way the arrows point*. Paths matter because association, the statistical "these two move together" that a correlation measures, flows along certain paths and is dammed on others. Some paths carry the real effect; some smuggle in a fake one.
 
-- **Fork, a confounder.** \(X \leftarrow Z \to Y\): \(Z\) causes both ends. This is Riverside's loyalty, which drove who got a coupon *and* how much they spent. A fork creates association between \(X\) and \(Y\) that is not the coupon's doing. **You must control for \(Z\).**
-- **Chain, a mediator.** \(X \to Z \to Y\): \(Z\) is the middle step the effect travels through. If the coupon works by getting people to visit the site more, and visits drive spending, then visits is a mediator. It is *part of* the effect, not a distortion. **Usually leave it alone**, or you subtract off the very thing you set out to measure.
-- **Collider, the trap.** \(X \to Z \leftarrow Y\): both \(X\) and \(Y\) point *into* \(Z\). Suppose Riverside flags a customer as "VIP" if they used a coupon *or* they already spend a lot. Then coupon and spend both feed the VIP flag. **Never control for a collider**: doing so manufactures a correlation that was never there.
-
-Press each button below. Watch which node lights up as the one to worry about, then run the R the widget shows to see a confounder distort, and then correct, a coefficient.
+The wonderful fact is that no matter how large the diagram, every path is built from just three elementary shapes, defined by the arrows around the middle variable. Toggle each one below and read its verdict.
 
 ::widget causal-dag {}
 
-=== step === concept
-::eyebrow Following the arrows
-## Two paths from coupon to spend
+- **Fork**, written \(X \leftarrow Z \rightarrow Y\): the middle variable Z is a **common cause** of both. This is a **confounder**. It fakes an association between X and Y, so you must **control for it**.
+- **Chain**, written \(X \rightarrow M \rightarrow Y\): the middle variable M sits on the road *from* X *to* Y. This is a **mediator**. The real effect travels through it, so to measure the total effect you **leave it alone**.
+- **Collider**, written \(X \rightarrow C \leftarrow Y\): both arrows crash *into* the middle variable C. This is a **collider**. It blocks association by default, and controlling for it **invents** one.
 
-To decide what to control for, you trace **paths**. A path is any chain of arrows connecting two nodes, followed regardless of which way each arrow happens to point. Between the coupon and spend, Riverside's diagram has exactly two:
-
-1. The **causal path** \(\text{coupon} \to \text{spend}\). The arrow points away from the coupon, toward spend. This carries the real effect, the thing you want to measure.
-2. A **backdoor path** \(\text{coupon} \leftarrow \text{loyalty} \to \text{spend}\). It leaves the coupon through an arrow pointing *into* it (out the back door), then reaches spend. It carries association but not causation: loyalty is making the two ends move together.
-
-Association flows along *both* kinds of path. That is why the raw $18 gap was too big: it was the true effect (front path) plus the loyalty leak (back path), added together, which is exactly the selection bias you measured in Lesson 1. Your job is to let association flow along the causal path while shutting it off along every backdoor.
-
-The honest target has a name. It is the *interventional* quantity \(P\big(Y \mid do(X{=}x)\big)\), read "the distribution of spend if we reached in and *set* the coupon to \(x\) for everyone." That is not the same as the *observational* \(P(Y \mid X{=}x)\), "spend among customers who merely *happened* to have that coupon status." Observation includes the backdoor leak; a true intervention, like Lesson 1's coin flip, does not. Adjusting for the right variables is how you recover \(P\big(Y \mid do(X)\big)\) from data you only observed.
-
-[KEY INSIGHT]
-A correlation is the sum of every open path between two variables. Causation is only the front, causal path. Controlling for variables is how you close the back paths and leave the front one open.
-
-=== step === quiz
-::eyebrow Check yourself
-## Confounder, collider or mediator?
-
-Riverside marks a customer as a "VIP" when they either redeemed a coupon or spent above a threshold, so both getting a coupon and spending more push a customer onto the VIP list. In Riverside's diagram, what role does the VIP flag play between coupon and spend?
-
-::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- A confounder you should control for, since VIPs behave differently ::no A confounder sits UPSTREAM and points INTO both coupon and spend, the way loyalty does. VIP is the reverse: coupon and spend point into it. Controlling for it hurts, it does not help.
-- A collider, because both coupon and spend point into it, so you must not control for it ::ok Right. Both arrows enter the VIP flag (coupon into VIP, spend into VIP), which makes it a collider. Filtering to VIPs, or adding VIP to the model, opens a fake path between coupon and spend.
-- A mediator, because the coupon works by turning customers into VIPs ::no A mediator sits ON the causal path (coupon to Z to spend). Here the coupon does not raise spending BY making someone a VIP; the VIP flag is a downstream label that spending itself helps set. The arrows point the wrong way for a mediator.
+The next three steps take each shape in turn and make it bite, in real numbers, on Riverside's own data. Watch how the same act, adding a variable to a regression, is right for one shape and disastrous for the others.
 
 === step === concept
-::eyebrow The one rule
-## Block every backdoor, and nothing else
+::eyebrow Shape 1: the fork
+## A confounder inflates the effect
 
-"Controlling for" a variable \(Z\), also called *conditioning on* it or *adjusting for* it, means comparing coupon and spend only *within* groups that share the same value of \(Z\): same loyalty, or same VIP status. What that does to a path depends entirely on the shape \(Z\) sits in.
+Here is Riverside's real problem. Loyal customers, the ones already engaged last year, are both far more likely to *join Plus* and, quite separately, inclined to *spend more anyway*. Loyalty sits at the top of a fork, an arrow running down to each side:
 
-- On a **fork** \(X \leftarrow Z \to Y\) or a **chain** \(X \to Z \to Y\), conditioning on the middle node **closes** the path. Compare only customers with the same loyalty and loyalty can no longer make coupon and spend move together. The backdoor is shut.
-- On a **collider** \(X \to Z \leftarrow Y\), conditioning does the opposite: it **opens** a path that was closed. Look only at VIPs and now learning the coupon status tells you something about spend, because a VIP with no coupon must have been a big spender to make the list. You create a correlation just by looking.
+\[ \texttt{plus} \longleftarrow \texttt{loyalty} \longrightarrow \texttt{spend} \]
 
-So there is a single rule for what to adjust for, the **backdoor criterion**: find a set of variables that (1) blocks every backdoor path from the treatment to the outcome, and (2) contains no *descendant* of the treatment, that is, nothing the treatment causes. Rule (2) is what keeps mediators and downstream colliders out of the set. Adjust for exactly that set and only the front, causal path survives. The recipe:
-
-::widget process-flow {"steps":[{"title":"List the variables","sub":"the treatment, the outcome, and anything that may cause either"},{"title":"Draw the arrows","sub":"one arrow per direct cause you believe in; never a loop"},{"title":"Find the backdoor paths","sub":"trails that leave the treatment through an arrow into it"},{"title":"Choose what to adjust for","sub":"block every backdoor; never condition on a collider"}]}
-
-For Riverside, the only backdoor runs through loyalty, and loyalty is not caused by the coupon, so the adjustment set is just loyalty. Control for loyalty, nothing more.
-
-=== step === concept
-::eyebrow See it in R
-## A collider invents a correlation
-
-The collider rule is the one that trips people, so let us watch it happen. We hand out the coupon *at random*, so by construction it has no real link to how much a customer would spend on their own. Then we flag VIPs the way Riverside does, coupon holders or big spenders, and measure the correlation two ways.
+That path, `plus` <- `loyalty` -> `spend`, is a **backdoor path**: a trail connecting treatment and outcome that does not run *through* the treatment's effect. Association leaks across it, and a naive comparison of Plus versus non-Plus members scoops that leak up along with any real effect. Let us build the customers and watch it happen. Because this is a simulation we can plant the truth: Plus really adds **$5**, and loyalty lifts spend on its own.
 
 ```r
-# Coupon is randomized, so it is unrelated to a customer's own baseline spend.
-set.seed(11)
-n <- 4000
-coupon     <- rbinom(n, 1, 0.5)              # X: a fair coin, tied to nothing
-base_spend <- round(rnorm(n, 55, 12))        # Y: each customer's own spending level
+# Riverside Plus: one row per customer. loyalty is the confounder.
+set.seed(1)
+n <- 2000
+loyalty <- rnorm(n)                                     # last year's engagement, centered at 0
+plus    <- rbinom(n, 1, plogis(1.1 * loyalty))          # loyal customers join Plus more often
+spend   <- 40 + 5 * plus + 12 * loyalty + rnorm(n, 0, 6) # TRUE Plus effect = $5; loyalty also lifts spend
+confound <- data.frame(loyalty, plus, spend)
 
-# VIP if you used a coupon OR you already spend a lot: both arrows point INTO vip (a collider)
-vip <- as.integer(coupon == 1 | base_spend > 65)
-
-round(cor(coupon, base_spend), 3)                       # overall: essentially zero
-#> [1] 0.025
-round(cor(coupon[vip == 1], base_spend[vip == 1]), 3)   # among VIPs only: a fake negative link
-#> [1] -0.472
+coef(lm(spend ~ plus, data = confound))["plus"]          # naive: compare Plus vs non-Plus, ignoring loyalty
+#>     plus 
+#> 15.42611 
 ```
 
-Nothing about any customer changed between those two lines, and the coupon still causes nothing. All we did was *look only at VIPs*, and a strong negative correlation appeared out of thin air. Among people on the VIP list, the ones without a coupon had to be the big spenders (or they would not have qualified), so "no coupon" now travels with "spends more." Condition on a collider and you conjure a relationship. That is why the backdoor criterion forbids it.
+The naive model says Plus is worth **$15.43**, three times the truth. The extra ten dollars are loyalty's shadow, leaking across the open backdoor: the Plus group was stacked with loyal big spenders to begin with. Now close the backdoor by **adjusting for** loyalty, which simply means putting it in the model so Plus and non-Plus customers are compared at the *same* loyalty.
 
-[WARNING]
-Choosing your sample can be conditioning in disguise. Studying only VIP customers, only hospital patients, only the people who answered a survey: each one conditions on a variable those groups share. If that variable is a collider, it bends every correlation you compute inside the group.
+```r
+coef(lm(spend ~ plus + loyalty, data = confound))["plus"] # adjust for the confounder
+#>     plus 
+#> 5.109001 
+```
+
+The estimate collapses to **$5.11**, essentially the planted $5. One variable added, and the illusion is gone.
+
+[KEY INSIGHT]
+A fork is **open** by default, so a confounder leaks a fake association through the backdoor. Adjusting for the confounder **closes** the backdoor, and the leftover treatment coefficient is the honest effect.
 
 === step === quiz
 ::eyebrow Check yourself
-## Should you control for site visits?
+## What to do with the confounder
 
-Riverside believes the coupon lifts spending mainly by bringing people back to the website: coupon to visits to spend. A colleague wants to add `visits` to the model "to be safe, since it is clearly related to spend." If your goal is the coupon's *total* effect on spending, should you control for visits?
+In the study above, loyalty is a common cause of joining Plus and of spending. To recover the true effect of Plus on spend, what should you do with loyalty?
 
-::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Yes, always control for anything correlated with the outcome; more controls means a more accurate estimate ::no "Correlated with the outcome" is the wrong test, and controlling is not free. Visits sits ON the causal path, so adjusting for it removes part of the very effect you are trying to measure.
-- No: visits is a mediator on the path coupon to visits to spend, so controlling for it would remove the effect the coupon works through ::ok Exactly. For the TOTAL effect you leave a mediator alone. Adjust for it and you block the front path, shrinking the coupon's measured effect toward zero even though it truly works.
-- No, because visits is a confounder, and confounders must never be controlled for ::no The verdict is right but the reasoning is backwards twice: visits is a mediator, not a confounder, and confounders are exactly what you SHOULD control for. Mislabel the shape and good intentions ruin the estimate.
+::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
+- Put it in the model (adjust for it), so Plus and non-Plus customers are compared at equal loyalty ::ok Exactly. Loyalty is a confounder sitting on the backdoor path plus <- loyalty -> spend. Holding it fixed closes that backdoor, which is why the estimate dropped from 15.43 to 5.11, the truth.
+- Leave it out, because adding more variables to a regression always biases it ::no Adding a variable is neither automatically good nor bad; it depends on the variable's role in the diagram. Leaving out a confounder is precisely what inflated the estimate here. (Adding a mediator or collider, coming up next, is the case where controlling backfires.)
+- Drop every customer whose loyalty is above average, to balance the two groups ::no Throwing away data does not make the groups comparable and can create its own selection bias. Adjusting for loyalty inside the model uses every customer and compares like with like.
+
+=== step === concept
+::eyebrow Shape 2: the chain
+## A mediator carries the effect, so leave it alone
+
+Now the opposite mistake. Suppose Plus works entirely by nudging people onto the app: members open the app more, and more app visits lead to more spending. Nothing about Plus touches spend *except* through those visits:
+
+\[ \texttt{plus} \longrightarrow \texttt{visits} \longrightarrow \texttt{spend} \]
+
+`visits` is a **mediator**: it sits on the causal road from Plus to spend. Here the whole effect is real and travels down the chain. To keep the fork out of the way, we randomize Plus this time, so there is no confounder to worry about, only the mediator.
+
+```r
+# Randomize Plus so nothing confounds it; the ONLY route to spend is through visits.
+set.seed(2)
+n <- 2000
+plus   <- rbinom(n, 1, 0.5)                     # assigned by a coin, so no confounding
+visits <- 3 + 4 * plus + rnorm(n, 0, 1.5)       # Plus drives app visits (the mediator M)
+spend  <- 20 + 6 * visits + rnorm(n, 0, 5)      # spend depends on visits, not directly on Plus
+mediate <- data.frame(plus, visits, spend)
+
+coef(lm(spend ~ plus, data = mediate))["plus"]           # TOTAL effect of Plus, all of it via visits
+#>     plus 
+#> 23.51342 
+```
+
+Plus is worth **$23.51** in total: each membership adds about 4 visits, and each visit adds about $6. That is the number Riverside cares about. Watch what happens if you "control for" visits, thinking more variables must mean a cleaner estimate.
+
+```r
+coef(lm(spend ~ plus + visits, data = mediate))["plus"]  # control the mediator: the effect vanishes
+#>       plus 
+#> -0.6247043 
+```
+
+The Plus coefficient falls to essentially **zero**. By holding visits fixed you asked a different, misleading question, "does Plus help *beyond* the visits it causes?", and the honest answer is no, because visits were the entire mechanism. Report this number and you would tell Riverside that Plus does nothing, when it actually adds $23.
+
+[WARNING]
+Controlling for a mediator **removes the very effect you are trying to measure**. A chain is open by default (the effect flows), and conditioning on the middle closes it. When you want a treatment's *total* effect, never adjust for a variable that the treatment itself causes.
+
+=== step === concept
+::eyebrow Shape 3: the collider
+## A collider invents an effect out of nothing
+
+The third shape is the sneakiest, because here controlling for a variable creates an association that was never there. Riverside hands out a **Top Reader badge** to any customer who is *either* a Plus member *or* a big spender. The badge is a **common effect**: two arrows crash into it.
+
+\[ \texttt{plus} \longrightarrow \texttt{badge} \longleftarrow \texttt{spend} \]
+
+Suppose, for this demonstration, that Plus and spend are genuinely **unrelated**, no arrow between them at all. Overall they should look independent, and they do.
+
+```r
+# plus and spend are INDEPENDENT here (no arrow between them). Both cause the badge.
+set.seed(3)
+n <- 4000
+plus  <- rbinom(n, 1, 0.5)
+spend <- 40 + rnorm(n, 0, 10)                   # independent of membership
+badge <- as.integer(plus == 1 | spend > 55)     # Top Reader: Plus members OR big spenders
+collide <- data.frame(plus, spend, badge)
+
+cor(collide$plus, collide$spend)                 # overall: essentially zero
+#> [1] -0.0280188
+```
+
+Now an analyst, wanting a "cleaner" sample, studies only badged customers, that is, conditions on the collider.
+
+```r
+badged <- collide[collide$badge == 1, ]          # keep only Top Reader customers
+cor(badged$plus, badged$spend)                   # a strong NEGATIVE link appears from nowhere
+#> [1] -0.4634357
+round(tapply(badged$spend, badged$plus, mean), 1) # average spend, non-Plus vs Plus, among the badged
+#>    0    1 
+#> 59.2 39.4 
+```
+
+A firm negative correlation materializes, and the averages explain why. Among badged customers, a *non-member* had only one way to earn the badge: by spending a lot. So within this group, being non-Plus all but guarantees high spend ($59) and being Plus does not ($39). The badge "explains away" one cause by the other, manufacturing a link between two variables that are truly independent.
+
+[KEY INSIGHT]
+A collider is **blocked** by default (nothing leaks). Conditioning on it, whether by putting it in the model or by only studying the cases where it happened, **opens** a fake path. Selecting your sample on a common effect is the same mistake wearing a disguise.
 
 === step === tryit
 ::eyebrow Your turn
-## Close the backdoor
+## Close the backdoor yourself
 
-Back to the case that matters most in practice, the confounder. Here is Riverside's data with loyalty restored as the confounder from Lesson 1: loyal customers were emailed more coupons and spend more on their own. We plant a true coupon effect of exactly $8, then fit the naive model that ignores the graph.
-
-```r
-set.seed(3)
-n <- 3000
-loyalty <- rnorm(n)                                        # the confounder
-coupon  <- rbinom(n, 1, plogis(1.2 * loyalty))            # loyalty -> coupon
-spend   <- 45 + 8 * coupon + 12 * loyalty + rnorm(n, 0, 5) # true coupon effect = 8; loyalty lifts spend
-riverside <- data.frame(loyalty, coupon, spend)
-
-round(coef(lm(spend ~ coupon, data = riverside))["coupon"], 2)   # naive: leaves the backdoor open
-#> coupon
-#>  19.55
-```
-
-The naive model reports a $19.55 lift, more than double the truth, because loyal big spenders were overrepresented among coupon holders and the backdoor was left wide open. Close it by adding the one variable the backdoor criterion picked out. Fill in the blank.
+Back to the confounded `confound` data from earlier, which has three columns: `loyalty` (the confounder), `plus` (the treatment), and `spend` (the outcome). The naive `coef(plus)` was an inflated $15.43. Complete the model so it estimates the true, unconfounded effect of Plus, then check it.
 
 ```r
-# Adjust for the confounder the DAG identified, then read the coupon effect.
-round(coef(lm(spend ~ coupon + ____, data = riverside))["coupon"], 2)
+fit <- lm(spend ~ plus + ____, data = confound)   # add the variable that closes the backdoor
+coef(fit)["plus"]
 ```
-::check {"regex":"loyalty","gate":true,"difficulty":"intermediate","ok":"Right: adjusting for loyalty closes the only backdoor, and the coupon effect drops from $19.55 to about $8.06, the value you planted. Same data, same coupon, one correct control.","no":"Add the confounder loyalty: lm(spend ~ coupon + loyalty). It is the only variable on a backdoor path from coupon to spend."}
+::check {"regex":"plus\\s*\\+\\s*loyalty","gate":true,"difficulty":"intermediate","ok":"Right: adjusting for loyalty gives coef(plus) = 5.11, the true effect. loyalty is the single variable on the backdoor path plus <- loyalty -> spend, so it is exactly what to control for.","no":"Add the confounder loyalty: lm(spend ~ plus + loyalty, data = confound). It is the common cause of Plus and spend, the variable sitting on the backdoor path."}
 ::solution
 ```r
-round(coef(lm(spend ~ coupon + loyalty, data = riverside))["coupon"], 2)
-#> coupon
-#>   8.06
+fit <- lm(spend ~ plus + loyalty, data = confound)
+coef(fit)["plus"]
+#>     plus 
+#> 5.109001 
 ```
 
 === step === concept
-::eyebrow The catch
-## When a DAG lets you down
+::eyebrow One rule to bind them
+## Open, blocked, and how conditioning flips each
 
-A DAG is only ever as honest as the arrows you drew. Three limits are worth stating plainly.
+You have now seen every case. They collapse into one compact rule about whether a path is **open** (association flows) or **blocked** (it does not), and what conditioning on the middle variable does to it.
 
-- **The arrows are assumptions, and the data cannot check them.** The same customer spreadsheet is consistent with many different DAGs. Draw loyalty as a confounder when it is really something else and the "correct" adjustment becomes the wrong one. A DAG moves the argument to where it belongs, your causal claims, but it does not settle it.
-- **You can only adjust for what you measured.** If some hidden driver, say a customer's disposable income, causes both coupons (marketing targeted wealthier segments) and spend, and you never recorded it, no arithmetic recovers the true effect. An **unmeasured confounder** leaves a backdoor you cannot close. That is the usual reason an observational estimate stays uncertain.
-- **More controls is not safer.** As the collider showed, adjusting for the wrong variable *adds* bias. "Throw everything into the regression" is not a strategy; the graph tells you the few variables to include and, just as importantly, the ones to keep out.
+| Shape | The middle variable is... | The path is, by default... | Condition on the middle and the path... |
+|---|---|---|---|
+| Fork (confounder) | a common cause of X and Y | OPEN, leaking a fake association | becomes BLOCKED, so the bias is removed |
+| Chain (mediator) | a step on the road from X to Y | OPEN, carrying the real effect | becomes BLOCKED, so the effect is removed |
+| Collider | a common effect of X and Y | BLOCKED, leaking nothing | becomes OPEN, inventing a fake link |
 
-Once a graph grows past a handful of nodes you stop tracing paths by hand. The `dagitty` package reads the adjustment set straight off the diagram. Run this in your own R session:
+Read the last column carefully: **conditioning flips every path**. On a fork or a chain, conditioning on the middle *closes* the path. On a collider, conditioning *opens* it. This single flip rule (the heart of what is formally called *d-separation*) is enough to look at any diagram and say which variables belong in your model and which must stay out. A confounder in, a mediator and a collider out.
+
+=== step === concept
+::eyebrow The recipe
+## The backdoor criterion picks the adjustment set
+
+Put it together into a procedure. To estimate the effect of a treatment X on an outcome Y, you want to keep the real causal path (X's arrows flowing forward to Y) open, while blocking every **backdoor path**, a trail that leaks association through an arrow pointing *into* X. The set of variables you condition on to do this is the **adjustment set**.
+
+::widget process-flow {"steps":[{"title":"Draw the DAG","sub":"write down every direct cause you believe in as an arrow"},{"title":"Find the backdoor paths","sub":"every non-causal trail from treatment to outcome that starts with an arrow INTO the treatment"},{"title":"Block them all","sub":"choose variables that close every backdoor while opening no collider"},{"title":"Fit and read off","sub":"regress the outcome on the treatment plus that adjustment set"}]}
+
+This is the **backdoor criterion**: a set of variables Z is a valid adjustment set if it blocks every backdoor path and contains no descendant of X (no mediators, and no colliders on the causal path). Adjust for such a Z and the plain regression coefficient equals the causal effect. In the notation of the *do-operator*, where \(do(X{=}x)\) means "reach in and *set* X to x for everyone, snapping the arrows that point into X" (an intervention, not the mere observation \(P(Y \mid X{=}x)\)):
+
+\[ P\big(Y \mid do(X{=}x)\big) \;=\; \sum_{z} P\big(Y \mid X{=}x,\, Z{=}z\big)\, P(Z{=}z) \]
+
+In words: the effect of *setting* X is the association between X and Y computed *within* each stratum of the adjustment set Z, then averaged over Z. Adjusting for the confounder loyalty is exactly this formula at work, which is why `lm(spend ~ plus + loyalty)` returned the truth.
+
+=== step === concept
+::eyebrow In practice
+## Let a tool read the adjustment set for you
+
+For Riverside's small diagram you can find the adjustment set by eye: loyalty is the only backdoor, so adjust for loyalty. Real diagrams have dozens of nodes, and finding every backdoor by hand gets error-prone. The professional move is to encode the DAG once and let software return a valid adjustment set. The `dagitty` package does exactly that. It is not part of interactive R, so run this one locally.
 
 ```r-static
-library(dagitty)   # install.packages("dagitty")
-
-g <- dagitty('dag {
-  loyalty -> coupon
-  loyalty -> spend
-  coupon  -> spend
+# Run locally after: install.packages("dagitty")
+g <- dagitty::dagitty('dag {
+  loyalty -> plus;  loyalty -> spend
+  plus -> visits;   visits  -> spend
+  plus -> badge;    spend   -> badge
+  plus -> spend
 }')
 
-adjustmentSets(g, exposure = "coupon", outcome = "spend")
-#>  { loyalty }
+# Ask for a set that identifies the effect of plus on spend:
+dagitty::adjustmentSets(g, exposure = "plus", outcome = "spend")
+#> { loyalty }
 ```
 
-It returns exactly what we reasoned out by hand: control for loyalty, and only loyalty.
+It returns `{ loyalty }`: adjust for loyalty, and leave visits (a mediator) and badge (a collider) untouched, exactly the reading you now do by hand.
 
-[NOTE]
-Drawing the DAG is the hard, human part; querying it is mechanical. The value is in stating your assumptions clearly enough that a tool, or a sceptical colleague, can check the logic that follows from them.
+[WARNING]
+A DAG is only as good as its arrows, and the arrows are assumptions the data cannot verify for you. Draw them wrong and you will confidently adjust for the wrong thing. Worst of all, if a true confounder is **unmeasured**, no adjustment can close its backdoor: you cannot control for a column you do not have. Honest causal work means arguing for your diagram, and admitting what it rests on.
+
+=== step === quiz
+::eyebrow Check yourself
+## Good controls and bad controls
+
+A study estimates the effect of a job-training program (the treatment) on later wages (the outcome). Which ONE of these variables should you adjust for?
+
+::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
+- Prior education, which shapes both who enrolls in the training and later wages ::ok Correct. Prior education is a confounder, a common cause of enrolling and of wages, sitting on the backdoor path training <- education -> wages. Adjusting for it closes that backdoor. It happens before training, so it is neither a mediator nor a collider.
+- The number of job interviews the training helped the person land, on the way to a wage ::no That is a mediator (training -> interviews -> wages). Controlling it strips out part of the effect you want, understating the program.
+- Whether the person got hired at all, which both the training and high earning potential make more likely ::no That is a collider (a common effect of training and earning potential). Adjusting for it, or studying only the hired, opens a fake path and biases the estimate.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-Five authoritative places to take this further:
+Four authoritative places to take this further:
 
-- [Hernan and Robins, Causal Inference: What If (free PDF)](https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/) - Chapter 6 builds DAGs, paths and d-separation in exactly the order used here.
-- [Cunningham, Causal Inference: The Mixtape, DAG chapter (free, online)](https://mixtape.scunning.com/03-directed_acyclical_graphs) - the same ideas worked slowly, with code and worked colliders.
-- [Textor et al. (2016), the dagitty R package, Int. J. Epidemiology (DOI)](https://doi.org/10.1093/ije/dyw341) - the paper behind the tool that computes adjustment sets for you.
-- [dagitty.net](http://www.dagitty.net/) - draw a DAG in the browser and it lists the sets you must adjust for.
-- [Pearl (1995), Causal diagrams for empirical research, Biometrika (DOI)](https://doi.org/10.1093/biomet/82.4.669) - the paper that introduced the backdoor criterion and the do-operator.
+- [Pearl and Mackenzie, The Book of Why (2018)](http://bayes.cs.ucla.edu/WHY/) - the accessible introduction to causal diagrams, the do-operator, and why confounders and colliders behave so differently.
+- [Hernan and Robins, Causal Inference: What If (free PDF)](https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/) - Chapters 6 and 7 develop DAGs, backdoor paths, and the backdoor criterion with full rigor.
+- [Cinelli, Forney and Pearl (2024), A Crash Course in Good and Bad Controls](https://doi.org/10.1177/00491241221099552) - a clean catalogue of which variables help and which hurt, built entirely on the three shapes you learned here.
+- [Textor et al. (2016), the dagitty R package, Int. J. Epidemiology](https://doi.org/10.1093/ije/dyw341) - the tool that finds adjustment sets from a DAG for you; the paper explains the algorithm.
 
 === step === complete
 ## Lesson 2 complete
 
-You can now turn a causal question into a diagram and read the answer off it. An arrow is a claim of direct cause; a path is any trail between two variables; and where a third variable sits decides what you do with it. Control for a **confounder** (a fork) to close the backdoor it opens, the way you pulled Riverside's coupon effect from an inflated $19.55 back to its true $8. **Never** control for a **collider**, or you invent a correlation from nothing, the way the VIP filter did. And leave a **mediator** alone when you want the total effect, or you subtract off the effect itself. The backdoor criterion ties it together: block every backdoor, and adjust for nothing the treatment causes.
+You can now turn a causal question into a diagram and read the answer off it. A DAG is your assumptions drawn as nodes and arrows. Association flows along open paths, and every path is a fork, a chain, or a collider. A confounder (fork) leaks a fake effect through a backdoor, so you adjust for it, and you watched Riverside's inflated $15.43 fall to the true $5.11. A mediator (chain) carries the real effect, so controlling it wrongly erased Plus's $23 down to zero. A collider is silent until you condition on it, and then it invents a link from nothing. The backdoor criterion ties it together: block every backdoor, touch no mediator or collider, and the plain regression coefficient is the causal effect.
 
-Next, Lesson 3: A/B Testing and Experiment Design. Randomizing is the one move that erases every backdoor at once, collapsing the tangled graph back into the single clean arrow you actually care about. You will see how to design an experiment that earns that simplicity, and how large a sample it takes to trust what the experiment tells you.
+Next, Lesson 3: A/B Testing and Experiment Design. When you *can* randomize the treatment, every arrow pointing into it is snapped, so every backdoor path vanishes at once, and the tangle of forks and colliders collapses back to the clean comparison you met in Lesson 1. You will learn to design that experiment and size it so it can actually detect the effect you care about.

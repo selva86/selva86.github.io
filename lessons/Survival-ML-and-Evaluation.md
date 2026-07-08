@@ -1,8 +1,8 @@
 ---
 title: "Survival Analysis Lesson 7: Survival ML and Evaluation"
-catalog_blurb: "How to score a survival model honestly so its predictions can be trusted."
-description: "Fit a random survival forest, then score any survival model honestly: Harrell's C-index for ranking and the time-dependent Brier score for calibration, in R."
-keywords: "random survival forest in R, Harrell C-index, concordance survival model, time-dependent Brier score, IPCW, survival model evaluation, calibration, ranger, model discrimination"
+catalog_blurb: "Fit a flexible survival model, then judge whether its predictions can be trusted."
+description: "Go beyond Cox with a random survival forest, then score any survival model honestly using Harrell's C-index and the time-dependent Brier score in R."
+keywords: "random survival forest, Harrell's C-index, concordance, time-dependent Brier score, IPCW, survival model evaluation, calibration, ranger, survival analysis in R"
 post_type: "LESSON"
 curriculum_id: "6.150.7"
 webr: true
@@ -13,7 +13,7 @@ course_title: "Survival Analysis"
 course_lesson: "7"
 course_total: "7"
 course_landing: "R-Survival-Analysis-Course.html"
-course_next: ""
+course_next: "Survival-Analysis-Quiz.html"
 course_prev: "Competing-Risks-and-Cumulative-Incidence.html"
 ---
 
@@ -21,315 +21,361 @@ course_prev: "Competing-Risks-and-Cumulative-Incidence.html"
 ::eyebrow Lesson 7 of 7
 ## Survival ML and Evaluation
 
-Every model in this course so far, the Kaplan-Meier curve, the Cox model, the Weibull fit, the Fine-Gray model, was a shape you chose by hand. This last lesson does two new things. First, you let a model learn the shape of risk for you: a random survival forest. Second, and this is the part most courses skip, you learn to answer the only question that matters once a model exists: how good is it, honestly? Dr. Rao has built a recurrence model for her cancer clinic and needs to know whether to trust it before a single patient hears its number.
+Meet one of Dr. Rao's 686 breast-cancer patients: a 49-year-old whose tumour was 18 mm, grade 2, with two positive lymph nodes. Five years after surgery her cancer had still never returned; the study simply ended with her recurrence-free. (That last fact, a patient still event-free at her final visit, is the right-censoring from Lesson 1.)
+
+Six lessons have handed you models for a patient like her: Kaplan-Meier, the Cox model, parametric survival, competing risks. Each one assumed a SHAPE for how risk behaves. This lesson does two new things. First, it lets a model learn the shape on its own, with a random survival forest. Second, and more important, it teaches you to score any survival model honestly, because a prediction you cannot check is a prediction you cannot trust.
 
 By the end of this lesson you will be able to:
 
-- Explain what a random survival forest predicts and why it assumes nothing about the shape of risk
-- Score a survival model's ranking with Harrell's C-index, on data it never saw
-- Score whether its predicted probabilities are actually right with the time-dependent Brier score, and see why you need both
+- Explain how a random survival forest grows survival trees and averages them, with no proportional-hazards or parametric assumption
+- Measure how well a model RANKS risk with Harrell's C-index, the survival cousin of the AUC
+- Measure whether its predicted probabilities are HONEST, with a survival calibration curve and the time-dependent Brier score
+- Put two rival models on trial and let the scores, not their reputations, pick the winner
 
-**Prerequisites:** [Lesson 1](Survival-Data-and-Censoring.html) (the survival function and censoring), [Lesson 2](Kaplan-Meier-and-the-Log-Rank-Test.html) (the KM curve), and [Lesson 3](Cox-Proportional-Hazards.html) (the Cox model and its linear predictor). You can read a coefficient table and run R.
-
-The widget below is the whole second half of the lesson in one picture. A model can be confident and still be wrong: drag the slider and watch its predicted probabilities drift away from what actually happens. Learning to catch that is the skill this lesson builds.
+**Prerequisites:** [Lesson 1](Survival-Data-and-Censoring.html) (right-censoring, `Surv()`, the survival function), [Lesson 2](Kaplan-Meier-and-the-Log-Rank-Test.html) (the Kaplan-Meier curve and the log-rank test), and [Lesson 3](Cox-Proportional-Hazards.html) (the Cox model, the hazard ratio, and its risk score). You can fit a Cox model and read a coefficient table.
 
 ::widget calibration-curve {}
 
 === step === concept
-::eyebrow The model
-## Let the forest learn the shape
+::eyebrow Why reach past Cox
+## When a straight-line risk is not enough
 
-Recall Lesson 3. To use a Cox model you commit, in advance, to a shape: every covariate acts on the log-hazard in a straight line, and the hazard ratio between any two patients stays constant for all time. That is the proportional-hazards assumption, and Lesson 4 was all about checking it. A random survival forest throws that commitment away and lets the data draw the shape.
+The Cox model from Lesson 3 is a workhorse, but it makes two promises about the data. The proportional-hazards promise: every patient's hazard is the one baseline curve scaled by a constant, so no risk factor's effect is allowed to grow or fade over time. And a log-linear promise: the risk score is a straight-line sum, \(\beta_1 x_1 + \beta_2 x_2 + \cdots\), so one extra positive lymph node moves the risk by the same amount whether the patient had zero nodes or twenty.
 
-It is built like the classification forests you may have seen, with one twist for censored time. Grow many decision trees. Each tree splits patients into groups, but instead of choosing splits to separate two classes, it chooses the split that most separates survival, scored by the log-rank statistic you met in Lesson 2. Every patient lands in a leaf, and that leaf holds a small Kaplan-Meier curve built from the patients in it. Send a new patient down all the trees, average the leaf curves, and you get one smooth predicted survival curve for that patient, with no proportional-hazards assumption and no Weibull anywhere.
+Real tumours rarely honour that. The jump from 1 positive node to 3 need not equal the jump from 18 to 20, and node count and tumour grade may interact in ways no single straight line can trace. When the true risk surface bends, a model forced to stay straight will misread it.
 
-::widget tree-diagram {"root":"tumor grade 3 plus?","l":"age under 52?","r":"age under 59?","leaves":["lower risk","higher risk","high risk","highest risk"]}
+A **decision tree** makes no such promise. It carves the patients into groups with yes/no questions ("3 or fewer positive nodes?", "tumour under 15 mm?") and lets each group have its own survival experience. Stack many such trees into a forest and you get a **random survival forest**: a model that learns the shape of risk from the data instead of being told it in advance. The tree below is one such survival tree; each of its leaves holds its own survival curve.
 
-First, Dr. Rao's cohort of 400 patients, built right here so the page is self-contained (run this once; later blocks reuse `dat`, `train` and `test`):
+::widget tree-diagram {"root":"nodes 3 or fewer?","l":"tumour under 15 mm?","r":"low pgr?","leaves":["low risk","medium risk","medium risk","high risk"]}
+
+=== step === concept
+::eyebrow How a survival tree learns
+## Split where the survival curves separate most
+
+A classification tree splits to make its groups purer. A survival tree splits to make the two groups' SURVIVAL as different as possible, and you already know the tool that measures that difference: the log-rank test from Lesson 2. At each candidate split, the tree runs a log-rank test between the two sides and keeps the split with the largest log-rank statistic. The bigger that statistic, the more sharply the split separates who recurs early from who stays recurrence-free.
+
+Formally, at each event time the log-rank test compares the observed number of events in a group with the number expected if both sides shared one survival curve, and combines the standardised gaps:
+
+\[ \chi^2_{\text{LR}} = \frac{\left(\sum_k (O_k - E_k)\right)^2}{\sum_k V_k}, \]
+
+where \(O_k\) and \(E_k\) are the observed and expected events at the \(k\)-th event time and \(V_k\) is their variance. A large value means the two groups' curves are far apart. Let us watch a tree shop for a split on `nodes`, the count of positive lymph nodes, by scanning a few thresholds. Each lesson runs in its own R session, so we build Dr. Rao's cohort first (run this once).
 
 ```r
 library(survival)
+g <- gbsg                          # 686 breast-cancer patients, ships with the survival package
+g$years <- g$rfstime / 365.25      # recurrence-free time, in years
+set.seed(1)
+train_id <- sample(nrow(g), 500)
+train <- g[train_id, ]             # 500 patients to learn from
+test  <- g[-train_id, ]            # 186 held out, to judge the model honestly
+c(train = nrow(train), test = nrow(test))
+#> train  test 
+#>   500   186
 
-set.seed(11)
-n      <- 400
-age    <- round(runif(n, 40, 80))            # years
-nodes  <- rpois(n, 4)                         # cancer-positive lymph nodes
-grade  <- sample(1:3, n, replace = TRUE)      # tumor grade, 1 (mild) to 3 (aggressive)
-
-# a real risk signal: the recurrence hazard rises with age, nodes and grade
-lp     <- 0.04 * (age - 60) + 0.15 * nodes + 0.5 * (grade - 1)
-t_evt  <- rexp(n, rate = 0.02 * exp(lp))      # month of recurrence, if we saw it
-t_cens <- runif(n, 0, 60)                     # dropout or end of study, in months
-
-time   <- pmin(t_evt, t_cens)                 # we observe whichever comes first
-status <- as.integer(t_evt <= t_cens)         # 1 = recurrence seen, 0 = censored
-dat    <- data.frame(time = round(time, 1), status, age, nodes, grade)
-table(dat$status)
-#>
-#>   0   1
-#> 119 281
+# score every candidate split on `nodes` by its log-rank statistic; keep the biggest
+thresholds <- c(1, 3, 5, 8, 12)
+logrank <- sapply(thresholds, function(k) {
+  side <- ifelse(train$nodes <= k, "few", "many")
+  survdiff(Surv(years, status) ~ side, data = train)$chisq
+})
+data.frame(split_at_nodes = thresholds, logrank_chisq = round(logrank, 1))
+#>   split_at_nodes logrank_chisq
+#> 1              1          12.4
+#> 2              3          61.4
+#> 3              5          44.4
+#> 4              8          33.2
+#> 5             12          39.8
 ```
 
-The building block of the forest is a single survival tree, and that one you can grow right here with `rpart`. Handing it `Surv(time, status)` as the response tells it to split on survival, not on a class. We also carve off a held-out test set now, because every honest score later depends on it:
+Splitting at 3 nodes gives the largest separation (a log-rank statistic of 61.4), so that is the split this tree would take. Now let a real tree run the whole search, across every feature at once, with `rpart`:
 
 ```r
 library(rpart)
-
-set.seed(1)
-idx   <- sample(nrow(dat), 0.7 * nrow(dat))   # 70% to train, 30% held out for scoring
-train <- dat[idx, ]
-test  <- dat[-idx, ]
-
-stree <- rpart(Surv(time, status) ~ age + nodes + grade, data = train,
-               control = rpart.control(cp = 0.02))
-stree
-#> n= 280
-#>
+survtree <- rpart(Surv(years, status) ~ age + nodes + grade + size + pgr + meno + hormon,
+                  data = train, control = rpart.control(maxdepth = 2, cp = 0.01))
+survtree
+#> n= 500 
+#> 
 #> node), split, n, deviance, yval
 #>       * denotes terminal node
-#>
-#>  1) root 280 379.2137 1.0000000
-#>    2) grade< 2.5 169 218.2516 0.7620804
-#>      4) age< 51.5  46  47.1395 0.4030200 *
-#>      5) age>=51.5 123 153.2829 0.9901318
-#>       10) nodes< 2.5 38  47.3188 0.5780007 *
-#>       11) nodes>=2.5 85  93.7298 1.2817000 *
-#>    3) grade>=2.5 111 133.2254 1.6240180
-#>      6) age< 58.5 58  79.0148 1.1909480 *
-#>      7) age>=58.5 53  43.3282 2.3413410 *
+#> 
+#> 1) root 500 682.264000 1.0000000  
+#>   2) nodes< 3.5 279 290.958400 0.5931820  
+#>     4) size< 14.5 23   1.865316 0.0673419 *
+#>     5) size>=14.5 256 273.691100 0.6620273 *
+#>   3) nodes>=3.5 221 333.409800 1.7052860  
+#>     6) pgr>=20.5 115 152.999400 1.1519510 *
+#>     7) pgr< 20.5 106 158.073200 2.6021330 *
 ```
 
-Read the leaves. The `yval` column is a relative event rate: the youngest, low-grade patients (node 4) sit at 0.40, while the older, high-grade patients (node 7) are at 2.34, nearly six times higher. The tree carved the cohort into risk groups with no shape imposed on how risk grows.
+Read the four leaves (marked `*`). The tree first splits on nodes at 3.5, exactly where the scan pointed. Its `yval` is a relative risk: patients with few nodes and a small tumour sit at 0.07 (very low risk), while those with many nodes and low progesterone (`pgr`) sit at 2.60, nearly forty times higher. Each leaf is really a little Kaplan-Meier curve estimated from just its own patients; the leaf's cumulative hazard \(\hat H(t) = \sum_{t_k \le t} d_k / n_k\) (the Nelson-Aalen estimator, with \(d_k\) events among \(n_k\) still at risk) is the usual summary. One tree, learned entirely from the data, no proportional-hazards assumption anywhere.
 
-A forest is hundreds of such trees, each grown on a bootstrap sample and averaged. That needs the `ranger` package, which does not run in the browser, so this block is one to run on your own machine:
+::widget tree-diagram {"root":"nodes 3 or fewer?","l":"tumour under 15 mm?","r":"pgr 20 or more?","leaves":["risk 0.07","risk 0.66","risk 1.15","risk 2.60"]}
 
-```r-static
-# install.packages("ranger") first, then run locally
-rsf <- ranger::ranger(Surv(time, status) ~ age + nodes + grade, data = train,
-                      num.trees = 500, importance = "permutation")
-rsf
-#> Ranger result
-#> Type:                             Survival
-#> Number of trees:                  500
-#> Sample size:                      280
-#> Mtry:                             2
-#> Splitrule:                        logrank
-#> Number of unique death times:     125
-#> OOB prediction error (1-C):       0.362
+=== step === concept
+::eyebrow From one tree to many
+## A forest of survival trees
 
-# every test patient gets a full predicted survival curve (one column per death time)
-pred <- predict(rsf, data = test)
-dim(pred$survival)
-#> [1] 120 125
-```
+One survival tree is easy to read but, like any single tree, it is unstable: shift a few patients and its splits can rearrange. A **random survival forest** fixes that the way an ordinary random forest does, by growing hundreds of trees that each see the data slightly differently, then averaging them.
 
-We now have a model that predicts a whole curve per patient. The rest of the lesson is the question that actually matters: is it any good?
+Three rules make the trees different, and that difference is the whole point:
+
+1. **Bootstrap.** Each tree grows on its own random resample (with replacement) of the patients, so no two trees see quite the same cohort.
+2. **Random features.** At each split, a tree may only choose from a random handful of the variables, so no single strong predictor (here, `nodes`) dominates every tree.
+3. **Average the curves.** Each tree turns a patient into a survival curve by dropping her into a leaf and reading that leaf's estimate. The forest averages those curves, tree by tree, into one smooth prediction.
+
+Concretely, if tree \(b\) predicts cumulative hazard \(\hat H_b(t \mid x)\) for a patient with features \(x\), the forest's prediction is simply their mean,
+
+\[ \hat H(t \mid x) = \frac{1}{B}\sum_{b=1}^{B} \hat H_b(t \mid x), \]
+
+over all \(B\) trees. Averaging many noisy trees cancels their individual quirks and leaves a stable survival curve. And because every leaf came from Kaplan-Meier style bookkeeping, the whole thing still handles censoring correctly, with no proportional-hazards or parametric form assumed anywhere.
+
+::widget process-flow {"steps":[{"title":"Bootstrap","sub":"grow each survival tree on its own random resample of the patients"},{"title":"Random features","sub":"at each split, consider only a random subset of the variables"},{"title":"Average the curves","sub":"drop a patient down every tree, average the leaf survival estimates"}]}
 
 === step === quiz
 ::eyebrow Check yourself
-## What did the forest give you?
+## Why not just a regression forest?
 
-You fit a random survival forest to Dr. Rao's data. For one new patient, what does it hand you, and what did it assume about how risk changes over time?
+A colleague suggests skipping all of this: "Take the recurrence TIME as the target and fit an ordinary regression random forest to predict it." Why does that fail on Dr. Rao's data?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- A single predicted survival time, the number of months until recurrence, assuming risk stays constant ::no A forest does not output one time. Each tree sends the patient to a leaf holding a Kaplan-Meier curve, and averaging those gives a whole predicted survival curve, with no constant-risk assumption.
-- A full predicted survival curve, having assumed no proportional-hazards or parametric shape ::ok Right. Each tree drops the patient into a leaf with its own KM curve; the forest averages them into a smooth survival curve for that patient, learned from the data with no PH or Weibull form baked in.
-- A hazard ratio for each covariate, exactly like a Cox model ::no That is Cox output. A forest is nonparametric: it predicts curves, not one interpretable hazard ratio per covariate. It reports variable importance instead.
-- Nothing usable, because random forests cannot handle censored data ::no They handle it directly: splits are chosen by the log-rank statistic and each leaf is a Kaplan-Meier curve, both of which are built for censoring.
+- It would work fine; predicting the time directly is exactly what a survival forest does under the hood ::no A survival forest does not predict a single time; it estimates a whole survival curve, precisely because so many patients have no observed time to regress on.
+- More than half the patients are censored, so their true recurrence time is unknown; a regression forest has no valid target for them and would have to drop or mislabel them ::ok Exactly. 56% of this cohort is censored. A plain regression needs a real number to predict, but a censored patient's recurrence time is unknown (only "at least this long"). The survival forest sidesteps this by splitting on the log-rank statistic and estimating a curve in each leaf, both of which use censored patients correctly.
+- Random forests cannot handle continuous targets, only classes ::no Regression forests handle continuous targets fine; the problem is specific to survival, where the target itself is unknown for censored patients.
+- A forest always overfits time-to-event data, so a single tree is required ::no Forests reduce overfitting by averaging; the real obstacle here is censoring, not overfitting.
 
 === step === concept
-::eyebrow Why scoring is hard
-## You cannot grade a survival model with accuracy
+::eyebrow The two contenders
+## Fit a forest, and a Cox baseline
 
-Here is the trap. With an ordinary classifier you would predict yes or no, compare to the truth, and report accuracy. A survival model breaks that in two ways at once, and both trace back to the same source: censored time.
+In practice you fit a random survival forest with a dedicated engine. The `ranger` package does it in one call. Its forest machinery is compiled C++ that does not run inside an interactive browser session, so fit it in a local R install; the code and its real output are below.
 
-First, the model does not output a label. It outputs a curve, a predicted probability of surviving for every future month. There is no single yes or no to check. Second, the truth itself is often unknown. A patient censored at 18 months has no recorded recurrence, but that does not mean they were cured; you simply stopped watching. Count them as a non-event and you flatter the model.
+```r-static
+# Run this in a local R session: install.packages("ranger")
+set.seed(7)
+rsf <- ranger::ranger(Surv(years, status) ~ age + nodes + grade + size + pgr + meno + hormon,
+                      data = train, num.trees = 500, importance = "permutation")
+1 - rsf$prediction.error                       # out-of-bag C-index
+#> [1] 0.671
+sort(round(rsf$variable.importance, 4), decreasing = TRUE)
+#>  nodes    pgr    age hormon   size   meno  grade 
+#> 0.0477 0.0239 0.0121 0.0030 0.0011 0.0007 0.0003
+```
 
-So honest evaluation splits into two separate questions, and a good report answers both.
+The forest reports an out-of-bag C-index of 0.671 (you will learn to read that number in a moment) and ranks `nodes` and `pgr` as the features carrying the most survival signal, echoing exactly what the single tree split on.
 
-::widget process-flow {"steps":[{"title":"Hold out","sub":"score on patients the model never trained on"},{"title":"Predict a curve","sub":"each patient gets a survival curve, not a label"},{"title":"Discrimination","sub":"does it rank who fails first? the C-index"},{"title":"Calibration","sub":"are the predicted probabilities right? the Brier score"}]}
+::widget importance-bars {"items":[{"label":"nodes","value":0.0477},{"label":"pgr","value":0.0239},{"label":"age","value":0.0121},{"label":"hormon","value":0.003},{"label":"size","value":0.0011},{"label":"meno","value":0.0007},{"label":"grade","value":0.0003}]}
 
-**Discrimination** asks whether the model gets the ORDER right: given two patients, does it assign the higher risk to the one who actually fails sooner? **Calibration** asks whether the NUMBERS are right: of all the patients it called 30 percent likely to survive, did about 30 percent actually survive? A model can ace one and fail the other, so we measure them separately, with a different tool each. The rest of the lesson is those two tools.
+For a runnable baseline to score the forest against, fit the Cox model you know from Lesson 3, plus a deliberately weak model that sees only age, so our metrics have something good and something poor to tell apart.
+
+```r
+cox_full <- coxph(Surv(years, status) ~ age + nodes + grade + size + pgr + meno + hormon,
+                  data = train)
+cox_weak <- coxph(Surv(years, status) ~ age, data = train)   # a deliberately weak yardstick
+round(summary(cox_full)$coefficients[, c("exp(coef)", "Pr(>|z|)")], 3)
+#>        exp(coef) Pr(>|z|)
+#> age        0.988    0.269
+#> nodes      1.080    0.000
+#> grade      1.140    0.306
+#> size       1.005    0.225
+#> pgr        0.998    0.000
+#> meno       1.476    0.083
+#> hormon     0.605    0.001
+```
+
+Each `exp(coef)` is a hazard ratio: every extra positive node multiplies the recurrence hazard by 1.08, while hormone therapy (`hormon`) cuts it to 0.605. We now hold three risk scores, one from the forest and two from Cox models. The rest of the lesson answers the only question that matters: which of them, if any, can you trust?
 
 === step === concept
-::eyebrow Discrimination
-## Harrell's C-index: getting the order right
+::eyebrow Question one: does it rank right?
+## Discrimination: Harrell's C-index
 
-Start with the intuition, because the formula is just this idea counted up. Take any two patients whose fates you can compare, meaning you know which one recurred first. (If the earlier of the two was censored, you cannot tell who would have failed first, so that pair is skipped.) The model gets a pair right, a concordant pair, if it gave the higher risk to the patient who actually recurred first. Harrell's concordance index, the C-index, is simply the fraction of comparable pairs the model orders correctly:
-
-\[ C = \frac{\text{number of concordant pairs}}{\text{number of comparable pairs}}. \]
-
-A \(C\) of \(0.5\) is a coin flip: the model orders patients no better than chance. A \(C\) of \(1.0\) is a perfect ranking. In practice \(0.6\) to \(0.75\) is typical for clinical risk models. If you have met the AUC for a yes/no classifier, the C-index is its survival cousin, the same concordance idea extended to censored time. Slide the threshold below to feel discrimination as pure ranking: a higher AUC means the score separates the two groups better, which is exactly what the C-index measures for survival.
+A survival model hands you a risk score for each patient. The first thing to ask is simple: when the model says patient A is higher-risk than patient B, does A actually tend to recur first? A model that gets that ORDER right can sort patients into who needs closer follow-up, even if its exact probabilities are off. This property is called **discrimination**, and for a plain yes/no outcome you already measure it with the AUC: the chance a random positive is scored above a random negative. The widget shows that familiar picture.
 
 ::widget roc-curve {}
 
-Now compute it for Dr. Rao's Cox model. The `concordance()` function in the survival package does the pair counting for you. Point it at the fitted model and it reports the C-index on the training data:
+**Harrell's C-index** (the "concordance" index) is exactly that idea, generalised to censored survival times. Take every pair of patients where you can actually tell who failed first, call these the **comparable** pairs, and ask what fraction the model ranked correctly:
+
+\[ C = P\big(\hat r_i > \hat r_j \;\big|\; T_i < T_j\big), \]
+
+where \(\hat r_i\) is patient \(i\)'s risk score and \(T_i\) her event time. A pair is comparable only when the earlier of the two times is an actual event: if the earlier patient was censored, we never learn whether the other would have beaten her, so that pair is dropped. A **concordant** pair is one the model ordered right (the patient who failed first was given the higher risk). Then \(C = 0.5\) is coin-flip ranking and \(C = 1\) is perfect.
+
+Work it by hand on four patients to see the machinery:
 
 ```r
-cox <- coxph(Surv(time, status) ~ age + nodes + grade, data = train)
-concordance(cox)                       # C-index on the training data
-#> Call: concordance.coxph(object = cox)
-#>
-#> n= 280
-#> Concordance= 0.6884 se= 0.02021
+mini <- data.frame(
+  patient = c("A", "B", "C", "D"),
+  years   = c(1.0, 2.0, 2.5, 4.0),
+  event   = c(1,   1,   0,   1),     # patient C is censored at 2.5 years
+  risk    = c(3.0, 1.0, 2.0, 0.5))   # model risk score: higher = expected to recur sooner
+mini
+#>   patient years event risk
+#> 1       A   1.0     1  3.0
+#> 2       B   2.0     1  1.0
+#> 3       C   2.5     0  2.0
+#> 4       D   4.0     1  0.5
 ```
 
-That 0.688 is optimistic, though: the model has already seen these patients. The honest number is on the held-out test set. The one subtlety is direction. `predict(type = "lp")` returns the linear predictor, where a HIGHER value means MORE risk and so SHORTER survival, while `concordance()` by default expects a larger score to mean longer survival. `reverse = TRUE` tells it the score is a risk score:
+List the comparable pairs, those whose earlier patient had an event: A before B, A before C, A before D, B before C, B before D. That is five pairs; the pair C before D is excluded because C was censored, so we cannot know whether C would have recurred before D. Now check the ranking. A has the highest risk (3.0) and failed first in all three of her pairs: three concordant. B (risk 1.0) beat D (0.5): concordant. B (1.0) versus C (2.0): B failed first yet had the LOWER risk, so that pair is discordant. Four concordant out of five comparable pairs gives \(C = 4/5 = 0.8\). Confirm it:
 
 ```r
-lp_test <- predict(cox, newdata = test, type = "lp")   # risk score: higher = more risk
-concordance(Surv(time, status) ~ lp_test, data = test, reverse = TRUE)
-#> Call: concordance.formula(object = Surv(time, status) ~ lp_test,
-#>     data = test, reverse = TRUE)
-#>
-#> n= 120
-#> Concordance= 0.7085 se= 0.0335
-
-cox_weak <- coxph(Surv(time, status) ~ age, data = train)   # a model that knows only age
-lp_weak  <- predict(cox_weak, newdata = test, type = "lp")
-concordance(Surv(time, status) ~ lp_weak, data = test, reverse = TRUE)$concordance
-#> [1] 0.6184
+# reverse = TRUE tells concordance() our column is a RISK (higher = shorter time), not a survival time
+concordance(Surv(years, event) ~ risk, data = mini, reverse = TRUE)$concordance
+#> [1] 0.8
 ```
-
-The full model scores 0.71 on patients it never saw; the weaker, age-only model scores 0.62. Both beat a coin flip, and the C-index cleanly ranks the two the way you would hope.
 
 === step === tryit
 ::eyebrow Your turn
-## Score it on the held-out patients
+## Score the Cox model honestly
 
-The single most common way people fool themselves is scoring on the training data (that optimistic 0.688). The honest C-index uses the patients the model never trained on. Fill in the blank so the linear predictor is computed on the held-out test set.
+The C-index only means something on data the model never trained on, so we score it on the 186 held-out `test` patients. First turn `cox_full` into a risk score for each test patient with its linear predictor, then hand that to `concordance()`. Because a higher score means a SHORTER time, fill the blank so `concordance()` reads the column as a risk.
 
 ```r
-lp_test <- predict(cox, newdata = ____, type = "lp")
-concordance(Surv(time, status) ~ lp_test, data = test, reverse = TRUE)
+risk_full <- predict(cox_full, newdata = test, type = "lp")   # each test patient's risk score
+round(concordance(Surv(years, status) ~ risk_full, data = test, reverse = ____)$concordance, 3)
 ```
-::check {"regex":"newdata\\s*=\\s*test","gate":true,"difficulty":"intermediate","ok":"Exactly. Scoring on test, the patients the model never saw, gives the honest 0.71. The training concordance is always the more flattering number, because the model already fit those rows.","no":"Point predict() at the held-out data: newdata = test. Scoring on train reports the optimistic training C-index, not how the model does on new patients."}
+::check {"regex":"reverse\\s*=\\s*TRUE","gate":true,"difficulty":"intermediate","ok":"That gives C = 0.689 on held-out patients: the full Cox model ranks recurrence risk right about 69% of the time. The age-only model scores just 0.498, barely a coin flip.","no":"A risk score runs opposite to survival time (higher risk = shorter time), so concordance() needs reverse = TRUE."}
 ::solution
 ```r
-lp_test <- predict(cox, newdata = test, type = "lp")
-concordance(Surv(time, status) ~ lp_test, data = test, reverse = TRUE)
+risk_full <- predict(cox_full, newdata = test, type = "lp")
+round(concordance(Surv(years, status) ~ risk_full, data = test, reverse = TRUE)$concordance, 3)
+#> [1] 0.689
 ```
-
-=== step === concept
-::eyebrow Calibration and accuracy
-## The time-dependent Brier score
-
-A high C-index only means the ranking is good. It says nothing about whether a predicted "30 percent chance of surviving two years" is actually right. That is calibration, and the tool for it is the Brier score: at a chosen horizon \(t^{\star}\), it is the average squared gap between the predicted survival probability and what actually happened.
-
-For patient \(i\) with predicted survival \(\hat S(t^{\star}\mid x_i)\), the target is \(1\) if they are still event-free at \(t^{\star}\) and \(0\) if they have already had the event. Averaging the squared error would be the plain Brier score, but censoring means some targets are unknown, so each known case is up-weighted by \(\hat G\), the Kaplan-Meier probability that a patient was still under observation:
-
-\[ \mathrm{BS}(t^{\star}) = \frac{1}{n}\sum_{i=1}^{n}\left[ \frac{\hat S(t^{\star}\mid x_i)^2 \, \mathbb{1}(T_i \le t^{\star},\ \delta_i = 1)}{\hat G(T_i)} + \frac{\bigl(1 - \hat S(t^{\star}\mid x_i)\bigr)^2 \, \mathbb{1}(T_i > t^{\star})}{\hat G(t^{\star})} \right]. \]
-
-Here \(T_i\) is the observed time and \(\delta_i\) the event indicator. The first term counts patients who had the event by \(t^{\star}\) (target \(0\)), the second counts those known to survive past it (target \(1\)), and patients censored before \(t^{\star}\) drop out, their fate handled through the weights. Those inverse-probability-of-censoring weights, from Graf and colleagues (1999), are what keep the score honest under censoring. Lower is better; \(0\) is perfect.
-
-The widget shows what calibration means: bin the predictions and plot predicted against observed frequency. Sitting on the diagonal is perfect; bowing away from it is over- or under-confidence, and the Brier score is one number for how far off the whole picture is.
-
-::widget calibration-curve {}
-
-Compute it at 24 months for the Cox model. First the censoring curve \(\hat G\) and the model's predicted 24-month survival for each test patient:
-
-```r
-tstar <- 24                                    # score survival to 24 months
-
-# G(t): the Kaplan-Meier of the CENSORING process (flip the indicator).
-# It is how likely a patient was still under observation at time t.
-cens_fit <- survfit(Surv(time, 1 - status) ~ 1, data = test)
-Gstep    <- stepfun(cens_fit$time, c(1, cens_fit$surv))
-
-sf      <- survfit(cox, newdata = test)        # a predicted curve per test patient
-S_tstar <- as.numeric(summary(sf, times = tstar)$surv)   # P(survive past 24 mo), one per patient
-round(head(S_tstar), 3)
-#> [1] 0.002 0.473 0.298 0.060 0.092 0.392
-```
-
-Then the censoring-weighted squared error, with a null model (one marginal KM curve for everyone) as a yardstick for what "no skill" scores:
-
-```r
-ev_before <- test$time <= tstar & test$status == 1   # had the event by 24 mo (target 0)
-surv_past <- test$time >  tstar                       # known event-free past 24 mo (target 1)
-
-brier <- function(Shat) {
-  term_before <- ifelse(ev_before, (0 - Shat)^2 / Gstep(test$time), 0)
-  term_past   <- ifelse(surv_past, (1 - Shat)^2 / Gstep(tstar),     0)
-  mean(term_before + term_past)
-}
-
-bs_full <- brier(S_tstar)                                     # the Cox model
-km0     <- survfit(Surv(time, status) ~ 1, data = train)      # null: same curve for everyone
-bs_null <- brier(rep(summary(km0, times = tstar)$surv, nrow(test)))
-round(c(cox = bs_full, null = bs_null), 3)
-#>   cox  null
-#> 0.198 0.250
-```
-
-The Cox model scores 0.198 against the null's 0.250: predicting each patient's own curve beats quoting the cohort average to everyone. That gap is the model's calibration skill. Average the Brier score over many horizons instead of just 24 months and you get the Integrated Brier Score, a single summary of the whole curve.
 
 === step === quiz
 ::eyebrow Check yourself
-## Two numbers that can disagree
+## What the C-index does not tell you
 
-Model A and Model B are scored on the same held-out patients. Model A has the higher C-index; Model B has the lower (better) Brier score at 24 months. What is the most accurate reading?
+The forest scored an out-of-bag C-index of 0.671 and the full Cox model 0.689. A teammate reads this as "the Cox model is right 69% of the time." Why is that wrong?
 
-::quiz {"correct":3,"gate":true,"difficulty":"advanced"}
-- Model A is simply better, since a higher C-index always means a better model ::no The C-index measures only RANKING (discrimination). It says nothing about whether the predicted probabilities are numerically right, which is what the Brier score checks.
-- The results must be a mistake, because the better model should win on both ::no Not a mistake. Discrimination and calibration are different properties; a model can rank patients well yet report probabilities that are systematically off, and the reverse can happen too.
-- Model A ranks patients better, but Model B's predicted probabilities are more accurate; which to prefer depends on whether you need ranking or trustworthy numbers ::ok Exactly. The C-index rewards getting the ORDER right; the Brier score rewards getting the NUMBERS right. They can disagree, so you report both and choose by the decision at hand (triage ordering versus a quotable risk).
-- The two scores measure the same thing, so one of them was computed wrong ::no They measure different things: discrimination (order) versus calibration and accuracy (are the probabilities right). Disagreement is expected, not an error.
+::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
+- It is correct: a C-index of 0.69 means 69% of individual predictions are accurate ::no The C-index is not an accuracy. It never scores a single prediction as right or wrong; it scores the ORDERING of pairs.
+- It is wrong because the C-index must be above 0.8 before it means anything ::no There is no magic cutoff. 0.69 is a real, useful level of discrimination; the teammate's error is what the number measures, not how big it is.
+- The C-index measures RANKING, not accuracy: it is the chance the patient who recurs first was given the higher risk, and it says nothing about whether the predicted probabilities are correct ::ok Right. C is about order, not calibration. A model can rank patients almost perfectly (C near 1) and still hand out probabilities that are wildly off. Closing that gap is exactly what we do next.
+- It is wrong because the C-index cannot be computed with censored data ::no The C-index is built for censored data; it simply drops the pairs where censoring makes the order unknowable.
+
+=== step === concept
+::eyebrow Question two: are the numbers honest?
+## Calibration: does 70% mean 70%?
+
+Ranking is only half the job. Suppose Dr. Rao tells a patient "your model-predicted chance of staying recurrence-free for three years is 70%." For that number to mean anything, it must hold up in the aggregate: among all the patients the model rates near 70%, roughly 70% really should still be recurrence-free at three years. A model whose probabilities pass this test is **calibrated**:
+
+\[ P\big(T > t^\* \;\big|\; \hat S(t^\*) = s\big) = s \qquad \text{for every } s, \]
+
+where \(\hat S(t^\*)\) is the model's predicted probability of surviving event-free past the horizon \(t^\*\), and \(s\) is any value it might predict. Discrimination asked whether the ORDER is right; calibration asks whether the NUMBERS are right, and they are genuinely different jobs.
+
+You check it as you would grade a weather forecaster, but with one twist for censoring. Sort the test patients into bins by their predicted three-year survival, then in each bin compare the average prediction with the actual survival; for the actual survival you use a Kaplan-Meier estimate on just that bin's patients (Lesson 2), so censored patients are handled correctly.
+
+```r
+sf3 <- survfit(cox_full, newdata = test)             # a predicted survival curve per test patient
+St  <- summary(sf3, times = 3)$surv[1, ]             # predicted P(recurrence-free past 3 years)
+bin <- cut(St, breaks = quantile(St, seq(0, 1, 0.25)), include.lowest = TRUE)   # four equal groups
+observed <- sapply(levels(bin), function(b) {
+  km <- survfit(Surv(years, status) ~ 1, data = test[bin == b, ])   # Kaplan-Meier within the bin
+  summary(km, times = 3)$surv
+})
+round(data.frame(predicted = tapply(St, bin, mean), observed = observed), 3)
+#>                  predicted observed
+#> [5.97e-10,0.587]     0.412    0.251
+#> (0.587,0.683]        0.640    0.567
+#> (0.683,0.766]        0.727    0.605
+#> (0.766,0.999]        0.832    0.829
+```
+
+Plot predicted against observed and a perfectly calibrated model lands on the 45-degree line. Ours is close in the confident, high-survival bin (0.832 predicted, 0.829 observed) but too optimistic in the low-survival bin (it predicts 0.412 survival where only 0.251 hold up). Drag the slider on the reliability diagram below to see over- and under-confidence bow the curve off the diagonal.
+
+::widget calibration-curve {}
+
+=== step === concept
+::eyebrow One number for honesty
+## The time-dependent Brier score
+
+A reliability curve is a picture; often you want a single number, one you can compare across models and horizons. For a plain yes/no outcome that number is the **Brier score**, the mean squared gap between the predicted probability and the 0/1 truth. At a survival horizon \(t^\*\) the natural version is: for each patient, square the difference between her predicted survival \(\hat S_i(t^\*)\) and what actually happened (1 if she was still recurrence-free past \(t^\*\), 0 if she had already recurred), then average.
+
+Censoring breaks that average. A patient censored at two years, with \(t^\* = 3\), has an unknown three-year status, so we cannot score her. Simply dropping her would bias the result, because the patients we CAN score are not a fair sample (those who reach \(t^\*\) uncensored are systematically different). The fix is **inverse-probability-of-censoring weighting** (IPCW): give the patients we can score extra weight to stand in for the ones we had to drop. The weight is \(1/\hat G(t)\), where \(\hat G\) is a Kaplan-Meier estimate of the CENSORING distribution, itself just a Kaplan-Meier curve with the event and censoring roles swapped. The full time-dependent Brier score is
+
+\[ \mathrm{BS}(t^\*) = \frac{1}{n}\sum_{i=1}^{n}\left[ \frac{\hat S_i(t^\*)^2 \,\mathbf{1}(T_i \le t^\*,\, \delta_i = 1)}{\hat G(T_i)} + \frac{\big(1 - \hat S_i(t^\*)\big)^2 \,\mathbf{1}(T_i > t^\*)}{\hat G(t^\*)} \right], \]
+
+where \(\delta_i = 1\) marks an observed recurrence and \(\mathbf{1}(\cdot)\) equals 1 when its condition holds and 0 otherwise. The first term scores patients who recurred before \(t^\*\) (their truth is 0, so the penalty is \(\hat S_i^2\)); the second scores patients known to survive past \(t^\*\) (truth 1, penalty \((1-\hat S_i)^2\)); patients censored before \(t^\*\) match neither condition and contribute nothing. Lower is better. Here is the whole recipe in R:
+
+```r
+cens <- survfit(Surv(years, status == 0) ~ 1, data = test)   # Kaplan-Meier of the CENSORING time
+Ghat <- function(t) {                                        # probability of not yet being censored past t
+  idx <- findInterval(t, cens$time)
+  ifelse(idx == 0, 1, cens$surv[idx])
+}
+tstar <- 3
+recurred <- ifelse(test$years <= tstar & test$status == 1, St^2 / Ghat(test$years), 0)
+survived <- ifelse(test$years >  tstar,                (1 - St)^2 / Ghat(tstar),     0)
+brier_full <- mean(recurred + survived)
+round(brier_full, 3)
+#> [1] 0.214
+```
+
+::widget process-flow {"steps":[{"title":"Predict","sub":"a survival probability for every patient at the horizon t-star"},{"title":"Estimate censoring","sub":"a Kaplan-Meier curve G(t) of the censoring times"},{"title":"Weight","sub":"reweight scorable patients by 1 over G(t) to stand in for the censored"},{"title":"Average","sub":"mean of the weighted squared gaps; lower is better"}]}
 
 === step === tryit
 ::eyebrow Your turn
-## Same ranking, wrecked calibration
+## Put the models on trial
 
-Here is the proof that you need both numbers. Take the SAME model's predictions and make them over-confident: push every probability toward 0 or 1. That keeps the ranking of patients identical, so the C-index must be unchanged. Fill in the held-out data so the two C-indexes are computed on `test`.
+Now judge all three predictions with the same score. You already have `brier_full`. Build the weak model's three-year survival and a null baseline that gives every patient the cohort-average survival, then score them. The null is the honest floor: any model worth keeping must beat it. Fill the blank so the null prediction uses the overall Kaplan-Meier survival `S0` for every test patient.
 
 ```r
-S_over    <- plogis(3 * qlogis(pmin(pmax(S_tstar, 1e-3), 1 - 1e-3)))  # push toward the extremes
-risk_full <- 1 - S_tstar
-risk_over <- 1 - S_over
-
-c(full = concordance(Surv(time, status) ~ risk_full, data = test, reverse = TRUE)$concordance,
-  over = concordance(Surv(time, status) ~ risk_over, data = ____, reverse = TRUE)$concordance)
+St_weak <- summary(survfit(cox_weak, newdata = test), times = 3)$surv[1, ]
+S0 <- summary(survfit(Surv(years, status) ~ 1, data = train), times = 3)$surv   # cohort average
+brier <- function(Spred) {
+  a <- ifelse(test$years <= tstar & test$status == 1, Spred^2 / Ghat(test$years), 0)
+  b <- ifelse(test$years >  tstar,               (1 - Spred)^2 / Ghat(tstar),     0)
+  mean(a + b)
+}
+round(c(full = brier(St), weak = brier(St_weak), null = brier(rep(____, nrow(test)))), 3)
 ```
-::check {"regex":"data\\s*=\\s*test","gate":true,"difficulty":"advanced","ok":"Right, both come back at 0.7085. The C-index depends only on the ORDER of the risk scores, and squashing the probabilities toward 0 and 1 does not change their order, so discrimination is untouched.","no":"Score both on the held-out set: data = test. The point is that the two risk scores share an identical ordering, so their C-index is the same on the same data."}
+::check {"regex":"rep\\s*\\(\\s*S0","gate":true,"difficulty":"intermediate","ok":"The full model wins at 0.214, below the null's 0.258. The age-only model scores 0.261, actually WORSE than just predicting the average, and its C-index (0.498) said the same. Both metrics agree it is worthless.","no":"The null gives every patient the same cohort-average survival: put S0 inside rep(), as rep(S0, nrow(test))."}
 ::solution
 ```r
-S_over    <- plogis(3 * qlogis(pmin(pmax(S_tstar, 1e-3), 1 - 1e-3)))
-risk_full <- 1 - S_tstar
-risk_over <- 1 - S_over
-
-c(full = concordance(Surv(time, status) ~ risk_full, data = test, reverse = TRUE)$concordance,
-  over = concordance(Surv(time, status) ~ risk_over, data = test, reverse = TRUE)$concordance)
-#> full  over
-#> 0.7085 0.7085
+St_weak <- summary(survfit(cox_weak, newdata = test), times = 3)$surv[1, ]
+S0 <- summary(survfit(Surv(years, status) ~ 1, data = train), times = 3)$surv
+brier <- function(Spred) {
+  a <- ifelse(test$years <= tstar & test$status == 1, Spred^2 / Ghat(test$years), 0)
+  b <- ifelse(test$years >  tstar,               (1 - Spred)^2 / Ghat(tstar),     0)
+  mean(a + b)
+}
+round(c(full = brier(St), weak = brier(St_weak), null = brier(rep(S0, nrow(test)))), 3)
+#> full  weak  null 
+#> 0.214 0.261 0.258
 ```
 
-Identical C-index. Now score the same two sets of probabilities with the Brier score, which cares about the numbers, not just their order:
+=== step === quiz
+::eyebrow Check yourself
+## The final judgment
 
-```r
-round(c(cox = brier(S_tstar), overconfident = brier(S_over)), 3)
-#>           cox overconfident
-#>         0.198         0.227
-```
+The random survival forest's out-of-bag C-index was 0.671, just under the Cox model's 0.689 on the held-out patients, so here the simpler model actually ranks slightly better; a forest's flexibility only pays off when a straight-line risk is genuinely wrong. Now a different model arrives: it posts an excellent C-index of 0.82, but its reliability curve sits far below the diagonal (patients it rates at 90% three-year survival actually survive only about 60% of the time). A clinic wants to show patients these survival percentages. What is the verdict?
 
-Same ranking, same C-index, but the over-confident probabilities are measurably worse: 0.227 against 0.198. A single number could never have caught that. This is why an honest report always carries both.
+::quiz {"correct":1,"gate":true,"difficulty":"advanced"}
+- Strong discrimination but poor calibration: it RANKS risk well, so it is fine for prioritising follow-up, but its probabilities are over-optimistic and must not be shown as-is; the Brier score and reliability curve catch this, the C-index cannot ::ok Exactly. Discrimination and calibration are different jobs. A high C-index guarantees good ordering, never honest numbers. Recalibrate it (or report risk groups instead of raw percentages) before any patient sees a probability.
+- The high C-index proves the probabilities are trustworthy, so publish them ::no The C-index only grades ranking. A model can rank beautifully and still be badly miscalibrated, which is exactly what the below-diagonal reliability curve shows.
+- The model is broken and should be discarded ::no Not broken, just miscalibrated. Its ranking is excellent; calibration can repair the probabilities without touching that ranking.
+- Calibration does not matter as long as the C-index is high ::no For a number shown to a patient, calibration matters most: an over-confident 90% that is really 60% is dangerous no matter how well the model ranks.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-Five authoritative places to take survival ML and its evaluation further:
+Five authoritative places to take survival ML and evaluation further:
 
-- [Ishwaran, Kogalur, Blackstone and Lauer (2008), "Random Survival Forests", Annals of Applied Statistics 2(3)](https://doi.org/10.1214/08-AOAS169) - the paper that defined the method you fit here.
-- [Wright and Ziegler (2017), "ranger: A Fast Implementation of Random Forests for High Dimensional Data in C++ and R", Journal of Statistical Software 77(1)](https://doi.org/10.18637/jss.v077.i01) - the package used for the forest, including its survival mode.
-- [Therneau, "The concordance statistic and the Cox model" (survival package vignette, CRAN)](https://cran.r-project.org/web/packages/survival/vignettes/concordance.pdf) - the canonical R reference for the C-index and the `concordance()` function.
-- [Gerds and Schumacher (2006), "Consistent Estimation of the Expected Brier Score in General Survival Models with Right-Censored Event Times", Biometrical Journal 48(6)](https://doi.org/10.1002/bimj.200610301) - the theory behind the censoring-weighted Brier score you computed.
-- [James, Witten, Hastie and Tibshirani, "An Introduction to Statistical Learning", ch. 11 (free PDF)](https://www.statlearning.com/) - a gentle, rigorous chapter on survival analysis and evaluation.
+- [Ishwaran, Kogalur, Blackstone and Lauer (2008), Random Survival Forests, Annals of Applied Statistics 2(3)](https://doi.org/10.1214/08-AOAS169) - the paper that defined the method, including log-rank splitting and the ensemble cumulative hazard.
+- [Harrell, Califf, Pryor, Lee and Rosati (1982), Evaluating the Yield of Medical Tests, JAMA 247(18)](https://doi.org/10.1001/jama.1982.03320430047030) - the origin of the C-index (the concordance statistic) for survival models.
+- [Mogensen, Ishwaran and Gerds (2012), Evaluating Random Forests for Survival Analysis Using Prediction Error Curves, Journal of Statistical Software 50(11)](https://doi.org/10.18637/jss.v050.i11) - the IPCW time-dependent Brier score and prediction-error curves you built here.
+- [survival package vignette: concordance (Therneau, CRAN)](https://cran.r-project.org/web/packages/survival/vignettes/concordance.pdf) - the canonical reference for `concordance()`, by the package author.
+- [Wright and Ziegler (2017), ranger: A Fast Implementation of Random Forests, Journal of Statistical Software 77(1)](https://doi.org/10.18637/jss.v077.i01) - the engine used here for the random survival forest, with its survival-splitting details.
 
 === step === complete
-## Lesson 7 complete, and the course with it
+## Lesson 7 complete
 
-You closed the loop. A **random survival forest** grows many survival trees, each split by the log-rank statistic and each leaf a Kaplan-Meier curve, then averages them into a predicted survival curve per patient, with no proportional-hazards or parametric shape assumed. And you learned to score any survival model honestly, on data it never saw, along two separate axes: **Harrell's C-index** for discrimination, the fraction of comparable pairs it ranks correctly (0.71 for the full Cox model, 0.62 for the age-only one), and the **time-dependent Brier score** for calibration and accuracy, the censoring-weighted squared error of its probabilities (0.198 against a null of 0.250). The finale tied them together: an over-confident copy of the same model kept an identical C-index but a worse Brier, proof that ranking well and being right are different things, and that you need both numbers before you trust a model with a patient.
+You closed the loop from building survival models to trusting them:
 
-One honest surprise is worth keeping. On this cohort the plain Cox model came out a little ahead of the forest (its held-out C-index 0.71 against the forest's out-of-bag C-index of 0.64, the 1 - 0.362 it reported above), because the true risk really was close to proportional, exactly what Cox assumes. A forest earns its keep when the shape is genuinely complex; the only way to know either way is to score them, which is the skill you now have.
+- A **random survival forest** grows many survival trees, each split by the log-rank statistic and each leaf a Kaplan-Meier estimate, then averages their curves, learning the shape of risk with no proportional-hazards or parametric assumption.
+- **Harrell's C-index** scores DISCRIMINATION, the survival cousin of the AUC: the chance the patient who recurs first was given the higher risk. On Dr. Rao's held-out patients the Cox model scored 0.689 and the age-only model 0.498, a coin flip; the forest's out-of-bag C-index was 0.671, a shade below the Cox model.
+- The **survival calibration curve** and the **time-dependent Brier score** score whether the probabilities are honest, using inverse-probability-of-censoring weights so censored patients do not bias the number. The full model's Brier of 0.214 beat the null's 0.258; the weak model's 0.261 lost to it, matching its useless C-index.
+- Discrimination and calibration are different jobs. Report both, and let the scores, not an algorithm's reputation, pick the model.
 
-That completes Survival Analysis. You began with what makes time-to-event data special, built the Kaplan-Meier curve and the Cox model, checked their assumptions, handled parametric, competing-risks and now machine-learning settings, and finished able to let a model learn the shape and to judge it fairly. Every model you fit from here, you can defend with a number.
+That is the whole Survival Analysis course: from censoring and the survival function, through Kaplan-Meier, the Cox model and its diagnostics, parametric and competing-risks models, to machine-learned predictions you now know how to trust. The end-of-section quiz is next, and with it your Survival Analysis certificate.

@@ -3,8 +3,8 @@
   <head>
     <title>Machine Learning in Production Lesson 4: Batch vs real-time inference</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Batch vs real-time inference in R: score everyone on a schedule or one customer on demand, the trade-offs, and how to pick the serving pattern that fits the decision.">
-    <meta name="Keywords" content="batch inference, real-time inference, online inference, model serving, MLOps in R, predict on a schedule, feature store, batch scoring R, prediction latency, staleness">
+    <meta name="Description" content="Batch vs real-time inference in R: score every subscriber overnight in one job or answer one at a time behind a live API, and how to pick the right pattern.">
+    <meta name="Keywords" content="batch inference, real-time inference, online inference, model serving, batch prediction, predict in R, staleness, latency, MLOps in R, feature store">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Machine Learning in Production Lesson 4: Batch vs real-time inference">
-    <meta property="og:description" content="Batch vs real-time inference in R: score everyone on a schedule or one customer on demand, the trade-offs, and how to pick the serving pattern that fits the decision.">
+    <meta property="og:description" content="Batch vs real-time inference in R: score every subscriber overnight in one job or answer one at a time behind a live API, and how to pick the right pattern.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Batch-vs-Real-Time-Inference.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Batch-vs-Real-Time-Inference.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Machine Learning in Production Lesson 4: Batch vs real-time inference">
-    <meta name="twitter:description" content="Batch vs real-time inference in R: score everyone on a schedule or one customer on demand, the trade-offs, and how to pick the serving pattern that fits the decision.">
+    <meta name="twitter:description" content="Batch vs real-time inference in R: score every subscriber overnight in one job or answer one at a time behind a live API, and how to pick the right pattern.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Batch-vs-Real-Time-Inference.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Machine Learning in Production Lesson 4: Batch vs real-time inference",
-      "description": "Batch vs real-time inference in R: score everyone on a schedule or one customer on demand, the trade-offs, and how to pick the serving pattern that fits the decision.",
+      "description": "Batch vs real-time inference in R: score every subscriber overnight in one job or answer one at a time behind a live API, and how to pick the right pattern.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Batch-vs-Real-Time-Inference.html",
-      "datePublished": "2026-07-01",
-      "dateModified": "2026-07-01",
+      "datePublished": "2026-07-07",
+      "dateModified": "2026-07-07",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -595,7 +595,7 @@
 
     
     
-        <link rel="stylesheet" href="www/lesson-mode.min.css?h=5f5f1fcb">
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
     <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
   </head>
 
@@ -679,56 +679,219 @@
 <div class="lesson-step-eyebrow">Lesson 4 of 6</div>
 <h2>Batch vs real-time inference</h2>
 
-<p>In Lesson 3, Dev put his meal-kit cancellation model behind a <a href="Serving-a-Model-with-plumber.html">live API</a>: the billing system POSTs one customer and a cancellation probability comes straight back. That is one way to serve a model. But it is not the only one, and it is often not the right one.</p>
+<p>In Lesson 3 you put Dev's meal-kit cancellation model behind a <a href="Serving-a-Model-with-plumber.html">live API</a>: the billing system POSTs one customer, the model answers in a fraction of a second. That is one way to serve a model, called <strong>real-time</strong>, and it is perfect when a system is waiting on a single answer right now.</p>
 
-<p>Sometimes you do not need an answer the instant a customer acts. Sometimes you would rather score <strong>every</strong> subscriber overnight in one big job and just look up the answer in the morning. Those are the two serving patterns, <strong>real-time</strong> and <strong>batch</strong>, and picking the wrong one costs you either freshness or a lot of needless machinery.</p>
+<p>But the very same model does another job every week that looks nothing like that. Every Monday, marketing wants a list of all the subscribers likely to cancel this week, so they can email them a win-back offer. Nobody is sitting there waiting. The list just needs to be ready by 9am.</p>
+
+<p>Same model, two completely different jobs. This lesson is about the second way to serve a model, <strong>batch</strong>, and, more importantly, how to look at a decision and know which way fits.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Explain what batch (offline) and real-time (online) inference are, and how each gets a prediction to whoever needs it</li>
+<li>Explain batch and real-time (online) inference, and run each one in R</li>
 
-<li>Run a batch job in R that scores a whole table of customers in a single call and stores the result</li>
+<li>Use three questions, who is waiting, how fresh, and how much it costs, to choose the right pattern for a decision</li>
 
-<li>Choose the right pattern for a given decision, and name the hybrid that uses both</li>
+<li>Quantify how stale a batch prediction gets, and reach for the precompute-and-cache hybrid when you want both</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> Lesson 3 (the live prediction API), and you can [fit a model and read <code>predict</code> output](Your-First-End-to-End-Model-in-R.html).</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Real-time inference","sub":"score one customer the instant a decision is needed"},{"title":"Batch inference","sub":"score everyone on a schedule, store it, look it up later"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p><strong>Prerequisites:</strong> Lesson 3 (the live prediction API) and you can [fit a model and read <code>predict</code> output](Your-First-End-to-End-Model-in-R.html).</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Who is waiting?","sub":"a person on a page, or nobody right now"},{"title":"How fresh must it be?","sub":"seconds old, or is last night fine"},{"title":"Batch or real-time","sub":"those two answers pick the pattern for you"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">One pattern</div>
-<h2>Real-time inference: one prediction, the moment it is needed</h2>
+<div class="lesson-step-eyebrow">The whole lesson in one picture</div>
+<h2>The same model, two very different jobs</h2>
 
-<p>The API you built in Lesson 3 is <strong>real-time</strong> (also called <strong>online</strong>) inference: a system asks for a prediction about <strong>one</strong> case, right now, and waits for the answer.</p>
+<p>Hold the two jobs side by side. They use identical code to make a prediction, <code>predict(model, customer)</code>, and yet almost everything around that one line is different.</p>
 
-<p>Picture the moment. A subscriber clicks "Cancel my plan." Before the page even finishes loading, the app POSTs that customer to the model and asks "how likely are they to actually leave?" If the answer is high, it shows a save offer, a discount, a pause option, in the same breath. The decision cannot wait until tonight; the customer is leaving <strong>now</strong>. So the prediction is computed on demand, on the freshest possible input, and must come back in milliseconds.</p>
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Monday retention email</th>
+<th>Cancel-subscription page</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Who needs it</td>
+<td>marketing, once a week</td>
+<td>a customer, mid-click</td>
+</tr>
+<tr>
+<td>Who is waiting</td>
+<td>nobody</td>
+<td>a person, on the page</td>
+</tr>
+<tr>
+<td>How many at a time</td>
+<td>all 24,000 subscribers</td>
+<td>this one customer</td>
+</tr>
+<tr>
+<td>How soon</td>
+<td>by Monday 9am</td>
+<td>within a fraction of a second</td>
+</tr>
+<tr>
+<td>Freshness needed</td>
+<td>last night is fine</td>
+<td>must reflect right now</td>
+</tr>
+</tbody>
+</table>
 
-<p>Strip away the web plumbing and the model is doing something you already know how to do: turning one row of customer data into a probability. Let us rebuild Dev's model inline (each lesson runs in its own fresh R session) and score that one leaving customer.</p>
+<p>The email job scores everyone in advance and stores the answers. The cancel page scores one person the instant they act. Those are the two serving patterns, and the columns above are exactly the questions that will tell you which to use. Let us build each one, then come back to the questions.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Pattern one</div>
+<h2>Batch inference: score the whole table at once</h2>
+
+<p><strong>Batch inference</strong> (also called offline inference) means: take a whole table of cases, run the model over every row in one go, and save the predictions. Nothing is computed on demand. When someone needs an answer later, they read it from the saved table, the way you would look up a phone number.</p>
+
+<p>The picture to keep in your head is simple. You start with a table of subscribers, one row each. Batch scoring adds one new column, the prediction, to every row. That is the entire idea. Press Run below to add a <code>cancel_prob</code> column to a handful of customers, then press "Show what changed" to see the new column appear.</p>
+
+<p>A logistic model turns each row's numbers into a probability with exactly that shape, a value between 0 and 1. Batch inference just does it for every row.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"df %>% mutate(cancel_prob = round(plogis(-1.4 + 0.18 * weeks_since - 0.02 * boxes_ordered), 2))","caption":"Batch scoring adds one prediction column to every row of the table.","before":{"cols":["boxes_ordered","weeks_since","spend_per_box"],"rows":[[3,6,12.5],[12,1,8],[5,4,15.2],[9,7,9.9],[2,2,20]]},"after":{"cols":["boxes_ordered","weeks_since","spend_per_box","cancel_prob"],"rows":[[3,6,12.5,0.41],[12,1,8,0.19],[5,4,15.2,0.31],[9,7,9.9,0.42],[2,2,20,0.25]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Batch, for real</div>
+<h2>One call scores the entire base</h2>
+
+<p>That toy table had five rows. Dev's real base has 24,000 subscribers, and the beauty of <code>predict</code> is that scoring one row and scoring all of them is the <em>same call</em>: hand it the whole data frame and it returns a probability for every row in one pass.</p>
+
+<p>Each lesson starts in a fresh R session, so we rebuild the exact model from Lessons 1 to 3, then create tonight's base of subscribers to score. (In real life the model was trained once and stored; here we refit it inline so the page is self-contained.)</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Dev&#39;s cancellation model, rebuilt from scratch (one row per subscriber)</span></span>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1. The cancellation model from Lessons 1 to 3, refit here (200 past customers)</span></span>
 <span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
 <span class="cl">n <span class="o">&lt;-</span> <span class="m">200</span></span>
-<span class="cl">subscribers <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">customers <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
 <span class="cl">  boxes_ordered <span class="o">=</span> <span class="nf">rpois</span>(n, <span class="m">8</span>) <span class="o">+</span> <span class="m">1</span>,</span>
 <span class="cl">  weeks_since   <span class="o">=</span> <span class="nf">rpois</span>(n, <span class="m">3</span>),</span>
 <span class="cl">  spend_per_box <span class="o">=</span> <span class="nf">round</span>(<span class="nf">runif</span>(n, <span class="m">6</span>, <span class="m">22</span>), <span class="m">1</span>)</span>
 <span class="cl">)</span>
-<span class="cl">p <span class="o">&lt;-</span> <span class="nf">plogis</span>(<span class="m">-1.4</span> <span class="o">+</span> <span class="m">0.18</span> <span class="o">*</span> subscribers<span class="o">$</span>weeks_since <span class="o">-</span> <span class="m">0.02</span> <span class="o">*</span> subscribers<span class="o">$</span>boxes_ordered)</span>
-<span class="cl">subscribers<span class="o">$</span>cancelled <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, p)</span>
-<span class="cl"></span>
+<span class="cl">p <span class="o">&lt;-</span> <span class="nf">plogis</span>(<span class="m">-1.4</span> <span class="o">+</span> <span class="m">0.18</span> <span class="o">*</span> customers<span class="o">$</span>weeks_since <span class="o">-</span> <span class="m">0.02</span> <span class="o">*</span> customers<span class="o">$</span>boxes_ordered)</span>
+<span class="cl">customers<span class="o">$</span>cancelled <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, p)</span>
 <span class="cl">model <span class="o">&lt;-</span> <span class="nf">glm</span>(cancelled <span class="o">~</span> boxes_ordered <span class="o">+</span> weeks_since <span class="o">+</span> spend_per_box,</span>
-<span class="cl">             data <span class="o">=</span> subscribers, family <span class="o">=</span> binomial)</span>
+<span class="cl">             data <span class="o">=</span> customers, family <span class="o">=</span> binomial)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># The customer who just clicked Cancel: 3 boxes, 6 weeks since last order, $12.50 a box</span></span>
-<span class="cl">one_customer <span class="o">&lt;-</span> <span class="nf">data.frame</span>(boxes_ordered <span class="o">=</span> <span class="m">3</span>, weeks_since <span class="o">=</span> <span class="m">6</span>, spend_per_box <span class="o">=</span> <span class="m">12.5</span>)</span>
-<span class="cl"><span class="nf">unname</span>(<span class="nf">predict</span>(model, one_customer, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>))</span>
+<span class="cl"><span class="c1"># 2. Tonight&#39;s job: the current base of active subscribers, no outcome yet (that is what we predict)</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">subscribers <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  customer_id   <span class="o">=</span> <span class="m">1</span><span class="o">:</span><span class="m">24000</span>,</span>
+<span class="cl">  boxes_ordered <span class="o">=</span> <span class="nf">rpois</span>(<span class="m">24000</span>, <span class="m">8</span>) <span class="o">+</span> <span class="m">1</span>,</span>
+<span class="cl">  weeks_since   <span class="o">=</span> <span class="nf">rpois</span>(<span class="m">24000</span>, <span class="m">3</span>),</span>
+<span class="cl">  spend_per_box <span class="o">=</span> <span class="nf">round</span>(<span class="nf">runif</span>(<span class="m">24000</span>, <span class="m">6</span>, <span class="m">22</span>), <span class="m">1</span>)</span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 3. Batch score: ONE predict call adds a probability for all 24,000 rows</span></span>
+<span class="cl">subscribers<span class="o">$</span>cancel_prob <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">predict</span>(model, subscribers, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>), <span class="m">3</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">nrow</span>(subscribers)</span>
+<span class="cl"><span class="c1">#&gt; [1] 24000</span></span>
+<span class="cl"><span class="nf">head</span>(subscribers[, <span class="nf">c</span>(<span class="s">&quot;customer_id&quot;</span>, <span class="s">&quot;boxes_ordered&quot;</span>, <span class="s">&quot;weeks_since&quot;</span>, <span class="s">&quot;spend_per_box&quot;</span>, <span class="s">&quot;cancel_prob&quot;</span>)])</span>
+<span class="cl"><span class="c1">#&gt;   customer_id boxes_ordered weeks_since spend_per_box cancel_prob</span></span>
+<span class="cl"><span class="c1">#&gt; 1           1            16           3          19.4       0.272</span></span>
+<span class="cl"><span class="c1">#&gt; 2           2             8           5          10.0       0.333</span></span>
+<span class="cl"><span class="c1">#&gt; 3           3             6           5          11.0       0.332</span></span>
+<span class="cl"><span class="c1">#&gt; 4           4             5           1          11.2       0.184</span></span>
+<span class="cl"><span class="c1">#&gt; 5           5             7           6          11.9       0.380</span></span>
+<span class="cl"><span class="c1">#&gt; 6           6            11           4           7.5       0.289</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One line, <code>predict(model, subscribers, ...)</code>, scored twenty-four thousand people. No web request, no waiting, just a single vectorized pass. That is the engine of every batch job.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Batch is a pipeline</div>
+<h2>Score on a schedule, store the answers, read them later</h2>
+
+<p>A batch job is not a live service. It is a <strong>scheduled pipeline</strong>: at a fixed time (say Sunday at 2am, a tool like cron or <code>targets</code> triggers it), it pulls the base, scores everyone, and writes the results to a table. The people who need predictions never touch the model. They read the stored table.</p>
+
+<p>The "write a table, read it later" split is the heart of batch. Writing the predictions out and reading them back is exactly what happens between Sunday night and Monday morning:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Sunday night: the job writes the predictions table</span></span>
+<span class="cl">predictions <span class="o">&lt;-</span> subscribers[, <span class="nf">c</span>(<span class="s">&quot;customer_id&quot;</span>, <span class="s">&quot;cancel_prob&quot;</span>)]</span>
+<span class="cl"><span class="nf">write.csv</span>(predictions, <span class="s">&quot;cancellation-risk.csv&quot;</span>, row.names <span class="o">=</span> <span class="kc">FALSE</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Monday morning: marketing&#39;s tool just loads the table, the model is nowhere in sight</span></span>
+<span class="cl">monday <span class="o">&lt;-</span> <span class="nf">read.csv</span>(<span class="s">&quot;cancellation-risk.csv&quot;</span>)</span>
+<span class="cl"><span class="nf">head</span>(monday)</span>
+<span class="cl"><span class="c1">#&gt;   customer_id cancel_prob</span></span>
+<span class="cl"><span class="c1">#&gt; 1           1       0.272</span></span>
+<span class="cl"><span class="c1">#&gt; 2           2       0.333</span></span>
+<span class="cl"><span class="c1">#&gt; 3           3       0.332</span></span>
+<span class="cl"><span class="c1">#&gt; 4           4       0.184</span></span>
+<span class="cl"><span class="c1">#&gt; 5           5       0.380</span></span>
+<span class="cl"><span class="c1">#&gt; 6           6       0.289</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In production that table is a database or a cloud file rather than a CSV, but the shape is identical: the predictions are computed once, stored, and looked up cheaply as many times as you like.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Sunday 2am","sub":"a scheduler pulls every active subscriber"},{"title":"Score all at once","sub":"one predict call over the whole table"},{"title":"Write a table","sub":"save each customer id and its risk"},{"title":"Monday 9am","sub":"marketing reads the table, sends the offers"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Build the Monday campaign list</h2>
+
+<p>Marketing does not want all 24,000 rows. They want the <strong>at-risk</strong> ones: subscribers whose cancellation probability is at least 0.5, so they can send those people a win-back offer. That is a plain filter on the scored table.</p>
+
+<p><code>subset(data, condition)</code> keeps only the rows where the condition is TRUE. Fill in the cutoff so <code>campaign</code> holds only the subscribers at 0.5 risk or higher.</p>
+<section class="exercise" data-exercise-id="Batch-vs-Real-Time-Inference-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="0*\.5"><textarea class="lesson-tryit-input" spellcheck="false"># The Monday campaign list: keep only the at-risk subscribers
+campaign &lt;- subset(subscribers, cancel_prob &gt;= ____)
+nrow(campaign)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the batch payoff: scored once overnight, then a one-line filter turns 24,000 predictions into a targeted list of 101 people to email.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the 0.5 cutoff: cancel_prob >= 0.5 keeps only the subscribers at or above 50% risk.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">campaign &lt;- subset(subscribers, cancel_prob &gt;= 0.5)
+nrow(campaign)
+#&gt; [1] 101</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Pattern two</div>
+<h2>Real-time inference: score one customer on demand</h2>
+
+<p><strong>Real-time inference</strong> (also called online inference) is the opposite shape. Nothing is precomputed. A request arrives for one case, the model scores it on the spot, and the answer goes straight back, usually in milliseconds. This is exactly the plumber API from Lesson 3.</p>
+
+<p>Picture the cancel-subscription page. A customer clicks "Cancel", and before the page reloads it wants to show a save-offer tuned to how likely this person is to actually leave.</p>
+
+<p>Strip away the web layer and the endpoint is just the function from Lesson 3: one customer in, one probability out, computed the instant it is asked for.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># The endpoint&#39;s job: score exactly one customer, on demand</span></span>
+<span class="cl">score_customer <span class="o">&lt;-</span> <span class="kr">function</span>(boxes_ordered, weeks_since, spend_per_box) {</span>
+<span class="cl">  newdata <span class="o">&lt;-</span> <span class="nf">data.frame</span>(boxes_ordered, weeks_since, spend_per_box)</span>
+<span class="cl">  <span class="nf">unname</span>(<span class="nf">predict</span>(model, newdata, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>))</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># The customer now clicking Cancel: 3 boxes, last order 6 weeks ago, $12.50 a box</span></span>
+<span class="cl"><span class="nf">score_customer</span>(boxes_ordered <span class="o">=</span> <span class="m">3</span>, weeks_since <span class="o">=</span> <span class="m">6</span>, spend_per_box <span class="o">=</span> <span class="m">12.5</span>)</span>
 <span class="cl"><span class="c1">#&gt; [1] 0.3768709</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -739,153 +902,191 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>About a 38% chance this customer cancels, the same number the plumber endpoint returned in Lesson 3. That is real-time inference in one line: one row in, one fresh probability out, delivered on demand. The flow below is the whole round trip.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"A customer acts","sub":"clicks Cancel on the subscription page, right now"},{"title":"The app calls the model API","sub":"POST that one customer to /predict (Lesson 3)"},{"title":"The model scores one row","sub":"using the customer state as it is this second"},{"title":"A prediction returns in milliseconds","sub":"cancel risk comes straight back"},{"title":"The app acts immediately","sub":"high risk, so show a save offer before they leave"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The other pattern</div>
-<h2>Batch inference: score everyone on a schedule</h2>
-
-<p>Now flip the picture. Dev's retention team does not sit and wait for cancel clicks. Every morning they want a list: "which subscribers are most at risk this week, so we can email them a discount?" Nobody needs a millisecond answer, and the audience is everyone, not one person.</p>
-
-<p>That is <strong>batch</strong> (also called <strong>offline</strong>) inference. A job runs on a <strong>schedule</strong>, say 2am nightly, loads the entire subscriber table at once, scores every row in one pass, and writes a prediction for each customer into a table. The predictions just sit there. When the retention team arrives, they read the table. When the dashboard refreshes, it reads the table. No model runs at read time; the answer was computed hours ago and stored.</p>
-
-<p>Here is what the scheduled job looks like as a script you would hand to a scheduler (cron, Airflow, or the <code>targets</code> pipeline from Lesson 1). It runs on a server, not in this page, so it is shown for reading:</p>
-
-<pre><code class="language-r"># score_all.R  -  the nightly batch job, run on a schedule (not in the browser)
-library(readr)
-model       &lt;- readRDS(&quot;cancellation-model.rds&quot;)   # the versioned model (Lesson 2)
-subscribers &lt;- read_csv(&quot;subscribers.csv&quot;)          # everyone, pulled fresh from the warehouse
-subscribers$cancel_prob &lt;- predict(model, subscribers, type = &quot;response&quot;)
-write_csv(subscribers, &quot;nightly_scores.csv&quot;)        # the table consumers read tomorrow</code></pre>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"A schedule fires","sub":"a nightly job starts at 2am, no human needed"},{"title":"Load every subscriber","sub":"pull the whole customer table from the warehouse"},{"title":"Score them all in one call","sub":"a single vectorized predict, not one request each"},{"title":"Write predictions to a table","sub":"one risk score per customer, saved for the day"},{"title":"Consumers look them up","sub":"the retention team reads the table each morning"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Score the whole table in one call</h2>
-
-<p>The heart of that batch job is one line, and it is the same <code>predict</code> you just used for one customer, handed the <strong>entire</strong> table instead of a single row. Because <code>predict</code> is <strong>vectorized</strong> (it takes a whole table of rows at once, not one row at a time), a single call scores all 200 subscribers. That is the efficiency of batch: you pay the setup cost once, not once per customer.</p>
-
-<p>Fill in the blank so <code>predict</code> scores every row of <code>subscribers</code>, not just one.</p>
-<section class="exercise" data-exercise-id="Batch-vs-Real-Time-Inference-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="predict\(\s*model\s*,\s*subscribers"><textarea class="lesson-tryit-input" spellcheck="false"># Batch scoring: score the WHOLE table in one call, not one row at a time
-scored &lt;- subscribers
-scored$cancel_prob &lt;- round(predict(model, ____, type = &quot;response&quot;), 3)
-
-# the highest-risk subscribers, the list the retention team wants
-head(scored[order(-scored$cancel_prob),
-            c(&quot;boxes_ordered&quot;, &quot;weeks_since&quot;, &quot;spend_per_box&quot;, &quot;cancel_prob&quot;)], 5)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is batch inference: one vectorized call scores every row of the table at once. Pass the whole data frame, not a single customer.</span><span class="lesson-tryit-fb lesson-tryit-no">Pass the whole table as the newdata argument: predict(model, subscribers, type = "response"). One call, every row.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">scored &lt;- subscribers
-scored$cancel_prob &lt;- round(predict(model, subscribers, type = &quot;response&quot;), 3)
-head(scored[order(-scored$cancel_prob),
-            c(&quot;boxes_ordered&quot;, &quot;weeks_since&quot;, &quot;spend_per_box&quot;, &quot;cancel_prob&quot;)], 5)
-#&gt;     boxes_ordered weeks_since spend_per_box cancel_prob
-#&gt; 106             7           8          21.5       0.493
-#&gt; 141            10           8          12.4       0.480
-#&gt; 124             6           8           8.1       0.468
-#&gt; 155             9           7          18.3       0.441
-#&gt; 140             9           7          15.9       0.437</code></pre></details></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">The deliverable</div>
-<h2>Batch delivers a table, not a live answer</h2>
-
-<p>Notice what real-time and batch actually hand over. Real-time hands over a <strong>service</strong>: something calls it and waits. Batch hands over a <strong>stored table</strong>: a file (or a database row) that already holds the answer, which anyone can read later without touching the model at all.</p>
-
-<p>Write today's scores to a file, and hours later a consumer just reads it back, no model, no R session, no waiting:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Batch&#39;s product is a stored table. Write today&#39;s top-risk list where consumers can read it:</span></span>
-<span class="cl">top <span class="o">&lt;-</span> <span class="nf">head</span>(scored[<span class="nf">order</span>(<span class="o">-</span>scored<span class="o">$</span>cancel_prob),</span>
-<span class="cl">            <span class="nf">c</span>(<span class="s">&quot;boxes_ordered&quot;</span>, <span class="s">&quot;weeks_since&quot;</span>, <span class="s">&quot;spend_per_box&quot;</span>, <span class="s">&quot;cancel_prob&quot;</span>)], <span class="m">5</span>)</span>
-<span class="cl"><span class="nf">write.csv</span>(top, <span class="s">&quot;nightly_scores.csv&quot;</span>, row.names <span class="o">=</span> <span class="kc">FALSE</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Hours later, the retention team simply reads the file:</span></span>
-<span class="cl"><span class="nf">read.csv</span>(<span class="s">&quot;nightly_scores.csv&quot;</span>)</span>
-<span class="cl"><span class="c1">#&gt;   boxes_ordered weeks_since spend_per_box cancel_prob</span></span>
-<span class="cl"><span class="c1">#&gt; 1             7           8          21.5       0.493</span></span>
-<span class="cl"><span class="c1">#&gt; 2            10           8          12.4       0.480</span></span>
-<span class="cl"><span class="c1">#&gt; 3             6           8           8.1       0.468</span></span>
-<span class="cl"><span class="c1">#&gt; 4             9           7          18.3       0.441</span></span>
-<span class="cl"><span class="c1">#&gt; 5             9           7          15.9       0.437</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A real-time prediction is computed when it is asked for. A batch prediction is computed ahead of time and looked up when it is needed. That single difference, compute-on-demand versus compute-ahead-and-store, drives every trade-off in this lesson.</div></div>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>What does a stored score know?</h2>
-
-<p>Dev's 2am batch job scored every subscriber this morning. At 3pm, one subscriber who looked low-risk at 2am suddenly cancels two boxes and files a complaint. A dashboard reads the batch table right now and shows that subscriber. What cancellation risk does it display?</p>
-<section class="exercise" data-exercise-id="Batch-vs-Real-Time-Inference-step6" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The updated, higher risk: the batch table always reflects a customer's latest state</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">This morning's lower risk: the score is frozen until the next scheduled run, so it is now stale</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No score at all: batch predictions expire the moment the input changes</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. A batch prediction is a stored number, at most one refresh interval old. The 3pm events are invisible to it until the job reruns tonight. That staleness is the defining cost of batch inference.</div><div class="lesson-qfb lesson-qfb-no">They do not expire, they simply sit there going stale until the next run overwrites them. A confidently stale answer, not a missing one, is the real hazard.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="7" data-step-type="concept">
-<div class="lesson-step-eyebrow">How to choose</div>
-<h2>Match the pattern to the decision</h2>
-
-<p>You now have both patterns. The skill is choosing, and the trick is to look at the <strong>decision</strong> the prediction serves, not at the model. Three questions settle almost every case:</p>
-
-<ul>
-
-<li><strong>When is the decision made?</strong> On a schedule or in bulk points to batch. The instant a user acts points to real-time.</li>
-
-<li><strong>How fresh must the input be?</strong> If the decision hinges on something that just happened (a click, an item added to a cart, a swipe), you need real-time. If it rides on slow-changing traits (tenure, lifetime spend), a nightly batch score is plenty.</li>
-
-<li><strong>How fast must the answer come back?</strong> Milliseconds means real-time. "By tomorrow morning" means batch is fine, and cheaper.</li>
-
-</ul>
-
-<p>Put a number on the freshness cost. If a batch job reruns every \(T\) hours, then a prediction it produced is, by the time a decision reads it, on average \(T/2\) hours old, and at most \(T\) old just before the next run. Here \(T\) is the refresh interval: for a nightly job \(T = 24\), so scores are up to a full day stale. Real-time inference has staleness near zero, because it scores at the moment of the request. That is exactly the trade you are making.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"When is the decision made?","sub":"on a schedule, batch; the moment a user acts, real-time"},{"title":"How fresh must the input be?","sub":"reacts to a just-now event, real-time; slow-changing, batch"},{"title":"How fast must the answer be?","sub":"milliseconds, real-time; tomorrow is fine, batch"},{"title":"Pick the pattern that fits","sub":"most decisions point clearly to one"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>About a 38% chance, computed right now for this one person, the same number the API returned in Lesson 3. Batch scored everyone ahead of time; real-time scores one person the moment they act.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Customer clicks Cancel","sub":"on the subscription page, right now"},{"title":"App sends one customer","sub":"a POST to the model API, as JSON"},{"title":"Score one row","sub":"the model returns a risk in milliseconds"},{"title":"Show a save-offer","sub":"tailored to that risk, before they leave"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Which pattern for each decision?</h2>
+<h2>Does the nightly batch job retrain the model?</h2>
 
-<p>Two decisions at Dev's company. <strong>(A)</strong> The checkout page must decide, before the payment goes through, whether to block a suspicious card swipe, using the details of that swipe. <strong>(B)</strong> Each Monday, marketing wants the 500 subscribers most likely to cancel this week, to mail them a discount. Which serving pattern fits each?</p>
+<p>Dev's batch job runs every night and writes fresh cancellation probabilities for all 24,000 subscribers. A teammate says, "So the model relearns from the newest data on every run." Are they right?</p>
 <section class="exercise" data-exercise-id="Batch-vs-Real-Time-Inference-step8" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both real-time: a fresh prediction is always better than a stored one</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A is real-time, B is batch: the swipe needs a millisecond answer on input unknown until that instant; the mailing list is a scheduled, bulk, no-rush job</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A is batch, B is real-time: score every possible swipe overnight, and query the model live for each subscriber on Monday</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. (A) is the textbook real-time case: unknown input, an answer needed before the payment completes. (B) is textbook batch: a known set, scored on a schedule, read later.</div><div class="lesson-qfb lesson-qfb-no">You cannot enumerate every possible card swipe in advance, the input does not exist until the swipe happens, which is why it must be real-time. And a weekly bulk list is exactly what batch is for.</div></div>
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">No. The batch job re-scores every subscriber with the already-fitted model; retraining on new data is a separate, much less frequent job.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Only the subscribers who are brand new since the last run get scored.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Yes. Running inference in batch means the model refits on the latest data each night before it scores.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Inference is applying a fixed model; training is building it. Batch just means you run inference over many rows at once, on a schedule. The coefficients do not change.</div><div class="lesson-qfb lesson-qfb-no">This is the key confusion to avoid: inference (scoring with a fixed model) is not training (refitting the model). Batch is about scoring many rows at once, on a schedule; the model itself is untouched.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="9" data-step-type="concept">
-<div class="lesson-step-eyebrow">Where each bites, and the hybrid</div>
-<h2>The costs, and using both at once</h2>
+<div class="lesson-step-eyebrow">Question 1</div>
+<h2>Who is waiting? (latency)</h2>
 
-<p>Neither pattern is free, and knowing where each hurts is what keeps a system out of trouble.</p>
+<p>Now the useful part: how to choose. The first question is the sharpest. <strong>Is a person or a system waiting on this specific prediction?</strong></p>
 
-<p><strong>Batch</strong> is cheap and simple: no always-on server, just a scheduled script and a table. It is also efficient. Serving \(N\) predictions one request at a time costs about \(N(o + s)\), where \(o\) is the per-request overhead (accepting the connection, parsing the input, waking the model) and \(s\) is the actual scoring time; a batch job pays that overhead once and amortizes it, about \(o + Ns\). When \(o\) dwarfs \(s\), batch is dramatically cheaper per prediction. The cost is <strong>staleness</strong> (the \(T/2\) above) and <strong>waste</strong>: you score everyone, including the millions who will never trigger the decision.</p>
+<p>On the cancel page, a human is staring at the screen. If the save-offer takes three seconds to appear, they have already left. That job has a <strong>latency budget</strong>, the time it is allowed to take, of maybe a couple hundred milliseconds. Only real-time can meet it, because the answer has to be computed for this exact customer, now.</p>
 
-<p><strong>Real-time</strong> is always fresh and computes only what is asked for. The cost is a running service: it must stay up, answer in milliseconds under load, and scale to traffic spikes, which is real operational weight (recall from Lesson 3 that one plumber process handles one request at a time).</p>
+<p>The Monday email has no one waiting. If the scoring job takes twenty minutes, or an hour, nobody notices, as long as it finishes before 9am. No latency budget, so batch is the natural fit.</p>
 
-<p>Often the best answer is <strong>both</strong>. Precompute the heavy, slow-changing features in a nightly batch job and store them; then at request time, combine those stored features with the one fresh event and score in milliseconds. This is what a <strong>feature store</strong> does, splitting an <em>offline store</em> (batch) from an <em>online store</em> (real-time). You get real-time freshness on the part that just changed without recomputing everything on every call.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Batch, ahead of time","sub":"precompute the heavy, slow-changing features nightly"},{"title":"Store them for fast lookup","sub":"one quick read per customer, ready to serve"},{"title":"Real-time, on request","sub":"combine the stored features with the live event"},{"title":"Score and respond in milliseconds","sub":"fresh answer, without recomputing everything"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">If something is waiting on the answer, lean real-time. If nothing is waiting, lean batch. "Is anyone waiting?" is the single most useful question, and it usually settles the matter on its own.</div></div>
 </section>
 
 <section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Question 2</div>
+<h2>How fresh must it be? (staleness)</h2>
+
+<p>The second question is about time. A batch prediction is a <strong>photograph</strong>: it captures a subscriber the moment the job ran, and it stays frozen until the next run replaces it. Between runs, the real customer keeps living, but the stored score does not move.</p>
+
+<p>We can put a number on how out-of-date it gets. Call \(T\) the number of hours between batch runs (a nightly job has \(T = 24\)). Write \(\bar{s}\) for the <strong>average staleness</strong>, the typical age of a prediction at the moment it is actually used. If the thing the prediction depends on can change at any time within the interval, then on average a used prediction is half an interval old:</p>
+
+<p>\[ \bar{s} = \frac{T}{2}, \qquad \text{worst case } = T \]</p>
+
+<p>So a nightly job serves predictions that are, on average, \(24/2 = 12\) hours old, and up to 24 hours old just before the next run. Re-run every 6 hours instead and the average staleness drops to \(6/2 = 3\) hours. Real-time sits at the other extreme: it computes the answer at the moment of use, so \(\bar{s} \approx 0\).</p>
+
+<p>Staleness only <em>matters</em>, though, when the inputs move fast compared to \(T\). Dev's <code>boxes_ordered</code> creeps up slowly over months, so a day-old score of it is perfectly fine. But "items in the cart right now" changes by the second, and no nightly batch can ever be fresh enough for it.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>From daily to hourly</h2>
+
+<p>Dev moves the retention scoring from once a day to once an hour, and changes nothing else, same model, same subscribers. What does that actually buy him?</p>
+<section class="exercise" data-exercise-id="Batch-vs-Real-Time-Inference-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The scores are fresher: their average age drops from about 12 hours to about 30 minutes.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing changes: a stored batch score is current until you delete it.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The model gets more accurate, because scoring it hourly retrains it more often.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Average staleness is T/2, so going from T = 24h to T = 1h takes the typical prediction's age from 12 hours to about half an hour. Same model, fresher answers.</div><div class="lesson-qfb lesson-qfb-no">Scoring is not training. Running the same fixed model more often changes freshness, not accuracy.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">Question 3</div>
+<h2>How much will it cost? (throughput)</h2>
+
+<p>The third question is about money and machines. Batch is cheap per prediction because it pays its fixed costs once. Real-time buys you instant answers, but you pay for a server that must sit running around the clock, ready for a request that might come at 3am, sized for your busiest minute even though most minutes are quiet.</p>
+
+<p>Put \(o\) for the per-request overhead a live service adds to every call, the network round-trip, parsing the request, and its slice of that always-on server, \(s\) for the time to score one row, and \(N\) for the number of predictions. The two patterns cost, roughly:</p>
+
+<p>\[ \text{batch} \approx o + N s \qquad\qquad \text{real-time} \approx N(o + s) \]</p>
+
+<p>Batch pays the overhead \(o\) once for the whole run and then just scores; real-time pays \(o\) again on every single call. You saw this concretely two steps back: <code>predict(model, subscribers)</code> scored 24,000 people in one local pass with zero network overhead. Serving those same 24,000 as live requests would mean 24,000 round-trips. When \(N\) is large and no one is waiting, batch wins on cost by a wide margin.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Pick the pattern</h2>
+
+<p>A card payment must be approved or declined the instant the customer taps "Pay", using the details of that exact transaction. Which serving pattern fits?</p>
+<section class="exercise" data-exercise-id="Batch-vs-Real-Time-Inference-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Batch: millions of payments a day means the efficient choice is one big overnight scoring job.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Batch: real-time inference is only ever needed for recommendations and ads.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Real-time: someone is waiting at checkout and the decision needs this transaction's live details, so it must be scored on demand.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A person is waiting (latency) and the answer depends on what is happening right now (freshness). Both questions point to real-time; the sheer volume does not change that.</div><div class="lesson-qfb lesson-qfb-no">Real-time is for any decision with someone (or something) waiting on a fresh, case-specific answer, and a payment approval is the textbook case.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">The best of both</div>
+<h2>You do not always have to choose</h2>
+
+<p>Batch and real-time are not a strict either/or. A common, powerful pattern is to <strong>precompute in batch and serve in real-time</strong>: score everyone overnight, write each answer into a fast key-value store, and let the live page simply <em>look up</em> the stored risk in milliseconds. No model runs at request time at all, yet the page answers instantly.</p>
+
+<p>This gives you real-time <em>serving</em> speed with batch <em>freshness</em>, and it is a genuine spectrum, not two boxes:</p>
+
+<ul>
+
+<li><strong>Batch</strong>: score everything on a schedule (freshest input is the last run).</li>
+
+<li><strong>Precompute and cache</strong>: batch scores, fast lookups serve them.</li>
+
+<li><strong>Streaming / near-real-time</strong>: re-score as new events arrive, seconds behind.</li>
+
+<li><strong>On-demand real-time</strong>: compute at the moment of the request, freshest possible.</li>
+
+</ul>
+
+<p>The precompute trick works only when the answer does not depend on something that just happened in <em>this</em> session. If it does, for example a risk that hinges on the item added to the cart ten seconds ago, you are back to needing true real-time.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Score nightly (batch)","sub":"compute every subscriber risk overnight"},{"title":"Cache the answer","sub":"write each risk to a fast key-value store"},{"title":"Look it up (real-time)","sub":"the cancel page reads the risk in a few ms"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know the trade-offs</div>
+<h2>Where each one breaks</h2>
+
+<p>No pattern is free. Choosing well means knowing what each one costs you, not just what it gives.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Batch</th>
+<th>Real-time</th>
+<th>Precompute and cache</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Latency</td>
+<td>minutes to hours</td>
+<td>milliseconds</td>
+<td>milliseconds</td>
+</tr>
+<tr>
+<td>Freshness</td>
+<td>as old as the last run</td>
+<td>always current</td>
+<td>as old as the last run</td>
+</tr>
+<tr>
+<td>Cost per prediction</td>
+<td>very low (amortized)</td>
+<td>high (always-on server)</td>
+<td>low, plus a store to run</td>
+</tr>
+<tr>
+<td>Ops burden</td>
+<td>a scheduled job</td>
+<td>a live, scalable service</td>
+<td>both a job and a store</td>
+</tr>
+<tr>
+<td>Blind spot</td>
+<td>a brand-new case has no score yet</td>
+<td>a slow model blocks the user</td>
+<td>stale between runs, like batch</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two failure modes are worth naming. Batch is <strong>blind to anything new</strong>: a subscriber who joined this morning has no row in last night's table, so they get no offer until tomorrow. Real-time is <strong>operationally heavy</strong>: the service has to stay up, handle traffic spikes, and answer fast, and if the model is slow to load or run, every user feels it. The right choice is the one whose blind spot you can live with for the decision at hand.</p>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Synthesis</div>
+<h2>The call list</h2>
+
+<p>The retention team can only phone a handful of people a day, so they want the <strong>highest-risk</strong> subscribers first. That means sorting the scored table by <code>cancel_prob</code>, from highest to lowest, and taking the top few. <code>order(x)</code> returns the row positions that sort <code>x</code> ascending, so a leading minus sign, <code>order(-x)</code>, sorts descending.</p>
+
+<p>Fill in the blank so <code>top8</code> holds the eight subscribers with the highest cancellation risk.</p>
+<section class="exercise" data-exercise-id="Batch-vs-Real-Time-Inference-step16" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="-\s*subscribers\$cancel_prob|cancel_prob.*decreasing\s*=\s*(TRUE|T)"><textarea class="lesson-tryit-input" spellcheck="false"># The 8 highest-risk subscribers, for the save-team to call first
+top8 &lt;- head(subscribers[order(____), ], 8)
+top8[, c(&quot;customer_id&quot;, &quot;cancel_prob&quot;)]</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is a complete batch product: score the whole base once, sort by risk, and hand the team a ranked call list. All of it reads from the stored predictions, never the live model.</span><span class="lesson-tryit-fb lesson-tryit-no">Sort by descending risk with order(-subscribers$cancel_prob) (the minus flips ascending to descending).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">top8 &lt;- head(subscribers[order(-subscribers$cancel_prob), ], 8)
+top8[, c(&quot;customer_id&quot;, &quot;cancel_prob&quot;)]
+#&gt;       customer_id cancel_prob
+#&gt; 6404         6404       0.667
+#&gt; 243           243       0.627
+#&gt; 3135         3135       0.622
+#&gt; 15595       15595       0.597
+#&gt; 164           164       0.593
+#&gt; 15186       15186       0.593
+#&gt; 4907         4907       0.591
+#&gt; 9953         9953       0.591</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
@@ -893,23 +1094,23 @@ head(scored[order(-scored$cancel_prob),
 
 <ul>
 
-<li><a href="https://huyenchip.com/2020/12/27/real-time-machine-learning.html">Huyen, "Machine learning is going real-time" (2020)</a> - the clearest essay on when batch is enough and when you truly need online prediction.</li>
+<li><a href="https://huyenchip.com/2020/12/27/real-time-machine-learning.html">Chip Huyen, Machine learning is going real-time (2020)</a> - a clear tour of the batch-to-real-time spectrum and why teams move along it.</li>
 
-<li><a href="https://developers.google.com/machine-learning/guides/rules-of-ml">Google, "Rules of Machine Learning" (Zinkevich)</a> - 43 production ML rules, including serving and the training/serving skew that batch pipelines invite.</li>
+<li><a href="https://developers.google.com/machine-learning/guides/rules-of-ml">Google, Rules of Machine Learning</a> - hard-won serving advice, including keeping training and serving consistent.</li>
 
-<li><a href="https://docs.feast.dev/">Feast documentation: feature stores</a> - the offline-store / online-store split is exactly the batch / real-time split, and the mechanism behind the hybrid.</li>
+<li><a href="https://docs.feast.dev/getting-started/concepts/overview">Feast: feature store concepts</a> - the offline store (batch) and online store (real-time) split, which is the precompute-and-serve hybrid in production form.</li>
 
-<li>[The <code>targets</code> R package manual](https://books.ropensci.org/targets/) - how to build the scheduled, only-reruns-what-changed pipeline your nightly batch job would live in.</li>
+<li><a href="https://cloud.google.com/vertex-ai/docs/predictions/overview">Vertex AI: batch and online predictions</a> - how a managed platform frames the exact same two patterns.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="complete">
+<section class="lesson-step" data-step="18" data-step-type="complete">
 <h2>Lesson 4 complete</h2>
 
-<p>You can now tell the two serving patterns apart and, more importantly, choose between them. Real-time inference scores one case on demand, freshest input, millisecond answer, at the price of an always-on service. Batch inference scores everyone on a schedule and stores the result for lookup, cheap and simple, at the price of staleness up to one refresh interval. The decision the prediction serves, its timing, freshness, and latency, tells you which to reach for, and a feature-store hybrid lets you have both where it counts.</p>
+<p>You now have both ways to serve Dev's model and, more importantly, a way to choose between them. Batch scores a whole table on a schedule and stores the answers for cheap lookup, the Monday email; real-time scores one case on demand, the instant it is needed, the cancel page. Three questions decide it: who is waiting (latency), how fresh it must be (staleness, on average \(T/2\) hours for a batch job), and how much it costs at scale. And when you want low latency and reasonable freshness at once, precompute in batch and serve from a cache.</p>
 
-<p>Next, Lesson 5: <strong>Monitoring and drift.</strong> Predictions are flowing now, in batch, in real time, or both. But a model that was accurate at launch quietly decays as the world shifts underneath it. You will learn to watch the inputs and the performance after launch, and to know when it is time to retrain.</p>
+<p>Next, Lesson 5: <strong>Monitoring and drift.</strong> Predictions are now flowing, in batch and in real time. But a model that was right at launch does not stay right forever, the world it learned from keeps shifting under it. You will learn how to watch the inputs and the accuracy of a live model, and how to know when it is time to retrain.</p>
 </section>
 
 
@@ -997,7 +1198,7 @@ head(scored[order(-scored$cancel_prob),
     }
   })();
   </script>
-  <script src="www/toc.min.js?h=db578404"></script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
   <!-- MathJax Script -->
   
   <script type="text/x-mathjax-config">
@@ -1015,11 +1216,11 @@ head(scored[order(-scored$cancel_prob),
 
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
-  <script src="www/webr-init.min.js?h=92549f4e"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=0f30f7dd"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
   <script src="www/lesson-mode.min.js?h=7923c824"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of

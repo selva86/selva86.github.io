@@ -57,7 +57,7 @@ member$spend  <- member$prior + 5              # membership adds exactly $5 (the
 
 naive <- mean(member$spend) - mean(control$spend)   # the tempting comparison
 c(member_avg = mean(member$spend), nonmember_avg = mean(control$spend), naive_gap = naive)
-#>    member_avg nonmember_avg     naive_gap 
+#>    member_avg nonmember_avg     naive_gap
 #>         76.00         61.25         14.75
 ```
 
@@ -65,7 +65,7 @@ The naive gap is **$14.75**, almost three times the true $5. Written as a formul
 
 \[ \underbrace{\bar Y_{\text{members}} - \bar Y_{\text{non-members}}}_{\text{naive gap } = \$14.75} \;=\; \underbrace{\tau}_{\text{true effect } = \$5} \;+\; \underbrace{\text{selection bias}}_{\text{joiners already spent more}}, \]
 
-where \(\bar Y\) is a group's average spend and \(\tau\) (tau) is the causal effect we want. The extra \$9.75 is **selection bias**: the difference in what the two groups would have spent even with no membership at all. The picture makes the head start obvious.
+where \(\bar Y\) is a group's average spend and \(\tau\) (tau) is the causal effect we want. The extra $9.75 is **selection bias**: the difference in what the two groups would have spent even with no membership at all. The picture makes the head start obvious.
 
 ```r
 library(ggplot2)
@@ -151,7 +151,7 @@ Riverside matched members to non-members on prior spend, and the estimated effec
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - Matching balanced prior spend and anything else you measured, but not what you did not; if members also differ on some unmeasured trait, that difference is still inside the $5 ::ok Exactly. Matching buys unconfoundedness *given the measured covariates*. It is a real improvement over the naive gap, but it is only as trustworthy as the list of things you matched on. A hidden common cause survives it.
-- Matching is invalid here because the two groups had different average prior spend to begin with ::no That difference is the whole reason to match, not a reason it fails. Groups being imbalanced *before* matching is normal and expected; matching exists precisely to remove that imbalance.
+- Matching is invalid here because the two groups had different average prior spend to begin with ::no Matching does not require the groups to start out balanced; correcting that imbalance is its whole job. Its real limit is narrower: it can only balance the covariates you actually measured.
 - The $5 must be wrong, because a matched estimate is always smaller than the naive one ::no There is no such rule. Matching moved the estimate down here only because the confounder inflated the naive gap; when the confounder points the other way, matching moves the estimate up. It corrects, it does not always shrink.
 
 === step === concept
@@ -168,7 +168,8 @@ The trick is to bring in **time**. Compare West's spend *before and after* the l
 cell <- function(mu) mu + c(-3, -1, 1, 3)          # 4 customers; their mean is exactly mu
 did <- data.frame(
   region = rep(c("East", "East", "West", "West"), each = 4),
-  period = rep(c("before", "after", "before", "after"), each = 4),
+  period = factor(rep(c("before", "after", "before", "after"), each = 4),
+                  levels = c("before", "after")),   # ordered so the table reads before then after
   spend  = c(cell(42), cell(46), cell(50), cell(60))
 )
 
@@ -233,7 +234,7 @@ did$treated <- as.integer(did$region == "West")   # 1 = the free-shipping (West)
 did$post    <- as.integer(did$period == "after")   # 1 = after the launch date
 fit <- lm(spend ~ treated * post, data = did)
 coef(fit)
-#>  (Intercept)      treated         post treated:post 
+#>  (Intercept)      treated         post treated:post
 #>           42            8            4            6
 ```
 
@@ -279,7 +280,7 @@ Difference-in-differences gave a $6 effect for free shipping in the West market.
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - Parallel trends: without free shipping, West would have changed by the same amount East did. It breaks if West was already pulling ahead of East before the launch, because then that pre-existing divergence gets counted as the effect ::ok Right. DiD subtracts East's change as a stand-in for West's missing counterfactual change, which is only fair if the two would have trended together. A diverging pre-trend is exactly what invalidates it.
-- That West and East had the same average spend before the launch; if the before levels differ, DiD is invalid ::no DiD explicitly allows different starting levels, it compares *changes*, not levels. West started at $50 and East at $42, and that gap is fine; the subtraction cancels any constant difference.
+- That West and East had the same average spend before the launch; if the before levels differ, DiD is invalid ::no DiD is fine with different starting levels, because it compares *changes*, not levels, so a constant gap between the groups cancels out. What it needs is that those changes would have matched.
 - That customers were randomly assigned to the West or East market; without random assignment DiD cannot be used ::no DiD exists precisely because there was no random assignment. It never assumes it. What it assumes instead is that the untreated groups would have *trended* together over time.
 
 === step === tryit

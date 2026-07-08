@@ -1,13 +1,11 @@
 ---
 title: "Bayesian Modeling Lesson 3: MCMC and the Metropolis Sampler"
-catalog_blurb: "How to estimate any posterior by sampling when no formula exists."
 description: "Learn MCMC from scratch: why real posteriors have no formula, how samples replace the curve, and how to build and tune the Metropolis sampler in base R."
 keywords: "mcmc, markov chain monte carlo, metropolis algorithm, metropolis sampler in R, posterior sampling, acceptance rate, trace plot, burn in, proposal width, monte carlo error, bayesian inference in R"
-post_type: "LESSON"
-curriculum_id: "6.160.3"
-webr: true
 mathjax: true
-lesson_access: "pro"
+webr: true
+curriculum_id: "6.160.3"
+post_type: "LESSON"
 course_id: "ds-bayesian"
 course_title: "Bayesian Modeling"
 course_lesson: "3"
@@ -15,6 +13,8 @@ course_total: "8"
 course_landing: "R-Bayesian-Modeling-Course.html"
 course_next: "HMC-NUTS-and-MCMC-Diagnostics.html"
 course_prev: "Conjugacy-and-Choosing-Priors.html"
+lesson_access: "pro"
+catalog_blurb: "How to estimate any posterior by sampling when no formula exists."
 ---
 
 === step === cover
@@ -108,7 +108,7 @@ So the entire problem of Bayesian computation reduces to one question: how do yo
 Asha's teammate looks at the summary table and objects: "The morning only had 40 visitors. You cannot conjure 50,000 observations out of 40. An interval built on 50,000 of anything must be far too narrow." What is right?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The teammate is right: more draws mean more evidence, so the credible interval narrows as you draw more ::no More DATA narrows the interval. Draws are not data: they are repeated readings of one fixed posterior, and the interval estimated from them converges to the exact (0.079, 0.199). It does not shrink toward zero.
+- The teammate is right: more draws mean more evidence, so the credible interval narrows as you draw more ::no More draws are more READS of the same fixed posterior, not more observations; the interval reflects the 40 visitors and cannot shrink below what they support.
 - The draws are computation, not evidence: they describe the same 40-visitor posterior, and drawing more only reduces the Monte Carlo wobble in reading it ::ok Exactly. The posterior is fixed by the prior and the 40 visitors. Drawing from it is like reading the curve off at random points: more reads give a sharper copy of the same curve, never a tighter curve.
 - The teammate is wrong because 50,000 draws contain 50,000 independent pieces of information about the conversion rate ::no All the information came from the prior and the 40 visitors, and simulation cannot add to it. The draws only make that fixed information easy to summarize.
 
@@ -120,21 +120,22 @@ Picture Asha's posterior as a hill: the horizontal axis is the candidate value, 
 
 The Metropolis rule is that walking rule. From the chain's current value \(\theta_t\) (the value after \(t\) steps):
 
-1. **Propose.** Draw a candidate a small random step away: \(\theta^{*} \sim \text{Normal}(\theta_t, s)\), where \(s\) is the **proposal width**, the one knob you control.
+1. **Propose.** Draw a candidate a small random step away: \(\theta^{\ast} \sim \text{Normal}(\theta_t, s)\), where \(s\) is the **proposal width**, the one knob you control.
 2. **Compare.** Compute the ratio of posterior heights,
-\[ r \;=\; \frac{p(\theta^{*} \mid \text{data})}{p(\theta_t \mid \text{data})} \;=\; \frac{p(\text{data} \mid \theta^{*})\; p(\theta^{*})}{p(\text{data} \mid \theta_t)\; p(\theta_t)}. \]
-The impossible total \(p(\text{data})\) sits under both heights, so it cancels. The ratio needs only the numerator.
+
+\[ r \;=\; \frac{p(\theta^{\ast} \mid \text{data})}{p(\theta_t \mid \text{data})} \;=\; \frac{p(\text{data} \mid \theta^{\ast})\; p(\theta^{\ast})}{p(\text{data} \mid \theta_t)\; p(\theta_t)}. \] The impossible total \(p(\text{data})\) sits under both heights, so it cancels. The ratio needs only the numerator.
+
 3. **Accept or stay.** Uphill (\(r \ge 1\)): always move. Downhill: move anyway with probability \(r\), otherwise stay put and record the current value again.
 4. **Repeat**, thousands of times, recording where you stand after each step.
 
-::widget process-flow {"steps":[{"title":"Propose","sub":"draw a candidate a small random step from where you stand"},{"title":"Compare","sub":"r = posterior height at the candidate over height here"},{"title":"Accept or stay","sub":"uphill: always move. downhill: move with probability r"},{"title":"Record, repeat","sub":"the visited values become your posterior draws"}]}
-
 Why does time end up proportional to height? Feel the mechanism: climbing is always free, but every descent is throttled in exact proportion to the drop, so the walk lingers on high ground and only briefly visits the flats, in precisely the ratio of their heights. The formal property is called detailed balance and its proof is three lines in the references. This lesson will do something more convincing instead: run the rule on a posterior we know exactly, and check the answer.
 
-Two practical notes before the code. First, "move with probability \(r\)" is implemented by drawing \(u\) uniformly between 0 and 1 and moving when \(u < r\); taking logs of both sides gives the numerically safe version, move when \(\log u < \ell(\theta^{*}) - \ell(\theta_t)\), where \(\ell\) is the log of prior times likelihood (multiplying forty tiny densities underflows a computer; adding forty logs never does). Second, the names: a walk whose next move depends only on where it stands now is a **Markov chain**, and answering with draws is Monte Carlo, so this family of algorithms is **Markov chain Monte Carlo**, MCMC. The Metropolis rule of 1953 is its founding member.
+Two practical notes before the code. First, "move with probability \(r\)" is implemented by drawing \(u\) uniformly between 0 and 1 and moving when \(u < r\); taking logs of both sides gives the numerically safe version, move when \(\log u < \ell(\theta^{\ast}) - \ell(\theta_t)\), where \(\ell\) is the log of prior times likelihood (multiplying forty tiny densities underflows a computer; adding forty logs never does). Second, the names: a walk whose next move depends only on where it stands now is a **Markov chain**, and answering with draws is Monte Carlo, so this family of algorithms is **Markov chain Monte Carlo**, MCMC. The Metropolis rule of 1953 is its founding member.
 
 [NOTE]
 Allow the proposal step to be lopsided and correct for it in the ratio, and you get the Metropolis-Hastings algorithm of 1970. Every modern engine, including the ones inside Stan that you will meet in Lesson 4, is a descendant of the rule above.
+
+::widget process-flow {"steps":[{"title":"Propose","sub":"draw a candidate a small random step from where you stand"},{"title":"Compare","sub":"r = posterior height at the candidate over height here"},{"title":"Accept or stay","sub":"uphill: always move. downhill: move with probability r"},{"title":"Record, repeat","sub":"the visited values become your posterior draws"}]}
 
 === step === concept
 ::eyebrow Build it
@@ -227,8 +228,6 @@ Your sampler has exactly one setting: `prop_sd`, how far a typical proposed step
 
 The widget below is the same algorithm you just built, pointed at a different one-unknown posterior (an average estimated from 20 measurements, a cousin of Asha's order-value model). Try all three settings and watch the trace on top and the histogram the walk leaves behind underneath:
 
-::widget mcmc-walk {}
-
 What to look for at each setting:
 
 - **Too small.** Nearly every proposal is a tiny move to almost-equal height, so almost everything is accepted. But the chain crawls: hundreds of steps in, it still has not crossed the hill once, and its histogram is a lopsided fragment of the true curve. High acceptance bought by no movement.
@@ -237,6 +236,8 @@ What to look for at each setting:
 
 The acceptance rate is your gauge for this, a diagnostic, not a score to maximize. For a one-unknown model, tune `prop_sd` until acceptance sits roughly between 30 and 50 percent (theory puts the ideal near 44 percent for one dimension, drifting toward about a quarter for many-unknown models). Our conversion run's 0.45 was not luck; it was tuned to land there.
 
+::widget mcmc-walk {}
+
 === step === quiz
 ::eyebrow Check yourself
 ## Which run would you keep?
@@ -244,7 +245,7 @@ The acceptance rate is your gauge for this, a diagnostic, not a score to maximiz
 You rerun Asha's conversion sampler with three proposal widths: `prop_sd = 0.005` returns acceptance 95 percent, `prop_sd = 0.07` returns 45 percent, and `prop_sd = 1` returns 4 percent. A colleague says: "Keep the first run. Acceptance is the sampler's success rate, and 95 percent is the most successful." What is right?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The colleague is right: the more proposals a sampler accepts, the more efficiently it explores the posterior ::no Acceptance is not a success rate. A sampler accepts 95 percent of proposals precisely when its steps are so tiny that candidates sit at nearly the current height: high acceptance bought by barely moving.
+- The colleague is right: the more proposals a sampler accepts, the more efficiently it explores the posterior ::no High acceptance here means the steps are so tiny the chain barely moves; its draws are near-copies, so it explores LESS, not more.
 - The middle run: 95 percent means steps so small the chain crawls and its draws are nearly copies of each other, 4 percent means it is frozen rewriting one value, and near-half acceptance is the healthy middle ::ok Right. Both extremes fail the same goal, covering the whole posterior in a limited number of steps: one by moving too little per step, the other by moving too rarely. You tune the width and read acceptance as the gauge.
 - The third run: rejections mean the sampler is boldly proposing far-away regions, which yields the most independent draws ::no Those bold proposals are being REJECTED, so the chain spends its time frozen in place, producing long flat runs of one repeated value: the least independent draws of the three.
 
@@ -252,7 +253,7 @@ You rerun Asha's conversion sampler with three proposal widths: `prop_sd = 0.005
 ::eyebrow The payoff
 ## One new function, any model
 
-Back to the wall this lesson opened with: the afternoon's 10 orders, one of them a $237 corporate bulk buy. All of it in numbers, plus what Lesson 2's closed form does with them (each lesson is a fresh session page, but this step continues from your sampler above, so make sure you ran that block):
+Back to the wall this lesson opened with: the afternoon's 10 orders, one of them a $237 corporate bulk buy. The only change from Lesson 2 is the likelihood: each order is now a draw from a Student t with 3 degrees of freedom, whose heavy tails read a $237 basket as rare rather than a ten-standard-deviations miracle, still centered on the unknown average with the same $18 spread (the `- log(18)` in the solution just rescales the t density to that $18 spread). Her prior for the average is untouched. First the raw numbers (each lesson is a fresh session page, but this step continues from your sampler above, so make sure you ran that block):
 
 ```r
 # the afternoon's orders: nine ordinary baskets and one corporate bulk buy
@@ -262,26 +263,6 @@ mean(y)
 
 round(mean(y[y < 200]), 1)   # what the ordinary nine average
 #> [1] 54.9
-```
-
-```r
-# Lesson 2's Normal-Normal update: prior Normal(54.6, 3.4), order spread 18 known
-post_var  <- 1 / (1 / 3.4^2 + 10 / 18^2)
-post_mean <- post_var * (54.6 / 3.4^2 + 10 * mean(y) / 18^2)
-round(post_mean, 1)
-#> [1] 59.5
-```
-
-The prior Normal(54.6, 3.4) is just Lesson 2's posterior for the average order, rounded: yesterday's posterior is today's prior. And note what the closed form actually consumes: only `mean(y)`, 73.1, a single number in which one freak basket and nine ordinary ones are already blended beyond recovery. Result: $59.5, dragged almost five dollars by one gift shipment. Deleting the order would be dishonest, that $237 was real revenue. The honest fix is the likelihood Asha wanted on step one: a Student t curve with 3 degrees of freedom (a tail-heaviness dial; 3 means heavy tails, a standard robust choice), centered at \(\mu\) with the same $18 scale, so an occasional whale is expected rather than shocking.
-
-There is no conjugate family for a normal prior with a t likelihood. That stopped us cold at the start of this lesson. Now it costs one function. `dt(z, df = 3, log = TRUE)` gives the log-height of the standard t curve at z; dividing `(y - mu)` by 18 recenters and rescales each order, and each such division owes a bookkeeping correction of `- log(18)`. The likelihood half is written for you. Add the prior half: where Lesson 2 left Asha's belief, as a log-density. Fill in the blank:
-
-```r
-lp <- function(mu) {
-  sum(dt((y - mu) / 18, df = 3, log = TRUE) - log(18)) +   # heavy-tailed likelihood
-  ____                                                     # the prior, in logs
-}
-lp(55) > lp(90)   # sanity check: 55 should be more plausible than 90
 ```
 ::check {"regex":"dnorm\\s*\\(\\s*mu\\s*,\\s*(mean\\s*=\\s*)?54\\.6\\s*,\\s*(sd\\s*=\\s*)?3\\.4\\s*,\\s*log\\s*=\\s*TRUE\\s*\\)","gate":true,"difficulty":"advanced","ok":"That one line was the entire model change. No conjugate pair exists for this prior-likelihood combination, and the sampler will not care.","no":"The prior is where Lesson 2 left her belief about the average order: a normal curve with mean 54.6 and sd 3.4, on the log scale: dnorm(mu, 54.6, 3.4, log = TRUE)."}
 ::solution
@@ -293,31 +274,6 @@ lp <- function(mu) {
 lp(55) > lp(90)
 #> [1] TRUE
 ```
-
-Now hand the new model to the sampler you already built, unchanged. The only other edit is scale: order values live on dollars, not rates, so the proposal width is 6 (tuned, like before, to land acceptance near the sweet spot), and we start the walk at 73, the dragged sample mean, to make it earn its answer:
-
-```r
-lp <- function(mu) {                      # the finished log-posterior, in full
-  sum(dt((y - mu) / 18, df = 3, log = TRUE) - log(18)) +
-  dnorm(mu, mean = 54.6, sd = 3.4, log = TRUE)
-}
-
-set.seed(11)
-fit_t  <- metropolis(lp, start = 73, prop_sd = 6, n = 20000)
-keep_t <- fit_t$chain[-(1:1000)]
-
-round(c(post_mean = mean(keep_t),
-        lo95 = as.numeric(quantile(keep_t, 0.025)),
-        hi95 = as.numeric(quantile(keep_t, 0.975)),
-        accept = fit_t$accept), 2)
-#> post_mean      lo95      hi95    accept 
-#>     54.88     49.15     60.49      0.50 
-```
-
-The robust model answers $54.88, almost exactly the ordinary-nine average of $54.9: it saw nine ordinary baskets and one whale, and let the whale count for little. The blended normal model said $59.5. A five-dollar gap in average order value is real money in any decision priced per order, and the difference between the two answers was one honest likelihood, sampled by fifteen reusable lines.
-
-[NOTE]
-Honest limits: we hand-picked the 3 degrees of freedom and kept the $18 spread fixed. The grown-up version treats the spread as a second unknown: two parameters, the same Metropolis rule, proposing a step in two dimensions at once. It works. But random-walk exploration strains as dimensions pile up, and knowing when a chain is quietly lying to you becomes the real craft. Both problems, and the modern engines that solve them, are Lesson 4.
 
 === step === concept
 ::eyebrow Go deeper
@@ -333,6 +289,6 @@ Four authoritative places to take this further:
 === step === complete
 ## Lesson 3 complete
 
-You found the wall precisely: the numerator of Bayes' theorem never stops being cheap, only the normalizing total is impossible, and grids die exponentially with dimensions. You replaced the curve with draws and priced the swap (Monte Carlo wobble in the third decimal, never new evidence). Then you built the 1953 Metropolis rule in fifteen lines of base R, watched it plunge from a bad start, discarded burn-in, validated it against the exact Beta(16, 104) answer, tuned its one knob by acceptance rate, and finally pointed it at a model with no closed form: the heavy-tailed order-value posterior, where the robust $54.88 beat the outlier-dragged $59.5 by changing a single function.
+You found the wall precisely: the numerator of Bayes' theorem never stops being cheap, only the normalizing total is impossible, and grids die exponentially with dimensions. You replaced the curve with draws and priced the swap (Monte Carlo wobble in the third decimal, never new evidence). Then you built the 1953 Metropolis rule in fifteen lines of base R, watched it plunge from a bad start, discarded burn-in, validated it against the exact Beta(16, 104) answer, tuned its one knob by acceptance rate, and finally pointed it at a model with no closed form: the heavy-tailed order-value posterior, where swapping a single function keeps the estimate anchored near the ordinary orders' $54.9 average instead of letting the lone $237 basket drag it up toward the raw $73.1 mean.
 
 One thing you cannot yet do is tell when a chain is lying. A trace can look settled while exploring only half the posterior, and 20,000 steps of a crawling walk can be worth 50 honest draws. Next, Lesson 4: HMC, NUTS and MCMC Diagnostics, the physics-flavored engines inside modern tools like Stan, and the dashboard that tells you when to trust a chain: trace plots, R-hat, and effective sample size.

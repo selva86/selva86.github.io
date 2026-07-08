@@ -82,15 +82,26 @@ def _kill_tree(pid):
 # the CLI default, so the owner can set their interactive default to anything (e.g. Fable)
 # without changing what the batch uses. Opus 4.8 + xhigh effort chosen 2026-07-03 for the
 # dense DS-Advanced material (the Fable default hit its quota mid-§18). Edit here to change.
-BATCH_MODEL = 'opus'      # alias -> latest Opus (4.8); or a full id like 'claude-opus-4-8'
-BATCH_EFFORT = 'xhigh'    # low | medium | high | xhigh | max
+BATCH_MODEL = 'claude-opus-4-8'   # pinned to Opus 4.8 explicitly (NOT the 'opus' alias, NOT Fable)
+BATCH_EFFORT = 'xhigh'            # low | medium | high | xhigh | max
+
+# The user-global ~/.claude/CLAUDE.md is an SEO/article-writing persona ("be concise",
+# "length follows intent, not a quota", "world-class expert level"). Loaded into a lesson
+# writer it fights the beginner-first teaching contract and produces rushed, dense lessons.
+# So we EXCLUDE only that one file from every spawned writer/checker/publisher via the
+# `claudeMdExcludes` setting (proven: it drops the global file, keeps the project CLAUDE.md
+# and MEMORY.md, and does NOT touch auth). The lesson pipeline is driven by the skill +
+# _build/lesson-pedagogy.md, which are self-contained.
+_GLOBAL_CLAUDE_MD = os.path.expanduser('~/.claude/CLAUDE.md').replace('\\', '/')
+WRITER_SETTINGS = json.dumps({'claudeMdExcludes': [_GLOBAL_CLAUDE_MD]})
 
 
 def run_claude(cli, prompt, timeout=None):
-    print('+ %s -p "%s"  (--model %s --effort %s, cwd=%s)' % (cli, prompt, BATCH_MODEL, BATCH_EFFORT, PROJECT_ROOT), flush=True)
+    print('+ %s -p "%s"  (--model %s --effort %s, no-global-CLAUDE.md, cwd=%s)' % (cli, prompt, BATCH_MODEL, BATCH_EFFORT, PROJECT_ROOT), flush=True)
     try:
         proc = subprocess.Popen([cli, '-p', prompt, '--dangerously-skip-permissions',
-                                 '--model', BATCH_MODEL, '--effort', BATCH_EFFORT], cwd=PROJECT_ROOT)
+                                 '--model', BATCH_MODEL, '--effort', BATCH_EFFORT,
+                                 '--settings', WRITER_SETTINGS], cwd=PROJECT_ROOT)
     except FileNotFoundError:
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127

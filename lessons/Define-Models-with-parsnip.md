@@ -1,13 +1,11 @@
 ---
 title: "tidymodels Lesson 2: Define models with parsnip"
-catalog_blurb: "One interface to fit and swap many models without rewriting your code."
 description: "Use parsnip to define models in R through one interface: build a spec, fit it, and switch from logistic regression to a random forest without rewriting code."
 keywords: "parsnip, tidymodels, R modeling, model specification, set_engine, set_mode, rand_forest, logistic regression in R, predict tibble, switch model engine"
-post_type: "LESSON"
-curriculum_id: "6.50.2"
-webr: true
 mathjax: true
-lesson_access: "free"
+webr: true
+curriculum_id: "6.50.2"
+post_type: "LESSON"
 course_id: "ds-tidymodels"
 course_title: "Modeling with tidymodels"
 course_lesson: "2"
@@ -15,6 +13,8 @@ course_total: "7"
 course_landing: "R-tidymodels-Course.html"
 course_next: "Bundle-Steps-with-workflows.html"
 course_prev: "Preprocess-with-recipes.html"
+lesson_access: "free"
+catalog_blurb: "One interface to fit and swap many models without rewriting your code."
 ---
 
 === step === cover
@@ -140,7 +140,7 @@ fit() is the single moment any learning happens, and it happens on the training 
 You have a spec that reads `logistic_reg() |> set_engine("glm")`. You change it to `logistic_reg() |> set_engine("glmnet")`. What did you change?
 
 ::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- The model type: you are now fitting a different kind of model ::no The model type is still logistic_reg(), the same log-odds equation. Only the way it is estimated changed.
+- The model type: you are now fitting a different kind of model ::no The model type is still logistic_reg(); the equation for the log-odds has not changed. Only the package that estimates it did.
 - The mode: you switched from classification to regression ::no The mode is untouched. set_mode() controls that, and you did not call it; glmnet here is still doing classification.
 - The engine: the same logistic regression, now estimated by a different package ::ok Right. The model type (the equation) and the mode (the task) are unchanged. set_engine() only swaps how the coefficients are computed: glm's maximum likelihood for glmnet's penalized version.
 
@@ -149,8 +149,6 @@ You have a spec that reads `logistic_reg() |> set_engine("glm")`. You change it 
 ## Swap the model, keep your code
 
 Here is what the unified interface buys you. To try a random forest instead of a logistic regression, you change the spec and nothing else. The `fit()` call and the `predict()` call stay exactly the same.
-
-::widget process-flow {"steps":[{"title":"swap the spec","sub":"logistic_reg() becomes rand_forest()"},{"title":"fit","sub":"same call as before, same arguments"},{"title":"predict","sub":"same call, same tidy tibble back"}]}
 
 A random forest is a completely different algorithm (hundreds of decision trees voting), yet the code around it does not flinch. We load the engine package so parsnip can reach it, then fit on the same training data:
 
@@ -175,6 +173,8 @@ predict(fit_rf, new_data = test) |> head()
 ```
 
 Same `fit()`, same `predict()`. Only the first line, the spec, changed. That is the whole promise: your modeling code stops caring which algorithm is underneath it.
+
+::widget process-flow {"steps":[{"title":"swap the spec","sub":"logistic_reg() becomes rand_forest()"},{"title":"fit","sub":"same call as before, same arguments"},{"title":"predict","sub":"same call, same tidy tibble back"}]}
 
 === step === concept
 ::eyebrow Tidy by design
@@ -215,7 +215,7 @@ Predictable column names are what make the rest of tidymodels click together. In
 You fit two parsnip models, a logistic regression and a random forest, and call `predict(fit, new_data = test)` on each with no `type` argument. What comes back?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- A plain vector from each, in whatever format the underlying package happens to use ::no That is the base-R behavior parsnip is built to replace. parsnip standardizes the output instead.
+- A plain vector from each, in whatever format the underlying package happens to use ::no That is base R's behaviour, and the exact friction parsnip removes. Through parsnip every model answers in the same tidy tibble.
 - A tibble from each, with the same column (.pred_class) and one row per input row ::ok Exactly. Every parsnip model returns a tibble of the same shape, so the same downstream code reads both. Ask for type = "prob" and you get .pred_no and .pred_yes columns the same way.
 - Nothing useful until you also pass the original training data ::no predict() needs only the fitted model and the new_data; the training data is already baked into the fit.
 
@@ -223,24 +223,18 @@ You fit two parsnip models, a logistic regression and a random forest, and call 
 ::eyebrow Your turn
 ## Specify a decision tree
 
-Your lender wants to try one more model: a single decision tree, fit by the `rpart` engine, for classification. The model type is `decision_tree()`. First load the engine package so parsnip can reach it:
-
-```r
-library(parsnip)
-library(rpart)
-```
-
-Now complete the spec by choosing the engine, then check it.
+Your lender wants to try one more model: a single decision tree, fit by the `rpart` engine, for classification. The model type is `decision_tree()`, and the mode is already set for you. Add the one verb that names the fitting package, then check it.
 
 ```r
 tree_spec <- decision_tree(tree_depth = 5) |>
-  ____("rpart") |>
+  ____("rpart") |>          # name the package that will fit the tree
   set_mode("classification")
 tree_spec
 ```
-::check {"regex":"set_engine","gate":true,"difficulty":"intermediate","ok":"That is it: set_engine names the package that fits the tree, here rpart. Same three-part recipe, a brand new model.","no":"You need the verb that picks the fitting package: set_engine."}
+::check {"regex":"set_engine","gate":true,"difficulty":"intermediate","ok":"That is it: set_engine() names the package that fits the tree, here rpart. Same three-part pattern, a brand new model type.","no":"You need the verb that picks the fitting package: set_engine(\"rpart\")."}
 ::solution
 ```r
+library(rpart)
 tree_spec <- decision_tree(tree_depth = 5) |>
   set_engine("rpart") |>
   set_mode("classification")

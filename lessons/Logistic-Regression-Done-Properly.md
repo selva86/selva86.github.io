@@ -1,8 +1,8 @@
 ---
 title: "Regression Modeling Lesson 7: Logistic Regression Done Properly"
 catalog_blurb: "Model a yes-or-no outcome as a probability and read what drives it."
-description: "Model a yes/no outcome in R with logistic regression: the logit link and S-curve, fit glm(), read odds ratios, predict probabilities, and pick a threshold."
-keywords: "logistic regression, glm binomial, logit link, odds ratio, log-odds, sigmoid, predict probability, classification threshold, confusion matrix, logistic regression in R"
+description: "Predict a yes-or-no outcome the right way: why linear regression fails, the logit link and odds ratios, and fitting and reading glm(family = binomial) in R."
+keywords: "logistic regression, glm, binomial, logit, log-odds, odds ratio, probability, binary outcome, sigmoid, decision threshold, classification, R"
 post_type: "LESSON"
 curriculum_id: "6.20.7"
 webr: true
@@ -21,207 +21,303 @@ course_prev: "Inference-and-Prediction-in-Regression.html"
 ::eyebrow Lesson 7 of 8
 ## Logistic Regression Done Properly
 
-In Lesson 6 you put honest error bars on a regression's two jobs, explaining and predicting. But every model in this course so far has predicted a *number*: how many cups Priya sells. Now she has a question that is not a number at all.
+In Lesson 6 you separated the two jobs a regression can do: *explaining* which predictors matter, and *predicting* a number for a new day, each with its own kind of interval. Every one of those models answered a question whose answer was a number: how many cups will Priya sell?
 
-A customer walks up to the cart. **Will this one person buy an iced coffee, yes or no?** The answer is not 30 or 49, it is a probability between 0 and 1, and that probability climbs with the temperature, near zero on a freezing morning, near certainty in a heatwave. A straight line is the wrong tool for that S-shaped story. Logistic regression is the right one.
+This lesson changes the question. Priya, still running her iced-coffee cart, no longer wants a cup count. She wants to know one yes-or-no thing each morning: **will I sell out today?** On a freezing day, almost never. On a scorcher, almost certainly. The honest answer is not "yes" or "no" but a **probability**, a number between 0 and 1 that slides smoothly from one to the other as the day heats up. The curve below is exactly that answer, and building it correctly is what this lesson is about.
 
-By the end of this lesson you will be able to:
+By the end you will be able to:
 
-- Explain why a straight line cannot model a yes/no probability, and how the logit link fixes it
-- Fit a logistic regression with `glm()` and read its coefficients as odds ratios
-- Turn the model into predicted probabilities, then pick a threshold to make a decision, and know where it breaks
+- Explain why ordinary linear regression is the wrong tool for a yes/no outcome
+- Turn a probability into odds and log-odds, and back again through the S-shaped logistic curve
+- Fit a logistic regression in R with `glm()`, and read its coefficients as odds ratios
+- Turn the model into a probability, pick a decision threshold, and judge whether it was done properly
 
-**Prerequisites:** Lessons 1 to 6 (you can fit a line with `lm()` and read its coefficients, standard errors and p-values). You can run R. Every new term, odds, log-odds, logit, odds ratio, threshold, is defined as it appears.
+**Prerequisites:** Lessons 1 to 6 (you can fit a line with `lm()`, read its coefficient table, and you know a probability is a number between 0 and 1). Every new term is defined as it appears.
 
 ::widget logistic-curve {}
 
-The curve above is the whole lesson in one picture: a probability that bends smoothly from 0 to 1, with a cutoff you can slide. By the end you will know exactly where it comes from and how to read it.
+=== step === concept
+::eyebrow The new question
+## The outcome is now yes or no
+
+For six lessons the thing on the left of the `~` was a *count*: cups sold, a number that could be 48 or 63 or 71. Now it is a *label*: `soldout` is 1 on days Priya ran out and 0 on days she had cups left over. There is no in-between. You cannot sell out 0.6 of the way.
+
+A fresh R session starts empty, so we build four weeks and a bit of her trading right here. Each row is one day: its high temperature, whether it was a weekend, and whether she sold out.
+
+```r
+set.seed(7)
+n <- 60
+temp    <- round(runif(n, 16, 34), 1)          # each day's high, in Celsius
+weekend <- rbinom(n, 1, 2/7)                    # 1 on Saturdays and Sundays
+# nature's hidden rule: hotter days (and weekends) are likelier to sell out
+lp      <- -14 + 0.5 * temp + 1.2 * weekend     # the true log-odds, which we never see
+soldout <- rbinom(n, 1, 1 / (1 + exp(-lp)))     # 1 = sold out, 0 = cups left over
+coffee  <- data.frame(temp, weekend, soldout)
+table(coffee$soldout)
+#> 
+#>  0  1 
+#> 36 24
+```
+
+Twenty-four sell-out days, thirty-six with cups to spare. Our whole job is to turn a day's temperature into the *probability* of that `1`. The rule that generated the data is hidden inside `lp` (do not worry about it yet; that expression is precisely what the lesson will teach you to read). What matters now is the shape of the target: a column of 0s and 1s, nothing else.
 
 === step === concept
-::eyebrow The problem
-## Why a straight line can't model a yes/no
+::eyebrow The tempting mistake
+## Why you can't just fit a line
 
-Priya logs a stretch of single customers: the day's temperature and whether that person bought. The outcome is coded 1 for "bought" and 0 for "did not." Plotted against temperature, every point sits on one of two rails, the bottom (0) or the top (1), with cold days mostly on the floor and hot days mostly on the ceiling.
+The obvious move is the tool you already own: fit a straight line with `lm()`, treating `soldout` as if it were a number. Watch what it does at the cold end of the range.
 
-::widget chart-plotter {"data":[{"x":6,"y":0},{"x":8,"y":0},{"x":11,"y":0},{"x":13,"y":0},{"x":15,"y":1},{"x":17,"y":0},{"x":19,"y":1},{"x":21,"y":0},{"x":23,"y":1},{"x":25,"y":1},{"x":27,"y":1},{"x":29,"y":1},{"x":31,"y":1},{"x":33,"y":1}],"geoms":["point"],"x":"temp","y":"bought"}
+```r
+straight <- lm(soldout ~ temp, data = coffee)
+round(coef(straight), 3)
+#> (Intercept)        temp 
+#>      -1.178       0.062 
+round(predict(straight, data.frame(temp = c(16, 18, 33, 34))), 3)
+#>      1      2      3      4 
+#> -0.179 -0.054  0.883  0.946
+```
 
-Now imagine fitting an ordinary least-squares line through those rails, the kind from Lesson 1. It would slope up, which feels right, but it cannot stop at the rails. Extended to a frosty 2 degrees it predicts a *negative* probability of buying; pushed to a blazing 40 it predicts a probability above 1. Both are nonsense: a probability has to live between 0 and 1, and a line does not know that.
+Read the first prediction and stop. For a 16-degree day the line forecasts a probability of **-0.179**. A negative probability is not just unlikely, it is *meaningless*: a probability lives between 0 and 1 and cannot leave that box. But a straight line has no floor and no ceiling. Push the temperature low enough and it dives below 0; push it high enough and it climbs past 1. The scatter makes the mismatch obvious: the data sit in two flat rows at 0 and 1, and no single straight line can hug both while staying inside the box between them.
 
-[KEY INSIGHT]
-The target is a probability, which is trapped between 0 and 1. A straight line is unbounded, so it will always eventually predict impossible probabilities. We need a model whose output is squeezed into [0, 1] by construction.
+::widget chart-plotter {"data":[{"x":33.8,"y":1},{"x":23.2,"y":0},{"x":18.1,"y":0},{"x":17.3,"y":0},{"x":20.4,"y":0},{"x":30.3,"y":1},{"x":22.1,"y":0},{"x":33.5,"y":1},{"x":19,"y":0},{"x":24.3,"y":0},{"x":19.1,"y":0},{"x":20.2,"y":0},{"x":29.9,"y":1},{"x":17.7,"y":0},{"x":24.2,"y":1},{"x":17.5,"y":0},{"x":26.1,"y":1},{"x":16.2,"y":0},{"x":33.7,"y":1},{"x":21.7,"y":0},{"x":27.5,"y":1},{"x":21.3,"y":0},{"x":33.9,"y":1},{"x":32.3,"y":1},{"x":33.8,"y":1},{"x":17.2,"y":0},{"x":27.3,"y":0},{"x":24.8,"y":1},{"x":33.5,"y":1},{"x":22.5,"y":1},{"x":28.2,"y":1},{"x":20.7,"y":0},{"x":19.3,"y":0},{"x":19.3,"y":0},{"x":22.8,"y":0},{"x":31.2,"y":1},{"x":25,"y":0},{"x":30.2,"y":0},{"x":31.1,"y":0},{"x":24.2,"y":0},{"x":30.4,"y":1},{"x":22.9,"y":0},{"x":29.7,"y":1},{"x":23.9,"y":0},{"x":32.3,"y":1},{"x":21.8,"y":0},{"x":17.5,"y":0},{"x":30.7,"y":0},{"x":32.2,"y":1},{"x":33.4,"y":1},{"x":26.3,"y":0},{"x":29,"y":0},{"x":29.9,"y":1},{"x":27.3,"y":0},{"x":29,"y":1},{"x":23,"y":0},{"x":18.9,"y":0},{"x":19.4,"y":0},{"x":23,"y":0},{"x":20.9,"y":1}],"geoms":["point"],"x":"temp","y":"sold_out"}
+
+[WARNING]
+There are two separate problems with fitting `lm()` to a 0/1 outcome. The visible one is impossible predictions (below 0, above 1). The quieter one is that a yes/no outcome cannot possibly have the constant-variance, bell-shaped errors that `lm()` assumes, so its standard errors and p-values are untrustworthy even where the predictions happen to land inside the box. We need a model built for probabilities from the start.
+
+=== step === quiz
+::eyebrow Check yourself
+## What actually broke?
+
+Priya's `lm()` predicted -0.179 for a cold day. A friend shrugs: "A negative number just means very unlikely, round it up to 0 and the model is fine." Is the friend right?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- Yes: -0.179 just means "very unlikely", so clip it to 0 and move on ::no Clipping hides the symptom, not the disease. A probability can never be negative or above 1, yet a straight line marches past both bounds without limit, so it will keep producing impossible values for any cold-enough or hot-enough day. And a 0/1 outcome cannot have the equal-variance, bell-shaped errors `lm()` assumes, so its standard errors are wrong too. The tool is a poor fit, not the display.
+- No: a straight line has no floor or ceiling, so it predicts impossible probabilities, and a yes/no outcome also breaks the equal-variance error assumption `lm()` relies on ::ok Exactly. Both problems are baked into using a line for a bounded, binary outcome. That is why we switch to a model designed to output a probability between 0 and 1.
+- No: the temperature signal is simply too weak for any model to fit ::no The signal is strong, hot days really do sell out. The trouble is the shape of the model (an unbounded line for a bounded outcome), not the strength of the relationship.
 
 === step === concept
-::eyebrow The fix
-## Odds, log-odds, and the logit link
+::eyebrow The key trick
+## Odds, and the log-odds
 
-The trick is to not model the probability directly. We bend it through two steps first, so that a straight line can do its work on a scale that has no ceiling.
+Here is the idea that rescues everything. We cannot let a line loose on a probability, because a probability is trapped between 0 and 1 and a line is not. So instead of modeling the probability directly, we first *stretch* it onto a scale that runs the whole number line, model that with a line, and stretch back at the end. The stretching happens in two steps.
 
-**Step one: odds.** Gamblers never say "70% chance," they say "7 to 3." That is the **odds**: the chance it happens divided by the chance it does not,
+**Step one: odds.** The **odds** of selling out is the probability it happens divided by the probability it does not:
 
 \[ \text{odds} = \frac{p}{1-p} \]
 
-where \(p\) is the probability of the "yes" outcome (buying). At \(p = 0.5\) the odds are 1 (even money); as \(p\) climbs toward 1 the odds shoot off to infinity; as \(p\) falls toward 0 the odds sink toward 0. So odds live in \([0, \infty)\). We have removed the upper ceiling, but there is still a floor at 0.
+where \(p\) is the probability of selling out. This is the language of betting. If \(p = 0.75\), the odds are \(0.75 / 0.25 = 3\): three sell-out days for every one quiet day, "3 to 1 on". Odds fix the ceiling problem: as \(p\) climbs toward 1 the odds shoot off toward infinity. But odds still cannot go below 0.
 
-**Step two: take the logarithm.** The natural log of the odds is called the **log-odds**, or the **logit**:
+**Step two: the log-odds, or logit.** Take the natural logarithm of the odds:
 
-\[ \operatorname{logit}(p) = \ln\!\left(\frac{p}{1-p}\right) \]
+\[ \operatorname{logit}(p) = \log\frac{p}{1-p} \]
 
-where \(\ln\) is the natural logarithm. The log stretches \([0, \infty)\) across the *entire* number line \((-\infty, \infty)\): a tiny probability gives a large negative log-odds, \(p = 0.5\) gives 0, a near-certain probability gives a large positive one. Now there is no ceiling and no floor, so a straight line can finally fit without breaking any rules. That is exactly what logistic regression does:
+The log is the final stretch. A log turns a number between 0 and 1 into a *negative* number, and a number above 1 into a positive one, so the log-odds runs all the way from minus infinity to plus infinity. See the two transformations on five example probabilities:
 
-\[ \ln\!\left(\frac{p}{1-p}\right) = \beta_0 + \beta_1\,\text{temp} + \beta_2\,\text{member} \]
+```r
+p <- c(0.05, 0.25, 0.5, 0.75, 0.95)            # five example probabilities
+data.frame(p, odds = round(p / (1 - p), 2), log_odds = round(log(p / (1 - p)), 2))
+#>      p  odds log_odds
+#> 1 0.05  0.05    -2.94
+#> 2 0.25  0.33    -1.10
+#> 3 0.50  1.00     0.00
+#> 4 0.75  3.00     1.10
+#> 5 0.95 19.00     2.94
+```
 
-Here \(\beta_0\) is the intercept (the log-odds when every predictor is 0), and \(\beta_1, \beta_2\) are the slopes, the change in log-odds per unit of each predictor. To turn that linear part back into a probability, invert the two steps. Solving for \(p\) gives the **sigmoid** (the S-curve):
+Notice the symmetry. A fifty-fifty day (\(p = 0.5\)) has odds of exactly 1 and log-odds of exactly 0, the natural centre. Probabilities below a half give negative log-odds, above a half give positive, and the scale has no top and no bottom. That unbounded log-odds is the thing we are finally allowed to fit a straight line to.
 
-\[ p = \frac{1}{1 + e^{-(\beta_0 + \beta_1\,\text{temp} + \beta_2\,\text{member})}} \]
+=== step === quiz
+::eyebrow Check yourself
+## Odds are not probability
 
-where \(e\) is Euler's number (about 2.718). No matter how large or how negative the linear part gets, this curve is mathematically pinned between 0 and 1. That is the "logistic" in logistic regression. Drag the slider below to feel the S-curve in action.
+On a warm afternoon the model reports the odds of selling out as 3. Priya's new hire writes "probability = 3" on the whiteboard. What is the actual probability of selling out?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- 3, or 300 percent: the odds are the probability ::no A probability can never exceed 1, so 3 cannot be one. Odds and probability are different scales: odds are the ratio \(p/(1-p)\), running from 0 to infinity, while probability runs from 0 to 1.
+- 0.75: odds of 3 mean three sell-out days for every one quiet day, so p = 3 / (3 + 1) ::ok Right. To convert odds back to a probability, use \(p = \text{odds}/(1+\text{odds}) = 3/4 = 0.75\). Three-to-one on is a 75 percent chance.
+- 0.3: just shift the decimal point on the odds ::no There is no shift-the-decimal rule. Convert odds to probability with \(p = \text{odds}/(1+\text{odds})\), which gives \(3/4 = 0.75\), not 0.3.
+
+=== step === concept
+::eyebrow The S-curve
+## The logistic function turns a line back into a probability
+
+Now we can state logistic regression in one line. We fit a straight line to the **log-odds** of selling out:
+
+\[ \log\frac{p}{1-p} = \eta, \qquad \eta = \beta_0 + \beta_1 x \]
+
+Here \(\eta\) (the Greek letter eta) is the log-odds, \(x\) is the day's temperature, \(\beta_0\) is the intercept and \(\beta_1\) is the slope, exactly the two numbers `lm()` gives you, except now they live on the log-odds scale instead of the cups scale.
+
+That equation predicts a log-odds, but Priya wants a probability. So we run \(\eta\) back through the inverse of the logit, the **logistic function** (also called the sigmoid):
+
+\[ p = \frac{1}{1 + e^{-\eta}} \]
+
+This is the S-curve on the cover, and it is doing one job: taking any number the line produces, from a very negative \(\eta\) to a very positive one, and gently squashing it into the interval between 0 and 1. A huge negative \(\eta\) gives \(p\) near 0; \(\eta = 0\) gives exactly \(p = 0.5\); a huge positive \(\eta\) gives \(p\) near 1. The bound can never be broken, because the sigmoid physically cannot output a number outside 0 to 1. Drag the threshold on the curve below and watch how a smooth probability, not a straight line, tracks the data.
 
 ::widget logistic-curve {}
 
-=== step === concept
-::eyebrow In R
-## Fit it with glm() and read the table
-
-A fresh R session starts empty, so we build Priya's log of single visits first: 200 customers, each with the day's `temp`, whether they are a loyalty `member` (1) or not (0), and whether they `bought` (1) or not (0). Run this once.
-
-```r
-set.seed(1)
-n <- 200
-visits <- data.frame(
-  temp   = round(runif(n, 5, 35), 1),     # the day's high temperature (deg C)
-  member = rbinom(n, 1, 0.4)              # 1 = loyalty member, 0 = not
-)
-# the true buying probability rises with temp and for members; we draw a yes/no from it
-visits$bought <- rbinom(n, 1, plogis(-6 + 0.25 * visits$temp + 0.9 * visits$member))
-table(bought = visits$bought)
-#> bought
-#>   0   1
-#> 105  95
-```
-
-Fitting is one call. It is `glm()` (generalized linear model), the sibling of `lm()`, with one extra argument: `family = binomial` tells R the outcome is a yes/no count, so it should fit on the logit scale instead of the straight-line scale.
-
-```r
-fit <- glm(bought ~ temp + member, data = visits, family = binomial)
-round(coef(summary(fit)), 4)
-#>             Estimate Std. Error z value Pr(>|z|)
-#> (Intercept)  -5.4457     0.7600 -7.1652    0e+00
-#> temp          0.2280     0.0315  7.2314    0e+00
-#> member        1.6429     0.4215  3.8981    1e-04
-```
-
-The table reads almost exactly like `lm()`'s, with one crucial difference: **the estimates are on the log-odds scale, not the cup scale.** The `temp` coefficient of 0.228 means each extra degree adds 0.228 to the log-odds of buying. That is real, the `z value` (the logistic cousin of the t-value) is 7.2 with a vanishingly small p-value, so temperature genuinely drives buying. But "adds 0.228 to the log-odds" is not something you can say out loud to Priya. The next step fixes that.
-
-=== step === concept
-::eyebrow Done properly
-## Read the coefficients as odds ratios
-
-Log-odds are the scale the math likes; odds ratios are the scale humans understand. Exponentiate a coefficient and it stops *adding* on the log scale and starts *multiplying* on the odds scale:
-
-\[ e^{\beta_1} = \frac{\text{odds at } x+1}{\text{odds at } x} \]
-
-So \(e^{\beta_1}\) is the **odds ratio**: the factor by which the odds of buying are multiplied for a one-unit rise in that predictor, holding the others fixed. Exponentiate the whole table, with its confidence interval, in one line.
-
-```r
-round(exp(cbind(OR = coef(fit), confint.default(fit))), 3)
-#>                OR  2.5 % 97.5 %
-#> (Intercept) 0.004  0.001  0.019
-#> temp        1.256  1.181  1.336
-#> member      5.170  2.263 11.810
-```
-
-Now it speaks plainly. Each extra degree multiplies the odds of buying by **1.256**, about a 26% rise in the odds per degree, and we are 95% confident that multiplier is between 1.18 and 1.34. A loyalty `member` has about **5.2 times** the odds of buying that a non-member has at the same temperature. Because the interval for each runs entirely above 1, both effects are clearly positive.
-
-[WARNING]
-An odds ratio multiplies the *odds*, not the *probability*. Doubling the odds does not double the probability: going from odds 1 to 2 lifts probability from 0.50 to 0.67, but going from odds 0.01 to 0.02 barely moves probability at all. Always translate back to a probability (next step) before you make a real decision.
-
-=== step === quiz
-::eyebrow Check yourself
-## What does the member coefficient mean?
-
-The fitted model reports a `member` coefficient of **1.643** on the log-odds scale (its exponential is about 5.2). A customer asks Priya what that means. Which statement is correct?
-
-::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- Members are 1.643 times as likely to buy as non-members ::no That treats the raw log-odds coefficient as a ratio. The coefficient 1.643 is on the *log-odds* scale; you must exponentiate it before it becomes a ratio. The ratio is exp(1.643), about 5.2, and even that is a ratio of *odds*, not of probabilities.
-- The probability of buying goes up by 1.643 for a member ::no A probability can never rise by 1.643, it cannot even exceed 1. Logistic coefficients are not added to a probability; they are added to the log-odds, then turned back into a probability through the S-curve.
-- A member has about 5.2 times the odds of buying that a non-member has, at the same temperature ::ok Exactly. The odds ratio is exp(1.643) = 5.17. It multiplies the odds, holds temperature fixed, and is a statement about odds, which you would still convert to a probability for any single customer.
-
 === step === tryit
-::eyebrow Your turn
-## Predict probabilities for new customers
+::eyebrow In R
+## Fit it with glm()
 
-Priya wants the actual probability of a sale for four situations, not the log-odds. `predict()` defaults to the log-odds scale; you have to ask for `type = "response"` to get a probability back. Fill in the blank, then check it.
+You do not fit this by least squares. R has a dedicated function, `glm()` (generalized linear model), which fits by **maximum likelihood**: it searches for the coefficients that make the exact pattern of 0s and 1s Priya actually observed as probable as possible. One argument switches `glm()` from ordinary regression into logistic regression: `family = binomial`. "Binomial" is the distribution of a yes/no outcome, so it tells `glm()` to expect 0s and 1s and to fit on the log-odds scale. Fill in the blank.
 
 ```r
-new <- data.frame(temp = c(12, 25, 25, 32),
-                  member = c(0, 0, 1, 1))
-new$p_buy <- round(predict(fit, newdata = new, type = ____), 3)   # we want a probability
-new
+fit <- glm(soldout ~ temp, data = coffee, family = ____)
+round(coef(fit), 3)
 ```
-::check {"regex":"[\"']response[\"']","gate":true,"difficulty":"intermediate","ok":"Right. type = response returns probabilities: 0.062 on a cold non-member day, 0.563 for a non-member at 25 degrees, 0.870 for a member at 25, and 0.971 for a member on a hot day. Same model, finally on a scale Priya can act on.","no":"Ask for the probability scale: type = \"response\" (in quotes). The default, type = \"link\", returns the log-odds, which Priya cannot use directly."}
+::check {"regex":"binomial","gate":true,"difficulty":"intermediate","ok":"That is it. family = binomial is the single switch that makes glm() fit a logistic regression: a straight line on the log-odds scale, squashed through the sigmoid into a probability.","no":"Set family = binomial. That one argument is what turns glm() from ordinary least squares into logistic regression for a 0/1 outcome."}
 ::solution
 ```r
-new <- data.frame(temp = c(12, 25, 25, 32),
-                  member = c(0, 0, 1, 1))
-new$p_buy <- round(predict(fit, newdata = new, type = "response"), 3)
-new
-#>   temp member p_buy
-#> 1   12      0 0.062
-#> 2   25      0 0.563
-#> 3   25      1 0.870
-#> 4   32      1 0.971
+fit <- glm(soldout ~ temp, data = coffee, family = binomial)
+round(coef(fit), 3)
+#> (Intercept)        temp 
+#>     -10.642       0.392
+```
+
+=== step === concept
+::eyebrow Reading the output
+## What the coefficient table says
+
+`summary()` gives the same shape of table you have read since Lesson 1, an estimate, a standard error, and a test for each coefficient. The only change is the scale.
+
+```r
+round(summary(fit)$coef, 3)
+#>             Estimate Std. Error z value Pr(>|z|)
+#> (Intercept)  -10.642      2.471  -4.306        0
+#> temp           0.392      0.091   4.282        0
+```
+
+The `temp` estimate is **0.392**. Read it exactly as you would a linear slope, but on the log-odds scale: **each extra degree adds 0.392 to the log-odds** of selling out. The sign is what you check first, and it is positive, so hotter days really do raise the chance of selling out, just as the scatter promised.
+
+The test column is labelled `z value` and `Pr(>|z|)` rather than `t value` and `Pr(>|t|)`, because logistic regression uses a normal (z) approximation instead of the t distribution, but you read it the same way: a z of 4.28 with a p-value of essentially 0 says this slope is very unlikely to be a fluke of these 60 days. The temperature effect is real. What the 0.392 is *worth* in plain language is the next step.
+
+=== step === concept
+::eyebrow Making it readable
+## Odds ratios: exponentiate the coefficient
+
+A change of "0.392 in log-odds per degree" means nothing to Priya. To make it speak, undo the logarithm: raise \(e\) to the coefficient. Because the log-odds is a *log* of the odds, exponentiating a slope turns an *addition* on the log-odds scale into a *multiplication* on the odds scale. That multiplier, \(e^{\beta_1}\), is called the **odds ratio**.
+
+```r
+round(exp(coef(fit)), 3)
+#> (Intercept)        temp 
+#>       0.000       1.479
+```
+
+The odds ratio for `temp` is **1.479**. Read it as: *each extra degree multiplies the odds of selling out by about 1.48*, a 48 percent increase in the odds per degree. Ten degrees warmer is not ten times 48 percent; it is 1.48 multiplied by itself ten times (\(1.48^{10} \approx 50\)), because the effect compounds on the odds scale. That single number, "warmer by a degree, roughly one-and-a-half times the odds", is how a logistic model is reported in practice.
+
+[NOTE]
+Ignore the intercept's odds ratio of 0.000 here. The intercept is the log-odds at `temp = 0`, a zero-degree day far below any temperature in Priya's data, so exponentiating it just gives the (astronomically small) odds of selling out in the freezing cold. It is a mathematical anchor for the line, not a number to interpret on its own.
+
+=== step === tryit
+::eyebrow In R
+## Turn the model into a probability
+
+The coefficients live on the log-odds scale, so to get a probability you push the log-odds back through the sigmoid. `plogis()` is R's name for that logistic function \(1/(1+e^{-\eta})\). Here is the whole round trip by hand for a 30-degree day:
+
+```r
+b <- unname(coef(fit))                 # b[1] = intercept, b[2] = the temp slope
+round(b[1] + b[2] * 30, 3)             # the log-odds for a 30-degree day
+#> [1] 1.107
+round(plogis(b[1] + b[2] * 30), 3)     # the same thing as a probability
+#> [1] 0.752
+```
+
+A 30-degree day has a log-odds of 1.107, which the sigmoid turns into a **0.752** chance of selling out. You will not do this by hand in practice; `predict()` does it for a whole table of new days at once, *if* you ask for the probability rather than the default log-odds. Fill in the `type` so it returns probabilities.
+
+```r
+newday <- data.frame(temp = c(20, 28, 34))
+round(predict(fit, newday, type = ____), 3)
+```
+::check {"regex":"[\"']response[\"']","gate":true,"difficulty":"intermediate","ok":"Right. type = response runs the log-odds through the sigmoid and returns probabilities: 0.057 on a 20-degree day, 0.580 at 28, 0.935 at 34. The default (type = link) would hand back the raw log-odds instead.","no":"Use type = \"response\". Without it, predict() returns the log-odds (the linear predictor); \"response\" applies the sigmoid so you get a probability between 0 and 1."}
+::solution
+```r
+newday <- data.frame(temp = c(20, 28, 34))
+round(predict(fit, newday, type = "response"), 3)
+#>     1     2     3 
+#> 0.057 0.580 0.935
 ```
 
 === step === widget
-::eyebrow From probability to decision
-## Pick a threshold, then read the confusion matrix
+::eyebrow Probability to decision
+## Choosing a threshold
 
-A probability is an answer to "how likely," but a decision needs a yes or a no. To get there you choose a **threshold**: predict "will buy" when the probability is at or above it, "will not" below. The obvious choice is 0.5, but it is just a dial, and where you set it changes who you get right and who you get wrong.
-
-Slide the threshold below. Watch the **operating point** (where your current cutoff lands) travel along the **ROC curve**, the path traced by every possible cutoff, plotting the share of real buyers you catch against the share of non-buyers you wrongly flag, while the **confusion matrix** (the four-way tally of predicted-versus-actual) re-counts. Lower the cutoff and you catch more true buyers (fewer false negatives) at the cost of more false alarms (more false positives); raise it and the trade reverses.
-
-::widget roc-curve {}
-
-Here is that same tally for Priya's real fitted model at the default 0.5 cutoff, with its overall accuracy.
+The model outputs a probability, but Priya's actual decision is binary: brew an extra batch, or don't. To get from a probability to a yes/no call you pick a **threshold** and predict "sold out" whenever the probability clears it. The default is 0.5, but 0.5 is a choice, not a law. Every threshold produces a **confusion matrix**, a 2 by 2 count of how the predictions line up against what really happened.
 
 ```r
-p_hat <- predict(fit, type = "response")     # P(buy) for every visit in the data
-pred  <- ifelse(p_hat >= 0.5, 1, 0)          # classify at the 0.5 cutoff
-table(predicted = pred, actual = visits$bought)
-#>          actual
-#> predicted  0  1
-#>         0 84 19
-#>         1 21 76
-mean(pred == visits$bought)                  # accuracy at this threshold
-#> [1] 0.8
+prob <- predict(fit, type = "response")    # a fitted probability for each of the 60 days
+table(prediction = ifelse(prob >= 0.5, "sold out", "cups left"),
+      actual     = coffee$soldout)
+#>            actual
+#> prediction   0  1
+#>   cups left 30  5
+#>   sold out   6 19
 ```
 
-The model is right 80% of the time, but the 19 false negatives (real buyers it missed) and 21 false positives (no-shows it flagged) are not equally costly to Priya, and the threshold is the knob that balances them.
+At 0.5 the model misses **5** real sell-out days (it said "cups left" when she actually sold out, the **false negatives**) and cries wolf on **6** quiet days (**false positives**). Lower the bar to 0.3 and it flags more days as "sold out":
+
+```r
+table(prediction = ifelse(prob >= 0.3, "sold out", "cups left"),
+      actual     = coffee$soldout)
+#>            actual
+#> prediction   0  1
+#>   cups left 29  4
+#>   sold out   7 20
+```
+
+The false negatives drop from 5 to 4, but the false positives rise from 6 to 7. That is the whole trade: a lower threshold catches more real sell-outs at the price of more false alarms. Which way Priya leans depends on her costs, not on statistics: a wasted batch is cheap, a sold-out disappointed queue is not, so she might well set the bar below 0.5. Drag the threshold below and watch the false positives and false negatives trade off against each other.
+
+::widget logistic-curve {}
+
+[NOTE]
+The full picture of "the model at every threshold at once" is the ROC curve, and the single number that summarizes it is the AUC. Those belong to reading a *classifier*, which you study in the Classification track; here the point is narrower and important: the fitted probability is fixed by the model, but the yes/no decision is a separate dial you set by hand.
 
 === step === quiz
 ::eyebrow Check yourself
-## Choosing the cutoff
+## Which way does the threshold move?
 
-Priya would rather slightly over-prepare than miss a real customer, so missing a true buyer (a false negative) costs her more than a false alarm. Starting from the default 0.5 cutoff, what should she do, and what is the side effect?
+Priya lowers her decision threshold from 0.5 to 0.3 so she is quicker to brew a backup batch. What happens to the **false negatives**, the sell-out days her model fails to flag?
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
-- Lower the threshold below 0.5: she will catch more true buyers, but flag more non-buyers as well ::ok Exactly. A lower cutoff classifies more customers as "will buy," which raises the true-positive rate (fewer missed buyers) and unavoidably raises the false-positive rate too. That is the threshold trade, and it is the right call when a miss costs more than a false alarm.
-- Raise the threshold above 0.5: a stricter cutoff is always the safer, more accurate choice ::no A higher cutoff predicts "will buy" less often, so it *increases* false negatives, exactly the error she most wants to avoid. Stricter is not universally safer; it depends on which mistake is costlier.
-- Leave it at 0.5, because 0.5 is the statistically correct threshold for any logistic model ::no 0.5 is a default, not a law. The right threshold depends on the relative cost of the two errors. Logistic regression gives you a probability; the cutoff is a business decision layered on top.
+- Fewer false negatives: a lower bar flags more days as "sold out", so the model misses fewer real sell-out days, at the cost of more false alarms ::ok Exactly. Lowering the threshold makes the model quicker to shout "sold out", so more genuine sell-out days get caught (fewer false negatives) while more quiet days get flagged by mistake (more false positives).
+- More false negatives: a lower threshold is stricter, so it flags fewer days ::no A lower threshold is more lenient, not stricter: it takes less probability to trigger a "sold out" call, so more days get flagged and fewer real sell-outs slip through. False negatives go down, not up.
+- Nothing changes: the threshold only affects the fitted probabilities, not the predictions ::no The fitted probabilities are fixed by the model. The threshold is precisely the dial that turns those probabilities into yes/no predictions, so moving it changes every count in the confusion matrix.
 
 === step === concept
 ::eyebrow Done properly
-## Where logistic regression breaks
+## Is the coefficient even real?
 
-Logistic regression is sturdy, but "done properly" means knowing its limits as well as its formulas.
+"Done properly" is the difference between fitting a model and trusting one. The commonest mistake is to read a big odds ratio as a big discovery. Add `weekend` to the model and see the trap.
 
-- **It is linear on the logit, not on the probability.** A constant odds ratio per degree does not mean a constant change in probability per degree. Near the steep middle of the S-curve a degree moves the probability a lot; out at the flat tails it barely registers. Read effects as odds ratios, but make decisions from predicted probabilities.
-- **Perfect separation blows it up.** If some predictor splits the classes flawlessly (say every customer above 30 degrees bought and every one below did not), the best-fit coefficients run to infinity and their standard errors explode. R will often warn that fitted probabilities of 0 or 1 occurred; that is the symptom, and penalized methods (such as Firth's correction, via the `logistf` package) are the fix.
-- **A probability is calibrated uncertainty, not certainty.** A predicted 0.62 does not promise this customer buys; it says that across many identical-looking customers, about 62% do. Treat it as a bet with a known edge, never as a verdict.
-- **Significance is not size, and neither is causation.** As in Lesson 6, a tiny p-value on a coefficient means the effect is *real*, not that it is *large* (read size from the odds ratio) and not that it is *causal* (that comes from how the data was gathered).
+```r
+fit2 <- glm(soldout ~ temp + weekend, data = coffee, family = binomial)
+round(summary(fit2)$coef, 3)
+#>             Estimate Std. Error z value Pr(>|z|)
+#> (Intercept)  -10.983      2.562  -4.287    0.000
+#> temp           0.399      0.093   4.291    0.000
+#> weekend        0.591      0.879   0.672    0.501
+round(exp(coef(fit2)), 3)
+#> (Intercept)        temp     weekend 
+#>       0.000       1.490       1.806
+```
 
-[KEY INSIGHT]
-Done properly, logistic regression is four habits: model the log-odds, *report* coefficients as odds ratios, *decide* from predicted probabilities, and choose the threshold from the cost of each error, not from the number 0.5.
+The `weekend` odds ratio is **1.806**: on this reading a weekend nearly *doubles* the odds of selling out. It is tempting to announce that weekends drive sales. But look one column over: its p-value is **0.501**. With only a handful of weekend days in 60, the estimate is so uncertain that the data cannot tell this "doubling" apart from no effect at all. The size of an odds ratio is a claim; the p-value is the evidence for it, and here the evidence is absent. A coefficient is only real when both agree.
+
+Three more checks separate a proper logistic model from a careless one:
+
+- **The line is linear on the log-odds, not on the probability.** The straight-line assumption still applies, just one scale up. If temperature's effect bends (say it barely matters until a heat threshold, then jumps), a single `temp` slope will miss it, exactly as a straight line misses a curve in ordinary regression.
+- **Watch for perfect separation.** If some temperature split the days perfectly (every hot day sold out, every cool day did not), the maximum-likelihood fit tries to push a coefficient to infinity and the estimates and standard errors blow up. R warns about "fitted probabilities numerically 0 or 1"; treat it as a red flag, not a triumph.
+- **A probability is calibrated uncertainty, not a verdict.** A predicted 0.75 means she should sell out on about three of every four such days, not that she *will* sell out. Model deviance (`fit$deviance`, the logistic stand-in for residual sum of squares) and AIC (a model-fit score that rewards a good fit but penalizes each extra predictor) let you compare models on how well those probabilities fit, without ever pretending a probability is a certainty.
+
+=== step === quiz
+::eyebrow Check yourself
+## A big ratio, weak evidence
+
+The two-predictor model gives `weekend` an odds ratio of 1.81 (weekends nearly double the odds of selling out) but a p-value of 0.50. Should Priya conclude that weekends drive her sell-outs?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- Yes: an odds ratio of 1.81 is a large effect, so weekends clearly matter ::no Effect size and evidence are two different things. The 1.81 is this sample's best guess, but its p-value of 0.50 and wide standard error say the true effect could easily be nothing. With so few weekend days, the estimate is mostly noise; a large ratio built on weak evidence is not a finding.
+- No: a p-value of 0.50 means the data cannot tell this odds ratio apart from 1 (no effect), so the apparent weekend boost may well be noise ::ok Exactly. "Done properly" means reading the ratio and its evidence together. A large odds ratio with a p-value of 0.50 is a shrug, not a discovery; she would need far more weekend data before trusting it.
+- No, because any odds ratio above 1 always means the predictor has no effect ::no An odds ratio above 1 points to a positive effect, not "no effect". The reason to hold off is the weak evidence (p = 0.50), not the direction of the ratio.
 
 === step === concept
 ::eyebrow Go deeper
@@ -229,14 +325,14 @@ Done properly, logistic regression is four habits: model the log-odds, *report* 
 
 A few authoritative places to take logistic regression further:
 
-- [An Introduction to Statistical Learning, ch. 4 (free PDF)](https://www.statlearning.com/) - the gentlest rigorous treatment of logistic regression, the logit, and reading the coefficients.
-- [The Elements of Statistical Learning, ch. 4 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - the full maximum-likelihood math behind how `glm` actually fits the model.
-- [R documentation: glm()](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html) - the function you used, with the meaning of the `family = binomial` argument.
-- [UCLA OARC: Logit regression in R](https://stats.oarc.ucla.edu/r/dae/logit-regression/) - a careful worked example of fitting, then interpreting odds ratios and predicted probabilities.
+- [An Introduction to Statistical Learning, ch. 4 (free PDF)](https://www.statlearning.com/) - section 4.3 builds logistic regression from the odds and the logit exactly as we did here, with the same `glm()` output.
+- [The Elements of Statistical Learning, ch. 4 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - the rigorous treatment: maximum likelihood, the logit link, and how logistic regression sits inside the wider GLM family you meet next.
+- [Logistic Regression in R (UCLA OARC)](https://stats.oarc.ucla.edu/r/dae/logit-regression/) - a worked, copy-and-run R walkthrough of fitting `glm()`, reading coefficients, and turning them into odds ratios and predicted probabilities.
+- [R documentation: glm()](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html) - the reference for the exact function you used, including every `family` and link option, the doorway to Lesson 8.
 
 === step === complete
 ## Lesson 7 complete
 
-You can now model a yes/no outcome the right way. A probability is trapped in [0, 1], so logistic regression models its **log-odds** as a straight line and bends the result back through the **S-curve**, keeping every prediction between 0 and 1. You fit it with `glm(..., family = binomial)`, *report* its coefficients as **odds ratios** (`exp(beta)`, a multiplier on the odds), *predict* with `type = "response"` to get probabilities Priya can act on, and turn those probabilities into decisions by choosing a **threshold** from the cost of each error rather than defaulting to 0.5. And you know where it breaks: separation, the logit-not-probability scale, and probability as calibrated uncertainty.
+You can now model a yes-or-no outcome the right way. The chain is worth holding in one piece: a straight line cannot stay inside 0 and 1, so logistic regression models the **log-odds** with a line, \(\log\frac{p}{1-p} = \beta_0 + \beta_1 x\); the **logistic (sigmoid)** function squashes that line back into a probability; `glm(family = binomial)` fits it; **exponentiating** a coefficient turns it into an **odds ratio** you can say out loud; `predict(type = "response")` returns probabilities; a **threshold** turns those probabilities into decisions; and "properly" means weighing an effect's size against its evidence, not reading a big odds ratio as proof.
 
-Next, Lesson 8: GLMs Beyond Logistic. Logistic regression is one member of a whole family. When the outcome is a *count* (how many complaints this week) or a *rate*, a different link and family fit better. You will meet Poisson and the wider generalized linear model, and learn to match the model to the response.
+Next, Lesson 8: GLMs Beyond Logistic. Logistic regression is one member of a whole family. Swap the yes/no outcome for a *count* (how many cups) or a *skewed positive amount* (how much revenue) and the same recipe, a link function plus a matching distribution, gives you Poisson and Gamma regression. Once you see logistic as a special case, the rest of the family falls into place.

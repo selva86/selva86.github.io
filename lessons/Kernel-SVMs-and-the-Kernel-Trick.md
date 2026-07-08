@@ -1,13 +1,11 @@
 ---
 title: "Advanced Supervised Learning Lesson 2: Kernel SVMs and the Kernel Trick"
-catalog_blurb: "How kernels bend the boundary to separate classes a straight line cannot."
 description: "See how polynomial and RBF kernels bend an SVM boundary to separate classes no straight line can, and how the cost C and gamma trade a tight fit against a smooth one."
 keywords: "kernel trick, kernel SVM, RBF kernel, radial basis function, polynomial kernel, gamma, cost C, support vector machine, e1071, svm in R, nonlinear classification"
-post_type: "LESSON"
-curriculum_id: "6.140.2"
-webr: true
 mathjax: true
-lesson_access: "pro"
+webr: true
+curriculum_id: "6.140.2"
+post_type: "LESSON"
 course_id: "ds-advanced-supervised"
 course_title: "Advanced Supervised Learning"
 course_lesson: "2"
@@ -15,6 +13,8 @@ course_total: "8"
 course_landing: "R-Advanced-Supervised-Learning-Course.html"
 course_next: "Regularized-Discriminant-Analysis.html"
 course_prev: "Support-Vector-Machines-Maximum-Margin.html"
+lesson_access: "pro"
+catalog_blurb: "How kernels bend the boundary to separate classes a straight line cannot."
 ---
 
 === step === cover
@@ -31,7 +31,7 @@ By the end of this lesson you will be able to:
 - Describe the kernel trick: lifting data into a higher-dimensional space where a flat boundary works, using only dot products
 - Tell the polynomial and RBF kernels apart, and tune the two dials `C` and `gamma` that trade a tight fit against a smooth one
 
-**Prerequisites:** Lesson 1 (the maximum margin, support vectors, and the cost `C`), and you can read a scatter plot.
+**Prerequisites:** [Lesson 1](Support-Vector-Machines-Maximum-Margin.html) (the maximum margin, support vectors, and the cost `C`), and you can read a scatter plot.
 
 ::widget kernel-svm {}
 
@@ -41,7 +41,7 @@ By the end of this lesson you will be able to:
 
 Picture an espresso bar. Every shot is set by two dials: the **grind** (how fine, on a 1 to 30 setting) and the **shot time** (seconds the pump runs). A shot tastes **good** only in a narrow sweet spot near grind 15 and time 28. Drift too far in any direction, too coarse or too fine, too fast or too slow, and it tastes **bad**. So the good shots cluster in the middle, and the bad shots ring the outside.
 
-Each lesson runs in a fresh R session, so we build that log right here.
+Each lesson runs in a fresh R session, so we generate those 60 shots right here.
 
 ```r
 library(e1071)
@@ -154,9 +154,9 @@ Swapping the kernel swaps the shape of the boundary the SVM can draw, at almost 
 
 Here is the machine again, on a class wrapped inside a ring just like our espresso shots. Start on **Linear** and count how many points it gets wrong: a straight line cannot help. Switch to **Polynomial**, then **RBF**, and the boundary bends into a closed curve that wraps the inner class cleanly. The circled points are the **support vectors**, the handful of borderline shots the boundary actually leans on.
 
-::widget kernel-svm {}
-
 Notice that the linear kernel is not broken, it is simply the wrong shape for this data. The kernel is a choice about what kinds of boundary you will allow, and here a curve is the honest one.
+
+::widget kernel-svm {}
 
 === step === quiz
 ::eyebrow Check yourself
@@ -166,7 +166,7 @@ On our espresso shots a linear SVM misclassifies 40% no matter how high we push 
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - No single straight line can put a surrounded blob on one side and its ring on the other; the RBF kernel effectively bends the boundary into a closed curve ::ok Right. The geometry is the problem, not the tuning. A kernel changes the shape of boundary the SVM can draw, so RBF can wrap the inner class in a curve that no line can imitate.
-- The linear SVM just needs a much larger cost `C` to force a perfect fit ::no `C` only trades margin width against violations for a boundary of a fixed shape. A straight line stays straight at every `C`, so it can never enclose the inner blob.
+- The linear SVM just needs a much larger cost `C` to force a perfect fit ::no A larger `C` only makes a straight boundary stricter about violations; it can never make it curve. The line stays a line, so a surrounded class stays impossible.
 - RBF wins because a curved kernel always uses more support vectors, and more support vectors mean higher accuracy ::no Support-vector count is not what drives accuracy; a badly overfit RBF also has many support vectors yet generalizes worse. RBF wins because it can represent a curved boundary at all.
 
 === step === concept
@@ -175,8 +175,8 @@ On our espresso shots a linear SVM misclassifies 40% no matter how high we push 
 
 The RBF kernel has two dials, and together they set how tightly the boundary hugs the data. You already met the first in Lesson 1.
 
-- **Cost `C`** is the margin softness. A large `C` punishes every misclassified point hard, so the boundary bends to fit the training data tightly (low bias, high variance). A small `C` tolerates some mistakes for a wider, calmer margin (higher bias, lower variance).
-- **`gamma`** is the **reach** of each point. In \(K(x, x') = \exp(-\gamma \lVert x - x' \rVert^2)\), a small `gamma` means each shot's influence spreads far, giving a broad, smooth boundary. A large `gamma` shrinks each shot's influence to a tiny bubble around itself, so the boundary breaks into little islands that memorize individual points.
+- The **cost** \(C\) is the margin softness. A large \(C\) punishes every misclassified shot hard, so the boundary bends to fit the training data tightly (low bias, high variance). A small \(C\) tolerates a few mistakes for a wider, calmer margin (higher bias, lower variance).
+- **Gamma** (\(\gamma\)) is the *reach* of each point. In \(K(x, x') = \exp(-\gamma \lVert x - x' \rVert^2)\), a small \(\gamma\) lets each shot's influence spread far, giving a broad, smooth boundary. A large \(\gamma\) shrinks each shot's influence to a tiny bubble around itself, so the boundary breaks into little islands that memorize individual points.
 
 Let us feel `gamma` directly. We split the shots into a training and a test set, then fit the RBF SVM at three reaches and read the training error, the test error, and how many support vectors it leaned on.
 
@@ -204,7 +204,7 @@ round(rbind(low      = fit_gamma(0.001),
 Read the three rows as a story. **Low gamma** is so smooth it is almost a straight line again: it underfits, and both errors stay high. **High gamma** drives training error to zero but test error climbs, and every one of the 40 training shots has become a support vector, the signature of a model that has memorized its data. **Moderate gamma** sits in the sweet spot, low on both.
 
 [WARNING]
-`gamma` and the RBF kernel measure distance, so they are wrecked by features on different scales. Grind runs 1 to 30 while a different feature might run in the thousands, and the big one would dominate the distance. Always scale your features first; `svm()` does this by default (`scale = TRUE`), so leave that on.
+`gamma` and the RBF kernel measure distance, so they are thrown off by features on different scales. Grind runs 1 to 30 while a different feature might run in the thousands, and the big one would dominate the distance. Always scale your features first; `svm()` does this by default (`scale = TRUE`), so leave that on.
 
 === step === tryit
 ::eyebrow Your turn
@@ -241,8 +241,8 @@ You fit an RBF SVM with a very large `gamma`. Training error drops to 0, but tes
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - Large gamma shrank each shot's reach to a tiny bubble, so the model memorized individual points instead of learning the region: classic overfitting ::ok Right. Zero training error with rising test error and almost every point a support vector is the textbook high-variance signature. The fix is a smaller gamma, found by cross-validation.
-- Large gamma widened each shot's influence, giving a boundary so smooth it underfits ::no That describes a *small* gamma. Large gamma means a tiny reach and a wiggly boundary; the giveaway is the zero training error, which an underfit model never reaches.
-- The model has high bias and needs an even larger gamma to bring the test error down ::no Zero train error with high test error is high *variance*, not bias. Pushing gamma higher makes it worse; lowering it (via a grid search) is the cure.
+- Large gamma widened each shot's influence, giving a boundary so smooth it underfits ::no That is backwards. Large gamma shrinks each point's reach, not widens it; the smooth, underfitting boundary is what a small gamma gives.
+- The model has high bias and needs an even larger gamma to bring the test error down ::no Zero train error with high test error is high variance, not bias. Pushing gamma higher makes it worse; lowering it (via a grid search) is the cure.
 
 === step === concept
 ::eyebrow Know your tool

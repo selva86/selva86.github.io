@@ -1,7 +1,7 @@
 ---
 title: "Gradient Boosting Lesson 1: Gradient Boosting from Scratch"
-description: "Build gradient boosting from scratch in R: how each shallow tree fits the previous model's errors (the residuals), what the learning rate does, and how boosting differs from bagging."
-keywords: "gradient boosting, boosting from scratch, residuals, learning rate, shrinkage, gradient boosting in R, additive model, bagging vs boosting, decision stump, ensemble"
+description: "Build a gradient booster by hand in R: start at the average, fit each shallow tree to what is still wrong, add a shrunken slice, and watch the error fall."
+keywords: "gradient boosting, boosting from scratch, residuals, learning rate, shrinkage, boosting vs bagging, gradient descent, rpart, machine learning, R"
 mathjax: true
 webr: true
 curriculum_id: "6.40.1"
@@ -14,7 +14,7 @@ course_landing: "R-Gradient-Boosting-Course.html"
 course_next: "LightGBM-and-CatBoost-in-R.html"
 course_prev: ""
 lesson_access: "free"
-catalog_blurb: "How boosting corrects its own errors, one small tree at a time."
+catalog_blurb: "How boosting fixes its own mistakes one correction at a time."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
@@ -23,171 +23,197 @@ catalog_blurb: "How boosting corrects its own errors, one small tree at a time."
 <div class="lesson-step-eyebrow">Lesson 1 of 6</div>
 <h2>Gradient Boosting from Scratch</h2>
 
-<p>Welcome to the Gradient Boosting track. A random forest grows hundreds of trees in parallel and lets them vote. Boosting takes the opposite path: it grows trees one at a time, and each new tree exists for a single job, to fix the mistakes the trees before it are still making.</p>
-
-<p>Meet Sam, who runs a bike-rental kiosk by the river. Sam wants to predict how many bikes get rented from the day's high temperature. The pattern is a hump: rentals climb as it warms up, peak on pleasant days, then fall off in punishing heat. No single short rule captures that shape. But a stack of short rules, each patching the leftover error of the last, can. That stack is gradient boosting, and in this lesson you build it from nothing.</p>
+<p>Gradient boosting wins more tabular machine-learning contests than any other method. Underneath the famous names (XGBoost, LightGBM, CatBoost) sits one plain idea you can build by hand: make a rough guess, look at what it got wrong, and add a small correction. Do that a few hundred times and a pile of weak little trees becomes a very strong model. You will build that loop yourself for Sam, who rents bikes from a kiosk by the river and wants to predict how many will go out on a given day from the temperature.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Explain boosting as sequential error-correction: each new tree is trained on what the current model still gets wrong</li>
+<li>Explain boosting as sequential error-correction: each tree fixes what the last model still got wrong</li>
 
-<li>Say what the learning rate does and why small steps beat big ones</li>
+<li>Grow a gradient-boosted model in R and watch the error fall</li>
 
-<li>Build a booster by hand in R and see its error fall, tree by tree</li>
+<li>Say what the learning rate does, and how boosting differs from a random forest</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can run R, you know what a decision tree and a training/test set are, and you have met overfitting (the <a href="The-Bias-Variance-Tradeoff.html">Bias-Variance Tradeoff</a> lesson). Bagging and random forests show up only for one contrast near the end.</p>
-
-<p>The widget below starts at round 0, the worst possible model: one flat line at the average. Drag the slider to add boosting rounds and watch the fit bend toward the points.</p>
-<div class="lesson-widget" data-widget-type="gradient-boosting" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p><strong>Prerequisites:</strong> you can run R, and you know what a decision tree is and that one deep tree overfits (the <a href="RF-Course-Lesson-1.html">Random Forests course</a>).</p>
+<div class="lesson-widget" data-widget-type="gradient-boosting" data-widget-config='{"rounds":8}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The idea</div>
-<h2>How boosting works</h2>
+<div class="lesson-step-eyebrow">The big idea</div>
+<h2>Learn from your own mistakes</h2>
 
-<p>Think about how you would study for a hard exam. You take a practice test, see which questions you got wrong, and spend your next session on exactly those. Take another test, find the new weak spots, drill those. Each round you are not relearning everything, you are correcting what you still get wrong. Boosting trains a model the same way.</p>
+<p>In the Random Forests course you built trees in parallel: hundreds of deep trees, each on its own resample, all voting at once. Averaging cancelled their scattered errors. Boosting takes the opposite path, and it is worth pausing on the contrast.</p>
 
-<p>It starts with the dumbest possible guess: predict the same number for every day, the average rentals. That guess is wrong by different amounts on different days. The amount it is wrong on a given day is the <strong>residual</strong>, the actual value minus the current prediction:</p>
+<p>A booster grows trees one after another. It starts with a single crude guess, measures how far off that guess is on every row, and grows a small tree whose only job is to predict those leftover errors. It adds that correction, measures the new (smaller) errors, and grows another tree for those. Each tree cleans up after the one before it.</p>
 
-<p>\[ r_i = y_i - F(x_i) \]</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A random forest builds many independent experts and averages them. A booster builds one long chain of specialists, where each new specialist studies only the mistakes the team is still making. Same raw material (trees), opposite strategy.</div></div>
 
-<p>Here \(y_i\) is the real rentals on day \(i\), \(F(x_i)\) is the model's current prediction for that day, and \(r_i\) is the leftover error. Now the key move: fit a small tree not to the rentals, but to those residuals. That tree learns the <em>pattern in the mistakes</em>, where the model runs high and where it runs low. Add a slice of its corrections back into the model, and the predictions get a little better everywhere. Then compute the new (smaller) residuals and repeat.</p>
-
-<p>Written as a formula, the model is built up one tree at a time. Start at the mean, then on each round \(m\) add a new tree \(h_m\) fit to the current residuals:</p>
-
-<p>\[ F_0(x) = \bar y, \qquad F_m(x) = F_{m-1}(x) + \nu\, h_m(x) \]</p>
-
-<p>where \(\bar y\) is the average rentals, \(h_m\) is the small tree trained on round \(m\)'s residuals, and \(\nu\) (the Greek letter "nu") is the <strong>learning rate</strong>, a small number that shrinks each tree's contribution. We come back to \(\nu\) shortly.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">"Gradient" is not just a brand name. For squared-error loss \(L = \tfrac{1}{2}(y - F)^2\), the derivative with respect to the prediction \(F\) is \(-(y - F) = -r\). The residual <em>is</em> the negative gradient of the loss. So fitting each tree to the residuals is literally doing gradient descent, one tree-shaped step at a time. That is where gradient boosting gets its name.</div></div>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Start at the mean","sub":"predict one flat number for every day, the average"},{"title":"Fit a tree to the residuals","sub":"a small tree learns where the model runs high or low"},{"title":"Add a shrunken slice, repeat","sub":"nudge the prediction, recompute residuals, grow the next tree"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That "study the leftover mistakes" step is the whole trick, so let us make it concrete with a real, tiny example.</p>
 </section>
 
-<section class="lesson-step" data-step="3" data-step-type="widget">
-<div class="lesson-step-eyebrow">The key experiment</div>
-<h2>Watch the residuals shrink</h2>
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Meet the data</div>
+<h2>Sam's bike kiosk</h2>
 
-<p>Here is the whole idea, live. The black dots are Sam's bike days. The orange stems are the residuals, the gap between each day and the model's current line. At round 0 the line is flat (the mean) and the stems are long: the model is wrong everywhere.</p>
+<p>Sam rents bikes from a kiosk by the river. Warm days bring crowds, but a scorching day keeps people home, so the number of bikes rented rises with temperature and then falls again. Here are six of Sam's recent Saturdays: the day's high temperature and how many bikes went out.</p>
 
-<p>Drag the <strong>rounds</strong> slider. Each round fits one short tree to the current residuals and adds a shrunken slice of it. Watch the line bend to hug the hump while the orange stems collapse toward zero and the RMSE (the typical leftover error) falls. No single tree did this; the stack of small corrections did.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Six of Sam's Saturdays: the day's high temperature and the bikes rented
+temp   &lt;- c(8, 12, 16, 20, 24, 28)   # daily high, degrees C
+rented &lt;- c(30, 44, 60, 72, 68, 50)  # bikes rented that day
+data.frame(temp, rented)
+#&gt;   temp rented
+#&gt; 1    8     30
+#&gt; 2   12     44
+#&gt; 3   16     60
+#&gt; 4   20     72
+#&gt; 5   24     68
+#&gt; 6   28     50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>Notice the fit is built from little flat steps. Each step is one shallow tree. Pile up enough of them and the staircase traces a smooth curve.</p>
-<div class="lesson-widget" data-widget-type="gradient-boosting" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The scatter below plots those six points. Notice the hump: rentals climb from the cold mornings up to a comfortable 20 degrees, then drop off when it gets too hot. No single straight line fits this well, and neither does one shallow tree. That gap is exactly what boosting will close, piece by piece.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":8,"y":30},{"x":12,"y":44},{"x":16,"y":60},{"x":20,"y":72},{"x":24,"y":68},{"x":28,"y":50}],"geoms":["point"],"x":"temp","y":"rented"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>What does the next tree learn?</h2>
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Step zero</div>
+<h2>The flat guess, and what it gets wrong</h2>
 
-<p>A booster has already fit its first tree and made predictions. Now it grows a second tree. What target does that second tree try to predict?</p>
-<section class="exercise" data-exercise-id="Gradient-Boosting-from-Scratch-step4" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The original rentals again, exactly like the first tree did</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The residuals: what the current model still gets wrong (actual minus current prediction)</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A fresh bootstrap resample of the original rentals</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. Each new tree is trained on the leftover errors, so it specializes in fixing them. Add its correction and the residuals shrink, which is why the fit improves round after round.</div><div class="lesson-qfb lesson-qfb-no">That is bagging's trick (random forests). Boosting does not resample the outcome; it re-targets the same data onto the current residuals, so every tree corrects the ones before it.</div></div>
+<p>Every model has to start somewhere. The simplest possible model ignores temperature and predicts the same number for every day: the average. Call that first prediction \(\hat{y}^{(0)} = \bar{y}\), where \(\bar{y}\) is the mean of the six counts and \(\hat{y}^{(0)}\) reads "our prediction at round zero."</p>
+
+<p>Now the important part. For each day \(i\) we measure the <strong>residual</strong>: the actual count minus what we predicted, \(r_i = y_i - \hat{y}_i\). Here \(y_i\) is the real number of bikes rented on day \(i\) and \(\hat{y}_i\) is the model's current prediction for that day. A positive residual means we predicted too low; a negative one means too high.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">guess &lt;- mean(rented)   # the flat model: predict this same number every day
+guess
+#&gt; [1] 54
+resid &lt;- rented - guess # residual = actual minus current prediction
+resid
+#&gt; [1] -24 -10   6  18  14  -4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So the flat guess of 54 is 24 too high on the coldest day and 18 too low on the best day. The interactive below shows the same starting point on a bigger, curvier example: at round 0 the prediction is one flat line (the mean) and the orange stems are the residuals, one per point. They are long, because a flat line ignores everything. Those stems are what the next tree will attack.</p>
+<div class="lesson-widget" data-widget-type="gradient-boosting" data-widget-config='{"rounds":0}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute the residuals</h2>
+
+<p>A residual is just actual minus predicted. Fill in the blank so <code>resid</code> holds how far the flat guess was from each day's real count.</p>
+<section class="exercise" data-exercise-id="Gradient-Boosting-from-Scratch-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="rented\s*-\s*guess"><textarea class="lesson-tryit-input" spellcheck="false">guess &lt;- mean(rented)     # predict this same number every day
+resid &lt;- rented - ____    # residual: actual bikes minus the current prediction
+resid</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the residual: each day's actual count minus the current prediction. These leftovers are what the next tree learns to predict.</span><span class="lesson-tryit-fb lesson-tryit-no">Subtract the current prediction from the actual: rented - guess.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">guess &lt;- mean(rented)
+resid &lt;- rented - guess
+resid
+#&gt; [1] -24 -10   6  18  14  -4</code></pre></details></div>
 </section>
-
-<section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">The one real dial</div>
-<h2>The learning rate</h2>
-
-<p>When a new tree predicts the residuals, you could add its full correction to the model. Boosting almost never does. Instead it adds only a small slice, scaled by the <strong>learning rate</strong> \(\nu\), typically something like 0.1. A tree that says "push this day up by 40" only moves it up by 4.</p>
-
-<p>Why hold back? Because full-size corrections overshoot. They lunge at the training data, chase its noise, and overfit in just a few rounds. Small steps creep toward the answer instead: each tree nudges the model a little, the next tree cleans up what is left, and the final fit is smoother and generalizes better to new days. The cost is more trees, and the rule of thumb is simple.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Halve the learning rate and you roughly double the number of trees needed to reach the same fit. Smaller steps are safer but slower. A small rate (0.01 to 0.1) with many trees is the standard recipe for a booster that holds up on new data.</div></div>
-
-<p>The widget below uses a learning rate of <strong>0.1</strong>, gentler than the one a few steps back (which used 0.3). Drag it to the same number of rounds you tried earlier: the fit moves more cautiously and needs more rounds to tighten. That is shrinkage at work.</p>
-<div class="lesson-widget" data-widget-type="gradient-boosting" data-widget-config='{"lr":0.1}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Boost it by hand</h2>
+<div class="lesson-step-eyebrow">The core move</div>
+<h2>Fit a small tree to the leftovers</h2>
 
-<p>No package magic. We will build a booster from <code>rpart</code> stumps (depth-1 trees) so you can see every moving part. Each lesson runs in a fresh R session, so we type Sam's 24 days in directly, then start from the dumbest model: predict the mean for every day.</p>
+<p>Here is the heart of boosting. We grow a shallow tree, but not to predict the bike counts. We grow it to predict the <strong>residuals</strong>. In other words, the tree's target is the column <code>resid</code>, not <code>rented</code>. It learns a rule like "cold days were overpredicted, so nudge them down; mild days were underpredicted, so nudge them up."</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">library(rpart)
+<p>A shallow tree could split those six residuals like this. Cold days (below 14 degrees) were badly overpredicted by the flat guess, so they get large negative corrections. The mild middle days were underpredicted, so they get a positive push. The single too-hot day gets a small negative one. Every number on a leaf below is the average residual of the days that land there, the correction the tree recommends.</p>
 
-# 24 days at Sam's kiosk: the day's high temperature (deg C) and bikes rented.
-bikes &lt;- data.frame(
-  temp    = c(1, 3, 4, 6, 8, 9, 11, 13, 14, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31, 33, 34, 12, 23),
-  rentals = c(93, 156, 139, 204, 212, 267, 262, 309, 272, 328, 337, 318, 366, 336, 365, 325, 355, 363, 322, 357, 308, 323, 309, 322)
-)
+<p>We do not trust that correction fully. We add only a fraction of it to the current prediction, then repeat. Written out, the update at round \(m\) is</p>
 
-rmse &lt;- function(actual, pred) sqrt(mean((actual - pred)^2))
+<p>\[ \hat{y}^{(m)} = \hat{y}^{(m-1)} + \eta \, f_m(x) \]</p>
 
-pred &lt;- rep(mean(bikes$rentals), nrow(bikes))   # round 0: one flat guess, the mean
-rmse(bikes$rentals, pred)                        # typical error of the flat guess
-#&gt; [1] 74.19</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The flat guess is off by about 74 bikes on a typical day. Now the boosting loop, exactly the algorithm from earlier: each round fits a stump to the current residuals and adds a shrunken slice of it.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">lr &lt;- 0.1                                  # learning rate: add 10% of each tree
-for (m in 1:200) {
-  resid &lt;- bikes$rentals - pred            # what the model still gets wrong
-  stump &lt;- rpart(resid ~ temp, data = bikes,
-                 control = rpart.control(maxdepth = 1, cp = 0, minsplit = 2))
-  pred  &lt;- pred + lr * predict(stump)      # add a shrunken correction
-}
-rmse(bikes$rentals, pred)                   # typical error after boosting
-#&gt; [1] 12.40</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>From 74 bikes of error down to about 12, built only from one-split stumps and one rule: keep fitting the leftover error. The very first stump splits the days near 8.5 degrees (it pushes cold days down and warm days up); every stump after it cleans up a smaller piece of the hump.</p>
+<p>where \(\hat{y}^{(m-1)}\) is the prediction so far, \(f_m(x)\) is the new tree fit to the current residuals, and \(\eta\) (the Greek letter eta, a small positive number like 0.1) is the <strong>learning rate</strong> that shrinks each correction. After the update, the residuals get smaller, and the next tree works on what is left.</p>
+<div class="lesson-widget" data-widget-type="tree-diagram" data-widget-config='{"root":"temp below 14 deg?","l":"temp below 10 deg?","r":"temp below 26 deg?","leaves":["-24 bikes","-10 bikes","+13 bikes","-4 bikes"]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
-<div class="lesson-step-eyebrow">Your turn</div>
-<h2>Add one more shrunken round</h2>
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">The key experiment</div>
+<h2>Watch it correct itself, live</h2>
 
-<p>Here is a single boosting round, written out. The new stump predicts the leftover error (the residuals). The catch is the last line: you must add only a <strong>shrunken</strong> slice of the stump's correction, scaled by the learning rate <code>lr</code>, not the whole thing. Fill in the blank so the correction is shrunk.</p>
-<section class="exercise" data-exercise-id="Gradient-Boosting-from-Scratch-step7" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="lr\s*\*\s*predict"><textarea class="lesson-tryit-input" spellcheck="false">resid &lt;- bikes$rentals - pred            # what the model still gets wrong
-stump &lt;- rpart(resid ~ temp, data = bikes,
-               control = rpart.control(maxdepth = 1, cp = 0, minsplit = 2))
+<p>This is a real booster running in your browser. At round 0 it is the flat mean line, with long orange residual stems. Drag the slider to add trees one at a time. Each new shallow tree fits the current stems and pulls the fit toward the points it still gets wrong. Watch the stems collapse and the RMSE (the typical size of a residual) fall.</p>
 
-pred  &lt;- pred + ____ * predict(stump)    # add a SHRUNKEN slice, not the full correction
-rmse(bikes$rentals, pred)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is shrinkage: the model takes only a small step toward the new tree's correction, so it improves cautiously instead of overshooting. Smaller lr, more trees.</span><span class="lesson-tryit-fb lesson-tryit-no">Scale the correction by the learning rate: pred + lr * predict(stump). Adding the full predict(stump) would let one tree lunge at the data and overfit.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">resid &lt;- bikes$rentals - pred
-stump &lt;- rpart(resid ~ temp, data = bikes,
-               control = rpart.control(maxdepth = 1, cp = 0, minsplit = 2))
+<p>No single tree here is any good on its own. Each one only nudges. But stacked in sequence, each cleaning up the last one's leftovers, they trace the whole curve.</p>
+<div class="lesson-widget" data-widget-type="gradient-boosting" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
 
-pred  &lt;- pred + lr * predict(stump)
-rmse(bikes$rentals, pred)</code></pre></details></div>
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does the next tree predict?</h2>
+
+<p>You start with the flat guess (the average), then grow the first tree. What is that tree trained to predict?</p>
+<section class="exercise" data-exercise-id="Gradient-Boosting-from-Scratch-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The residuals: how far each day's actual count sits from the current prediction</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The original bike counts again, learned fresh from scratch</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The average count across all days</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Every tree after the first is fit to the leftover errors of the model so far, not to the original counts. Chasing the residuals is what makes it boosting.</div><div class="lesson-qfb lesson-qfb-no">The average is only the starting guess (round 0). From then on each tree predicts the residuals of the model built so far.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<div class="lesson-step-eyebrow">Two ways to combine trees</div>
-<h2>Bagging vs boosting</h2>
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The safety dial</div>
+<h2>The learning rate: small, safe steps</h2>
 
-<p>You have now met both great tree ensembles, and they are near opposites. A random forest is <strong>bagging</strong>: grow many deep trees in parallel, each on its own random resample, then average them to cancel their variance. Boosting grows shallow trees in sequence, each fixing the last, to drive down bias. The differences all flow from that one choice, parallel versus sequential.</p>
+<p>Why add only a fraction \(\eta\) of each tree instead of the whole correction? Because one tree's idea of the fix is noisy. If you apply it in full, the model lurches, overshoots, and starts chasing the quirks of your particular data. Shrinking every correction (a typical \(\eta\) is between 0.01 and 0.3) means no single tree can dominate. The model creeps toward a good fit in many small, safe steps instead of a few reckless leaps.</p>
+
+<p>There is a trade. A smaller \(\eta\) needs more trees to travel the same distance, so \(\eta = 0.05\) with 500 trees often beats \(\eta = 0.5\) with 50. Slower but steadier almost always generalizes better.</p>
+
+<p>The widget below shows the same small-steps idea on a simple bowl-shaped error surface, where the lowest point is the best model. Slide the learning rate and step downhill: too small and it crawls, just right and it settles into the bottom, too large and it overshoots and bounces around. A booster feels exactly this.</p>
+<div class="lesson-widget" data-widget-type="gradient-descent" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Turning down the learning rate</h2>
+
+<p>You cut the learning rate from 0.3 down to 0.05 and keep everything else the same. What is the right expectation?</p>
+<section class="exercise" data-exercise-id="Gradient-Boosting-from-Scratch-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It makes no difference, as long as you run the same number of trees</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Each tree moves the prediction less, so you need more trees, but the final fit usually generalizes better</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A smaller rate always gives a worse model, because the steps are too small</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Smaller steps are safer: no single tree can overshoot, so the model tends to generalize better. The cost is that you must grow more trees to cover the same ground.</div><div class="lesson-qfb lesson-qfb-no">Not worse, just slower. Small steps plus enough trees is the combination that usually generalizes best; the rate and the number of trees are turned together.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why the name</div>
+<h2>Why "gradient" boosting?</h2>
+
+<p>The word gradient is not decoration. Measure how wrong a single prediction is with squared-error loss, \(L(y, \hat{y}) = \tfrac{1}{2}(y - \hat{y})^2\), where \(y\) is the actual count and \(\hat{y}\) is the prediction. Ask how the loss changes as we nudge the prediction, which is its slope, or gradient, with respect to \(\hat{y}\):</p>
+
+<p>\[ \frac{\partial L}{\partial \hat{y}} = -(y - \hat{y}) = -r \]</p>
+
+<p>The residual \(r\) is exactly the <strong>negative gradient</strong> of the loss. So when each tree fits the residuals, it is fitting the negative gradient, and adding a shrunken slice is a step downhill on the loss. That is ordinary gradient descent, taken one tree at a time, which is why the bowl widget on the last step felt so familiar.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Fitting the residuals is not a lucky shortcut. For squared-error loss the residual IS the negative gradient, so boosting is gradient descent in the space of predictions. Swap in a different loss (say absolute error for robustness to outliers) and you fit the negative gradient of that loss instead. Same machine, any loss you like.</div></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">The other ensemble</div>
+<h2>Boosting versus bagging</h2>
+
+<p>You now know two ways to turn many trees into one strong model, and they are near mirror images. A random forest uses <strong>bagging</strong>: grow deep trees in parallel, each on its own bootstrap sample, and average them to cancel their variance. Boosting grows shallow trees in sequence, each fitting the previous model's residuals, to grind down bias.</p>
 
 <table class="table table-striped">
 <thead>
@@ -199,79 +225,174 @@ rmse(bikes$rentals, pred)</code></pre></details></div>
 </thead>
 <tbody>
 <tr>
-<td>Trees are built</td>
-<td>in parallel, independently</td>
-<td>one after another, each fixing the last</td>
+<td>How trees are built</td>
+<td>in parallel, each independent</td>
+<td>one after another, each fixes the last</td>
 </tr>
 <tr>
-<td>Each tree is fit to</td>
-<td>a bootstrap resample of the data</td>
-<td>the current model's residuals</td>
+<td>What each tree learns</td>
+<td>its own bootstrap sample of the rows</td>
+<td>the residuals of the model so far</td>
 </tr>
 <tr>
-<td>Tree depth</td>
-<td>deep (low bias, high variance)</td>
-<td>shallow (a stump or small tree)</td>
+<td>Each tree on its own</td>
+<td>deep, low bias, overfits</td>
+<td>shallow, weak, underfits</td>
+</tr>
+<tr>
+<td>How they combine</td>
+<td>averaged, an equal vote</td>
+<td>added in sequence, a shrunken slice each</td>
 </tr>
 <tr>
 <td>Mainly reduces</td>
 <td>variance</td>
-<td>bias (and some variance)</td>
+<td>bias</td>
 </tr>
 <tr>
-<td>More trees</td>
-<td>never overfit, the error just settles</td>
-<td>can overfit if you boost too long</td>
-</tr>
-<tr>
-<td>Tuning effort</td>
-<td>light</td>
-<td>more careful (rate, trees, depth)</td>
+<td>Adding more trees</td>
+<td>never hurts, error just flattens</td>
+<td>keeps helping, then can overfit</td>
 </tr>
 </tbody>
 </table>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">That last row is the catch with boosting, and it is the opposite of a forest. Because every round deliberately fits the leftover error, enough rounds will start fitting <em>noise</em>, and test error climbs even as training error keeps falling. A random forest never has this problem; a booster does. Knowing when to stop is its own skill, which is exactly what later lessons (early stopping and learning curves) are about.</div></div>
+<p>The last row is the one to remember. A forest cannot overfit from extra trees, it only converges. A booster can, because every tree pushes harder on the training data, so at some point it starts memorizing noise. That is why the later lessons in this course spend real time on early stopping. To feel the forest's parallel-averaging side again, drag the slider below: many independent trees, averaged at once, the opposite of a boosting chain.</p>
+<div class="lesson-widget" data-widget-type="forest-averaging" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="13" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Why can more trees hurt a booster?</h2>
+<h2>Same thing, or not?</h2>
 
-<p>You train a gradient booster and keep adding trees. Training error keeps dropping, but the error on held-out days has started to <em>rise</em>. When you did the same with a random forest, adding trees never hurt. What explains the difference?</p>
-<section class="exercise" data-exercise-id="Gradient-Boosting-from-Scratch-step9" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Boosting builds trees sequentially to reduce bias, so extra rounds eventually fit noise and overfit; a forest's trees are independent and only average out variance, so more never hurt</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Random forests use shallower trees than boosters, so they cannot overfit no matter how many you add</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The booster's learning rate grows with each tree, which is what causes the late overfitting</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. Each boosting round chases the current residuals, so past a point it starts memorizing noise and held-out error rises. Bagging averages independent trees, which only stabilizes the prediction, so extra trees converge rather than overfit. This is why boosting needs early stopping and a forest does not.</div><div class="lesson-qfb lesson-qfb-no">The learning rate is a fixed small constant you choose; it does not grow. The overfitting comes from adding too many sequential correction trees, not from a changing rate.</div></div>
+<p>A colleague says a random forest and a gradient booster are basically the same idea, just many trees combined. What is the key difference?</p>
+<section class="exercise" data-exercise-id="Gradient-Boosting-from-Scratch-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is no real difference; both just average a pile of independent trees</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A forest grows trees in parallel and averages them to cut variance; a booster grows them in sequence, each fitting the last model's residuals, to cut bias</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A booster averages its trees, while a forest adds its trees up one by one</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Parallel-and-average versus sequential-and-correct is the whole distinction, and it is why one reduces variance while the other reduces bias.</div><div class="lesson-qfb lesson-qfb-no">It is the other way round. The forest averages; the booster adds shrunken corrections in sequence.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="concept">
-<div class="lesson-step-eyebrow">Go deeper</div>
-<h2>References</h2>
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">The recipe</div>
+<h2>The boosting loop, in three rules</h2>
 
-<p>A few authoritative places to take this further:</p>
+<p>Strip away the detail and gradient boosting is just three steps on a loop.</p>
+
+<ol>
+
+<li><strong>Start at the average.</strong> The first prediction for every row is the mean of the target.</li>
+
+<li><strong>Fit a shallow tree to the residuals.</strong> Grow a small tree whose target is what the model still gets wrong.</li>
+
+<li><strong>Add a shrunken slice.</strong> Update the prediction by the learning rate times the new tree, then go back to step 2.</li>
+
+</ol>
+
+<p>That is the entire algorithm. Everything the famous boosters add (histogram splits, clever regularization, native categoricals) is speed and polish on top of these three lines. Time to run the three lines yourself.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Start at the average","sub":"the first prediction for every row is the mean of the target"},{"title":"Fit a tree to the residuals","sub":"grow a shallow tree whose target is what the model still gets wrong"},{"title":"Add a shrunken slice","sub":"update by learning-rate times the new tree, then repeat"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Build it</div>
+<h2>Boost it in R</h2>
+
+<p>Sam kept a full summer of daily counts, so here are 120 days built inline. Start every prediction at the mean, then loop: compute the residuals, fit a one-split stump to them, and add a shrunken slice. Fill in the blank so each round adds the new stump's prediction.</p>
+<section class="exercise" data-exercise-id="Gradient-Boosting-from-Scratch-step15" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="predict\(\s*stump\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">library(rpart)
+set.seed(1)
+sam &lt;- data.frame(temp = runif(120, 5, 33))                             # 120 summer days, degrees C
+sam$rentals &lt;- 30 + 4 * sam$temp - 0.11 * sam$temp^2 + rnorm(120, 0, 6) # real demand plus noise
+
+pred &lt;- rep(mean(sam$rentals), nrow(sam))   # round 0: one flat guess, the average
+lr   &lt;- 0.1                                  # learning rate: add only a slice of each tree
+for (m in 1:50) {
+  r     &lt;- sam$rentals - pred                # what the model still gets wrong
+  stump &lt;- rpart(r ~ temp, data = sam, control = rpart.control(maxdepth = 1, cp = 0))
+  pred  &lt;- pred + lr * ____                  # add a shrunken slice of the new tree
+}
+sqrt(mean((sam$rentals - pred)^2))           # RMSE after boosting (was 8.65 at round 0)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the loop: residuals, fit a stump, add a shrunken slice of its prediction. Fifty rounds pull the RMSE from 8.65 down to about 5.14.</span><span class="lesson-tryit-fb lesson-tryit-no">Add the new tree's prediction, shrunk by the rate: pred + lr * predict(stump).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(rpart)
+set.seed(1)
+sam &lt;- data.frame(temp = runif(120, 5, 33))
+sam$rentals &lt;- 30 + 4 * sam$temp - 0.11 * sam$temp^2 + rnorm(120, 0, 6)
+
+pred &lt;- rep(mean(sam$rentals), nrow(sam))
+lr   &lt;- 0.1
+for (m in 1:50) {
+  r     &lt;- sam$rentals - pred
+  stump &lt;- rpart(r ~ temp, data = sam, control = rpart.control(maxdepth = 1, cp = 0))
+  pred  &lt;- pred + lr * predict(stump)
+}
+sqrt(mean((sam$rentals - pred)^2))
+#&gt; [1] 5.141449</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>Where boosting shines, where it bites</h2>
+
+<p>You just built the real algorithm. Here is the honest picture of when to reach for it.</p>
+
+<p><strong>Strengths</strong></p>
 
 <ul>
 
-<li><a href="https://doi.org/10.1214/aos/1013203451">Friedman (2001), Greedy Function Approximation: A Gradient Boosting Machine, Annals of Statistics</a> - the paper that defined gradient boosting as gradient descent in function space.</li>
+<li>Usually the most accurate model on tabular data, often the winner on structured problems</li>
 
-<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 10 (free PDF)</a> - "Boosting and Additive Trees", the full theory behind what you built here.</li>
+<li>Turns weak, shallow trees into a strong learner with a low, tunable bias</li>
 
-<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 8 (free PDF)</a> - the gentler companion treatment of boosting and tree methods.</li>
+<li>Fits any differentiable loss, so the same machine handles regression, classification, and ranking</li>
 
-<li><a href="https://xgboost.readthedocs.io/en/stable/tutorials/model.html">XGBoost: Introduction to Boosted Trees</a> - a clear, modern derivation of regularized gradient boosting and why shrinkage helps.</li>
+</ul>
+
+<p><strong>Costs and cautions</strong></p>
+
+<ul>
+
+<li>It can overfit if you run too many trees or set the learning rate too high, so it needs a validation set and early stopping</li>
+
+<li>Trees are grown in sequence, so training does not parallelize the way a forest does</li>
+
+<li>More knobs to turn (trees, learning rate, tree depth) than a random forest's near-automatic fit</li>
+
+</ul>
+
+<p>In real work you would not hand-roll the loop. The production boosters do the same thing far faster, with better trees and built-in shrinkage. Here is the same model with the <code>gbm</code> package (install and run it in your own R):</p>
+
+<pre><code class="language-r"># The same idea, done for real by a package. Run this locally.
+library(gbm)
+fit &lt;- gbm(rentals ~ temp, data = sam, distribution = &quot;gaussian&quot;,
+           n.trees = 500, shrinkage = 0.05, interaction.depth = 3)
+sqrt(mean((sam$rentals - predict(fit, sam, n.trees = 500))^2))</code></pre>
+
+<p>Meeting the fast, modern versions of exactly this, LightGBM and CatBoost, is Lesson 2.</p>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1214/aos/1013203451">Friedman (2001), Greedy Function Approximation: A Gradient Boosting Machine, Annals of Statistics 29(5)</a> - the paper that framed boosting as gradient descent on a loss.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 10 (free PDF)</a> - boosting, the additive model, and shrinkage, with the full math.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 8 (free PDF)</a> - the gentler companion on tree ensembles, boosting included.</li>
+
+<li><a href="https://xgboost.readthedocs.io/en/stable/tutorials/model.html">XGBoost docs: Introduction to Boosted Trees</a> - the residual-and-gradient story you built here, in a production booster's own words.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="complete">
+<section class="lesson-step" data-step="18" data-step-type="complete">
 <h2>Lesson 1 complete</h2>
 
-<p>You built gradient boosting from the ground up: start at the mean, fit each new tree to the residuals (which, for squared error, are the negative gradient of the loss), and add a shrunken slice scaled by the learning rate. You watched the error fall tree by tree, coded the loop by hand, and saw why a booster, unlike a forest, can overfit if you run it too long.</p>
+<p>You built gradient boosting from the ground up: start at the average, fit a shallow tree to the residuals, add a shrunken slice, and repeat. You saw why fitting the residuals is really gradient descent (the residual is the negative gradient of squared-error loss), what the learning rate buys you (small, safe steps that generalize), and how boosting mirrors bagging (sequential and bias-cutting, versus parallel and variance-cutting).</p>
 
-<p>Next, Lesson 2: LightGBM and CatBoost in R. The hand-rolled stump loop you wrote is the honest core of every modern booster; now you will meet the fast, production-grade ones, histogram splits, native categorical handling, and when to reach for which.</p>
+<p>Next, Lesson 2: LightGBM and CatBoost in R. Sam's kiosk grows into a citywide bike-share with millions of rides, and the hand-rolled loop is far too slow. You will meet the histogram-split trick that makes boosting fast, and the native way modern boosters swallow hundreds of categories without a one-hot explosion.</p>
 </section>
 
 {% endraw %}

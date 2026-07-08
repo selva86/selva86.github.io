@@ -3,8 +3,8 @@
   <head>
     <title>Causal Inference Lesson 2: Causal Diagrams with DAGs</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Draw your causal assumptions as a DAG, then read off what to control for: adjust for confounders, never for colliders, and think twice about mediators.">
-    <meta name="Keywords" content="causal diagram, DAG, confounder, collider, mediator, backdoor path, adjustment set, backdoor criterion, dagitty, causal inference in R, d-separation, do-operator">
+    <meta name="Description" content="Draw your causal assumptions as a DAG and read off the graph what to control for: adjust for confounders, never colliders or mediators. Runnable R throughout.">
+    <meta name="Keywords" content="causal diagram, DAG, confounder, collider, mediator, backdoor path, backdoor criterion, adjustment set, d-separation, causal inference in R, dagitty, do-operator">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Causal Inference Lesson 2: Causal Diagrams with DAGs">
-    <meta property="og:description" content="Draw your causal assumptions as a DAG, then read off what to control for: adjust for confounders, never for colliders, and think twice about mediators.">
+    <meta property="og:description" content="Draw your causal assumptions as a DAG and read off the graph what to control for: adjust for confounders, never colliders or mediators. Runnable R throughout.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Causal-Diagrams-with-DAGs.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Causal-Diagrams-with-DAGs.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Causal Inference Lesson 2: Causal Diagrams with DAGs">
-    <meta name="twitter:description" content="Draw your causal assumptions as a DAG, then read off what to control for: adjust for confounders, never for colliders, and think twice about mediators.">
+    <meta name="twitter:description" content="Draw your causal assumptions as a DAG and read off the graph what to control for: adjust for confounders, never colliders or mediators. Runnable R throughout.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Causal-Diagrams-with-DAGs.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Causal Inference Lesson 2: Causal Diagrams with DAGs",
-      "description": "Draw your causal assumptions as a DAG, then read off what to control for: adjust for confounders, never for colliders, and think twice about mediators.",
+      "description": "Draw your causal assumptions as a DAG and read off the graph what to control for: adjust for confounders, never colliders or mediators. Runnable R throughout.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Causal-Diagrams-with-DAGs.html",
-      "datePublished": "2026-07-01",
-      "dateModified": "2026-07-01",
+      "datePublished": "2026-07-07",
+      "dateModified": "2026-07-07",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -595,7 +595,7 @@
 
     
     
-        <link rel="stylesheet" href="www/lesson-mode.min.css?h=5f5f1fcb">
+        <link rel="stylesheet" href="www/lesson-mode.min.css?h=c25158b5">
     <script>(function(d){d.documentElement.className+=" lm-boot";setTimeout(function(){d.documentElement.classList.remove("lm-boot");},4000);})(document);</script>
   </head>
 
@@ -679,170 +679,100 @@
 <div class="lesson-step-eyebrow">Lesson 2 of 5</div>
 <h2>Causal Diagrams with DAGs</h2>
 
-<p>In Lesson 1, Riverside Books saw customers who received a coupon spend about $18 more than those who did not. Most of that gap was an illusion: loyalty pushed customers toward <em>both</em> getting a coupon and spending more. A coin flip fixed it, because randomizing made the two groups comparable.</p>
+<p>Last lesson, Riverside Books mailed a coupon and randomizing it recovered its true $8 effect. But randomizing was a luxury. This month Riverside wants to know something it <em>cannot</em> randomize: does joining <strong>Riverside Plus</strong>, its paid membership, actually make a customer spend more? You cannot force random shoppers to join a membership, so the clean coin flip is off the table.</p>
 
-<p>But you cannot always flip a coin. You cannot randomly assign who is loyal, you cannot rerun last quarter, and you often inherit data someone else collected. When randomizing is off the table, you have to write down what you believe causes what, and then defend it. A causal diagram, a <strong>DAG</strong>, is how you put those beliefs on paper. The remarkable part: once the diagram is drawn, you can read straight off it which variables to control for and which to leave well alone.</p>
+<p>When you cannot randomize, you are forced to reason from assumptions instead. A <strong>causal diagram</strong> (a DAG) is those assumptions drawn as a picture, and its payoff is remarkable: once the picture is on paper, you can read straight off it which variables you must control for and which ones you must leave strictly alone.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Read a DAG: say what its nodes and arrows mean, and what "directed" and "acyclic" stand for</li>
+<li>Draw a causal question as a DAG, where circles are variables and arrows are direct causes</li>
 
-<li>Spot whether a third variable is a confounder, a mediator, or a collider, and know the adjust-or-not rule for each</li>
+<li>Recognize the three shapes every diagram is built from, and give the control rule for each: a confounder, a mediator, and a collider</li>
 
-<li>Use the backdoor criterion to pick what to control for, and prove in R that a confounder inflates an effect while a collider invents one from nothing</li>
+<li>See, in real R, how controlling the wrong variable either hides a real effect or invents a fake one</li>
+
+<li>Use the backdoor criterion to choose exactly the right set of variables to adjust for</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you finished <a href="Correlation-Causation-and-Potential-Outcomes.html">Lesson 1</a> (correlation is not causation, confounders, potential outcomes), and you can fit <code>lm()</code> in R and read a coefficient. Every new term is defined as it appears.</p>
+<p><strong>Prerequisites:</strong> <a href="Correlation-Causation-and-Potential-Outcomes.html">Lesson 1</a> (confounding, selection bias, and randomization), and you can fit <code>lm()</code> and read a coefficient. Every new term is defined as it appears. Toggle the three buttons below to see the whole lesson in one picture.</p>
 <div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The tool</div>
-<h2>Your assumptions, drawn as arrows</h2>
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>Causal Diagrams with DAGs</h2>
 
-<p>A causal diagram is deliberately simple. Each <strong>node</strong> is a variable you care about, and each <strong>arrow</strong> is one claim: that a variable is a <em>direct cause</em> of another. \(A \to B\) reads "A directly causes B." That is the entire vocabulary.</p>
+<p>Start by writing Riverside's belief down. We think joining Plus (call it <code>plus</code>) raises monthly <code>spend</code>. That single belief is one arrow:</p>
 
-<p>The name DAG spells out its three rules:</p>
+<p>\[ \texttt{plus} \longrightarrow \texttt{spend} \]</p>
+
+<p>That picture is a <strong>DAG</strong>, short for <em>directed acyclic graph</em>, and each word earns its place:</p>
 
 <ul>
 
-<li><strong>D</strong>irected: every link is an arrow with a direction. \(A \to B\) is a different claim from \(B \to A\).</li>
+<li><strong>Graph</strong> because it is circles joined by lines. Each circle is a <strong>node</strong>, one variable we can measure (<code>plus</code>, <code>spend</code>, and soon others).</li>
 
-<li><strong>A</strong>cyclic: you can never follow the arrows and arrive back where you started. Nothing causes itself, even by a long detour.</li>
+<li><strong>Directed</strong> because every line is an <strong>arrow</strong> with a direction. An arrow from A to B is a specific, strong claim: <em>A is a direct cause of B</em>. No arrow means you believe there is no direct causal link.</li>
 
-<li><strong>G</strong>raph: a set of nodes joined by those arrows.</li>
+<li><strong>Acyclic</strong> because you can never follow the arrows in a loop back to where you started. A variable cannot end up causing itself; causes flow forward in time.</li>
 
 </ul>
 
-<p>Here are Riverside's three beliefs about the coupon, written as arrows:</p>
+<p>A DAG is nothing more than your causal assumptions, made explicit and drawn. That is its whole power: assumptions written this plainly can be argued about, criticized, and checked against what you know of the world, instead of hiding silently inside a regression. Building one is three honest steps.</p>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Arrow</th>
-<th>The claim it makes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>loyalty \(\to\) coupon</td>
-<td>loyal customers were emailed more coupons</td>
-</tr>
-<tr>
-<td>loyalty \(\to\) spend</td>
-<td>loyal customers spend more on their own</td>
-</tr>
-<tr>
-<td>coupon \(\to\) spend</td>
-<td>the coupon lifts spending (the effect we want)</td>
-</tr>
-</tbody>
-</table>
-
-<p>That is exactly the picture on the cover, reading \(X\) as the coupon, \(Y\) as spend, and \(Z\) as loyalty. Drawing it forces every assumption into the open: an arrow you draw is a cause you are claiming, and an arrow you leave out is a claim that there is <em>no</em> direct effect.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A DAG is an input, not an output. It cannot be computed from the data; it is the reasoning you bring to the data. Two analysts can draw different diagrams for the same spreadsheet, and the numbers alone cannot say who is right. That is the point: the diagram makes your assumptions visible and arguable.</div></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A DAG does not come from the data. It comes from you, from what you know about how Riverside's customers behave. The data cannot draw the arrows for you; it can only be interpreted once the arrows are drawn.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"List the variables","sub":"the treatment, the outcome, and anything that might touch either one"},{"title":"Draw the arrows","sub":"one arrow for each DIRECT cause you actually believe in"},{"title":"Check it is acyclic","sub":"no variable may cause itself by following arrows around a loop"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="3" data-step-type="widget">
-<div class="lesson-step-eyebrow">Three shapes</div>
-<h2>The three ways a third variable sits between cause and effect</h2>
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The building blocks</div>
+<h2>A path, and the three shapes it can take</h2>
 
-<p>Almost every causal question is "does \(X\) cause \(Y\)?" with some third variable \(Z\) lurking nearby. Where \(Z\) sits relative to the arrows changes everything. There are exactly three shapes, and the widget below switches between them. In each, read \(X\) as the coupon and \(Y\) as spend.</p>
+<p>The <code>plus</code> and <code>spend</code> nodes are almost never alone. Other variables connect them, and a <strong>path</strong> is any trail of arrows you can walk from one node to another, <em>ignoring which way the arrows point</em>. Paths matter because association, the statistical "these two move together" that a correlation measures, flows along certain paths and is dammed on others. Some paths carry the real effect; some smuggle in a fake one.</p>
+
+<p>The wonderful fact is that no matter how large the diagram, every path is built from just three elementary shapes, defined by the arrows around the middle variable. Toggle each one below and read its verdict.</p>
 
 <ul>
 
-<li><strong>Fork, a confounder.</strong> \(X \leftarrow Z \to Y\): \(Z\) causes both ends. This is Riverside's loyalty, which drove who got a coupon <em>and</em> how much they spent. A fork creates association between \(X\) and \(Y\) that is not the coupon's doing. <strong>You must control for \(Z\).</strong></li>
+<li><strong>Fork</strong>, written \(X \leftarrow Z \rightarrow Y\): the middle variable Z is a <strong>common cause</strong> of both. This is a <strong>confounder</strong>. It fakes an association between X and Y, so you must <strong>control for it</strong>.</li>
 
-<li><strong>Chain, a mediator.</strong> \(X \to Z \to Y\): \(Z\) is the middle step the effect travels through. If the coupon works by getting people to visit the site more, and visits drive spending, then visits is a mediator. It is <em>part of</em> the effect, not a distortion. <strong>Usually leave it alone</strong>, or you subtract off the very thing you set out to measure.</li>
+<li><strong>Chain</strong>, written \(X \rightarrow M \rightarrow Y\): the middle variable M sits on the road <em>from</em> X <em>to</em> Y. This is a <strong>mediator</strong>. The real effect travels through it, so to measure the total effect you <strong>leave it alone</strong>.</li>
 
-<li><strong>Collider, the trap.</strong> \(X \to Z \leftarrow Y\): both \(X\) and \(Y\) point <em>into</em> \(Z\). Suppose Riverside flags a customer as "VIP" if they used a coupon <em>or</em> they already spend a lot. Then coupon and spend both feed the VIP flag. <strong>Never control for a collider</strong>: doing so manufactures a correlation that was never there.</li>
+<li><strong>Collider</strong>, written \(X \rightarrow C \leftarrow Y\): both arrows crash <em>into</em> the middle variable C. This is a <strong>collider</strong>. It blocks association by default, and controlling for it <strong>invents</strong> one.</li>
 
 </ul>
 
-<p>Press each button below. Watch which node lights up as the one to worry about, then run the R the widget shows to see a confounder distort, and then correct, a coefficient.</p>
+<p>The next three steps take each shape in turn and make it bite, in real numbers, on Riverside's own data. Watch how the same act, adding a variable to a regression, is right for one shape and disastrous for the others.</p>
 <div class="lesson-widget" data-widget-type="causal-dag" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="concept">
-<div class="lesson-step-eyebrow">Following the arrows</div>
-<h2>Two paths from coupon to spend</h2>
+<div class="lesson-step-eyebrow">Shape 1: the fork</div>
+<h2>A confounder inflates the effect</h2>
 
-<p>To decide what to control for, you trace <strong>paths</strong>. A path is any chain of arrows connecting two nodes, followed regardless of which way each arrow happens to point. Between the coupon and spend, Riverside's diagram has exactly two:</p>
+<p>Here is Riverside's real problem. Loyal customers, the ones already engaged last year, are both far more likely to <em>join Plus</em> and, quite separately, inclined to <em>spend more anyway</em>. Loyalty sits at the top of a fork, an arrow running down to each side:</p>
 
-<ol>
+<p>\[ \texttt{plus} \longleftarrow \texttt{loyalty} \longrightarrow \texttt{spend} \]</p>
 
-<li>The <strong>causal path</strong> \(\text{coupon} \to \text{spend}\). The arrow points away from the coupon, toward spend. This carries the real effect, the thing you want to measure.</li>
-
-<li>A <strong>backdoor path</strong> \(\text{coupon} \leftarrow \text{loyalty} \to \text{spend}\). It leaves the coupon through an arrow pointing <em>into</em> it (out the back door), then reaches spend. It carries association but not causation: loyalty is making the two ends move together.</li>
-
-</ol>
-
-<p>Association flows along <em>both</em> kinds of path. That is why the raw $18 gap was too big: it was the true effect (front path) plus the loyalty leak (back path), added together, which is exactly the selection bias you measured in Lesson 1. Your job is to let association flow along the causal path while shutting it off along every backdoor.</p>
-
-<p>The honest target has a name. It is the <em>interventional</em> quantity \(P\big(Y \mid do(X{=}x)\big)\), read "the distribution of spend if we reached in and <em>set</em> the coupon to \(x\) for everyone." That is not the same as the <em>observational</em> \(P(Y \mid X{=}x)\), "spend among customers who merely <em>happened</em> to have that coupon status." Observation includes the backdoor leak; a true intervention, like Lesson 1's coin flip, does not. Adjusting for the right variables is how you recover \(P\big(Y \mid do(X)\big)\) from data you only observed.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A correlation is the sum of every open path between two variables. Causation is only the front, causal path. Controlling for variables is how you close the back paths and leave the front one open.</div></div>
-</section>
-
-<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Confounder, collider or mediator?</h2>
-
-<p>Riverside marks a customer as a "VIP" when they either redeemed a coupon or spent above a threshold, so both getting a coupon and spending more push a customer onto the VIP list. In Riverside's diagram, what role does the VIP flag play between coupon and spend?</p>
-<section class="exercise" data-exercise-id="Causal-Diagrams-with-DAGs-step5" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A confounder you should control for, since VIPs behave differently</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A collider, because both coupon and spend point into it, so you must not control for it</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A mediator, because the coupon works by turning customers into VIPs</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. Both arrows enter the VIP flag (coupon into VIP, spend into VIP), which makes it a collider. Filtering to VIPs, or adding VIP to the model, opens a fake path between coupon and spend.</div><div class="lesson-qfb lesson-qfb-no">A mediator sits ON the causal path (coupon to Z to spend). Here the coupon does not raise spending BY making someone a VIP; the VIP flag is a downstream label that spending itself helps set. The arrows point the wrong way for a mediator.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">The one rule</div>
-<h2>Block every backdoor, and nothing else</h2>
-
-<p>"Controlling for" a variable \(Z\), also called <em>conditioning on</em> it or <em>adjusting for</em> it, means comparing coupon and spend only <em>within</em> groups that share the same value of \(Z\): same loyalty, or same VIP status. What that does to a path depends entirely on the shape \(Z\) sits in.</p>
-
-<ul>
-
-<li>On a <strong>fork</strong> \(X \leftarrow Z \to Y\) or a <strong>chain</strong> \(X \to Z \to Y\), conditioning on the middle node <strong>closes</strong> the path. Compare only customers with the same loyalty and loyalty can no longer make coupon and spend move together. The backdoor is shut.</li>
-
-<li>On a <strong>collider</strong> \(X \to Z \leftarrow Y\), conditioning does the opposite: it <strong>opens</strong> a path that was closed. Look only at VIPs and now learning the coupon status tells you something about spend, because a VIP with no coupon must have been a big spender to make the list. You create a correlation just by looking.</li>
-
-</ul>
-
-<p>So there is a single rule for what to adjust for, the <strong>backdoor criterion</strong>: find a set of variables that (1) blocks every backdoor path from the treatment to the outcome, and (2) contains no <em>descendant</em> of the treatment, that is, nothing the treatment causes. Rule (2) is what keeps mediators and downstream colliders out of the set. Adjust for exactly that set and only the front, causal path survives. The recipe:</p>
-
-<p>For Riverside, the only backdoor runs through loyalty, and loyalty is not caused by the coupon, so the adjustment set is just loyalty. Control for loyalty, nothing more.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"List the variables","sub":"the treatment, the outcome, and anything that may cause either"},{"title":"Draw the arrows","sub":"one arrow per direct cause you believe in; never a loop"},{"title":"Find the backdoor paths","sub":"trails that leave the treatment through an arrow into it"},{"title":"Choose what to adjust for","sub":"block every backdoor; never condition on a collider"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="7" data-step-type="concept">
-<div class="lesson-step-eyebrow">See it in R</div>
-<h2>A collider invents a correlation</h2>
-
-<p>The collider rule is the one that trips people, so let us watch it happen. We hand out the coupon <em>at random</em>, so by construction it has no real link to how much a customer would spend on their own. Then we flag VIPs the way Riverside does, coupon holders or big spenders, and measure the correlation two ways.</p>
+<p>That path, <code>plus</code> <- <code>loyalty</code> -> <code>spend</code>, is a <strong>backdoor path</strong>: a trail connecting treatment and outcome that does not run <em>through</em> the treatment's effect. Association leaks across it, and a naive comparison of Plus versus non-Plus members scoops that leak up along with any real effect. Let us build the customers and watch it happen. Because this is a simulation we can plant the truth: Plus really adds <strong>$5</strong>, and loyalty lifts spend on its own.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Coupon is randomized, so it is unrelated to a customer&#39;s own baseline spend.</span></span>
-<span class="cl"><span class="nf">set.seed</span>(<span class="m">11</span>)</span>
-<span class="cl">n <span class="o">&lt;-</span> <span class="m">4000</span></span>
-<span class="cl">coupon     <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, <span class="m">0.5</span>)              <span class="c1"># X: a fair coin, tied to nothing</span></span>
-<span class="cl">base_spend <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">rnorm</span>(n, <span class="m">55</span>, <span class="m">12</span>))        <span class="c1"># Y: each customer&#39;s own spending level</span></span>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Riverside Plus: one row per customer. loyalty is the confounder.</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">1</span>)</span>
+<span class="cl">n <span class="o">&lt;-</span> <span class="m">2000</span></span>
+<span class="cl">loyalty <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n)                                     <span class="c1"># last year&#39;s engagement, centered at 0</span></span>
+<span class="cl">plus    <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, <span class="nf">plogis</span>(<span class="m">1.1</span> <span class="o">*</span> loyalty))          <span class="c1"># loyal customers join Plus more often</span></span>
+<span class="cl">spend   <span class="o">&lt;-</span> <span class="m">40</span> <span class="o">+</span> <span class="m">5</span> <span class="o">*</span> plus <span class="o">+</span> <span class="m">12</span> <span class="o">*</span> loyalty <span class="o">+</span> <span class="nf">rnorm</span>(n, <span class="m">0</span>, <span class="m">6</span>) <span class="c1"># TRUE Plus effect = $5; loyalty also lifts spend</span></span>
+<span class="cl">confound <span class="o">&lt;-</span> <span class="nf">data.frame</span>(loyalty, plus, spend)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># VIP if you used a coupon OR you already spend a lot: both arrows point INTO vip (a collider)</span></span>
-<span class="cl">vip <span class="o">&lt;-</span> <span class="nf">as.integer</span>(coupon <span class="o">==</span> <span class="m">1</span> <span class="o">|</span> base_spend <span class="o">&gt;</span> <span class="m">65</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">cor</span>(coupon, base_spend), <span class="m">3</span>)                       <span class="c1"># overall: essentially zero</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 0.025</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">cor</span>(coupon[vip <span class="o">==</span> <span class="m">1</span>], base_spend[vip <span class="o">==</span> <span class="m">1</span>]), <span class="m">3</span>)   <span class="c1"># among VIPs only: a fake negative link</span></span>
-<span class="cl"><span class="c1">#&gt; [1] -0.472</span></span></div>
+<span class="cl"><span class="nf">coef</span>(<span class="nf">lm</span>(spend <span class="o">~</span> plus, data <span class="o">=</span> confound))[<span class="s">&quot;plus&quot;</span>]          <span class="c1"># naive: compare Plus vs non-Plus, ignoring loyalty</span></span>
+<span class="cl"><span class="c1">#&gt;     plus </span></span>
+<span class="cl"><span class="c1">#&gt; 15.42611 </span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -852,106 +782,283 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Nothing about any customer changed between those two lines, and the coupon still causes nothing. All we did was <em>look only at VIPs</em>, and a strong negative correlation appeared out of thin air. Among people on the VIP list, the ones without a coupon had to be the big spenders (or they would not have qualified), so "no coupon" now travels with "spends more." Condition on a collider and you conjure a relationship. That is why the backdoor criterion forbids it.</p>
+<p>The naive model says Plus is worth <strong>$15.43</strong>, three times the truth. The extra ten dollars are loyalty's shadow, leaking across the open backdoor: the Plus group was stacked with loyal big spenders to begin with. Now close the backdoor by <strong>adjusting for</strong> loyalty, which simply means putting it in the model so Plus and non-Plus customers are compared at the <em>same</em> loyalty.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Choosing your sample can be conditioning in disguise. Studying only VIP customers, only hospital patients, only the people who answered a survey: each one conditions on a variable those groups share. If that variable is a collider, it bends every correlation you compute inside the group.</div></div>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">coef</span>(<span class="nf">lm</span>(spend <span class="o">~</span> plus <span class="o">+</span> loyalty, data <span class="o">=</span> confound))[<span class="s">&quot;plus&quot;</span>] <span class="c1"># adjust for the confounder</span></span>
+<span class="cl"><span class="c1">#&gt;     plus </span></span>
+<span class="cl"><span class="c1">#&gt; 5.109001 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimate collapses to <strong>$5.11</strong>, essentially the planted $5. One variable added, and the illusion is gone.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A fork is <strong>open</strong> by default, so a confounder leaks a fake association through the backdoor. Adjusting for the confounder <strong>closes</strong> the backdoor, and the leftover treatment coefficient is the honest effect.</div></div>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Should you control for site visits?</h2>
+<h2>What to do with the confounder</h2>
 
-<p>Riverside believes the coupon lifts spending mainly by bringing people back to the website: coupon to visits to spend. A colleague wants to add <code>visits</code> to the model "to be safe, since it is clearly related to spend." If your goal is the coupon's <em>total</em> effect on spending, should you control for visits?</p>
-<section class="exercise" data-exercise-id="Causal-Diagrams-with-DAGs-step8" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes, always control for anything correlated with the outcome; more controls means a more accurate estimate</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: visits is a mediator on the path coupon to visits to spend, so controlling for it would remove the effect the coupon works through</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, because visits is a confounder, and confounders must never be controlled for</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. For the TOTAL effect you leave a mediator alone. Adjust for it and you block the front path, shrinking the coupon's measured effect toward zero even though it truly works.</div><div class="lesson-qfb lesson-qfb-no">The verdict is right but the reasoning is backwards twice: visits is a mediator, not a confounder, and confounders are exactly what you SHOULD control for. Mislabel the shape and good intentions ruin the estimate.</div></div>
+<p>In the study above, loyalty is a common cause of joining Plus and of spending. To recover the true effect of Plus on spend, what should you do with loyalty?</p>
+<section class="exercise" data-exercise-id="Causal-Diagrams-with-DAGs-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Put it in the model (adjust for it), so Plus and non-Plus customers are compared at equal loyalty</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Leave it out, because adding more variables to a regression always biases it</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Drop every customer whose loyalty is above average, to balance the two groups</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Loyalty is a confounder sitting on the backdoor path plus <- loyalty -> spend. Holding it fixed closes that backdoor, which is why the estimate dropped from 15.43 to 5.11, the truth.</div><div class="lesson-qfb lesson-qfb-no">Throwing away data does not make the groups comparable and can create its own selection bias. Adjusting for loyalty inside the model uses every customer and compares like with like.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Shape 2: the chain</div>
+<h2>A mediator carries the effect, so leave it alone</h2>
+
+<p>Now the opposite mistake. Suppose Plus works entirely by nudging people onto the app: members open the app more, and more app visits lead to more spending. Nothing about Plus touches spend <em>except</em> through those visits:</p>
+
+<p>\[ \texttt{plus} \longrightarrow \texttt{visits} \longrightarrow \texttt{spend} \]</p>
+
+<p><code>visits</code> is a <strong>mediator</strong>: it sits on the causal road from Plus to spend. Here the whole effect is real and travels down the chain. To keep the fork out of the way, we randomize Plus this time, so there is no confounder to worry about, only the mediator.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Randomize Plus so nothing confounds it; the ONLY route to spend is through visits.</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2</span>)</span>
+<span class="cl">n <span class="o">&lt;-</span> <span class="m">2000</span></span>
+<span class="cl">plus   <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, <span class="m">0.5</span>)                     <span class="c1"># assigned by a coin, so no confounding</span></span>
+<span class="cl">visits <span class="o">&lt;-</span> <span class="m">3</span> <span class="o">+</span> <span class="m">4</span> <span class="o">*</span> plus <span class="o">+</span> <span class="nf">rnorm</span>(n, <span class="m">0</span>, <span class="m">1.5</span>)       <span class="c1"># Plus drives app visits (the mediator M)</span></span>
+<span class="cl">spend  <span class="o">&lt;-</span> <span class="m">20</span> <span class="o">+</span> <span class="m">6</span> <span class="o">*</span> visits <span class="o">+</span> <span class="nf">rnorm</span>(n, <span class="m">0</span>, <span class="m">5</span>)      <span class="c1"># spend depends on visits, not directly on Plus</span></span>
+<span class="cl">mediate <span class="o">&lt;-</span> <span class="nf">data.frame</span>(plus, visits, spend)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">coef</span>(<span class="nf">lm</span>(spend <span class="o">~</span> plus, data <span class="o">=</span> mediate))[<span class="s">&quot;plus&quot;</span>]           <span class="c1"># TOTAL effect of Plus, all of it via visits</span></span>
+<span class="cl"><span class="c1">#&gt;     plus </span></span>
+<span class="cl"><span class="c1">#&gt; 23.51342 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plus is worth <strong>$23.51</strong> in total: each membership adds about 4 visits, and each visit adds about $6. That is the number Riverside cares about. Watch what happens if you "control for" visits, thinking more variables must mean a cleaner estimate.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">coef</span>(<span class="nf">lm</span>(spend <span class="o">~</span> plus <span class="o">+</span> visits, data <span class="o">=</span> mediate))[<span class="s">&quot;plus&quot;</span>]  <span class="c1"># control the mediator: the effect vanishes</span></span>
+<span class="cl"><span class="c1">#&gt;       plus </span></span>
+<span class="cl"><span class="c1">#&gt; -0.6247043 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Plus coefficient falls to essentially <strong>zero</strong>. By holding visits fixed you asked a different, misleading question, "does Plus help <em>beyond</em> the visits it causes?", and the honest answer is no, because visits were the entire mechanism. Report this number and you would tell Riverside that Plus does nothing, when it actually adds $23.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Controlling for a mediator <strong>removes the very effect you are trying to measure</strong>. A chain is open by default (the effect flows), and conditioning on the middle closes it. When you want a treatment's <em>total</em> effect, never adjust for a variable that the treatment itself causes.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Shape 3: the collider</div>
+<h2>A collider invents an effect out of nothing</h2>
+
+<p>The third shape is the sneakiest, because here controlling for a variable creates an association that was never there. Riverside hands out a <strong>Top Reader badge</strong> to any customer who is <em>either</em> a Plus member <em>or</em> a big spender. The badge is a <strong>common effect</strong>: two arrows crash into it.</p>
+
+<p>\[ \texttt{plus} \longrightarrow \texttt{badge} \longleftarrow \texttt{spend} \]</p>
+
+<p>Suppose, for this demonstration, that Plus and spend are genuinely <strong>unrelated</strong>, no arrow between them at all. Overall they should look independent, and they do.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># plus and spend are INDEPENDENT here (no arrow between them). Both cause the badge.</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">3</span>)</span>
+<span class="cl">n <span class="o">&lt;-</span> <span class="m">4000</span></span>
+<span class="cl">plus  <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, <span class="m">0.5</span>)</span>
+<span class="cl">spend <span class="o">&lt;-</span> <span class="m">40</span> <span class="o">+</span> <span class="nf">rnorm</span>(n, <span class="m">0</span>, <span class="m">10</span>)                   <span class="c1"># independent of membership</span></span>
+<span class="cl">badge <span class="o">&lt;-</span> <span class="nf">as.integer</span>(plus <span class="o">==</span> <span class="m">1</span> <span class="o">|</span> spend <span class="o">&gt;</span> <span class="m">55</span>)     <span class="c1"># Top Reader: Plus members OR big spenders</span></span>
+<span class="cl">collide <span class="o">&lt;-</span> <span class="nf">data.frame</span>(plus, spend, badge)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">cor</span>(collide<span class="o">$</span>plus, collide<span class="o">$</span>spend)                 <span class="c1"># overall: essentially zero</span></span>
+<span class="cl"><span class="c1">#&gt; [1] -0.0280188</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now an analyst, wanting a "cleaner" sample, studies only badged customers, that is, conditions on the collider.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">badged <span class="o">&lt;-</span> collide[collide<span class="o">$</span>badge <span class="o">==</span> <span class="m">1</span>, ]          <span class="c1"># keep only Top Reader customers</span></span>
+<span class="cl"><span class="nf">cor</span>(badged<span class="o">$</span>plus, badged<span class="o">$</span>spend)                   <span class="c1"># a strong NEGATIVE link appears from nowhere</span></span>
+<span class="cl"><span class="c1">#&gt; [1] -0.4634357</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">tapply</span>(badged<span class="o">$</span>spend, badged<span class="o">$</span>plus, mean), <span class="m">1</span>) <span class="c1"># average spend, non-Plus vs Plus, among the badged</span></span>
+<span class="cl"><span class="c1">#&gt;    0    1 </span></span>
+<span class="cl"><span class="c1">#&gt; 59.2 39.4 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A firm negative correlation materializes, and the averages explain why. Among badged customers, a <em>non-member</em> had only one way to earn the badge: by spending a lot. So within this group, being non-Plus all but guarantees high spend ($59) and being Plus does not ($39). The badge "explains away" one cause by the other, manufacturing a link between two variables that are truly independent.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A collider is <strong>blocked</strong> by default (nothing leaks). Conditioning on it, whether by putting it in the model or by only studying the cases where it happened, <strong>opens</strong> a fake path. Selecting your sample on a common effect is the same mistake wearing a disguise.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Close the backdoor</h2>
+<h2>Close the backdoor yourself</h2>
 
-<p>Back to the case that matters most in practice, the confounder. Here is Riverside's data with loyalty restored as the confounder from Lesson 1: loyal customers were emailed more coupons and spend more on their own. We plant a true coupon effect of exactly $8, then fit the naive model that ignores the graph.</p>
-<section class="exercise" data-exercise-id="Causal-Diagrams-with-DAGs-step9" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="loyalty"><textarea class="lesson-tryit-input" spellcheck="false">set.seed(3)
-n &lt;- 3000
-loyalty &lt;- rnorm(n)                                        # the confounder
-coupon  &lt;- rbinom(n, 1, plogis(1.2 * loyalty))            # loyalty -&gt; coupon
-spend   &lt;- 45 + 8 * coupon + 12 * loyalty + rnorm(n, 0, 5) # true coupon effect = 8; loyalty lifts spend
-riverside &lt;- data.frame(loyalty, coupon, spend)
-
-round(coef(lm(spend ~ coupon, data = riverside))[&quot;coupon&quot;], 2)   # naive: leaves the backdoor open
-#&gt; coupon
-#&gt;  19.55</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: adjusting for loyalty closes the only backdoor, and the coupon effect drops from $19.55 to about $8.06, the value you planted. Same data, same coupon, one correct control.</span><span class="lesson-tryit-fb lesson-tryit-no">Add the confounder loyalty: lm(spend ~ coupon + loyalty). It is the only variable on a backdoor path from coupon to spend.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">round(coef(lm(spend ~ coupon + loyalty, data = riverside))[&quot;coupon&quot;], 2)
-#&gt; coupon
-#&gt;   8.06</code></pre></details></div>
+<p>Back to the confounded <code>confound</code> data from earlier, which has three columns: <code>loyalty</code> (the confounder), <code>plus</code> (the treatment), and <code>spend</code> (the outcome). The naive <code>coef(plus)</code> was an inflated $15.43. Complete the model so it estimates the true, unconfounded effect of Plus, then check it.</p>
+<section class="exercise" data-exercise-id="Causal-Diagrams-with-DAGs-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="plus\s*\+\s*loyalty"><textarea class="lesson-tryit-input" spellcheck="false">fit &lt;- lm(spend ~ plus + ____, data = confound)   # add the variable that closes the backdoor
+coef(fit)[&quot;plus&quot;]</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: adjusting for loyalty gives coef(plus) = 5.11, the true effect. loyalty is the single variable on the backdoor path plus <- loyalty -> spend, so it is exactly what to control for.</span><span class="lesson-tryit-fb lesson-tryit-no">Add the confounder loyalty: lm(spend ~ plus + loyalty, data = confound). It is the common cause of Plus and spend, the variable sitting on the backdoor path.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">fit &lt;- lm(spend ~ plus + loyalty, data = confound)
+coef(fit)[&quot;plus&quot;]
+#&gt;     plus 
+#&gt; 5.109001 </code></pre></details></div>
 </section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">One rule to bind them</div>
+<h2>Open, blocked, and how conditioning flips each</h2>
+
+<p>You have now seen every case. They collapse into one compact rule about whether a path is <strong>open</strong> (association flows) or <strong>blocked</strong> (it does not), and what conditioning on the middle variable does to it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Shape</th>
+<th>The middle variable is...</th>
+<th>The path is, by default...</th>
+<th>Condition on the middle and the path...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fork (confounder)</td>
+<td>a common cause of X and Y</td>
+<td>OPEN, leaking a fake association</td>
+<td>becomes BLOCKED, so the bias is removed</td>
+</tr>
+<tr>
+<td>Chain (mediator)</td>
+<td>a step on the road from X to Y</td>
+<td>OPEN, carrying the real effect</td>
+<td>becomes BLOCKED, so the effect is removed</td>
+</tr>
+<tr>
+<td>Collider</td>
+<td>a common effect of X and Y</td>
+<td>BLOCKED, leaking nothing</td>
+<td>becomes OPEN, inventing a fake link</td>
+</tr>
+</tbody>
+</table>
+
+<p>Read the last column carefully: <strong>conditioning flips every path</strong>. On a fork or a chain, conditioning on the middle <em>closes</em> the path. On a collider, conditioning <em>opens</em> it. This single flip rule (the heart of what is formally called <em>d-separation</em>) is enough to look at any diagram and say which variables belong in your model and which must stay out. A confounder in, a mediator and a collider out.</p>
 </section>
 
 <section class="lesson-step" data-step="10" data-step-type="concept">
-<div class="lesson-step-eyebrow">The catch</div>
-<h2>When a DAG lets you down</h2>
+<div class="lesson-step-eyebrow">The recipe</div>
+<h2>The backdoor criterion picks the adjustment set</h2>
 
-<p>A DAG is only ever as honest as the arrows you drew. Three limits are worth stating plainly.</p>
+<p>Put it together into a procedure. To estimate the effect of a treatment X on an outcome Y, you want to keep the real causal path (X's arrows flowing forward to Y) open, while blocking every <strong>backdoor path</strong>, a trail that leaks association through an arrow pointing <em>into</em> X. The set of variables you condition on to do this is the <strong>adjustment set</strong>.</p>
 
-<ul>
+<p>This is the <strong>backdoor criterion</strong>: a set of variables Z is a valid adjustment set if it blocks every backdoor path and contains no descendant of X (no mediators, and no colliders on the causal path). Adjust for such a Z and the plain regression coefficient equals the causal effect. In the notation of the <em>do-operator</em>, where \(do(X{=}x)\) means "reach in and <em>set</em> X to x for everyone, snapping the arrows that point into X" (an intervention, not the mere observation \(P(Y \mid X{=}x)\)):</p>
 
-<li><strong>The arrows are assumptions, and the data cannot check them.</strong> The same customer spreadsheet is consistent with many different DAGs. Draw loyalty as a confounder when it is really something else and the "correct" adjustment becomes the wrong one. A DAG moves the argument to where it belongs, your causal claims, but it does not settle it.</li>
+<p>\[ P\big(Y \mid do(X{=}x)\big) \;=\; \sum_{z} P\big(Y \mid X{=}x,\, Z{=}z\big)\, P(Z{=}z) \]</p>
 
-<li><strong>You can only adjust for what you measured.</strong> If some hidden driver, say a customer's disposable income, causes both coupons (marketing targeted wealthier segments) and spend, and you never recorded it, no arithmetic recovers the true effect. An <strong>unmeasured confounder</strong> leaves a backdoor you cannot close. That is the usual reason an observational estimate stays uncertain.</li>
-
-<li><strong>More controls is not safer.</strong> As the collider showed, adjusting for the wrong variable <em>adds</em> bias. "Throw everything into the regression" is not a strategy; the graph tells you the few variables to include and, just as importantly, the ones to keep out.</li>
-
-</ul>
-
-<p>Once a graph grows past a handful of nodes you stop tracing paths by hand. The <code>dagitty</code> package reads the adjustment set straight off the diagram. Run this in your own R session:</p>
-
-<pre><code class="language-r">library(dagitty)   # install.packages(&quot;dagitty&quot;)
-
-g &lt;- dagitty('dag {
-  loyalty -&gt; coupon
-  loyalty -&gt; spend
-  coupon  -&gt; spend
-}')
-
-adjustmentSets(g, exposure = &quot;coupon&quot;, outcome = &quot;spend&quot;)
-#&gt;  { loyalty }</code></pre>
-
-<p>It returns exactly what we reasoned out by hand: control for loyalty, and only loyalty.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Drawing the DAG is the hard, human part; querying it is mechanical. The value is in stating your assumptions clearly enough that a tool, or a sceptical colleague, can check the logic that follows from them.</div></div>
+<p>In words: the effect of <em>setting</em> X is the association between X and Y computed <em>within</em> each stratum of the adjustment set Z, then averaged over Z. Adjusting for the confounder loyalty is exactly this formula at work, which is why <code>lm(spend ~ plus + loyalty)</code> returned the truth.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Draw the DAG","sub":"write down every direct cause you believe in as an arrow"},{"title":"Find the backdoor paths","sub":"every non-causal trail from treatment to outcome that starts with an arrow INTO the treatment"},{"title":"Block them all","sub":"choose variables that close every backdoor while opening no collider"},{"title":"Fit and read off","sub":"regress the outcome on the treatment plus that adjustment set"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">In practice</div>
+<h2>Let a tool read the adjustment set for you</h2>
+
+<p>For Riverside's small diagram you can find the adjustment set by eye: loyalty is the only backdoor, so adjust for loyalty. Real diagrams have dozens of nodes, and finding every backdoor by hand gets error-prone. The professional move is to encode the DAG once and let software return a valid adjustment set. The <code>dagitty</code> package does exactly that. It is not part of interactive R, so run this one locally.</p>
+
+<pre><code class="language-r">library(dagitty)
+# Run locally after: install.packages(&quot;dagitty&quot;)
+g &lt;- dagitty::dagitty('dag {
+  loyalty -&gt; plus;  loyalty -&gt; spend
+  plus -&gt; visits;   visits  -&gt; spend
+  plus -&gt; badge;    spend   -&gt; badge
+  plus -&gt; spend
+}')
+
+# Ask for a set that identifies the effect of plus on spend:
+dagitty::adjustmentSets(g, exposure = &quot;plus&quot;, outcome = &quot;spend&quot;)
+#&gt; { loyalty }</code></pre>
+
+<p>It returns <code>{ loyalty }</code>: adjust for loyalty, and leave visits (a mediator) and badge (a collider) untouched, exactly the reading you now do by hand.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A DAG is only as good as its arrows, and the arrows are assumptions the data cannot verify for you. Draw them wrong and you will confidently adjust for the wrong thing. Worst of all, if a true confounder is <strong>unmeasured</strong>, no adjustment can close its backdoor: you cannot control for a column you do not have. Honest causal work means arguing for your diagram, and admitting what it rests on.</div></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Good controls and bad controls</h2>
+
+<p>A study estimates the effect of a job-training program (the treatment) on later wages (the outcome). Which ONE of these variables should you adjust for?</p>
+<section class="exercise" data-exercise-id="Causal-Diagrams-with-DAGs-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Prior education, which shapes both who enrolls in the training and later wages</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The number of job interviews the training helped the person land, on the way to a wage</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Whether the person got hired at all, which both the training and high earning potential make more likely</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. Prior education is a confounder, a common cause of enrolling and of wages, sitting on the backdoor path training <- education -> wages. Adjusting for it closes that backdoor. It happens before training, so it is neither a mediator nor a collider.</div><div class="lesson-qfb lesson-qfb-no">That is a collider (a common effect of training and earning potential). Adjusting for it, or studying only the hired, opens a fake path and biases the estimate.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
-<p>Five authoritative places to take this further:</p>
+<p>Four authoritative places to take this further:</p>
 
 <ul>
 
-<li><a href="https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/">Hernan and Robins, Causal Inference: What If (free PDF)</a> - Chapter 6 builds DAGs, paths and d-separation in exactly the order used here.</li>
+<li><a href="http://bayes.cs.ucla.edu/WHY/">Pearl and Mackenzie, The Book of Why (2018)</a> - the accessible introduction to causal diagrams, the do-operator, and why confounders and colliders behave so differently.</li>
 
-<li><a href="https://mixtape.scunning.com/03-directed_acyclical_graphs">Cunningham, Causal Inference: The Mixtape, DAG chapter (free, online)</a> - the same ideas worked slowly, with code and worked colliders.</li>
+<li><a href="https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/">Hernan and Robins, Causal Inference: What If (free PDF)</a> - Chapters 6 and 7 develop DAGs, backdoor paths, and the backdoor criterion with full rigor.</li>
 
-<li><a href="https://doi.org/10.1093/ije/dyw341">Textor et al. (2016), the dagitty R package, Int. J. Epidemiology (DOI)</a> - the paper behind the tool that computes adjustment sets for you.</li>
+<li><a href="https://doi.org/10.1177/00491241221099552">Cinelli, Forney and Pearl (2024), A Crash Course in Good and Bad Controls</a> - a clean catalogue of which variables help and which hurt, built entirely on the three shapes you learned here.</li>
 
-<li><a href="http://www.dagitty.net/">dagitty.net</a> - draw a DAG in the browser and it lists the sets you must adjust for.</li>
-
-<li><a href="https://doi.org/10.1093/biomet/82.4.669">Pearl (1995), Causal diagrams for empirical research, Biometrika (DOI)</a> - the paper that introduced the backdoor criterion and the do-operator.</li>
+<li><a href="https://doi.org/10.1093/ije/dyw341">Textor et al. (2016), the dagitty R package, Int. J. Epidemiology</a> - the tool that finds adjustment sets from a DAG for you; the paper explains the algorithm.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="14" data-step-type="complete">
 <h2>Lesson 2 complete</h2>
 
-<p>You can now turn a causal question into a diagram and read the answer off it. An arrow is a claim of direct cause; a path is any trail between two variables; and where a third variable sits decides what you do with it. Control for a <strong>confounder</strong> (a fork) to close the backdoor it opens, the way you pulled Riverside's coupon effect from an inflated $19.55 back to its true $8. <strong>Never</strong> control for a <strong>collider</strong>, or you invent a correlation from nothing, the way the VIP filter did. And leave a <strong>mediator</strong> alone when you want the total effect, or you subtract off the effect itself. The backdoor criterion ties it together: block every backdoor, and adjust for nothing the treatment causes.</p>
+<p>You can now turn a causal question into a diagram and read the answer off it. A DAG is your assumptions drawn as nodes and arrows. Association flows along open paths, and every path is a fork, a chain, or a collider. A confounder (fork) leaks a fake effect through a backdoor, so you adjust for it, and you watched Riverside's inflated $15.43 fall to the true $5.11. A mediator (chain) carries the real effect, so controlling it wrongly erased Plus's $23 down to zero. A collider is silent until you condition on it, and then it invents a link from nothing. The backdoor criterion ties it together: block every backdoor, touch no mediator or collider, and the plain regression coefficient is the causal effect.</p>
 
-<p>Next, Lesson 3: A/B Testing and Experiment Design. Randomizing is the one move that erases every backdoor at once, collapsing the tangled graph back into the single clean arrow you actually care about. You will see how to design an experiment that earns that simplicity, and how large a sample it takes to trust what the experiment tells you.</p>
+<p>Next, Lesson 3: A/B Testing and Experiment Design. When you <em>can</em> randomize the treatment, every arrow pointing into it is snapped, so every backdoor path vanishes at once, and the tangle of forks and colliders collapses back to the clean comparison you met in Lesson 1. You will learn to design that experiment and size it so it can actually detect the effect you care about.</p>
 </section>
 
 
@@ -1039,7 +1146,7 @@ adjustmentSets(g, exposure = &quot;coupon&quot;, outcome = &quot;spend&quot;)
     }
   })();
   </script>
-  <script src="www/toc.min.js?h=db578404"></script>
+  <script src="www/toc.min.js?h=f7859f88"></script>
   <!-- MathJax Script -->
   
   <script type="text/x-mathjax-config">
@@ -1047,7 +1154,11 @@ adjustmentSets(g, exposure = &quot;coupon&quot;, outcome = &quot;spend&quot;)
       tex2jax: {
         inlineMath: [['$','$'], ['\\(','\\)']],
         displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
@@ -1057,13 +1168,13 @@ adjustmentSets(g, exposure = &quot;coupon&quot;, outcome = &quot;spend&quot;)
 
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
-  <script src="www/webr-init.min.js?h=92549f4e"></script>
+  <script src="www/webr-init.min.js?h=471f9ce6"></script>
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=0f30f7dd"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
-  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <script src="www/lesson-mode.min.js?h=378afac5"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
        scripting doesn't compete with the critical path. Events fired before
        the loader lands get buffered on window.dataLayer and flushed once

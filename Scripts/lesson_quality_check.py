@@ -115,11 +115,14 @@ def check_lesson(path):
         return issues, slug
     types = [t for t, _ in steps]
 
-    # R13 one-sitting length: target 7-12 steps, ceiling 12. Advisory only (one bad
-    # lesson must not block the deploy), but anything over 12 should almost always split.
-    if len(steps) > 12:
-        warn('%d steps: over the one-sitting ceiling of 12 (target 7-12). Split at a natural '
-             'seam into a multi-lesson course unless this is a genuinely indivisible arc (R13).' % len(steps))
+    # R13: NO step cap. Use as many steps as a beginner needs to fully understand in
+    # detail; never compress or omit to hit a step budget. Split into multiple lessons
+    # ONLY at a natural conceptual seam (a genuinely separate topic), judged by coherence,
+    # never by step count. The real quality signal is per-step density (a wall of text),
+    # not the number of steps, so we do not warn on count here.
+    if len(steps) < 5:
+        warn('%d steps: unusually few for a from-scratch lesson; make sure nothing is '
+             'rushed or skipped (R13 favours thoroughness over brevity).' % len(steps))
 
     # R1 - cover carries a real visual.
     cov_type, cov_md = steps[0]

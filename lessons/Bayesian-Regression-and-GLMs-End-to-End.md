@@ -1,8 +1,8 @@
 ---
 title: "Bayesian Modeling Lesson 8: Bayesian Regression and GLMs End to End"
-catalog_blurb: "The full Bayesian workflow on one regression: priors, fit, check, compare, report."
-description: "A full Bayesian regression workflow in R: priors on GLM coefficients, a Metropolis fit, posterior predictive checks, WAIC comparison, and credible intervals."
-keywords: "bayesian regression, bayesian glm, poisson regression, log link, prior predictive check, metropolis sampler, credible interval, rate ratio, posterior predictive check, waic, brms, R"
+catalog_blurb: "How to turn predictors and a prior into a decision you can defend."
+description: "The full Bayesian regression workflow in base R: set priors on the slopes, fit a Poisson GLM on a grid, check it, compare it with WAIC, and report credible and prediction intervals."
+keywords: "bayesian regression, bayesian glm, poisson regression, log link, credible interval, prediction interval, prior predictive check, posterior predictive check, waic, elpd, generalized linear model, rate ratio, R"
 post_type: "LESSON"
 curriculum_id: "6.160.8"
 webr: true
@@ -13,7 +13,7 @@ course_title: "Bayesian Modeling"
 course_lesson: "8"
 course_total: "8"
 course_landing: "R-Bayesian-Modeling-Course.html"
-course_next: ""
+course_next: "Bayesian-Modeling-Quiz.html"
 course_prev: "Bayesian-Model-Comparison-LOO-and-WAIC.html"
 ---
 
@@ -21,323 +21,403 @@ course_prev: "Bayesian-Model-Comparison-LOO-and-WAIC.html"
 ::eyebrow Lesson 8 of 8
 ## Bayesian Regression and GLMs End to End
 
-Lesson 7 crowned a champion: the Gamma-Poisson beat the rounded Normal by 4.9 elpd points, nearly three standard errors, and the win sat exactly on the blank days that price Asha's moss orders. But look at what that champion actually believes. One demand rate, every day, all season. Asha has never believed that for a second. Some days the craft market is packed and she sells out by two; some days it drizzles and she re-mists unsold moss. What has been missing from this entire course is the thing every real model needs: **a predictor**.
+Every model in this course so far had exactly one unknown: a conversion rate, a demand level, a single number that the prior and the data fought over. Real questions have moving parts. Asha does not just want to know how many terrarium kits she sells; she wants to know whether the money she spends on ads actually moves that number, and by how much.
 
-This final lesson adds one, and in doing so runs the whole pipeline you have built, once, end to end: write a model with a slope in it, put a prior on every coefficient, catch silly priors before fitting, fit with the Lesson 3 sampler, diagnose with the Lesson 4 habits, check with a Lesson 6 posterior predictive test, settle the rematch with Lesson 7's scoreboard, and hand over numbers a decision can lean on.
+The moment a predictor enters, the unknown stops being a point and becomes a whole line. This capstone runs the entire pipeline you have built, once, start to finish, on that line.
 
 By the end of this lesson you will be able to:
 
-- Write a Bayesian GLM: a linear predictor, a link function, a family, and a prior for every coefficient
-- Catch an absurd prior before fitting anything, using a prior predictive check
-- Fit a two-parameter model with the Metropolis sampler in base R and verify the chains agree
-- Turn posterior draws into decision numbers: credible intervals for rate ratios, expected demand, and what one actual day might sell
-- Check the fitted model with a posterior predictive test and prove the predictor earns its keep with a WAIC comparison
+- Explain how a predictor turns a one-parameter model into a posterior over a line, and why that beats a single least-squares fit
+- Write a Bayesian generalized linear model for counts (a Poisson likelihood, a log link, and priors on the coefficients), with every symbol defined
+- Fit it in R by extending Lesson 1's grid to two coefficients, then check it, compare it, and report it
+- Turn the posterior into a decision: a credible interval for the effect, a multiplier a stakeholder can act on, and a forecast for a new day, and know what that number does not license
 
-**Prerequisites:** Lessons 1 to 7 of this course (the prior-times-likelihood update, conjugate posteriors and posterior draws, the Metropolis sampler, trace-plot and multi-chain diagnostics, posterior predictive checks, and the WAIC scoreboard), plus base R functions, `sapply()` and `quantile()`.
-
-You already know the machine below from ordinary regression: drag a line through a cloud of points and let the sum of squared misses judge it. Least squares crowns ONE best line and stops. Keep that picture as the starting point, because everything in this lesson is one upgrade to it: instead of the single best line, you will leave with every line the data finds plausible, each carrying its own probability.
+**Prerequisites:** Lessons 1 to 7 of this course, especially the prior-times-likelihood update on a grid (Lesson 1), the Gamma-Poisson count model and posterior predictive checks (Lesson 6), and WAIC with its elpd difference and standard error (Lesson 7).
 
 ::widget ols-fit {}
 
 === step === concept
-::eyebrow A second column
-## Seventy-five days, two numbers a day
+::eyebrow Where we are
+## One unknown becomes a line
 
-A new season, a fuller notebook. The craft market where Asha rents her stall publishes a daily visitor tally from the gate counter, and this season she copied it down next to each day's kit sales: seventy-five days, two numbers a day. She also has a decision waiting. The market association has offered her a corner pitch by the entrance for next season, at 40 percent more rent, and corner stalls see roughly ten more visitors a day. Whether that rent is worth paying depends on a number nobody has yet: how much does one extra visitor actually move kit sales?
+Look at the widget on the last slide: a scatter of points and one straight line you can drag. Ordinary regression asks "which single line fits best?" This whole course has trained you to distrust single answers. In Lesson 1 a point estimate became a curve of belief; here a single line becomes a distribution over lines.
 
-As always in this course, we play the record keeper with an answer key: we generate the season from a known recipe, then pretend we only have the notebook. The recipe stays sealed until the fit is done, when it becomes the test our machinery has to pass. Each lesson runs in a fresh interactive R session, so run this first:
-
-```r
-set.seed(12)
-visitors <- round(runif(75, 5, 40))                 # the gate tally, day by day
-kits     <- rpois(75, exp(-1.2 + 0.09 * visitors))  # her sales, tied to traffic
-c(days = length(kits), total = sum(kits), zero_days = sum(kits == 0),
-  biggest = max(kits), quietest = min(visitors), busiest = max(visitors))
-#>      days     total zero_days   biggest  quietest   busiest 
-#>        75       234        12        14         5        39 
-round(cor(visitors, kits), 2)
-#> [1] 0.78
-```
-
-A busier season than the last one: 234 kits, still twelve blank days, and one fourteen-kit day she remembers fondly. Traffic ranged from five visitors on a rained-out Tuesday to thirty-nine at the autumn fair, and the correlation of 0.78 says the two columns clearly move together. Plot it and the story is visible before any model touches it:
+Asha's new question needs data with two columns. Each lesson runs in a fresh interactive R session, so we build her log right here. We simulate it from a known truth, a slope of 0.35, so that at the very end we can check whether the fit recovered it (Asha, of course, does not get to peek at that number; we do, so we can grade ourselves):
 
 ```r
-plot(visitors, kits, pch = 16, col = "navy",
-     xlab = "visitors that day", ylab = "kits sold",
-     main = "Seventy-five days: market traffic against kit sales")
+set.seed(1)
+n     <- 90
+spend <- round(runif(n, 0, 40))          # ad spend each day, in dollars
+z     <- (spend - 20) / 10               # centered at a $20 day, in $10 units
+kits  <- rpois(n, exp(0.4 + 0.35 * z))   # orders that day: a whole-number count
+head(data.frame(spend, kits, z), 6)
+#>   spend kits    z
+#> 1    11    0 -0.9
+#> 2    15    0 -0.5
+#> 3    23    2  0.3
+#> 4    36    5  1.6
+#> 5     8    2 -1.2
+#> 6    36    4  1.6
 ```
 
-Quiet days hug zero. Busy days spread high and wide. Note that second part, because it matters later: the busy days do not just sell more, they VARY more, exactly what count data does. A straight line through this cloud is a start, but this lesson needs the line to respect what counts are.
+Two quick numbers frame the whole lesson: how many kits over the ninety days, and whether the busy ad days really do outsell the quiet ones.
+
+```r
+c(days = n, total = sum(kits), zero_days = sum(kits == 0), biggest = max(kits))
+#>      days     total zero_days   biggest 
+#>        90       146        21         6 
+round(tapply(kits, spend > 20, mean), 2)   # mean orders on quiet vs busy ad days
+#> FALSE  TRUE 
+#>  1.12  2.19 
+```
+
+On the days Asha spent under twenty dollars she sold about 1.1 kits; over twenty, about 2.2, roughly double. That gap could be a real effect of the ads, or it could be the ordinary jitter of small counts. Telling those apart, with honest uncertainty, is the entire job.
 
 === step === concept
-::eyebrow The model
-## A line, a link, a family
+::eyebrow The old tool, and its cracks
+## Least squares gives one line, and hides everything else
 
-Start with the regression you know and break it deliberately. The familiar line says expected kits \(= a + b \cdot \text{visitors}\). Feed it a rained-out five-visitor day with any plausible slope and intercept and it happily predicts negative kits, the exact disease that sank the rounded Normal in Lessons 6 and 7. It also claims each visitor ADDS a fixed number of kits, the same amount whether the stall is dead or slammed. Real demand does not add; it scales.
+The reflex from ordinary regression is least squares: slide a line until the sum of the squared vertical misses (the shrinking red squares in the widget) is as small as it can be. Press "Snap to least squares" and R agrees exactly.
 
-Both defects have one cure: model the **logarithm** of expected demand as the line, not demand itself. Two bookkeeping moves first. Write \(\lambda_i\) (lambda) for the expected number of kits on day \(i\), the demand level that day. And center the predictor, \(x_i = \text{visitors}_i - \overline{\text{visitors}}\), so that \(x_i = 0\) means an average-traffic day rather than an impossible zero-visitor day:
+::widget ols-fit {"points":[{"x":11,"y":0},{"x":15,"y":0},{"x":23,"y":2},{"x":36,"y":5},{"x":8,"y":2},{"x":36,"y":4},{"x":38,"y":2},{"x":26,"y":1},{"x":25,"y":3},{"x":2,"y":1},{"x":8,"y":1},{"x":7,"y":0},{"x":27,"y":1},{"x":15,"y":5},{"x":31,"y":3},{"x":20,"y":0},{"x":29,"y":0},{"x":40,"y":3},{"x":15,"y":3},{"x":31,"y":2},{"x":37,"y":6},{"x":8,"y":1},{"x":26,"y":1},{"x":5,"y":1},{"x":11,"y":0},{"x":15,"y":0},{"x":1,"y":1},{"x":15,"y":0},{"x":35,"y":2},{"x":14,"y":1},{"x":19,"y":5},{"x":24,"y":2},{"x":20,"y":1},{"x":7,"y":0},{"x":33,"y":3},{"x":27,"y":2},{"x":32,"y":2},{"x":4,"y":0},{"x":29,"y":1},{"x":16,"y":1},{"x":33,"y":2},{"x":26,"y":0},{"x":31,"y":0},{"x":22,"y":2},{"x":21,"y":4},{"x":32,"y":2},{"x":1,"y":1},{"x":19,"y":1},{"x":29,"y":6},{"x":28,"y":2},{"x":19,"y":2},{"x":34,"y":3},{"x":18,"y":0},{"x":10,"y":0},{"x":3,"y":1},{"x":4,"y":1},{"x":13,"y":0},{"x":21,"y":2},{"x":26,"y":0},{"x":16,"y":3},{"x":37,"y":3},{"x":12,"y":1},{"x":18,"y":1},{"x":13,"y":1},{"x":26,"y":2},{"x":10,"y":0},{"x":19,"y":1},{"x":31,"y":0},{"x":3,"y":0},{"x":35,"y":1},{"x":14,"y":0},{"x":34,"y":4},{"x":14,"y":1},{"x":13,"y":2},{"x":19,"y":3},{"x":36,"y":2},{"x":35,"y":0},{"x":16,"y":1},{"x":31,"y":3},{"x":38,"y":2},{"x":17,"y":2},{"x":29,"y":3},{"x":16,"y":2},{"x":13,"y":1},{"x":30,"y":2},{"x":8,"y":2},{"x":28,"y":2},{"x":5,"y":1},{"x":10,"y":1},{"x":6,"y":2}]}
+
+Here is that same fit in R, with one telling prediction:
 
 ```r
-x <- visitors - mean(visitors)     # center traffic: x = 0 is an average day
-round(mean(visitors), 1)
-#> [1] 21.8
-round(exp(0.8 + 0.09 * c(-10, 0, 10)), 2)   # one trial line: kits at 12, 22, 32 visitors
-#> [1] 0.90 2.23 5.47
+fit_ols <- lm(kits ~ spend)
+round(coef(fit_ols), 3)
+#> (Intercept)       spend 
+#>       0.436       0.058 
+round(predict(fit_ols, data.frame(spend = 0)), 2)   # orders it expects on a zero-ad day
+#>    1 
+#> 0.44 
 ```
 
-The model, in full:
+The line is not wrong, exactly, but look at what it hands back. First, it is a single line: one intercept, one slope, and no hint of how sure we should be. Second, it predicts **0.44 of a kit** on a day with no ads, and a straight line dropped a little further would predict a negative count, which is nonsense for whole-number orders. Third, and most subtly, least squares assumes the scatter around the line is the same size everywhere, yet you can see it in the data: quiet days barely wobble, busy days swing widely. Count data is like that; the spread grows with the level.
 
-\[ \text{kits}_i \sim \text{Poisson}(\lambda_i), \qquad \log \lambda_i = a + b\, x_i \]
+Two fixes, one framework. The Bayesian move puts a whole distribution over lines instead of one. The generalized-linear-model move swaps the straight line and its constant-size Gaussian noise for a shape that fits counts. We take both.
 
-Every symbol in words. \(a\) is the intercept: the log of expected demand on an average day (about 22 visitors). \(b\) is the slope: how much the log of demand rises per extra visitor. The \(\log\) is called the **link function**, the bridge between the line (which roams the whole number line) and demand (which must stay positive: \(\lambda = e^{a+bx}\) cannot go negative, no matter what the line does). And Poisson is the **family**, the shape of days around each demand level, the same champion that won Lesson 7. This trio, line plus link plus family, is a **generalized linear model**, a GLM: the recipe behind Poisson, logistic, and most of applied regression.
+=== step === quiz
+::eyebrow Check yourself
+## What did the single line leave out?
 
-The link changes what the slope MEANS, and the trial line above shows it. At 12 visitors it expects 0.90 kits, at 22 it expects 2.23, at 32 it expects 5.47: each step of ten visitors MULTIPLIES demand by the same factor of about 2.45, because \(e^{a+b(x+10)} = e^{a+bx} \cdot e^{10b}\). One extra visitor multiplies demand by \(e^{b}\); ten extra visitors compound to \(e^{10b}\). Multiplicative, never additive. Hold onto that: it is the single most misread number in applied GLMs, and the corner-stall decision hangs on it.
+Least squares handed Asha a slope of 0.058 kits per dollar and stopped there. Of the objections below, which is the one that Bayesian modeling and a GLM together are built to fix?
 
-One decision is still open in that trio: why Poisson for the family? It is the count family with one honest knob (its variance equals its mean), and it is the shape that survived Lessons 6 and 7. Below are the day-shapes the main count families imply. Toggle them: if kit sales later turned out to spread wider than Poisson allows, the negative binomial is the standard fallback, and the workflow you are about to run would simply go around its loop once more with that family.
+::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
+- Nothing important: the slope is the answer, and the model is done once you have it ::no A point slope with no interval cannot say whether the ad effect is real or noise, and a straight-line-plus-constant-Gaussian model can predict fractions of a kit and negative counts. Both are exactly what the rest of this lesson repairs.
+- The fit overfit the ninety days and should use fewer points ::no A one-slope line is the opposite of overfitting; it is rigid. The problem is not too much flexibility, it is a single answer with no uncertainty and a noise model that does not match counts.
+- It reports one line with no measure of uncertainty, and it assumes a constant-size Gaussian scatter that lets it predict fractional and negative counts ::ok Right. A regression should say how sure it is (a distribution over lines, not one), and a count outcome needs a likelihood whose spread grows with the mean and never goes negative. The next steps supply both.
+- It is biased low and the true slope must be larger ::no Least squares is not systematically low here; the issue is not the slope's value but the absence of any uncertainty around it and a noise model that is wrong for counts.
+
+=== step === concept
+::eyebrow The right model
+## A generalized linear model, in three pieces
+
+A generalized linear model (GLM) keeps regression's good idea, an outcome that responds to predictors through a straight-line combination, but wraps it so the outcome can be any type: a yes/no, a count, a positive amount. It has three pieces.
+
+First, the **linear predictor**, the familiar line, written \( \eta_i = \beta_0 + \beta_1 z_i \). Here \( z_i \) is the centered ad spend on day \(i\), \( \beta_0 \) (beta-zero) is the intercept, \( \beta_1 \) (beta-one) is the slope, and \( \eta_i \) (eta) is their combination for that day.
+
+Second, the **link**, a function that connects the line to the average outcome so the average always stays in bounds. For counts the average must be positive, so we model its logarithm:
+
+\[ \log \lambda_i = \eta_i = \beta_0 + \beta_1 z_i, \qquad\text{equivalently}\qquad \lambda_i = e^{\beta_0 + \beta_1 z_i}. \]
+
+Here \( \lambda_i \) (lambda) is the expected number of orders on day \(i\). Because it is an exponential, \( \lambda_i \) can never dip below zero, which cures the negative-count nonsense. It also changes what the slope means: adding one to \( z_i \) (a ten-dollar rise in ad spend) does not add a fixed number of kits, it **multiplies** the expected count by \( e^{\beta_1} \). That is why GLM effects are read as ratios.
+
+Third, the **likelihood family**, the distribution of the actual counts around that average. For counts the natural choice, and the count model from Lesson 6, is the Poisson, whose spread grows with its mean (variance equals mean), matching the widening scatter you saw:
+
+\[ y_i \sim \text{Poisson}(\lambda_i), \]
+
+where \( y_i \) is the whole-number orders on day \(i\). The widget below is the reminder that the family is a choice: a Poisson line can miss when real counts have extra spread or extra zeros, and there are richer count families for those cases (Lesson 6's territory).
 
 ::widget count-dist {}
 
+The same three-piece recipe, with a different link and family, gives every model in this table. Change the pieces, keep the machinery:
+
+| Outcome | Link | Likelihood family | The model |
+|---|---|---|---|
+| a continuous measurement | identity | Normal | ordinary linear regression |
+| yes or no | logit | Bernoulli | logistic regression |
+| a count (0, 1, 2, ...) | log | Poisson | what we build here |
+
+[KEY INSIGHT]
+Regression made the unknown a line. A GLM wraps that line in a link and a matching likelihood so any outcome type fits the same machinery. Everything Bayesian you already know, prior times likelihood, then read the posterior, applies unchanged; only the likelihood in the middle has been swapped for one that suits the data.
+
+=== step === tryit
+::eyebrow Feel the link
+## What the log link does to one day
+
+Before trusting a fit, see the link work on a single day. Day 4 in Asha's log was a busy one: thirty-six dollars of ads, so \( z = (36 - 20)/10 = 1.6 \). Take a candidate line with intercept 0.4 and slope 0.35 and read off its expected orders for that day. The mean is \( e^{\beta_0 + \beta_1 z} \); fill in the exponent.
+
+```r
+cand_b0 <- 0.4      # a candidate intercept
+cand_b1 <- 0.35     # a candidate slope
+z_day   <- 1.6      # a $36 ad-spend day, centered and in $10 units
+lambda_day <- exp(____)      # this line's expected orders on that day
+round(lambda_day, 2)
+```
+::check {"regex":"cand_b0\\s*\\+\\s*cand_b1\\s*\\*\\s*z_day","gate":true,"difficulty":"beginner","ok":"That is the link at work: exp(0.4 + 0.35 * 1.6) = exp(0.96) = 2.61 expected kits. Push z_day to a quiet day and the exponential keeps the mean positive but small; it can never go negative.","no":"The linear predictor is intercept plus slope times the day's z: cand_b0 + cand_b1 * z_day, all inside exp()."}
+::solution
+```r
+cand_b0 <- 0.4
+cand_b1 <- 0.35
+z_day   <- 1.6
+lambda_day <- exp(cand_b0 + cand_b1 * z_day)
+round(lambda_day, 2)
+#> [1] 2.61
+```
+
 === step === concept
-::eyebrow The priors
-## Priors that know the scale
+::eyebrow Priors, and a trap
+## Priors on the slopes, checked before any data
 
-Two unknowns now, so two priors. Nothing here is new in kind: each coefficient gets exactly the treatment Asha's conversion rate got in Lesson 1, a prior belief, soon to be multiplied by a likelihood. What IS new is a trap. On the log scale, "vague and harmless" priors are neither, because everything you say about \(b\) gets exponentiated. Watch. Give the slope a standard vague prior, Normal with mean 0 and standard deviation 1, and ask what it implies about the busiest day of the season:
-
-```r
-set.seed(4)
-b_wild <- rnorm(4, 0, 1)             # four slopes drawn from a "harmless" vague prior
-round(b_wild, 2)
-#> [1]  0.22 -0.54  0.89  0.60
-signif(exp(0.8 + b_wild * (max(visitors) - mean(visitors))), 2)  # implied kits, busiest day
-#> [1] 9.3e+01 2.0e-04 1.0e+07 6.3e+04
-```
-
-Read those four worlds. Ninety-three kits on a fair day: conceivable. A sale every five thousand days: a dead stall. Ten MILLION kits: the prior believes Asha might personally supply every terrarium on Earth that afternoon. Sixty-three thousand: still absurd. This is a **prior predictive check**: push draws from the prior through the model and look at the data they imply, BEFORE any fitting. It is the cheapest mistake-catcher in the whole workflow, and link scales are where you need it most, because a slope prior you would call timid in ordinary regression turns into science fiction after \(e^{x}\).
-
-So choose priors that know the scale, weakly informative rather than vague:
-
-\[ a \sim \text{Normal}(0,\, 1), \qquad b \sim \text{Normal}(0,\, 0.05) \]
-
-(both written as mean and standard deviation). Translate each into kits before accepting it:
+The Bayesian half of the model is a prior for each coefficient. It is tempting to reach for something "vague" and let the data speak, but the log link sets a trap: a prior that looks harmless on \( \beta \) can be insane once it passes through the exponential. Watch a genuinely vague prior, \( \beta_0, \beta_1 \sim \mathcal{N}(0, 5) \), imply orders for a busy forty-dollar day (\( z = 2 \)):
 
 ```r
-round(exp(qnorm(c(0.025, 0.975)) * 1), 2)          # a ~ N(0, 1): kits on an average day
-#> [1] 0.14 7.10
-round(exp(qnorm(c(0.025, 0.975)) * 0.05 * 10), 2)  # b ~ N(0, 0.05): multiplier per 10 visitors
-#> [1] 0.38 2.66
+set.seed(100)
+S <- 20000
+lambda_vague <- exp(rnorm(S, 0, 5) + rnorm(S, 0, 5) * 2)     # a "vague" prior's implied rate
+signif(quantile(lambda_vague, c(0.5, 0.975)), 3)
+#>      50%    97.5% 
+#> 8.82e-01 3.24e+09 
 ```
 
-The intercept prior spans one sale a week up to seven a day on an average day: generous but earthly. The slope prior says ten extra visitors could cut demand to a third or multiply it by 2.7, and anything stronger needs real evidence. Neither prior smuggles in the answer; both rule out the ten-million-kit universe. Every piece of this is the machinery you already own: prior times likelihood, coefficient by coefficient, the same update you watched compress in Lesson 1, below.
+The median implied rate is a sensible 0.9 kits, but the upper edge of that prior seriously entertains **three billion kits in a day** at a plant stall. "Vague" is not the same as "harmless"; through the exponential it is a wild belief. This is a **prior predictive check**: simulate the data the priors alone predict, before touching the real counts, and throw out any prior that predicts nonsense.
+
+A weakly informative prior fixes it. Keep the priors open-minded but let them know a stall sells single digits: \( \beta_0 \sim \mathcal{N}(0, 1) \) and \( \beta_1 \sim \mathcal{N}(0, 0.5) \). The same busy day now implies a believable range.
+
+```r
+lambda_weak <- exp(rnorm(S, 0, 1) + rnorm(S, 0, 0.5) * 2)    # weakly informative prior
+round(quantile(lambda_weak, c(0.5, 0.975)), 2)
+#>   50% 97.5% 
+#>  1.00 16.13 
+```
+
+Median 1 kit, and even the 97.5th percentile is about 16, a busy but possible day. That is what "weakly informative" means: wide enough to be overturned by evidence, narrow enough to rule out the physically absurd. Each coefficient's prior is exactly Lesson 1's belief curve, one per slope; the widget replays that update so you can watch a prior meet the data and move.
 
 ::widget bayes-update {}
 
-=== step === quiz
-::eyebrow Check yourself
-## Reading a slope through a link
-
-Suppose the fit lands the slope near \(b = 0.08\). Asha's colleague reads the model \(\log \lambda = a + b x\) and announces: "so each extra visitor adds 0.08 kits to expected sales." What is the correct reading?
-
-::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- He is right: b is the number of extra kits per visitor ::no That reading belongs to the straight-line model this lesson deliberately broke. The line lives on the LOG of demand, so a step in x adds on the log scale, which multiplies on the kit scale: each visitor multiplies expected demand by exp(0.08), about 1.083.
-- Each extra visitor multiplies expected demand by exp(0.08), about 1.08, so ten extra visitors compound to exp(0.8), about 2.2 times the sales, not 0.8 extra kits ::ok Right. Effects through a log link are multiplicative, and they compound: ten visitors do not add ten small slices, they stack ten multiplications. This is exactly why the corner-stall question will be answered with a rate ratio, not a kit count.
-- The slope cannot be interpreted until you also know the noise parameter sigma ::no A habit imported from Normal regression. The Poisson family has no separate noise knob: its variance IS its mean. Once a and b pin down lambda, the whole distribution of a day is pinned down too.
-- exp(0.08) is about 1.08, so each visitor adds 1.08 kits ::no exp(0.08) is a MULTIPLIER, not a count. On a two-kit day one more visitor adds about 0.17 kits in expectation; on a seven-kit day, about 0.58. Same ratio, different kit counts: that is what multiplicative means.
-
 === step === concept
 ::eyebrow The fit
-## Metropolis, now with two knobs
+## Extend Lesson 1's grid to two coefficients
 
-Time to fit. Bayes rule has not changed shape: the posterior over BOTH coefficients is prior times likelihood,
-
-\[ p(a, b \mid \text{kits}) \;\propto\; p(a)\; p(b) \prod_{i=1}^{75} \text{Poisson}\!\big(\text{kits}_i \mid e^{a + b x_i}\big) \]
-
-but conjugate mercy is gone: no textbook family hands you this posterior in closed form. This is precisely the situation Lesson 3 built the Metropolis sampler for, and the sampler barely notices the upgrade. The walker now stands at a PAIR \((a, b)\) and proposes a nudge to both coordinates at once; the accept-or-stay rule is word for word the same. The entire model, prior beliefs and all, lives in one function:
+Lesson 1 fit one unknown by laying it on a grid, scoring every candidate with prior times likelihood, and normalizing. A line has two unknowns, so the grid becomes a sheet: every pair \( (\beta_0, \beta_1) \) is one candidate line, scored the same way. Nothing new, one more dimension.
 
 ```r
-logpost <- function(th) {
-  a <- th[1]; b <- th[2]
-  dnorm(a, 0, 1, log = TRUE) + dnorm(b, 0, 0.05, log = TRUE) +
-    sum(dpois(kits, exp(a + b * x), log = TRUE))
+b0_grid <- seq(-0.4, 1.2, length.out = 60)   # candidate intercepts
+b1_grid <- seq(-0.2, 0.9, length.out = 60)   # candidate slopes
+grid    <- expand.grid(b0 = b0_grid, b1 = b1_grid)
+
+log_post <- function(b0, b1) {
+  lambda <- exp(b0 + b1 * z)                  # the log link: one expected count per day
+  sum(dpois(kits, lambda, log = TRUE)) +      # Poisson log-likelihood over the 90 days
+    dnorm(b0, 0, 1,   log = TRUE) +           # prior on the intercept
+    dnorm(b1, 0, 0.5, log = TRUE)             # prior on the slope
 }
-metropolis2 <- function(logpost, start, prop_sd, n) {
-  chain <- matrix(0, n, 2, dimnames = list(NULL, c("a", "b")))
-  chain[1, ] <- start
-  acc <- 0
-  for (i in 2:n) {
-    cand <- rnorm(2, chain[i - 1, ], prop_sd)     # nudge BOTH coordinates
-    if (log(runif(1)) < logpost(cand) - logpost(chain[i - 1, ])) {
-      chain[i, ] <- cand
-      acc <- acc + 1
-    } else chain[i, ] <- chain[i - 1, ]
-  }
-  list(chain = chain, accept = acc / (n - 1))
-}
+
+grid$logp <- mapply(log_post, grid$b0, grid$b1)   # score every candidate line
+grid$w    <- exp(grid$logp - max(grid$logp))      # to weights (subtract the max for safety)
+grid$w    <- grid$w / sum(grid$w)                 # normalize so the weights sum to 1
+round(unlist(grid[which.max(grid$w), c("b0", "b1")]), 3)   # the single most probable line
+#>    b0    b1 
+#> 0.386 0.359 
+```
+
+The grid is exact and effortless with two coefficients. It stops being effortless with many: a ten-predictor model would need a ten-dimensional sheet, far too many cells to fill. That is the wall where you trade the grid for a sampler, the Metropolis algorithm, Hamiltonian Monte Carlo, the Stan tooling underneath the one-liner you will see shortly. For two coefficients the grid IS the posterior, so we read it directly. Draw four thousand lines from it, in proportion to their weight, and the whole posterior is in hand:
+
+```r
 set.seed(7)
-fit <- metropolis2(logpost, start = c(0, 0), prop_sd = c(0.11, 0.011), n = 20000)
-round(fit$accept, 2)
-#> [1] 0.36
+pick    <- sample(nrow(grid), 4000, replace = TRUE, prob = grid$w)
+post_b0 <- grid$b0[pick]     # 4000 plausible intercepts
+post_b1 <- grid$b1[pick]     # 4000 plausible slopes
+
+round(quantile(post_b1, c(0.025, 0.5, 0.975)), 3)        # the slope, on the log scale
+#>  2.5%   50% 97.5% 
+#> 0.210 0.359 0.527 
+round(quantile(exp(post_b1), c(0.025, 0.5, 0.975)), 3)   # the same slope as a per-$10 multiplier
+#>  2.5%   50% 97.5% 
+#> 1.234 1.432 1.694 
+mean(post_b1 > 0)                                         # posterior belief that ads help at all
+#> [1] 1
 ```
 
-Acceptance 0.36, comfortably in the healthy zone from Lesson 3 (roughly 0.2 to 0.5 for a walk like this; the widget below lets you re-feel why too-timid and too-bold proposals both waste the walk). Now the Lesson 4 discipline, in its smallest useful form: look at the trace, and run a SECOND chain from a deliberately silly start, twice the plausible intercept and a negative slope. If both walks describe the same posterior, the start did not matter and the chains have found the real thing:
+Read those three lines as a sentence. The slope is almost certainly positive (probability essentially 1). Its 95 percent credible interval on the log scale is (0.21, 0.53), which comfortably contains the true 0.35 we simulated from, so the fit recovered the answer. And exponentiated, the effect is a **multiplier**: each extra ten dollars of daily ad spend multiplies expected orders by about 1.43, with a 95 percent credible interval of (1.23, 1.69). A quick maximum-likelihood fit agrees to the decimal, a reassuring cross-check that the grid did its job:
 
 ```r
-plot(fit$chain[1:2000, "b"], type = "l", col = "navy",
-     xlab = "iteration", ylab = "slope b",
-     main = "The slope chain: a short climb, then home")
-
-set.seed(8)
-fit2 <- metropolis2(logpost, start = c(2, -0.2), prop_sd = c(0.11, 0.011), n = 20000)
-draws  <- fit$chain[seq(2001, 20000, by = 4), ]   # drop warm-up, keep every 4th step
-draws2 <- fit2$chain[seq(2001, 20000, by = 4), ]
-round(rbind(chain_1 = colMeans(draws), chain_2 = colMeans(draws2)), 3)
-#>             a     b
-#> chain_1 0.813 0.084
-#> chain_2 0.812 0.084
-
-a_draws <- draws[, "a"]; b_draws <- draws[, "b"]
-round(c(b_mean = mean(b_draws), b_lo90 = as.numeric(quantile(b_draws, 0.05)),
-        b_hi90 = as.numeric(quantile(b_draws, 0.95))), 3)
-#> b_mean b_lo90 b_hi90 
-#>  0.084  0.071  0.097 
-round(c(a_truth = -1.2 + 0.09 * mean(visitors), b_truth = 0.09), 2)
-#> a_truth b_truth 
-#>    0.76    0.09 
+round(coef(glm(kits ~ z, family = poisson())), 3)   # the same model, fit by maximum likelihood
+#> (Intercept)           z 
+#>       0.390       0.369 
 ```
 
-Two chains, two starts, the same answer to the third decimal: agreement is the whole idea behind Lesson 4's R-hat, seen with the naked eye. And now unseal the recipe. The notebook was generated with a centered intercept of 0.76 and a slope of 0.09. The posterior put its 90% interval for \(a\) at 0.668 to 0.953 and for \(b\) at 0.071 to 0.097. Both truths sit inside. The machine, assembled over seven lessons, works.
+=== step === quiz
+::eyebrow Check yourself
+## Reading the multiplier
 
-::widget mcmc-walk {}
+Asha's report says: the posterior for \( e^{\beta_1} \) has median 1.43 with a 95 percent credible interval of (1.23, 1.69), where one unit of the predictor is a ten-dollar rise in daily ad spend. Which reading is right?
 
-=== step === tryit
-::eyebrow Your turn
-## Price the corner stall
-
-The decision number. The corner pitch sees about ten more visitors a day, and step 3 showed that ten extra visitors multiply expected demand by \(e^{10b}\). You hold 4,500 posterior draws of \(b\) in `b_draws`, so you hold 4,500 plausible values of that multiplier. State the 90% credible interval for it: transform the draws, then read off the 0.05 and 0.95 quantiles.
-
-```r
-rr_ci <- ____          # 90% credible interval for the ten-visitor multiplier
-round(rr_ci, 2)
-```
-::check {"regex":"quantile\\s*\\(\\s*exp\\s*\\(\\s*(10\\s*\\*\\s*b_draws|b_draws\\s*\\*\\s*10)\\s*\\)\\s*,\\s*(probs\\s*=\\s*)?c\\s*\\(\\s*0?\\.05\\s*,\\s*0?\\.95\\s*\\)\\s*\\)","gate":true,"difficulty":"intermediate","ok":"rr_ci = 2.04 to 2.63: with 90% credibility, ten extra visitors a day multiply expected kit sales by a factor between about 2.0 and 2.6. Note the move you just made: transform EVERY draw first, then take quantiles. That one habit answers any derived question the posterior can be asked.","no":"Transform the draws first, then summarize: quantile(exp(10 * b_draws), c(0.05, 0.95)). Applying exp to a summary of b instead of to the draws works only for quantiles and fails for means; transforming the whole vector of draws is the habit that always works."}
-::solution
-```r
-rr_ci <- quantile(exp(10 * b_draws), c(0.05, 0.95))
-round(rr_ci, 2)
-#>   5%  95% 
-#> 2.04 2.63 
-```
+::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
+- Each extra ten dollars a day of ad spend multiplies expected orders by about 1.43, and the data are consistent with a multiplier anywhere from 1.23 to 1.69 ::ok Right. A log link makes the effect multiplicative, so exp(beta1) is a ratio: spend ten dollars more per day and the expected count scales by roughly 1.43, a 43 percent lift, with honest uncertainty on the multiplier itself.
+- Each extra ten dollars a day adds about 1.43 kits to that day's orders ::no The link is logarithmic, so the effect multiplies, it does not add. 1.43 is a factor applied to whatever the expected count already was, not a fixed number of extra kits.
+- About 43 percent of the variation in daily orders is explained by ad spend ::no exp(beta1) is a rate ratio, not a share of variance. It says how the expected count scales with the predictor, nothing about an R-squared.
+- There is a 95 percent chance ad spend causes between 23 and 69 more orders over the ninety days ::no The interval is for a per-ten-dollar multiplier on the daily rate, not a total count of extra orders, and a regression slope is an association, not a proven causal effect (a caution we return to at the end).
 
 === step === concept
-::eyebrow The report
-## The band and the day
+::eyebrow Does it fit?
+## Check: a posterior predictive test
 
-So the corner stall roughly doubles expected sales, and even the pessimistic end of the interval doubles them. Against 40 percent more rent, the answer writes itself, with one caution we will meet in the final quiz. But a report that only quotes coefficients is not finished. Stakeholders ask concrete questions: "the autumn fair brings 35 visitors; what do we sell?" That question hides TWO different uncertainties, and confusing them is the most common error in applied reporting.
-
-The first is uncertainty about the demand LEVEL: what is \(\lambda\) on a 35-visitor day? The posterior draws answer by transformation, the same move as the try-it:
-
-```r
-S <- length(b_draws)                                        # 4500 plausible worlds
-demand35 <- exp(a_draws + b_draws * (35 - mean(visitors)))  # each draw states a demand
-set.seed(9)
-day35 <- rpois(S, demand35)                # then each world runs one ACTUAL such day
-round(c(demand_mean = mean(demand35),
-        demand_lo90 = as.numeric(quantile(demand35, 0.05)),
-        demand_hi90 = as.numeric(quantile(demand35, 0.95))), 2)
-#> demand_mean demand_lo90 demand_hi90 
-#>        6.85        5.96        7.76 
-quantile(day35, c(0.05, 0.95))             # what the day itself might sell
-#>  5% 95% 
-#>   3  11 
-```
-
-Read the two intervals side by side. Expected demand on a 35-visitor day: 6.85 kits, 90% credible interval 5.96 to 7.76. Tight, because seventy-five days of data pin the line down well. But the day ITSELF might sell anywhere from 3 to 11 kits, an interval three times wider, because a single day adds Poisson luck on top of the uncertain level. The first interval is a **credible interval** for the average; the second is a **prediction interval** for one realization. Stock for the fair using the first and Asha runs out one day in four; the moss order needs the second. More data shrinks the first toward a point; the second never shrinks past the Poisson noise floor. Feel exactly that below: grow the sample size and watch the inner band pinch while the outer band refuses.
-
-::widget regression-intervals {}
-
-So the report reads: on a typical fair day of 35 visitors, expect about 6.9 kit sales (90% credible interval 6.0 to 7.8); plan stock for as many as 11, as few as 3; ten extra visitors of daily traffic multiply expected sales by 2.0 to 2.6.
-
-=== step === concept
-::eyebrow Check and compare
-## Earn the right to be believed
-
-Two audits before that report leaves the stall, both with tools you already own. First, Lesson 6's question: can this model even IMITATE the season it was fit to? Pick the statistic the whole lesson is about, the traffic-sales correlation, and let each fitted model invent two thousand seasons: the GLM, and Lesson 7's champion, the flat Gamma-Poisson (one rate for every day), updated on this new season as the challenger.
-
-```r
-T_obs <- cor(visitors, kits)              # the statistic a flat model cannot fake
-a0 <- 4 + sum(kits); b0 <- 2 + 75         # the old champion, updated on the new season
-set.seed(10)
-lam0 <- rgamma(S, a0, b0)
-cor_flat <- sapply(1:2000, function(s) cor(visitors, rpois(75, lam0[s])))
-cor_glm  <- sapply(1:2000, function(s) cor(visitors, rpois(75, exp(a_draws[s] + b_draws[s] * x))))
-round(c(observed = T_obs,
-        flat_can_match = mean(cor_flat >= T_obs),
-        glm_can_match  = mean(cor_glm  >= T_obs)), 3)
-#>       observed flat_can_match  glm_can_match 
-#>          0.784          0.000          0.350 
-round(range(cor_flat), 2)                 # the flat repertoire, 2000 tries
-#> [1] -0.39  0.38
-```
-
-The observed correlation is 0.784. In two thousand invented seasons the flat model never once reached it; its entire repertoire tops out at 0.38, exactly the picture the widget below draws (an observed value stranded outside everything the model can produce). The GLM reproduces it comfortably (a healthy 0.35 of its seasons score higher). Last season the flat model was the champion; one new column of data and the same check that crowned it now retires it. Second audit, Lesson 7's scoreboard, rebuilt in three lines:
-
-```r
-llik_glm  <- sapply(1:75, function(i) dpois(kits[i], exp(a_draws + b_draws * x[i]), log = TRUE))
-llik_flat <- sapply(1:75, function(i) dpois(kits[i], lam0, log = TRUE))
-elpd <- function(llik) log(colMeans(exp(llik))) - apply(llik, 2, var)  # Lesson 7, per day
-e_glm <- elpd(llik_glm); e_flat <- elpd(llik_flat)
-d <- e_glm - e_flat
-round(c(elpd_glm = sum(e_glm), elpd_flat = sum(e_flat),
-        diff = sum(d), se = sqrt(75 * var(d))), 1)
-#>  elpd_glm elpd_flat      diff        se 
-#>    -129.5    -200.1      70.6      14.4 
-```
-
-An elpd gap of 70.6 at standard error 14.4, about five standard errors: not last lesson's photo finish but a rout. The predictor earns its keep on both audits. In practice you will run this pipeline through Stan tooling rather than hand-built samplers; here is this entire lesson in five lines, to run in a local R where Stan is installed (Stan cannot run in a browser session):
-
-```r-static
-# The same pipeline with brms (local R)
-library(brms)
-d <- data.frame(kits, visitors)
-fit <- brm(kits ~ visitors, data = d, family = poisson(),
-           prior = c(prior(normal(0, 1), class = Intercept),
-                     prior(normal(0, 0.05), class = b)))
-summary(fit)      # coefficients, credible intervals, R-hat, effective sample size
-pp_check(fit)     # the posterior predictive check, one call
-loo(fit)          # the elpd machinery of Lesson 7, industrial grade
-```
+A posterior that recovered the truth is still worthless if the model cannot reproduce the data it was fit on. That is the Lesson 6 check, now applied to the regression. Pick a test statistic the model was never explicitly told to match, simulate fresh data from the fitted posterior many times, and see where the observed value falls. The widget is the picture: replicate a statistic under the model, mark the observed value, and read whether it sits in the crowd or out in the tail.
 
 ::widget ppc-overlay {}
 
-[WARNING]
-Four limits belong in the report. First, the model measured ASSOCIATION across days, not the effect of moving the stall; hold that thought two more steps. Second, traffic ranged from 5 to 39 visitors, so the model has earned no opinion about a 60-visitor festival; through an exponential link, extrapolation fails expensively. Third, the Poisson family fixes variance equal to mean; if sales run wider (weekend bursts, bulk buyers), the negative binomial is the standard next lap of the workflow loop. Fourth, with 75 days the data overrules any reasonable prior, but in thin-data corners (a new product, a short season) the priors carry real weight, which is why step 4 made them defensible out loud.
+For Asha the natural statistic is the number of zero-order days: her log has twenty-one, and a model that got the shape of low counts wrong would betray itself here. Draw a line from the posterior, simulate ninety days from it, count the zeros, and repeat:
+
+```r
+set.seed(5)
+zeros_obs <- sum(kits == 0)                                   # 21 blank days in the real log
+zeros_rep <- replicate(2000, {
+  s        <- sample(length(post_b0), 1)                      # one plausible line from the posterior
+  fake_day <- rpois(length(kits), exp(post_b0[s] + post_b1[s] * z))
+  sum(fake_day == 0)                                          # its number of blank days
+})
+c(observed = zeros_obs, ppc_p = round(mean(zeros_rep >= zeros_obs), 2))
+#> observed    ppc_p 
+#>    21.00     0.58 
+```
+
+A posterior predictive p-value of 0.58 sits right in the middle: the model's simulated worlds produce about as many blank days as Asha actually saw. The Poisson GLM reproduces this feature of her data, so it earns the right to be trusted, or at least compared.
+
+=== step === concept
+::eyebrow Is the predictor worth it?
+## Compare: does ad spend earn its keep?
+
+The model fits. But so does the simpler model from Lesson 7, the one with no predictor at all, a single rate for every day. Adding a slope always fits the training data at least as well; the honest question is whether it predicts better on days it has not seen. That is exactly what WAIC and its leave-one-out cousin estimate, and the tool you built in Lesson 7 answers it. This comparison is the fourth stage of the workflow loop you now own end to end:
+
+::widget process-flow {"steps":[{"title":"Model","sub":"a likelihood and priors: Poisson counts, a log-linear rate, priors on the slopes"},{"title":"Fit","sub":"turn prior plus data into a posterior over the whole line"},{"title":"Check","sub":"posterior predictive checks: does it reproduce the data?"},{"title":"Compare","sub":"WAIC or LOO ranks it against the simpler model"},{"title":"Report","sub":"credible and prediction intervals a decision can lean on"}]}
+
+Fit the predictor-free model on a one-dimensional grid, build a log-likelihood matrix for each model (one row per posterior draw, one column per day, exactly Lesson 7's object), and score both with WAIC:
+
+```r
+b0_only <- seq(-0.4, 1.2, length.out = 600)                  # the flat model has one unknown
+w_only  <- exp(sapply(b0_only, function(b0)
+  sum(dpois(kits, exp(b0), log = TRUE)) + dnorm(b0, 0, 1, log = TRUE)))
+w_only  <- w_only / sum(w_only)
+set.seed(9); draw0 <- sample(b0_only, 4000, TRUE, prob = w_only)
+
+llik_spend <- sapply(1:length(kits), function(i) dpois(kits[i], exp(post_b0 + post_b1 * z[i]), log = TRUE))
+llik_flat  <- sapply(1:length(kits), function(i) dpois(kits[i], exp(draw0), log = TRUE))
+
+waic <- function(llik) {
+  lppd   <- sum(log(colMeans(exp(llik))))     # fit, flattered by using each day's own data
+  p_waic <- sum(apply(llik, 2, var))          # the complexity penalty (Lesson 7)
+  c(elpd_waic = lppd - p_waic, p_waic = p_waic)
+}
+round(rbind(with_spend = waic(llik_spend), flat = waic(llik_flat)), 2)
+#>            elpd_waic p_waic
+#> with_spend   -139.82   1.75
+#> flat         -149.88   1.22
+```
+
+The spend model scores higher (less negative), and its penalty of about 1.75 is close to its two free parameters, the flat model's about 1.22 to its one, WAIC measuring each model's real complexity off the matrix. But a scoreboard needs its standard error before you trust the gap, the discipline from Lesson 7:
+
+```r
+lpd_spend <- log(colMeans(exp(llik_spend)))
+lpd_flat  <- log(colMeans(exp(llik_flat)))
+d <- lpd_spend - lpd_flat                      # the spend model's per-day edge
+round(c(elpd_diff = sum(d), se = sqrt(length(d) * var(d))), 2)
+#> elpd_diff        se 
+#>     10.59      4.16 
+```
+
+An edge of 10.6, about two and a half of its own standard errors: the predictor genuinely improves out-of-sample prediction, not by luck of these ninety days. Ad spend earns its keep. With Stan tooling this whole comparison is a few calls; read it now, run it when you have a local R with Stan installed (it does not run in a browser session):
+
+```r-static
+# The same model and comparison with Stan tooling (local R)
+library(rstanarm)
+fit  <- stan_glm(kits ~ z, family = poisson(),
+                 prior = normal(0, 0.5), prior_intercept = normal(0, 1),
+                 data = data.frame(kits, z))
+fit_flat <- update(fit, . ~ 1)                 # drop the predictor
+loo_compare(loo(fit), loo(fit_flat))           # the same elpd difference, via PSIS-LOO
+```
+
+=== step === concept
+::eyebrow Say it for a decision
+## Report: two intervals, one for the mean, one for a day
+
+Asha does not want coefficients, she wants a forecast she can plan around. Suppose she settles on a thirty-dollar daily ad budget for next month. The posterior answers two different questions, and confusing them is the classic reporting mistake. The credible interval says where the average order rate for such days lives; the prediction interval says what a single actual day might sell, and it is always wider because it also carries the day-to-day Poisson randomness on top of the uncertainty about the line.
+
+```r
+z_new      <- (30 - 20) / 10                          # a $30 ad-spend day
+lambda_new <- exp(post_b0 + post_b1 * z_new)          # posterior for the MEAN rate that day
+set.seed(3)
+orders_new <- rpois(length(lambda_new), lambda_new)   # posterior PREDICTIVE for actual orders
+
+round(quantile(lambda_new, c(0.025, 0.5, 0.975)), 2)  # credible interval: the average rate
+#>  2.5%   50% 97.5% 
+#>  1.74  2.11  2.52 
+round(quantile(orders_new, c(0.025, 0.5, 0.975)), 2)  # prediction interval: one real day
+#>  2.5%   50% 97.5% 
+#>     0     2     5 
+```
+
+Two honest sentences for Asha. On average, a thirty-dollar ad day is worth about 2.1 kits, and she can be 95 percent sure that long-run average lies between 1.7 and 2.5. But any single such day is a roll of the dice: expect a typical day near 2 kits, with anything from 0 to 5 entirely ordinary. She stocks moss for the day-to-day range (0 to 5), and plans her monthly revenue off the mean (near 2.1). The widget makes the two bands concrete: the inner one, the mean, pins down as data grows; the outer one, a new day, never shrinks past the irreducible noise.
+
+::widget regression-intervals {}
+
+[NOTE]
+Every number here still carries Lesson 1's preamble: given the model and the priors. A different weakly informative prior would nudge these intervals a little, and much less than it would have at ten days. The prior is not cheating; it is an assumption stated in the open, and the prior predictive check earlier is how you keep it honest.
 
 === step === quiz
 ::eyebrow Check yourself
-## The corner-stall verdict
+## Which interval does the decision use?
 
-The report lands on the desk of the marketing lead: ten-visitor rate ratio 2.3, 90% credible interval 2.0 to 2.6; elpd gap 70.6 at standard error 14.4. He concludes: "The interval excludes 1 and the model comparison is a five-sigma rout. Renting the corner stall will roughly double kit sales; the data has proven it." What is the sharpest correction?
+Asha needs to decide how many spare moss packs to keep on hand for a single upcoming thirty-dollar ad day, since unsold moss must be re-misted daily. Which interval should she plan that day's stock around?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Nothing to correct: the interval is tight, the elpd gap is decisive, so the doubling is established ::no Both numbers grade PREDICTION on observed days. They establish that busy days sell about twice what quieter days do, not what happens when Asha changes the traffic herself. Statistical strength cannot upgrade an association into an intervention effect.
-- Both numbers measure association across days as they happened: busy days differ from quiet days in ways that travel with traffic (weather, season, events), so moving the stall changes the visitor count but not necessarily the rest. The doubling is a forecast that leans on a causal assumption the data alone cannot check ::ok Right. The model is excellent at predicting sales FROM traffic; whether traffic obtained by relocation behaves like traffic that came with sunny fair days is a causal question, answerable by moving the stall for a trial month, not by tightening the interval.
-- The claim fails because the credible interval is too wide to support a business decision ::no The interval is actually tight: even its pessimistic end doubles sales. Width is not the flaw here. The flaw is what the number measures: an association across days, not the effect of an intervention on one stall.
-- WAIC only shows the flat model is worse, so no statement about visitors is allowed at all ::no Too strong in the other direction. The comparison, together with the predictive check, fully licenses USING traffic to predict sales, for stocking and moss orders. What it cannot license by itself is the intervention reading: change the traffic, collect the doubling.
+- The credible interval for the mean rate, (1.74, 2.52), because it is the model's best estimate ::no That interval is about the long-run average across many thirty-dollar days, not what one day will actually sell. Planning a single day's stock off it would leave her short whenever that day runs busy.
+- The prediction interval for a single day, (0, 5), because she is stocking for one real day, not for the average ::ok Right. A single day carries the full Poisson randomness on top of the uncertainty about the line, so its interval is wider. Stock for the range an actual day can hit, which is 0 to 5, not the mean's tight band.
+- Neither: she should just use the point estimate of about 2 kits ::no A point estimate ignores the day-to-day spread entirely. Stocking exactly 2 would leave her under-supplied on every busier-than-average day, which the prediction interval says reach 5.
+- The credible interval, because it is narrower and therefore safer ::no Narrower is not safer here, it answers the wrong question. The mean's interval understates what a single day can do; using it for one day's stock is precisely the mean-versus-day confusion to avoid.
+
+=== step === concept
+::eyebrow Know the limits
+## A slope is an association, not a lever
+
+The posterior is decisive that ad spend and orders move together, and the model predicts well. It is tempting to end with "so spending ten dollars more will multiply orders by 1.43." Be careful: that is a causal claim, and a regression on observed days does not, by itself, earn it.
+
+[WARNING]
+The slope measures association in the data Asha happened to record. Maybe she spent more on ads exactly on weekends or paydays, when orders would have been higher anyway; then ad spend is riding a hidden cause, and cutting the ad budget would not cut orders as the slope suggests. To read a slope as a lever you can pull, you need the causal machinery of a later course (a randomized test, or the confounding controls of causal inference), not just a good fit.
+
+Two more honest edges. The model should not be trusted far outside the observed spend range of roughly zero to forty dollars; the exponential will happily predict enormous counts at spend levels she has never tried. And if real orders are more spread out than a Poisson allows (overdispersion) or pile up extra zeros, the Poisson family is too tight, and richer count families (a negative binomial, or a zero-inflated model) are the fix. The posterior predictive check is exactly how you would have caught that; here it passed.
+
+=== step === quiz
+::eyebrow Check yourself
+## What the verdict licenses
+
+A colleague reads Asha's report, credible interval for the multiplier (1.23, 1.69), WAIC favouring the spend model by about 2.5 standard errors, and concludes: "Proven. If we double the ad budget, orders will jump by the predicted multiplier." What is the sharpest correction?
+
+::quiz {"correct":2,"gate":true,"difficulty":"advanced"}
+- He is right: a credible interval that excludes 1 and a clear WAIC win together prove the intervention effect ::no Both numbers are strong evidence of association and of better prediction, but neither rules out a hidden common cause. A slope fit on observed days measures how ad spend and orders co-vary, not what changing the budget would do.
+- The evidence is strong that spend and orders move together and that the predictor improves forecasts, but a slope from observed data is an association; without a randomized test or explicit confounding controls it does not license a "change the budget, get this effect" claim ::ok Exactly. Prediction and causation are different questions. The model earns a confident forecast for days like the ones observed, and honest uncertainty on the multiplier, but the lever-pulling claim needs a design the data here does not have.
+- The interval is too wide to act on, so nothing can be concluded ::no A multiplier interval of (1.23, 1.69) is decisive that the association is positive and material; width is not the problem. The problem is upgrading an association to a guaranteed intervention effect.
+- WAIC only tells you which model predicts worse, so it says nothing about the ad effect ::no WAIC did its job, showing the predictor genuinely improves out-of-sample prediction. The gap is not in the comparison; it is in reading a predictive, associational result as a causal one.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-Five authoritative places to take the whole course further:
+Five authoritative places to take this further:
 
-- [Gelman, Hill and Vehtari, Regression and Other Stories (official site)](https://avehtari.github.io/ROS-Examples/) - the book-length version of this lesson: regression as workflow, priors, checking, and honest reporting, with all code public.
-- [McElreath, Statistical Rethinking (book site)](https://xcelab.net/rm/) - the course whose teaching philosophy this one shares: models built from scratch, samplers demystified, causal caution throughout.
-- [Buerkner (2017), brms: An R Package for Bayesian Multilevel Models Using Stan (JSS)](https://www.jstatsoft.org/article/view/v080i01) - the tool you will actually fit GLMs with; this paper is its guided tour.
-- [Stan wiki: Prior Choice Recommendations](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations) - the field notes behind step 4: which priors are defensible where, and why vague is not neutral.
-- [Gelman et al. (2020), Bayesian Workflow (arXiv)](https://arxiv.org/abs/2011.01808) - the full loop this course walked (model, fit, check, compare, expand), written by the people who named it.
+- [Regression and Other Stories (Gelman, Hill and Vehtari), free PDF](https://avehtari.github.io/ROS-Examples/) - the modern applied companion to exactly this workflow: GLMs, priors on coefficients, and honest predictive summaries.
+- [Statistical Rethinking (McElreath)](https://xcelab.net/rm/) - chapters 10 to 11 build Poisson and binomial GLMs from priors on the link scale, with the prior-predictive-check habit front and centre.
+- [Bayesian Data Analysis, 3rd edition (Gelman, Carlin, Stern, Dunson, Vehtari, Rubin), free PDF](https://sites.stat.columbia.edu/gelman/book/) - the canonical reference; its GLM chapter is the rigorous version of this lesson.
+- [rstanarm: stan_glm and the Bayesian GLM](https://mc-stan.org/rstanarm/articles/rstanarm.html) - the one-call tool that fits the model you built by hand, with the same prior specification.
+- [Burkner (2017), brms: Bayesian Regression Models using Stan, Journal of Statistical Software](https://doi.org/10.18637/jss.v080.i01) - the flexible package for Bayesian regression, from GLMs to multilevel and beyond.
 
 === step === complete
-## Course complete
+## Module complete
 
-Eight lessons ago, Bayes rule was one line about a conversion rate. Look at what ran today, end to end, in plain base R. You wrote a GLM (a line, a log link, a Poisson family), gave every coefficient a prior and made each defend itself in kits before fitting (one vague slope quietly implied ten million kit sales at the autumn fair). You fit the two-parameter posterior with the Lesson 3 Metropolis sampler (acceptance 0.36), ran Lesson 4's smallest diagnostic (two chains, silly starts, identical answers), and unsealed the recipe: both true coefficients inside their 90% intervals. Then the draws answered every question by transformation: the corner stall multiplies expected sales by 2.0 to 2.6; a 35-visitor fair day averages 6.0 to 7.8 kits but might sell 3 to 11, the band versus the day. And the model earned belief the hard way: Lesson 6's check retired last season's champion (a flat model whose two thousand invented seasons never once matched the observed correlation), and Lesson 7's scoreboard scored the win at five standard errors.
+You ran the entire Bayesian workflow, once, on the first model in this course with a predictor. You saw a single least-squares line and named its three failures, then built a generalized linear model that fixes them: a linear predictor, a log link that keeps the rate positive and makes effects multiplicative, and a Poisson likelihood whose spread matches counts, with weakly informative priors you vetted by a prior predictive check before the data was allowed to speak. You fit it by extending Lesson 1's grid to two coefficients, recovered the true slope inside its credible interval, checked it with a posterior predictive test, proved with WAIC that the predictor earns its keep, and reported it as a decision would need it: a multiplier of about 1.43 per ten dollars, a mean-rate credible interval, and a wider prediction interval for a single day, ending on the honest line between an association and a lever.
 
-That loop (model, fit, check, compare, expand) is the whole discipline. The tools scale up but do not change shape: where you wrote fifteen lines of Metropolis, brms writes Stan; where you built a log-likelihood matrix, loo builds it with safety rails. Take the references with you, and the next time a model needs a prior, a check, or an honest interval, you will not be borrowing anyone's black box. You built each piece yourself, and you know exactly what every number in the report earned the right to say.
+That closes the course. Across eight lessons you built the machinery from the ground up: the prior-times-likelihood update, conjugacy, the Metropolis sampler and its diagnostics, hierarchical partial pooling, posterior predictive checks, LOO and WAIC, and now a full Bayesian regression that ties them all together. You can state a model, fit it, prove it deserves trust, and report what it does and does not license, which is the whole of applied Bayesian practice.
+
+One step remains: the section Quiz, where you put the eight lessons together for your Bayesian Modeling badge.

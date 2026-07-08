@@ -1,8 +1,8 @@
 ---
 title: "Regression Modeling Lesson 8: GLMs Beyond Logistic"
 catalog_blurb: "Fit the right model when your outcome is a count or a skewed amount."
-description: "Beyond logistic: the GLM family in R. Fit Poisson for counts, Gamma for skewed amounts, read rate ratios, spot overdispersion, match the model to the response."
-keywords: "GLM in R, Poisson regression, Gamma regression, glm family, link function, log link, rate ratio, overdispersion, quasipoisson, count data, generalized linear model"
+description: "Logistic regression is one of a wider family. Model counts with Poisson, skewed amounts with Gamma, spot overdispersion, and match a GLM to your response in R."
+keywords: "generalized linear models, GLM in R, Poisson regression, Gamma regression, log link, link function, count data, overdispersion, quasipoisson, negative binomial, rate ratio, offset, glm family"
 post_type: "LESSON"
 curriculum_id: "6.20.8"
 webr: true
@@ -21,266 +21,368 @@ course_prev: "Logistic-Regression-Done-Properly.html"
 ::eyebrow Lesson 8 of 8
 ## GLMs Beyond Logistic
 
-In Lesson 7 you modeled a yes/no: will *this* customer buy an iced coffee? Logistic regression handled it by bending a straight line through a link function so its output stayed a valid probability. Here is the secret that lesson was hiding: logistic regression is not a special trick. It is one member of a whole family, and the same move solves a much wider set of problems.
+In Lesson 7, Priya stopped predicting a *number* and predicted a *yes or no*: would a given customer buy a pastry? A straight line cannot honour a yes/no, so you swapped `lm()` for `glm(family = binomial)` and let the **logit link** bend the prediction into a probability between 0 and 1.
 
-Priya has a new question, and it is not a yes/no. Some days her cart gets **complaints**, and she wants to know what drives them. A complaint count is a whole number: 0 on a calm Tuesday, 4 on a chaotic Saturday. A straight line would happily predict *minus 0.7 complaints*, which is nonsense. The fix is the same family idea, with a different distribution and a different link.
+That swap was your first step out of ordinary regression, and it hid a much bigger idea. Logistic regression is just **one member of a whole family** of models, the *generalized linear models* (GLMs). Change one setting and the same machinery models a count, or a skewed dollar amount, or a proportion. This lesson opens up the rest of that family.
+
+The picture below is Priya's new problem: how many pastries she sells on a morning, plotted against how many people walk past the cart. Those dots are **counts**, whole numbers that never go negative, and, as you will see, a plain straight line through them is not just imperfect, it is impossible.
 
 By the end of this lesson you will be able to:
 
-- See `lm` and logistic regression as two cases of one thing, the **generalized linear model**, defined by a family + a linear predictor + a link
-- Fit a **Poisson regression** for a count with `glm()` and read its coefficients as **rate ratios**
-- Spot **overdispersion** and fix it, reach for **Gamma** when the response is a skewed amount, and match the right model to any response
+- Name the three parts of any GLM and see `lm()` and logistic regression as two members of the same family
+- Fit a **Poisson regression** for a count and read its coefficients as multiplicative rate ratios
+- Spot **overdispersion** and repair it, knowing which part of the model it corrupts (and which it leaves alone)
+- Fit a **Gamma regression** for a positive, right-skewed amount, and match any response to the right family and link
 
-**Prerequisites:** Lessons 1 to 7 (you can fit `lm()`, and you fit `glm(family = binomial)` and read odds ratios in [Lesson 7](Logistic-Regression-Done-Properly.html)). You can run R. Every new term, family, link, linear predictor, rate ratio, overdispersion, is defined as it appears.
+**Prerequisites:** Lessons 1 to 7 (you can fit `lm()`, read a coefficient table, and, from Lesson 7, fit `glm()` and interpret a coefficient after transforming it with `exp()`). You know that `exp()` and `log()` undo each other. Every new term is defined as it appears.
 
-::widget process-flow {"steps":[{"title":"Look at the response","sub":"is it a count, a positive amount, a yes or no, or a rate?"},{"title":"Pick the family","sub":"the distribution that matches: Poisson, Gamma, binomial, Gaussian"},{"title":"Pick the link","sub":"the function tying the average to a straight line: log, logit, identity"},{"title":"Fit with glm","sub":"same engine as lm, one family argument away"}]}
-
-That four-step recipe is the whole lesson. By the end you will run it without thinking.
-
-=== step === concept
-::eyebrow The one idea
-## Every model so far was a GLM
-
-A **generalized linear model** (GLM) is built from three pieces, and once you see them you see that `lm` and logistic regression were GLMs all along:
-
-1. **The linear predictor** is the familiar straight-line part, a weighted sum of your predictors: \( \eta = \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k \). The Greek letter \( \eta \) ("eta") is just a name for that sum.
-2. **The link function** \( g \) connects the linear predictor to \( \mu \), the **mean** (the expected value) of the response: \( g(\mu) = \eta \). The link is what lets a straight line model something that is not itself straight-line shaped.
-3. **The family** is the distribution the response follows around that mean, and crucially, *how its variance behaves*.
-
-\[ g(\mu) = \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k \]
-
-Change the family and link, and you change which kind of response you can model, with the *same* fitting machinery underneath. Here is the whole course so far, plus where we are going, in one table:
-
-| Model | Response looks like | Family | Link \( g \) | Coefficients read as |
-|---|---|---|---|---|
-| Linear regression (`lm`) | any number | Gaussian | identity | added change in the mean |
-| Logistic regression | yes / no | binomial | logit | odds ratios (Lesson 7) |
-| Poisson regression | a count: 0, 1, 2, ... | Poisson | log | rate ratios (this lesson) |
-| Gamma regression | a positive, skewed amount | Gamma | log | multipliers on the mean |
-
-[KEY INSIGHT]
-You do not learn a brand-new model for each kind of response. You learn ONE model, the GLM, and choose two settings: the family (what the response is) and the link (how to connect it to a line). Logistic regression was binomial + logit. The rest of this lesson is just other settings.
+::widget chart-plotter {"data":[{"x":20,"y":7},{"x":22,"y":2},{"x":24,"y":1},{"x":26,"y":6},{"x":28,"y":2},{"x":30,"y":6},{"x":32,"y":3},{"x":35,"y":5},{"x":37,"y":9},{"x":38,"y":12},{"x":40,"y":3},{"x":42,"y":12},{"x":44,"y":9},{"x":45,"y":7},{"x":48,"y":10},{"x":50,"y":13},{"x":53,"y":7},{"x":55,"y":7},{"x":58,"y":8},{"x":61,"y":11},{"x":63,"y":17},{"x":65,"y":6},{"x":66,"y":19},{"x":70,"y":24},{"x":71,"y":16},{"x":72,"y":7},{"x":75,"y":12},{"x":77,"y":16},{"x":80,"y":36},{"x":83,"y":18},{"x":85,"y":22},{"x":86,"y":23},{"x":88,"y":14},{"x":90,"y":17}],"geoms":["point"],"x":"footfall","y":"pastries"}
 
 === step === concept
-::eyebrow The problem
-## A count breaks a straight line
+::eyebrow One family, many responses
+## One family behind them all
 
-Priya logs each day: how many `customers` she served and how many `complaints` she got. The complaint count sits on integer rails, 0, 1, 2, 3, and it clearly climbs on busier days. Plot it.
+Here is the key idea. Ordinary regression and logistic regression are not two unrelated tools; they are the same machine with a different setting turned. Every **generalized linear model** is built from exactly three parts.
 
-::widget chart-plotter {"data":[{"x":35,"y":0},{"x":42,"y":0},{"x":48,"y":1},{"x":55,"y":0},{"x":60,"y":1},{"x":68,"y":1},{"x":72,"y":0},{"x":80,"y":1},{"x":88,"y":2},{"x":95,"y":1},{"x":102,"y":2},{"x":110,"y":1},{"x":118,"y":3},{"x":125,"y":2},{"x":130,"y":4}],"geoms":["point"],"x":"customers","y":"complaints"}
+1. A **random component**: the probability distribution you assume for the response. This is the "family". A symmetric spread of numbers is `Normal`; a yes/no is `Binomial`; a count is `Poisson`; a positive skewed amount is `Gamma`.
+2. A **linear predictor**: the familiar weighted sum of your predictors, written \( \eta = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \cdots \). The symbol \( \eta \) (the Greek letter "eta") is just a name for that sum; it can be any number, positive or negative.
+3. A **link function** \( g \): the bridge that ties the *mean of the response*, written \( \mu \) (the Greek "mu"), to that linear predictor:
 
-Now imagine running an ordinary least-squares line through those rails, the tool from Lesson 1. Two things go wrong, and both are fatal:
+\[ g(\mu) = \eta = \beta_0 + \beta_1 x_1 + \cdots \]
 
-- **It predicts impossible values.** The line slopes up, so extend it down to a very quiet day and it predicts a *negative* number of complaints. A count can never be below zero.
-- **It assumes the wrong spread.** `lm` assumes the scatter around the line is the same everywhere (constant variance). But counts do not behave that way: a day that averages 0.2 complaints barely varies, while a day that averages 4 swings wildly. For counts, the variance grows *with* the mean.
+The link is the clever part. The linear predictor \( \eta \) roams freely from minus infinity to plus infinity, but a probability must sit in \([0,1]\) and a count must be positive. The link \( g \) does the translating so the two sides can meet.
 
-[KEY INSIGHT]
-A count is a non-negative whole number whose variability grows as it gets larger. A straight line, which is unbounded and assumes constant variance, is the wrong shape twice over. We need a family built for counts.
+You have already met two links without knowing the name. Ordinary regression uses the **identity link**, \( g(\mu) = \mu \): the mean *is* the linear predictor, nothing bent. Lesson 7's logistic regression used the **logit link**, \( g(\mu) = \log\!\frac{\mu}{1-\mu} \), which squeezes the line into a probability. Choosing a GLM is really just choosing these three parts, and the flow below is the whole decision.
 
-=== step === concept
-::eyebrow The fix for counts
-## Poisson regression: model the log of the rate
-
-The **Poisson** distribution is the natural model for counts of independent events in a fixed window (complaints in a day, calls in an hour). Its mean \( \mu \) is the expected count, and it is the family we pick. For the link we use the **log**:
-
-\[ \log(\mu) = \beta_0 + \beta_1\,\text{customers} + \beta_2\,\text{weekend} \]
-
-where \( \mu \) is the expected number of complaints. Why the logarithm? Because inverting it gives \( \mu = e^{\beta_0 + \beta_1\,\text{customers} + \beta_2\,\text{weekend}} \), and \( e \) raised to *anything* is positive. The model can never predict a negative count, no matter how the predictors run. That single choice cures the first problem; the Poisson family, whose variance equals its mean, cures the second.
-
-A fresh R session starts empty, so build Priya's daily log first: 180 days, each with the day's `customers`, whether it was a `weekend`, and the resulting `complaints` count. Run this once.
-
-```r
-set.seed(2)
-n <- 180
-days <- data.frame(
-  customers = round(runif(n, 30, 130)),    # people served that day
-  weekend   = rbinom(n, 1, 0.30)           # 1 = Saturday or Sunday
-)
-# the true complaint rate rises with customers and on weekends; a bad-batch day adds extra spread
-lograte <- -1.6 + 0.011 * days$customers + 0.6 * days$weekend
-days$complaints <- rpois(n, exp(lograte) * rgamma(n, shape = 2, rate = 2))
-table(complaints = days$complaints)
-#> complaints
-#>  0  1  2  3  4  6  7
-#> 98 48 22  7  2  2  1
-```
-
-Fitting is one call, the same `glm()` you used for logistic regression, with `family = poisson` instead of `binomial`. That one word tells R to fit on the log scale with the Poisson variance.
-
-```r
-fit <- glm(complaints ~ customers + weekend, data = days, family = poisson)
-round(coef(summary(fit)), 4)
-#>             Estimate Std. Error z value Pr(>|z|)
-#> (Intercept)  -1.4276     0.2787 -5.1215   0.0000
-#> customers     0.0097     0.0029  3.3761   0.0007
-#> weekend       0.8842     0.1693  5.2223   0.0000
-```
-
-The table reads like `lm`'s, with the same crucial twist as Lesson 7: **the estimates are on the log scale, not the count scale.** The `weekend` coefficient of 0.884 means a weekend *adds* 0.884 to the log of the expected complaint count. Real (its z-value is 5.2, p essentially 0), but not something you can say to Priya yet, so we translate it back, just as you did with odds ratios.
-
-Exactly as exponentiating a logistic coefficient gave an odds ratio, exponentiating a Poisson coefficient turns *adding on the log scale* into *multiplying on the count scale*:
-
-\[ e^{\beta_1} = \frac{\text{expected count at } x+1}{\text{expected count at } x} \]
-
-So \( e^{\beta_1} \) is the **rate ratio**: the factor the expected count is multiplied by for a one-unit rise in that predictor, holding the others fixed. Exponentiate the whole table with its confidence interval in one line.
-
-```r
-round(exp(cbind(RR = coef(fit), confint.default(fit))), 3)
-#>                RR 2.5 % 97.5 %
-#> (Intercept) 0.240 0.139  0.414
-#> customers   1.010 1.004  1.015
-#> weekend     2.421 1.737  3.374
-```
-
-Now it speaks plainly. A **weekend multiplies the expected complaint count by about 2.42**, well over double, with a 95% confidence interval from 1.74 to 3.37 (entirely above 1, so the weekend effect is clearly real). Each extra customer multiplies the rate by 1.010, a touch under 1% more; over ten extra customers that compounds to \( e^{10 \times 0.0097} \approx 1.10 \), about 10% more complaints. The intercept's 0.240 is the expected count on a zero-customer weekday, not meaningful here, which is the usual fate of an intercept when 0 is outside the data.
-
-[WARNING]
-A rate ratio multiplies the *expected count*, it does not add to it. "Weekend multiplies by 2.42" depends on the baseline: 2.42 times a quiet 0.3 is still under 1 complaint, but 2.42 times a busy 2.0 is nearly 5. Always combine the rate ratios back into a predicted count (next step) before you plan staffing around them.
+::widget process-flow {"steps":[{"title":"Random component","sub":"the response distribution: Normal, Binomial, Poisson, Gamma"},{"title":"Linear predictor","sub":"a weighted sum of predictors: eta = b0 + b1 x1 + b2 x2 + ..."},{"title":"Link function","sub":"g ties the mean to that sum: g(mu) = eta"}]}
 
 === step === quiz
 ::eyebrow Check yourself
-## What does the weekend rate ratio mean?
+## What actually changes?
 
-The fitted Poisson model gives a `weekend` coefficient of **0.884** on the log scale, whose exponential is about **2.42**. Priya asks you what that 2.42 means. Which statement is correct?
+You move from `lm(sales ~ temp)` to `glm(bought ~ temp, family = binomial)` for a yes/no outcome. In the language of the three GLM parts, what is the essential thing that changed?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- A weekend adds 2.42 complaints to the day ::no A rate ratio multiplies, it does not add. The 2.42 scales the *expected count* by a factor; it does not bolt 2.42 complaints onto every weekend. On a quiet weekend with a baseline of 0.3 expected, the weekend effect lands you at about 0.7, not 2.7.
-- A weekend multiplies the expected number of complaints by about 2.42, holding customers fixed ::ok Exactly. exp(0.884) = 2.42 is the rate ratio: at the same customer count, the model expects about 2.42 times as many complaints on a weekend. It is a multiplier on the expected count, which you would still turn into an actual predicted count for any given day.
-- A weekend makes a complaint about 2.42 times more probable for each customer ::no That is the logistic (odds/probability) reading from Lesson 7, applied to the wrong model. Poisson does not model a per-customer probability of "complaint vs no complaint"; it models the expected *count* of complaints, and 2.42 multiplies that count.
+- The linear predictor changed: logistic regression uses a curved sum of the predictors instead of a straight one ::no The linear predictor is still the plain straight sum \( \beta_0 + \beta_1 x \) in both models. What differs is the family (Binomial, not Normal) and the link (logit, not identity) wrapped around that same sum.
+- The family and the link changed: you assumed a Binomial response and put a logit link between its mean and the same linear predictor ::ok Exactly. The weighted sum of predictors is identical; a GLM swaps the response distribution (the family) and the link function, and that is what turns a line into a probability model.
+- The data changed: logistic regression needs a different, specially prepared dataset that ordinary regression cannot use ::no The data is the same table. A GLM does not transform your rows; it changes the assumed distribution of the response and the link between its mean and the predictors.
+
+=== step === concept
+::eyebrow When the response is a count
+## A straight line cannot model a count
+
+Priya's new question is a **count**: on a given morning she sells some whole number of pastries, 0, 1, 2, and up. A fresh R session starts empty, so we build her log of 250 mornings right here.
+
+```r
+set.seed(8)
+n <- 250
+footfall  <- round(runif(n, 20, 90))                            # people who walked past the cart that morning
+pastries  <- rnbinom(n, mu = exp(0.6 + 0.03 * footfall), size = 4)  # pastries sold that day (a count)
+daily <- data.frame(footfall, pastries)
+head(daily)
+#>   footfall pastries
+#> 1       53        4
+#> 2       35       13
+#> 3       76       10
+#> 4       66       30
+#> 5       43       15
+#> 6       70       24
+```
+
+Two facts about this column break ordinary regression. First, look at what a straight line predicts on a quiet morning with only 10 passers-by:
+
+```r
+straight <- lm(pastries ~ footfall, data = daily)
+round(predict(straight, newdata = data.frame(footfall = 10)), 2)
+#>     1
+#> -2.71
+```
+
+Minus 2.71 pastries. A line extends forever in both directions, so it cheerfully predicts a negative count, which is nonsense. Second, the spread of a count is not constant. On slow mornings the pastry numbers are all small and bunched; on busy mornings they range far more widely. Compare the mean and the variance:
+
+```r
+round(c(mean = mean(daily$pastries), variance = var(daily$pastries)), 2)
+#>     mean variance
+#>    10.59    83.29
+```
+
+The variance is far larger than the mean, and it grows as the counts grow, exactly the fanning you can see in the plot as footfall rises. Ordinary regression assumes the opposite: one constant spread everywhere. It is the wrong tool for a count.
+
+::widget chart-plotter {"data":[{"x":20,"y":7},{"x":22,"y":2},{"x":24,"y":1},{"x":26,"y":6},{"x":28,"y":2},{"x":30,"y":6},{"x":32,"y":3},{"x":35,"y":5},{"x":37,"y":9},{"x":38,"y":12},{"x":40,"y":3},{"x":42,"y":12},{"x":44,"y":9},{"x":45,"y":7},{"x":48,"y":10},{"x":50,"y":13},{"x":53,"y":7},{"x":55,"y":7},{"x":58,"y":8},{"x":61,"y":11},{"x":63,"y":17},{"x":65,"y":6},{"x":66,"y":19},{"x":70,"y":24},{"x":71,"y":16},{"x":72,"y":7},{"x":75,"y":12},{"x":77,"y":16},{"x":80,"y":36},{"x":83,"y":18},{"x":85,"y":22},{"x":86,"y":23},{"x":88,"y":14},{"x":90,"y":17}],"geoms":["point"],"x":"footfall","y":"pastries"}
+
+[KEY INSIGHT]
+A count is a non-negative whole number whose spread grows with its average. A straight line violates both facts: it predicts impossible negatives and assumes one constant spread. The fix is not to torture the data into a line, but to pick a family built for counts.
+
+=== step === concept
+::eyebrow Poisson regression
+## The log link keeps predictions positive
+
+The natural family for a count is the **Poisson distribution**, which describes how often independent events happen in a fixed window (pastries sold in a morning, calls to a help desk in an hour). A Poisson response is written \( Y \sim \text{Poisson}(\mu) \), where \( \mu \) is its mean, the average count. The Poisson only allows \( \mu > 0 \), so we need a link that keeps the prediction positive no matter what the linear predictor does. That link is the **log link**:
+
+\[ \log(\mu) = \eta = \beta_0 + \beta_1 \, x \]
+
+Undo the log by exponentiating both sides and the mean is forced positive for any \( \eta \) at all:
+
+\[ \mu = e^{\eta} = e^{\beta_0 + \beta_1 x} \]
+
+Since \( e^{\text{anything}} \) is always greater than 0, the impossible negative prediction can never happen again. Fitting it in R is the same `glm()` call you used for logistic regression, with `family = poisson`:
+
+```r
+fit_pois <- glm(pastries ~ footfall, family = poisson, data = daily)
+round(summary(fit_pois)$coef, 4)
+#>             Estimate Std. Error z value Pr(>|z|)
+#> (Intercept)   0.5317      0.072  7.3826        0
+#> footfall      0.0301      0.001 28.8925        0
+```
+
+The coefficients live on the **log scale** (because the link is a log), so you cannot read `0.0301` as "0.03 more pastries per passer-by" the way you would in ordinary regression. To make sense of it, you undo the log, which is the whole point of the next step.
+
+=== step === concept
+::eyebrow Reading the coefficients
+## Rate ratios: exp() turns log-coefficients into multipliers
+
+Because the model is additive on the log scale, it is **multiplicative** on the count scale. Split the mean apart using the rule \( e^{a+b} = e^a \cdot e^b \):
+
+\[ \mu = e^{\beta_0 + \beta_1 x} = e^{\beta_0} \cdot \left(e^{\beta_1}\right)^{x} \]
+
+Read that carefully: every time \( x \) goes up by 1, the mean count is **multiplied** by \( e^{\beta_1} \). That multiplier is called the **rate ratio**. So the way to interpret a Poisson coefficient is to exponentiate it:
+
+```r
+round(exp(coef(fit_pois)), 4)
+#> (Intercept)    footfall
+#>      1.7019      1.0305
+```
+
+The `footfall` rate ratio is `1.0305`. One more person walking past multiplies Priya's expected pastry count by 1.0305, that is, a **3% lift** per passer-by. A single person barely matters, but the effect compounds. Ten more people is not "10 times 3%"; it is 1.0305 multiplied by itself ten times:
+
+```r
+round(exp(10 * coef(fit_pois)[["footfall"]]), 3)
+#> [1] 1.351
+```
+
+So 10 extra passers-by multiply her expected pastries by **1.351**, a 35% jump. The intercept's `1.7019` is the expected count when `footfall` is 0, the baseline the multipliers build on. This is the exact same trick as Lesson 7's odds ratios: a log-scale coefficient becomes a plain multiplier once you run it through `exp()`.
 
 === step === tryit
 ::eyebrow Your turn
-## Predict expected complaints
+## Fit a Poisson model
 
-Priya wants the actual expected complaint count for four kinds of day, not the log scale. As in Lesson 7, `predict()` defaults to the link (log) scale; you must ask for `type = "response"` to get a count back. Fill in the blank, then check it.
+Priya wants to model her pastry counts against footfall. Complete the `glm()` call with the family that is built for a count.
 
 ```r
-new <- data.frame(customers = c(40, 90, 90, 130),
-                  weekend   = c(0,  0,  1,   1))
-new$expected <- round(predict(fit, newdata = new, type = ____), 2)   # we want an expected count
-new
+# Model a count (pastries) against footfall.
+fit <- glm(pastries ~ footfall, family = ____, data = daily)
+round(exp(coef(fit)), 4)
 ```
-::check {"regex":"[\"']response[\"']","gate":true,"difficulty":"intermediate","ok":"Right. type = response returns expected counts: 0.35 on a quiet weekday, 0.57 for a busier weekday, 1.39 once that busy day is a weekend, and 2.05 on a packed weekend. Same model, finally on a scale Priya can staff against.","no":"Ask for the response scale: type = \"response\" (in quotes). The default, type = \"link\", returns the log of the expected count, which Priya cannot use directly."}
+::check {"regex":"family\\s*=\\s*poisson|poisson\\s*\\(","gate":true,"difficulty":"intermediate","ok":"Right. family = poisson tells glm() to use the Poisson distribution with its log link, so the fitted mean stays positive and exp() of each coefficient reads as a rate ratio.","no":"Use family = poisson. The Poisson family is the one built for counts, and it brings the log link that keeps the predicted count positive."}
 ::solution
 ```r
-new <- data.frame(customers = c(40, 90, 90, 130),
-                  weekend   = c(0,  0,  1,   1))
-new$expected <- round(predict(fit, newdata = new, type = "response"), 2)
-new
-#>   customers weekend expected
-#> 1        40       0     0.35
-#> 2        90       0     0.57
-#> 3        90       1     1.39
-#> 4       130       1     2.05
+fit <- glm(pastries ~ footfall, family = poisson, data = daily)
+round(exp(coef(fit)), 4)
 ```
 
 === step === concept
-::eyebrow When Poisson breaks
-## Overdispersion: more spread than Poisson allows
+::eyebrow The Poisson promise
+## Poisson assumes the variance equals the mean
 
-The Poisson family makes one strong promise: the variance equals the mean,
+The Poisson buys its simplicity with one strong promise. A Poisson distribution has only a single parameter, \( \mu \), and that one number fixes both the average **and** the spread:
 
-\[ \operatorname{Var}(Y) = \mu. \]
+\[ \operatorname{Var}(Y) = \mu \]
 
-Real counts often break it. A "bad batch" day or a rude customer triggers a *cluster* of complaints, so the data scatters more than a clean Poisson would. This is **overdispersion**: \( \operatorname{Var}(Y) > \mu \). It does not bias your coefficients, but it makes the standard errors too small, so p-values look more impressive than they should. Always check for it. The diagnostic is the **dispersion statistic**, the average squared Pearson residual per degree of freedom; near 1 is healthy, well above 1 is overdispersed.
+In words: a Poisson response is supposed to have a variance exactly equal to its mean. But you already measured Priya's counts, mean 10.59, variance 83.29, and the variance was almost eight times the mean. That is a warning sign with a name: **overdispersion**, real counts that vary more than the Poisson promise allows. You do not have to eyeball it; the standard check is the **dispersion statistic**, the average squared Pearson residual per degree of freedom:
+
+\[ \hat{\phi} = \frac{1}{n-p}\sum_{i=1}^{n} \frac{(y_i - \hat{\mu}_i)^2}{\hat{\mu}_i} \]
+
+where \( y_i \) is the observed count, \( \hat{\mu}_i \) the count the model predicts for that row, \( n \) the number of rows and \( p \) the number of coefficients. If the Poisson promise held, \( \hat{\phi} \) would sit near 1.
 
 ```r
-pearson    <- residuals(fit, type = "pearson")
-dispersion <- sum(pearson^2) / df.residual(fit)
-round(dispersion, 2)
-#> [1] 1.3
+disp <- sum(residuals(fit_pois, type = "pearson")^2) / fit_pois$df.residual
+round(disp, 2)
+#> [1] 3.5
 ```
 
-At 1.3 the data is modestly overdispersed, more spread than pure Poisson, enough to widen our error bars. The simplest fix is the **quasi-Poisson** family: it keeps the identical point estimates but inflates every standard error by \( \sqrt{1.3} \approx 1.14 \) to tell the honest story.
+A dispersion of **3.5**, well above 1, confirms the overdispersion. Priya's mornings are lumpier than a pure Poisson: a passing tour group or a rainy spell adds swings the model does not know about.
+
+[NOTE]
+If you have just finished Lesson 5, this should feel familiar. Overdispersion is to Poisson regression what heteroskedasticity was to `lm()`: the model gets the trend roughly right, but its stated *precision* is a lie. Because the Poisson underestimates the true spread, it reports standard errors that are too small, and every p-value looks more convincing than it should.
+
+=== step === concept
+::eyebrow The fix
+## Quasi-Poisson and the negative binomial
+
+The repair mirrors Lesson 5 exactly: leave the coefficients alone, fix the standard errors. **Quasi-Poisson** does the simplest version. It keeps the same estimates but lets the variance be \( \operatorname{Var}(Y) = \phi\,\mu \), a dispersion \( \phi \) times the mean, and multiplies every standard error by \( \sqrt{\hat{\phi}} \). Here \( \sqrt{3.5} \approx 1.87 \), so the give-or-take on each coefficient grows by about that factor.
 
 ```r
-fit_q <- glm(complaints ~ customers + weekend, data = days, family = quasipoisson)
-round(coef(summary(fit_q)), 4)
+fit_quasi <- glm(pastries ~ footfall, family = quasipoisson, data = daily)
+round(summary(fit_quasi)$coef, 4)
 #>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)  -1.4276     0.3181 -4.4878   0.0000
-#> customers     0.0097     0.0033  2.9584   0.0035
-#> weekend       0.8842     0.1932  4.5761   0.0000
+#> (Intercept)   0.5317     0.1347  3.9475    1e-04
+#> footfall      0.0301     0.0019 15.4490    0e+00
 ```
 
-The estimates are untouched (weekend is still 0.884, rate ratio 2.42), but `customers`' standard error grew from 0.0029 to 0.0033 and its p-value from 0.0007 to 0.0035. Both effects survive; we are just honestly less certain. When overdispersion is severe, the **negative binomial** model (`MASS::glm.nb`) is the standard heavier-duty alternative, and the rarer opposite, a dispersion well below 1, signals underdispersion.
+The `footfall` estimate is **unchanged** at `0.0301`, but its standard error rose from the Poisson's `0.001` to `0.0019`, the honest, wider value. The effect is still overwhelmingly significant, just less spectacularly so.
 
-=== step === concept
-::eyebrow Beyond counts
-## Gamma for a skewed positive amount
-
-Counts are not the only response that breaks `lm`. Consider how many dollars a single customer spends. It is **continuous** (so not Poisson), strictly **positive**, and **right-skewed**: most tickets are small, a few are large, and the spread fans out as the average climbs. Here is a sample of Priya's tickets.
-
-::widget chart-plotter {"data":[{"x":2.1},{"x":2.8},{"x":3.2},{"x":3.5},{"x":3.9},{"x":4.1},{"x":4.4},{"x":4.6},{"x":4.9},{"x":5.0},{"x":5.2},{"x":5.5},{"x":5.8},{"x":6.1},{"x":6.4},{"x":6.9},{"x":7.2},{"x":7.8},{"x":8.4},{"x":9.1},{"x":10.2},{"x":11.5},{"x":13.0},{"x":15.4}],"geoms":["histogram"],"x":"spend"}
-
-That long right tail is exactly the **Gamma** family's home: a distribution for positive, skewed amounts whose variance grows with the *square* of the mean, \( \operatorname{Var}(Y) \propto \mu^2 \). Pair it with the same log link (keeping predictions positive and coefficients multiplicative), and the fit is one familiar call.
+The fuller fix is the **negative binomial**, a count distribution with a *second* parameter that models the extra spread directly (rather than just scaling it up afterwards). It lives in the `MASS` package as `glm.nb`:
 
 ```r
-set.seed(5)
-m <- 200
-tickets <- data.frame(
-  member = rbinom(m, 1, 0.40),    # 1 = loyalty member
-  hot    = rbinom(m, 1, 0.50)     # 1 = a hot day
-)
-# mean spend rises for members and on hot days; gamma noise makes it positive and right-skewed
-mu_spend      <- exp(1.4 + 0.30 * tickets$member + 0.25 * tickets$hot)
-tickets$spend <- round(rgamma(m, shape = 4, rate = 4 / mu_spend), 2)
-gfit <- glm(spend ~ member + hot, data = tickets, family = Gamma(link = "log"))
-round(exp(cbind(mult = coef(gfit), confint.default(gfit))), 3)
-#>              mult 2.5 % 97.5 %
-#> (Intercept) 4.195 3.773  4.664
-#> member      1.425 1.247  1.629
-#> hot         1.162 1.018  1.326
+library(MASS)
+fit_nb <- glm.nb(pastries ~ footfall, data = daily)
+round(summary(fit_nb)$coef, 4)
+#>             Estimate Std. Error z value Pr(>|z|)
+#> (Intercept)   0.4682     0.1189  3.9394    1e-04
+#> footfall      0.0311     0.0019 16.2472    0e+00
 ```
 
-Because the link is again the log, the coefficients again read as multipliers on the mean. Baseline spend (a non-member on a cool day) is about **$4.20**; being a `member` multiplies the average ticket by **1.43** (about 43% more), and a `hot` day by 1.16. Same engine, same multiplicative reading, a different family chosen to fit the shape of money.
-
-=== step === concept
-::eyebrow The recipe
-## Matching the model to the response
-
-You now have the whole skill: look at the response, pick the family and link that fit it, and let `glm()` do the rest. This is the table to keep.
-
-| If your response is... | Example for Priya | Use family | with link |
-|---|---|---|---|
-| any real number | tomorrow's revenue | Gaussian (plain `lm`) | identity |
-| yes or no | will this person buy | binomial | logit |
-| a count: 0, 1, 2, ... | complaints in a day | Poisson | log |
-| an over-dispersed count | complaints with bad-batch spikes | quasi-Poisson / negative binomial | log |
-| a positive, skewed amount | dollars a customer spends | Gamma | log |
-| a proportion of trials | 7 refunds out of 50 sales | binomial | logit |
-
-Powerful as it is, a GLM is honest only if you respect its limits:
-
-- **Effects are multiplicative, not additive.** With a log or logit link you read `exp(coef)`, a multiplier; a "constant rate ratio" is not a constant change in the count. Decide from predicted values, not raw coefficients.
-- **The family is an assumption about the variance, so check it.** Overdispersion for counts (the dispersion statistic), residual patterns for Gamma. The wrong family does not error out, it just lies quietly through its standard errors.
-- **A GLM is still linear on the link scale.** If the true effect bends (a U-shape in temperature), no link fixes that; you need splines or a GAM, the next stop beyond this course.
-- **Significance is still not size or cause.** As in Lessons 6 and 7, a tiny p-value means an effect is *real*, not large (read the rate ratio) and not causal (that lives in how the data was gathered).
+Again the `footfall` estimate barely moves (`0.0311`) and the standard error matches quasi-Poisson's honest `0.0019`. Reach for quasi-Poisson when you only need trustworthy standard errors; reach for the negative binomial when you want a genuine model of the overdispersion (and honest predictions of how variable the counts are).
 
 === step === quiz
 ::eyebrow Check yourself
-## Match the response to the model
+## What did overdispersion break?
 
-Priya wants to model the **dollar amount** each customer spends, so she can predict revenue per visit. The amount is always positive, has no fixed upper limit, and is right-skewed: most tickets are small, a few are large. Which GLM fits?
+Priya's Poisson model had a dispersion statistic of 3.5. She worries her whole analysis is wrong and the footfall effect must be re-estimated. What has the overdispersion actually damaged?
+
+::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
+- The footfall coefficient is biased, so the rate ratio of 1.03 is the wrong number and must be re-estimated ::no Overdispersion does not move the coefficient. The Poisson, quasi-Poisson and negative-binomial estimates were all essentially the same (0.0301, 0.0301, 0.0311). It corrupts the standard error, not the estimate.
+- Nothing important: a dispersion of 3.5 is close enough to 1 that the plain Poisson model can be used as is ::no A dispersion of 3.5 is far from 1. Left uncorrected, the Poisson reports standard errors that are far too small, so its p-values and confidence intervals are overconfident.
+- The standard errors, not the estimate: the plain Poisson understates them, so the fix inflates the give-or-take (quasi-Poisson or negative binomial) while the coefficient stays put ::ok Exactly. Just like heteroskedasticity in Lesson 5, overdispersion leaves the trend unbiased but makes the reported precision too optimistic. You correct the standard error and keep the coefficient.
+
+=== step === concept
+::eyebrow When the response is an amount
+## A positive, right-skewed amount
+
+Counts are not the only response that breaks a straight line. Priya's second new question is about **money**: how much does a single customer spend? That is a positive, continuous **amount**, and amounts have their own shape. Most customers spend a little, a few splurge, and nobody spends a negative sum, so the histogram of spends piles up on the left and trails off to the right. That is a **right skew**, and it is exactly what ordinary regression's symmetric, bell-shaped errors cannot represent.
+
+The picture below is a sample of Priya's customer spends. Notice the long right tail, and that the whole thing sits above zero.
+
+::widget chart-plotter {"data":[{"x":3.67},{"x":11.03},{"x":4.72},{"x":7.5},{"x":36.72},{"x":11.86},{"x":16.12},{"x":26.7},{"x":10.26},{"x":8.72},{"x":32.35},{"x":9.41},{"x":12.77},{"x":8.59},{"x":1.96},{"x":9.85},{"x":9.66},{"x":19.61},{"x":1.55},{"x":18.38},{"x":56.22},{"x":11.84},{"x":9.52},{"x":7.49},{"x":9.84},{"x":10.45},{"x":15.24},{"x":5.4},{"x":10.05},{"x":8.78},{"x":13.91},{"x":17.66},{"x":54.74},{"x":2.41},{"x":23.94},{"x":9.14}],"geoms":["histogram"],"x":"spend"}
+
+=== step === concept
+::eyebrow Gamma regression
+## Gamma models a skewed amount
+
+The family built for a positive, right-skewed amount is the **Gamma distribution**. It is strictly positive and skewed, so it fits the shape above without any awkward transformation. And like the Poisson, its spread grows with its mean, but faster: for a Gamma response the variance grows with the *square* of the mean,
+
+\[ \operatorname{Var}(Y) = \phi\,\mu^2 \]
+
+so a customer with a large expected spend also varies a lot in dollars, which is just how money behaves. We pair Gamma with the same **log link** we used for counts, so the model stays multiplicative and the predicted amount stays positive. Let us build Priya's spend log (300 customers, where `party` is the group size they came in with) and fit it:
+
+```r
+set.seed(11)
+m <- 300
+party <- sample(1:5, m, replace = TRUE)                           # how many people in the group
+spend <- round(rgamma(m, shape = 3, rate = 3 / exp(1.4 + 0.35 * party)), 2)   # dollars that customer spent
+cust <- data.frame(party, spend)
+
+fit_gamma <- glm(spend ~ party, family = Gamma(link = "log"), data = cust)
+round(summary(fit_gamma)$coef, 4)
+#>             Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)   1.3690      0.079 17.3212        0
+#> party         0.3737     0.0237 15.7703        0
+```
+
+The coefficients are on the log scale again, so we read them exactly as before, by exponentiating into multipliers:
+
+```r
+round(exp(coef(fit_gamma)), 4)
+#> (Intercept)       party
+#>      3.9315      1.4531
+```
+
+Each extra person in the group multiplies expected spend by **1.4531**, a 45% increase per head, and the intercept `3.9315` is the baseline expected spend. Same `glm()`, same `exp()` interpretation as Poisson; only the family changed to match a different response.
+
+=== step === tryit
+::eyebrow Your turn
+## Fit a Gamma model
+
+Model Priya's positive, skewed `spend` against `party` size. Fill in the family, a Gamma with a log link.
+
+```r
+# Model a positive, skewed amount (spend) against party size.
+fit <- glm(spend ~ party, family = ____, data = cust)
+round(exp(coef(fit)), 4)
+```
+::check {"regex":"Gamma\\s*\\(\\s*link\\s*=\\s*[\"']log","gate":true,"difficulty":"intermediate","ok":"Right. Gamma(link = \"log\") models a positive, right-skewed amount and keeps the model multiplicative, so exp() of each coefficient is a multiplier on the dollar amount.","no":"Use family = Gamma(link = \"log\"). Gamma is the family for a positive skewed amount, and the log link keeps predictions positive and the coefficients readable as multipliers."}
+::solution
+```r
+fit <- glm(spend ~ party, family = Gamma(link = "log"), data = cust)
+round(exp(coef(fit)), 4)
+```
+
+=== step === concept
+::eyebrow Counting fairly
+## Rates, not raw counts: the offset
+
+One more count wrinkle earns its own step, because it trips up almost everyone. Suppose Priya's mornings are not all the same length: some days she trades for 4 hours, others for 8. A raw count of pastries then mixes two different things, how *briskly* she sells and how *long* she was open. Comparing raw counts across unequal windows is unfair; what she really wants is a **rate**, pastries per open hour.
+
+A GLM handles this with an **offset**: a predictor forced into the model with its coefficient fixed at exactly 1. Put \( \log(t) \) in, where \( t \) is the exposure (here the hours open), and the log link turns a count model into a rate model:
+
+\[ \log(\mu) = \log(t) + \beta_0 + \beta_1 x \quad\Longleftrightarrow\quad \log\!\left(\frac{\mu}{t}\right) = \beta_0 + \beta_1 x \]
+
+The right-hand form is the giveaway: you are now modelling \( \mu / t \), the count *per unit of exposure*, exactly the rate you wanted. In R it is the `offset` argument:
+
+```r
+set.seed(21)
+k <- 120
+hours <- round(runif(k, 3, 9), 1)                 # hours the cart was open that day
+foot2 <- round(runif(k, 20, 90))                  # footfall that day
+sold  <- rpois(k, exp(-1.2 + 0.025 * foot2) * hours)   # pastries sold = an hourly rate x hours open
+shifts <- data.frame(hours, foot2, sold)
+
+fit_rate  <- glm(sold ~ foot2, family = poisson, offset = log(hours), data = shifts)
+round(summary(fit_rate)$coef, 4)
+#>             Estimate Std. Error  z value Pr(>|z|)
+#> (Intercept)  -1.1326     0.1096 -10.3368        0
+#> foot2         0.0236     0.0017  14.1596        0
+```
+
+With the offset, `foot2` now describes footfall's effect on the pastries-per-hour *rate*, cleanly separated from how long the cart happened to be open. Leave the offset out and the model would wrongly credit footfall with some of the effect of simply being open longer.
+
+[KEY INSIGHT]
+Whenever your counts come from windows of different size, time, area, population, exposure, model the rate with `offset = log(exposure)`, not the raw count. It is the difference between "10 accidents" and "10 accidents per million miles".
+
+=== step === concept
+::eyebrow The whole map
+## Matching the model to the response
+
+Step back and the pattern is simple: **look at your response, then pick the family and link that fit it.** Every model in this lesson is the same `glm()` call with a different family; the response type chooses it for you.
+
+| Your response | Example | Family | Usual link |
+|---|---|---|---|
+| A symmetric number | temperature, height | `gaussian` (this is `lm()`) | identity |
+| A yes/no | bought / did not buy | `binomial` | logit |
+| A count | pastries per day | `poisson` (or `MASS::glm.nb` if overdispersed) | log |
+| A rate | pastries per open hour | `poisson` with `offset = log(exposure)` | log |
+| A positive skewed amount | dollars spent, claim size | `Gamma(link = "log")` | log |
+| A proportion in (0, 1) | fraction of a budget used | `betareg::betareg` | logit |
+
+The recipe below is the same four moves every time, and once you have it, the entire GLM family is just a matter of reading your outcome and looking up the row.
+
+::widget process-flow {"steps":[{"title":"Name the response","sub":"a count, a yes/no, a positive skewed amount, a proportion"},{"title":"Pick the family","sub":"Poisson or negative binomial, binomial, Gamma, beta"},{"title":"Pick the link","sub":"log for counts and amounts, logit for probabilities"},{"title":"Fit and read on the response scale","sub":"glm with family=, then exp() the coefficients"}]}
+
+=== step === quiz
+::eyebrow Check yourself
+## Pick the family
+
+An insurer asks you to model the **size of a paid claim** in dollars: strictly positive, heavily right-skewed, a few enormous claims stretching a long tail. Which GLM matches this response?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Poisson regression with a log link ::no Poisson is for *counts*, whole numbers like 0, 1, 2 complaints. Spend is a continuous, skewed amount ($4.92, $7.80), not a count, so the Poisson promise that the variance equals the mean does not fit it. The log link is right; the family is wrong.
-- A Gamma model with a log link ::ok Right. Spend is positive, continuous and right-skewed, with variance that grows as the amount grows, exactly what the Gamma family describes. The log link keeps predictions positive and makes the coefficients read as multipliers on the mean.
-- Ordinary linear regression (lm) on the raw amount ::no An ordinary line assumes constant variance and a symmetric spread, and can predict a negative dollar amount for a quiet customer. Skewed, positive money breaks both assumptions, which is precisely the case Gamma exists for.
+- Poisson regression with a log link, because the log link handles the skew ::no Poisson is for a count, a whole number of events. A claim *amount* in dollars is a positive continuous quantity, not a count, and the Poisson's variance-equals-mean rule does not fit money. The log link alone is not enough; the family must match too.
+- Gamma regression with a log link, because the response is a positive, right-skewed amount ::ok Exactly. Gamma is the family for a strictly positive, right-skewed amount, and its variance grows with the square of the mean, matching how large claims vary more. The log link keeps predictions positive and the coefficients readable as multipliers.
+- Ordinary lm() after ignoring the skew, since with enough claims the estimates average out ::no lm() assumes symmetric, constant-spread errors and can predict negative claim amounts. A large sample does not repair the wrong family; it just makes a confidently wrong model. Match the family to the response instead.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-A few authoritative places to take GLMs further:
+A few authoritative places to take generalized linear models further:
 
-- [An Introduction to Statistical Learning, ch. 4 (free PDF)](https://www.statlearning.com/) - the gentlest rigorous intro; its Poisson-regression section mirrors exactly what we did here.
-- [Beyond Multiple Linear Regression, Roback & Legler (free online book)](https://bookdown.org/roback/bookdown-BeyondMLR/) - a whole free book on Poisson, negative binomial and the wider GLM, with worked R.
-- [UCLA OARC: Poisson regression in R](https://stats.oarc.ucla.edu/r/dae/poisson-regression/) - a careful worked example of fitting, reading rate ratios, and checking overdispersion.
-- [R documentation: family()](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/family.html) - the menu of every family and link `glm()` accepts, the settings you choose from.
+- [An Introduction to Statistical Learning, ch. 4.6 "Generalized Linear Models" (free PDF)](https://www.statlearning.com/) - the gentle, worked introduction to Poisson and the GLM idea, using the same `glm()` interface.
+- [Faraway, Extending the Linear Model with R (2nd ed.) - author page](https://julianfaraway.github.io/faraway/ELM/) - the standard practical R text on count, Gamma and other GLMs, with data and code.
+- [MASS reference: glm.nb and negative binomial models (CRAN)](https://cran.r-project.org/package=MASS) - the package documentation for the negative-binomial fit you used for overdispersed counts.
+- [Penn State STAT 504: Analysis of Discrete Data (Poisson and offsets)](https://online.stat.psu.edu/stat504/) - free, worked lessons on Poisson regression, rate models with offsets, and checking overdispersion.
 
 === step === complete
 ## Lesson 8 complete
 
-You can now reach past logistic regression to the whole **generalized linear model** family. A GLM is three choices, a **family** (what the response is), a **linear predictor** (the straight-line part), and a **link** (how to connect them), and `lm` and logistic regression are just two settings of it. For a count you fit `glm(family = poisson)`, read coefficients as **rate ratios** (`exp(beta)`, a multiplier on the expected count), predict with `type = "response"`, and check for **overdispersion**, switching to quasi-Poisson or negative binomial when the variance outruns the mean. For a positive, skewed amount you reach for **Gamma** with a log link. The skill underneath all of it is one habit: look at your response, then match the family and link to it.
+You have opened up the whole family that logistic regression belongs to. Every one of them is the same `glm()` call: choose a **family** to match your response, choose a **link** (almost always `log` for counts and amounts, `logit` for probabilities), fit, and read the coefficients as multipliers with `exp()`. You can now model a **count** with `poisson`, catch and repair **overdispersion** with quasi-Poisson or the negative binomial (fixing the standard error, never the estimate, exactly as you did for heteroskedasticity in Lesson 5), turn counts into fair **rates** with an `offset`, and model a positive, skewed **amount** with `Gamma(link = "log")`.
 
-That completes Regression Modeling in R. You started by fitting a single line to minimize squared error and finished able to model numbers, yes/no outcomes, counts and skewed amounts, all from the one idea of a linear predictor seen through the right link. From here, the Classification and Boosting courses pick up where a linear-on-the-link model stops bending.
+That completes Regression Modeling in R: from the line that minimizes squared error, through its assumptions, its failures and its cures, all the way to a family of models for whatever your response happens to be. Next, put it all together in the section **Quiz**, then carry these tools into classification and beyond.

@@ -77,9 +77,9 @@ A picture makes the problem precise. Call the treatment **X** (enrolled in rehab
 
 Switch the widget to **confounder** and read the verdict: when a variable causes both the treatment and the outcome, you must **control for it**, or the effect you read off is wrong. (The other two shapes, collider and mediator, are traps in the opposite direction, and later lessons return to them. For now, baseline fitness is a clean confounder.)
 
-::widget causal-dag {}
-
 Matching is one way to "control for Z": instead of comparing all treated to all controls, we will compare treated and control patients who have the *same* baseline fitness, closing the backdoor.
+
+::widget causal-dag {}
 
 === step === concept
 ::eyebrow What we are really after
@@ -113,7 +113,7 @@ The second term is the whole trouble: it asks whether the treated and control gr
 In our data the enrolled patients had a mean baseline of **381 m** versus **322 m** for the others, and the raw outcome gap was **52.1 m** against a true effect of **25 m**. Which statement correctly explains the gap?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The 52.1 m gap is rehab's causal effect; the program simply works very well ::no That is the trap. The gap is the ATT plus selection bias. Because the enrolled patients started 59 m fitter and would have improved more anyway, part of the 52 m is that head start, not rehab.
+- The 52.1 m gap is rehab's causal effect; the program simply works very well ::no More data shrinks variance, not bias. Confounding is systematic: a bigger sample estimates the same biased 52 m more precisely. You need to adjust for baseline, not collect more of it.
 - The enrolled patients started fitter and would have improved more even without rehab, so part of the 52 m is that baseline head start, not the program ::ok Exactly. The naive difference equals the real effect plus a selection-bias term. Here the treated group's higher baseline makes E[Y(0)|T=1] larger than E[Y(0)|T=0], inflating 25 up to 52.
 - The gap would shrink to 25 m if we simply collected more patients ::no More data shrinks variance, not bias. Confounding is systematic: a bigger sample estimates the same biased 52 m more precisely. You need to adjust for baseline, not collect more of it.
 
@@ -191,8 +191,6 @@ round(c(before = smd(study$baseline[trt], study$baseline[ctrl]),
 #>   0.93   0.04
 ```
 
-Matching pulls the estimate from **52.1 m** back to **27.0 m**, within a whisker of the true 25. And the diagnostic confirms *why* it worked: baseline fitness went from a severe imbalance (SMD **0.93**) to essentially balanced (SMD **0.04**). The comparison is now fair on the thing that was fooling us.
-
 === step === quiz
 ::eyebrow Check yourself
 ## Reading the balance number
@@ -200,7 +198,7 @@ Matching pulls the estimate from **52.1 m** back to **27.0 m**, within a whisker
 After matching, the standardized mean difference on baseline fitness fell from 0.93 to 0.04. What can you legitimately conclude?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The matched estimate is now guaranteed to be unbiased ::no Balance on baseline only removes the bias from baseline. If some *other* confounder you never measured (say, genetic risk) still differs between the groups, the estimate can remain biased. Balance is necessary, not sufficient.
+- The matched estimate is now guaranteed to be unbiased ::no Balance is on the *confounders*, not the *outcome*. The groups being comparable is exactly what lets the remaining outcome difference (27 m) be read as rehab's effect, not evidence of no effect.
 - Baseline fitness is now well balanced between the groups, so it can no longer explain the outcome gap, though only for the covariates you actually measured ::ok Right. SMD 0.04 means the groups are matched on baseline, so it is no longer confounding the comparison. But matching can only balance what you measured; unmeasured confounders are untouched.
 - Balance near zero means the two groups are identical, so rehab must have no effect ::no Balance is on the *confounders*, not the *outcome*. The groups being comparable is exactly what lets the remaining outcome difference (27 m) be read as rehab's effect, not evidence of no effect.
 

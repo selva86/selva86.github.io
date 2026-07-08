@@ -1,7 +1,7 @@
 ---
-title: "Advanced Supervised Learning Lesson 8: A Tuned Stacked Model End to End"
-description: "Build one honest ML pipeline in R: tune an SVM, a Gaussian process and a random forest, stack them with convex weights, and evaluate on a sealed test set."
-keywords: "hyperparameter tuning, model selection, winner's curse, stacking, cross-validation, nested cross-validation, sealed test set, SVM, Gaussian process, random forest, R"
+title: "Advanced Supervised Learning Lesson 8: A Tuned, Stacked Model End to End"
+description: "The capstone: tune an SVM, a Gaussian process and a random forest by cross-validation, stack them on out-of-fold predictions, and grade the whole pipeline once on a sealed test set."
+keywords: "model stacking, super learner, hyperparameter tuning, cross-validation, out-of-fold predictions, winner's curse, nested cross-validation, ensemble learning, e1071, kernlab, randomForest, R"
 mathjax: true
 webr: true
 curriculum_id: "6.140.8"
@@ -14,67 +14,73 @@ course_landing: "R-Advanced-Supervised-Learning-Course.html"
 course_next: ""
 course_prev: "Approximate-Nearest-Neighbors-at-Scale.html"
 lesson_access: "pro"
-catalog_blurb: "Tune, stack and honestly evaluate several models as one complete pipeline."
+catalog_blurb: "Assemble tuning, stacking and honest evaluation into one trustworthy pipeline."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
 
 <section class="lesson-step" data-step="1" data-step-type="cover">
 <div class="lesson-step-eyebrow">Lesson 8 of 8</div>
-<h2>A Tuned Stacked Model End to End</h2>
+<h2>A Tuned, Stacked Model End to End</h2>
 
-<p>In Lesson 7 you gave a music service its "More like this" shelf back, trading a sliver of exactness for a thousand-fold speedup. That closed the last gap in the toolbox. This final lesson opens the whole toolbox at once: kernels, Gaussian processes, forests, stacking, honest tuning, and assembles them into the thing you actually ship, one pipeline whose final number you would bet money on.</p>
+<p>Across this course you have built a cabinet of very different learners: the maximum-margin SVM, kernels that bend a boundary, a discriminant blend, a Gaussian process that admits its own uncertainty, and behind you the whole random forest. This final lesson stops adding new machines and does the thing a working data scientist actually gets paid for: assemble them into one pipeline that tunes itself honestly, blends its members, and reports a number you can promise out loud.</p>
 
-<p>Priya is back at the used-car lot from Lesson 5, and this time the dealership hands her the full ledger: 900 cars of every brand tier, not 240 hatchbacks. Her Lesson 5 stack had a known weakness, every base model ran on factory-default dials. Today she tunes each family properly, stacks the tuned members, and reports one number to her manager. The danger is that each of those steps offers a tempting shortcut that quietly poisons the final number, and the shortcuts look identical to the honest moves until you grade them.</p>
+<p>Meet Marcus. He runs a used-car lot, and every trade-in is a negotiation that starts with one question: what is this car worth? He has a ledger of <strong>900 past sales</strong>, each with the car's age, odometer reading, brand tier and accident history, and the price it eventually sold for. He wants a single model that prices a trade-in to within about a thousand dollars, and he wants to know that the "within a thousand dollars" is real and not a number he fooled himself into believing.</p>
 
-<p>By the end of this lesson you will be able to:</p>
+<p>The diagram is the whole lesson in four moves. By the end you will be able to:</p>
 
 <ul>
 
-<li>Explain the winner's curse: why the best score found by trying many settings flatters you, and why trying MORE settings makes the flattery worse</li>
+<li>Explain the winner's curse: why the best score you find by trying many settings flatters you, and why trying even more settings makes it worse</li>
 
-<li>Tune three different model families with one honest recipe: cross-validated grids for the SVM and the Gaussian process, out-of-bag error for the forest, every choice made inside the training cars</li>
+<li>Tune three model families with one honest recipe, every choice made from the training cars alone</li>
 
-<li>Assemble the tuned stack end to end: out-of-fold columns, convex trust shares, final refits, and the two-stage prediction path</li>
+<li>Build the tuned stack end to end: out-of-fold columns, convex blend weights, a two-stage prediction</li>
 
-<li>Say exactly which of the pipeline's numbers you promise, and why every other number was spent the moment it picked a winner</li>
+<li>Evaluate the pipeline honestly, on one sealed test set touched exactly once, and say which number you are allowed to promise</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> <a href="Stacking-and-the-Super-Learner.html">Stacking and the Super Learner</a> (this lesson reuses its machinery wholesale), <a href="Kernel-SVMs-and-the-Kernel-Trick.html">Kernel SVMs</a> (cost and gamma), <a href="Gaussian-Processes-for-Regression.html">Gaussian Processes for Regression</a> (the lengthscale), <a href="Cross-Validation-Strategies.html">k-fold cross-validation</a>, and the <a href="RF-Course-Lesson-3.html">random forest course</a> (mtry and out-of-bag error).</p>
-
-<p>The whole lesson is four moves, in an order that never bends:</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Seal the exam","sub":"lock 300 cars away before any decision is made"},{"title":"Tune inside the training cars","sub":"cross-validated grids for the SVM and GP, out-of-bag for the forest"},{"title":"Stack the tuned members","sub":"out-of-fold columns, convex trust shares, final refits"},{"title":"Sit the exam once","sub":"one honest number, promised and then retired"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p><strong>Prerequisites:</strong> the <a href="Stacking-and-the-Super-Learner.html">stacking lesson</a> (out-of-fold predictions and a meta-learner blend, which this lesson tunes and hardens), the <a href="Kernel-SVMs-and-the-Kernel-Trick.html">kernel SVM</a> (cost and gamma), <a href="Gaussian-Processes-for-Regression.html">Gaussian processes</a> (the lengthscale), the <a href="RF-Course-Lesson-3.html">random forest course</a> (mtry and out-of-bag error), and k-fold <a href="Cross-Validation-Strategies.html">cross-validation</a>.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Seal the exam","sub":"lock away a test set and do not touch it until the very end"},{"title":"Tune in CV","sub":"pick every hyperparameter by cross-validation, on the training cars only"},{"title":"Stack","sub":"blend the tuned learners on their out-of-fold predictions"},{"title":"Grade once","sub":"score the sealed test set a single time; that number is the promise"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The full lot</div>
-<h2>Nine hundred cars and a sealed envelope</h2>
+<div class="lesson-step-eyebrow">The one rule that governs everything</div>
+<h2>Seal the exam before you start</h2>
 
-<p>Lesson 5 priced 240 hatchbacks using two facts per car. The full ledger is a richer world: 900 cars, four facts each. <strong>age</strong> in years, <strong>km</strong> driven in thousands, the <strong>brand tier</strong> (budget, mid or premium), and the number of recorded <strong>accidents</strong>. Price is in thousands of dollars, so an error of 1.0 is a thousand-dollar miss. As in Lesson 5 we write the ledger ourselves, because knowing the truth lets us grade every shortcut later: premium brands start higher and depreciate slower, each recorded accident knocks 15 percent off whatever the car would have fetched, old high-mileage cars drop off the scrap cliff, and cars under 18 months carry a small showroom premium. A thousand dollars of noise stands in for everything a ledger cannot see.</p>
+<p>Everything that goes wrong in a modeling project goes wrong because some number that was supposed to estimate the future got to peek at the future first. So before we fit a single model, we make one commitment and never break it: a chunk of Marcus's cars is sealed away as a <strong>test set</strong>, an exam the pipeline does not get to see. Every later choice, which hyperparameters, which blend weights, is a function of the training cars <strong>only</strong>. The test set is opened once, at the very end, to grade the finished pipeline.</p>
+
+<p>The score we will grade with is root mean squared error, the typical dollar miss:</p>
+
+<p>\[ \text{RMSE} = \sqrt{\tfrac{1}{n}\sum_{i=1}^{n}\left(y_i - \hat{y}_i\right)^2} \]</p>
+
+<p>where \(y_i\) is what car \(i\) actually sold for, \(\hat{y}_i\) is what the model guessed, and \(n\) is the number of cars scored. It is in the same units as price (thousands of dollars here), so an RMSE of 1.2 means "typically off by about \$1,200."</p>
+
+<p>First, Marcus's ledger. Each lesson runs in a fresh R session, so we build the 900-car lot right here, with real structure baked in: cars depreciate at a rate that depends on brand tier, hard driving and accidents knock money off, and a couple of sharp effects (a nearly-new bump, an old-and-thrashed cliff) that only a flexible model can catch.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">library(e1071)          # the SVM (Lesson 2)
-library(kernlab)        # the Gaussian process (Lesson 4)
-library(randomForest)   # the forest (the random forest course)
-library(ggplot2)
+    <div class="webr-editor" data-language="r">library(e1071)          # support vector machine
+library(kernlab)        # Gaussian process
+library(randomForest)   # random forest
 
 set.seed(42)
 n    &lt;- 900
 age  &lt;- round(runif(n, 0.5, 12), 1)                     # years on the road
-km   &lt;- round(age * runif(n, 6, 14) + runif(n, 0, 15))  # thousand km, grows with age
-tier &lt;- sample(c(&quot;budget&quot;, &quot;mid&quot;, &quot;premium&quot;), n, TRUE)
-accidents &lt;- rbinom(n, 2, 0.15)                         # recorded accidents, mostly 0
-rate &lt;- c(budget = 0.20, mid = 0.15, premium = 0.11)[tier]  # premium fades slowest
-mult &lt;- c(budget = 0.75, mid = 1.00, premium = 1.35)[tier]  # ...and starts highest
+km   &lt;- round(age * runif(n, 6, 14) + runif(n, 0, 15))  # thousand km on the odometer
+tier &lt;- sample(c(&quot;budget&quot;, &quot;mid&quot;, &quot;premium&quot;), n, TRUE)  # brand tier
+accidents &lt;- rbinom(n, 2, 0.15)                         # prior accidents: 0, 1 or 2
+
+rate &lt;- c(budget = 0.20, mid = 0.15, premium = 0.11)[tier]   # how fast the tier loses value
+mult &lt;- c(budget = 0.75, mid = 1.00, premium = 1.35)[tier]   # its price level when new
 price &lt;- (3 + 26 * exp(-rate * age) * mult - 0.015 * km) * 0.85^accidents +
-         ifelse(age &gt; 8 &amp; km &gt; 100, -3, 0) +            # the scrap-value cliff
-         ifelse(age &lt; 1.5, 3, 0) +                      # the nearly-new premium
-         rnorm(n, 0, 1)                                 # what no ledger records
+         ifelse(age &gt; 8 &amp; km &gt; 100, -3, 0) +   # old-and-thrashed cliff
+         ifelse(age &lt; 1.5,          3, 0) +    # nearly-new bump
+         rnorm(n, 0, 1)                        # everything we did not measure
 lot &lt;- data.frame(age, km, tier = factor(tier), accidents,
-                  price = round(pmax(price, 0.3), 2))
+                  price = round(pmax(price, 0.3), 2))   # price in $1,000s
 head(lot, 4)
 #&gt;    age km    tier accidents price
 #&gt; 1 11.0 87 premium         0 10.54
@@ -90,21 +96,20 @@ head(lot, 4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>An 11-year premium car with 87,000 km still fetched 10,540 dollars; the 11.3-year budget car right below it, one accident on file, went for 2,400. Tier bends the whole depreciation curve and accidents multiply it: interactions everywhere, exactly the terrain where different model families draw genuinely different shapes.</p>
-
-<p>Before anyone touches a dial, one move decides whether every number that follows can be trusted. Priya seals 300 cars in an envelope: the <strong>test set</strong>, her final exam. State the rule of the whole lesson as an invariant: <strong>every learned choice, every dial, fold and trust share, is computed from the 600 training cars alone.</strong> The envelope is opened once, at the very end, to grade the finished pipeline.</p>
+<p>Now the split, and the promise. Two thirds of the lot, 600 cars, become the training ground; the other 300 are the sealed exam. We also define <code>rmse()</code> once, since every step from here scores with it.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">set.seed(101)
-test_id &lt;- sample(n, 300)
-train &lt;- lot[-test_id, ]             # 600 cars: every decision happens here
-test  &lt;- lot[test_id, ]              # 300 cars: sealed until the last step
-rmse  &lt;- function(actual, pred) sqrt(mean((actual - pred)^2))
-c(train = nrow(train), test = nrow(test))
-#&gt; train  test 
-#&gt;   600   300</div>
+test_id &lt;- sample(n, 300)          # 300 cars sealed away as the exam
+train   &lt;- lot[-test_id, ]         # 600 cars to build everything on
+test    &lt;- lot[test_id, ]
+
+rmse &lt;- function(actual, predicted) sqrt(mean((actual - predicted)^2))
+c(train = nrow(train), test = nrow(test), sd_price = round(sd(train$price), 2))
+#&gt;    train     test sd_price
+#&gt;   600.00   300.00     8.36</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -114,36 +119,33 @@ c(train = nrow(train), test = nrow(test))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>RMSE (root mean squared error) is the typical size of a quote's miss, in thousands of dollars, the same yardstick as Lesson 5. The interactive below shows the split and its cardinal sin: flip the leak switch and watch what a score turns into when information the model should never have seen sneaks past the boundary.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A test set does not measure a model. It measures a model that was never, in any way, chosen because of it. Break that once and the envelope is just more training data wearing a costume.</div></div>
+<p>The last number sets the bar. Prices in the training set have a standard deviation of \$8,360, so a model that just guessed the average price every time would miss by about that much. Anything we build has to beat 8.36 by a wide margin to be worth Marcus's trust. The widget shows the split, and the one way it all falls apart: flip the switch and watch a leaked feature turn the test score into a fantasy.</p>
 <div class="lesson-widget" data-widget-type="data-split" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
 <div class="lesson-step-eyebrow">The trap</div>
-<h2>Tune against one slice and the score starts lying</h2>
+<h2>The best score you find is a liar</h2>
 
-<p>Each model family Priya wants on the lot carries <strong>hyperparameters</strong>: dials the fit cannot set for itself, because they control what kind of fit is attempted in the first place. The SVM's cost and gamma (Lesson 2), the Gaussian process's lengthscale (Lesson 4), the forest's mtry (the forest course). Someone has to choose them, and the only way to choose is to try settings and score them.</p>
-
-<p>Her first instinct is tidy enough. Set aside 60 of the 600 training cars as a <strong>validation slice</strong> (the sealed 300 stay sealed, she knows that much), fit every candidate on the other 540, keep whichever candidate misses the 60 by the least. Here are 40 random dial settings for the SVM, judged exactly that way:</p>
+<p>Here is the mistake almost everyone makes first, and it is worth making it in the open so we never make it again. Marcus wants to tune his SVM's two dials, <code>cost</code> and <code>gamma</code>. The obvious plan: peel a small <strong>validation slice</strong> off the training cars, try a bunch of <code>(cost, gamma)</code> pairs, keep the pair that scores best on the slice. Let us do exactly that, honestly, on one 60-car slice.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">set.seed(22)
-val_id &lt;- sample(nrow(train), 60)
-fit_tr &lt;- train[-val_id, ]           # 540 cars the candidates fit on
-val    &lt;- train[val_id, ]            # ONE 60-car slice does all the judging
+val_id &lt;- sample(nrow(train), 60)  # ONE 60-car validation slice
+fit_tr &lt;- train[-val_id, ]         # 540 cars each candidate fits on
+val    &lt;- train[val_id, ]
 
 set.seed(11)
-cand &lt;- data.frame(cost  = round(4^runif(40, 0, 3), 1),      # 1 to 64
-                   gamma = round(10^runif(40, -2.3, 0), 4))  # 0.005 to 1
-val_score &lt;- sapply(1:40, function(j) {
+cand &lt;- data.frame(cost  = round(4^runif(40, 0, 3), 1),     # 40 random (cost, gamma) pairs
+                   gamma = round(10^runif(40, -2.3, 0), 4))
+val_rmse &lt;- sapply(1:40, function(j) {
   m &lt;- svm(price ~ ., data = fit_tr, cost = cand$cost[j], gamma = cand$gamma[j])
   rmse(val$price, predict(m, val))
 })
-cbind(cand, val = round(val_score, 3))[which.min(val_score), ]
+cand$val &lt;- round(val_rmse, 3)
+cand[which.min(cand$val), ]        # the candidate that &quot;won&quot; the slice
 #&gt;    cost  gamma  val
 #&gt; 35 29.4 0.7235 1.13</div>
     <div class="webr-buttons">
@@ -155,31 +157,24 @@ cbind(cand, val = round(val_score, 3))[which.min(val_score), ]
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Candidate 35 misses the slice by 1,130 dollars a car, comfortably the best number anyone has seen on this lot. Priya is ready to celebrate. Look at the winning dials first, though: gamma 0.72 is the spiky, memorizing end of Lesson 2's dial, the setting that draws islands around individual cars. Why would the judging crown a memorizer?</p>
-
-<p>Because of what a 60-car score actually is. Write candidate \(j\)'s honest quality as \(R_j\), the RMSE it would earn on unlimited future cars. The slice reports \(\hat{R}_j = R_j + \varepsilon_j\), where \(\varepsilon_j\) (epsilon) is sampling noise from those particular 60 cars, sometimes up, sometimes down. Selection keeps the smallest reported score among the \(J\) candidates tried, and the smallest is biased:</p>
-
-<p>\[ \mathbb{E}\Big[\min_{j \le J} \hat{R}_j\Big] \;<\; \min_{j \le J} R_j \quad \text{whenever the noise has any spread.} \]</p>
-
-<p>In words: the expected best-reported score sits below the best true quality, because the min operator hunts through all \(J\) candidates for the luckiest downward noise, and the more candidates you try, the luckier the luckiest one gets. Auction theorists call this arithmetic the <strong>winner's curse</strong>: the winning bid tends to come from whoever most overestimated the prize. Here the prize is a pretty validation score, and candidate 35 overbid.</p>
-
-<p>We built this world, so we can do something Priya must not: grade candidates against the sealed 300 without consequence (for her, even one peek would spend the exam). Here is what the search promised versus what it would have delivered, as it tried more candidates:</p>
+<p>Candidate 35 looks superb: it misses the 60 validation cars by only \$1,130. But watch what happens as we let more and more candidates compete on that same little slice. For each budget of candidates tried, we take the slice's favourite and, just this once, peek at the sealed test set to see what that favourite really delivers. (You never get to see this last column while tuning. We reveal it here only to expose the trap.)</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">curse &lt;- t(sapply(c(5, 10, 20, 40), function(J) {
-  b &lt;- which.min(val_score[1:J])     # the winner after J tries
+  b &lt;- which.min(val_rmse[1:J])                   # best of the first J candidates
   m &lt;- svm(price ~ ., data = fit_tr, cost = cand$cost[b], gamma = cand$gamma[b])
-  c(tried = J, promised = round(val_score[b], 3),
-    delivered = round(rmse(test$price, predict(m, test)), 3))
+  c(candidates_tried = J,
+    slice_promised   = round(val_rmse[b], 3),                          # what the slice advertised
+    test_delivered   = round(rmse(test$price, predict(m, test)), 3))   # what the exam actually paid
 }))
 curse
-#&gt;      tried promised delivered
-#&gt; [1,]     5    1.291     1.276
-#&gt; [2,]    10    1.153     1.338
-#&gt; [3,]    20    1.153     1.338
-#&gt; [4,]    40    1.130     1.448</div>
+#&gt;      candidates_tried slice_promised test_delivered
+#&gt; [1,]                5          1.291          1.276
+#&gt; [2,]               10          1.153          1.338
+#&gt; [3,]               20          1.153          1.338
+#&gt; [4,]               40          1.130          1.448</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -189,59 +184,50 @@ curse
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read it row by row, because this table is the reason the lesson exists. After 5 tries the promise was roughly honest: 1.291 promised, 1.276 delivered. Every "improvement" after that was the search digging into the slice's noise. The promise fell to 1.130 while the model Priya would actually ship got worse at every step, ending at 1.448. Trying more candidates made the report prettier and the product worse, simultaneously.</p>
+<p>Read the two right-hand columns against each other. The more candidates we try, the better the slice score gets (1.291 down to 1.130), and the <strong>worse</strong> the real model gets (1.276 up to 1.448). Trying harder made things worse. This is the <strong>winner's curse</strong>, and it has a precise cause. Each slice score is the true skill plus noise, \(s_j = \mu_j + \varepsilon_j\), where \(\mu_j\) is candidate \(j\)'s real error and \(\varepsilon_j\) is the luck of which 60 cars landed in the slice. When you take the minimum over \(m\) candidates,</p>
 
-<p>You have met this shape before. It appears whenever one signal is optimized against for long enough: the optimized signal keeps falling while the truth bottoms out and climbs away. Below, the optimized signal is training error over boosting rounds and the truth is validation error; in Priya's table the optimized signal was the slice score over candidates tried, and the truth was the exam. Slide the stopping point and watch the curves part company.</p>
+<p>\[ \mathbb{E}\!\left[\min_{j \le m} s_j\right] \;\le\; \min_{j \le m} \mu_j \]</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A score you optimize against stops being a measurement. The slice never changed; what changed is how hard the search leaned on its noise. Every yardstick in this pipeline gets used for one decision and then retired, and the sealed exam is used exactly once, ever.</div></div>
+<p>the minimum of noisy scores is biased low, and the bias grows with \(m\): more candidates give the noise more chances to produce a flattering fluke. The "winner" is often just the candidate whose \(\varepsilon_j\) was most negative on this particular slice, not the one with the best \(\mu_j\). Candidate 35's <code>gamma</code> of 0.72 is a wild, spiky setting; proper tuning will crown a <code>gamma</code> near 0.05 instead.</p>
+
+<p>The shape to burn into memory is below. The widget's literal story is early stopping: as you push a knob (boosting rounds) to minimize a score watched on one held-out slice, the watched score keeps improving while the real error bottoms out and then climbs. Swap "boosting rounds" for "number of candidates you try on one slice" and it is the very trap you just walked into.</p>
 <div class="lesson-widget" data-widget-type="learning-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Two hundred candidates later</h2>
+<h2>Why did trying harder hurt?</h2>
 
-<p>A colleague sees Priya's table, shrugs, and scores 200 random dial settings against the same 60-car slice. The best validation RMSE drops to 1.05, the prettiest number yet, and he announces that the model has improved. Has it?</p>
+<p>In the curse table, the slice-promised RMSE fell from 1.291 (5 candidates) to 1.130 (40 candidates), yet the test-delivered RMSE rose from 1.276 to 1.448. Why did evaluating <strong>more</strong> candidates on the one slice produce a <strong>worse</strong> final model?</p>
 <section class="exercise" data-exercise-id="A-Tuned-Stacked-Model-End-to-End-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes: 200 candidates search the dial space more thoroughly than 40, so the winner should be genuinely better, and the falling score confirms it</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">There is no evidence either way: 1.05 is the minimum of 200 noisy numbers, so it is expected to flatter, and only a yardstick nothing was optimized against can say whether this winner beats the old one</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The score 1.05 is optimistic, but the ranking is still trustworthy: the top candidate of 200 is still the best model, you just should not quote its score</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The progress is real but should be discounted: a seasoned rule of thumb is to halve the improvement and report roughly 1.10</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The min digs deeper into the slice's noise as candidates pile up, so a falling best-score is what you would see even if every candidate were equally good. Rejudge the finalists on data they never courted and the mirage evaporates.</div><div class="lesson-qfb lesson-qfb-no">There is no fixed discount rate. How much the minimum flatters depends on how many candidates were tried and how noisy the slice is, neither of which a haircut knows. The fix is a cleaner yardstick, not a corrected lie.</div></div>
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The 60-car slice score is noisy, and the more candidates you let compete on that single slice, the more likely the winner is one whose low score is a lucky fit to the slice's particular noise rather than real skill</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Larger cost and gamma make an SVM overfit its training data, so simply listing more candidates trains more overfit models</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Forty candidates is too few to locate the true optimum; sweeping 400 would let the test-delivered error recover</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. You are taking a minimum over noisy scores, which is biased low, and the bias grows with the number of candidates. The winner is increasingly the luckiest candidate on that slice, not the most skilled one, so its honest test error is higher.</div><div class="lesson-qfb lesson-qfb-no">It goes the wrong way: more candidates on one slice makes the selected model worse, not better. The fix is not more candidates on one slice, it is a less noisy score to select on, which is the next step.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="5" data-step-type="concept">
 <div class="lesson-step-eyebrow">The fix</div>
-<h2>Score every candidate on five folds, not one slice</h2>
+<h2>Score with cross-validation, not one slice</h2>
 
-<p>The slice failed for two reasons: it was small, 60 cars of noise, and it was static, so every candidate got to court the same 60 cars. Cross-validation attacks both at once, with machinery you already own. Deal the 600 training cars into 5 folds. Each candidate is fit 5 times, each time on 4 folds, and scored on the fold it never saw; its report card is the average of the 5 misses. Every training car judges every candidate exactly once, and no lucky corner of the data crowns a winner alone. Step through the rotation:</p>
+<p>The problem was never the SVM. It was that we selected on a score computed from one unlucky 60-car slice. The cure is to make the selection signal steadier by averaging over five slices instead of trusting one. That is <strong>k-fold cross-validation</strong>: cut the 600 training cars into 5 folds, and to score any recipe, fit it five times, each time holding out a different fold and measuring error on the held-out cars, then average. Every car gets predicted exactly once, by a model that never saw it.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">set.seed(7)
-fold &lt;- sample(rep(1:5, length.out = nrow(train)))   # dealt once, reused all lesson
+fold &lt;- sample(rep(1:5, length.out = nrow(train)))   # give each training car a fold label 1..5
 
-cv_rmse &lt;- function(fit_fun) {       # fit_fun: training data in, fitted model out
+cv_rmse &lt;- function(fit_fun) {          # 5-fold CV score for ANY fitting recipe
   miss &lt;- numeric(5)
   for (k in 1:5) {
-    tr &lt;- train[fold != k, ]         # fit on four folds...
-    m  &lt;- fit_fun(tr)
-    miss[k] &lt;- rmse(train$price[fold == k], predict(m, train[fold == k, ]))
+    held  &lt;- which(fold == k)
+    model &lt;- fit_fun(train[-held, ])    # fit on the other four folds
+    miss[k] &lt;- rmse(train$price[held], predict(model, train[held, ]))
   }
-  mean(miss)                         # ...average the five honest misses
-}
-
-svm_grid &lt;- expand.grid(cost = c(1, 4, 16, 64), gamma = c(0.02, 0.05, 0.1, 0.2))
-svm_grid$cv &lt;- round(sapply(1:nrow(svm_grid), function(j)
-  cv_rmse(function(tr) svm(price ~ ., data = tr,
-                           cost = svm_grid$cost[j], gamma = svm_grid$gamma[j]))), 3)
-head(svm_grid[order(svm_grid$cv), ], 3)
-#&gt;    cost gamma    cv
-#&gt; 8    64  0.05 1.231
-#&gt; 12   64  0.10 1.246
-#&gt; 11   16  0.10 1.248</div>
+  mean(miss)
+}</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -251,17 +237,40 @@ head(svm_grid[order(svm_grid$cv), ], 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The steadier judging crowns cost 64 with gamma 0.05: the smooth end of the dial, fourteen times gentler than the slice's memorizing 0.72. Two practical notes on the search itself. A deliberate 16-setting grid replaces the 40 random stabs, because a steadier yardstick needs fewer, better-placed shots. And the grid is affordable only because each fit takes well under a second here; when one fit costs 25 minutes, you spend candidates the way Lesson 6 taught, with a Gaussian process choosing the next setting worth trying.</p>
+<p><code>cv_rmse()</code> takes a <em>recipe</em>, a function that fits a model given data, and returns its averaged five-fold error. That one helper will score every candidate for every model family in this lesson, all on the same folds, so the comparisons are fair. Now tune the SVM properly: a small grid of sensible <code>cost</code> and <code>gamma</code> values, each scored by cross-validation.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The winning 1.231 is still the best of 16 numbers, so a mild winner's curse lives inside it too; fold-averaged scores just carry far less noise for the min to mine. The rule the whole lesson turns on: <strong>a score used to choose is spent by the choosing.</strong> 1.231 picked the SVM's dials, so 1.231 is not a number anyone promises. The promise comes from the envelope, later.</div></div>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">svm_grid &lt;- expand.grid(cost = c(1, 4, 16, 64), gamma = c(0.02, 0.05, 0.1, 0.2))
+svm_grid$cv &lt;- sapply(1:nrow(svm_grid), function(j)
+  cv_rmse(function(tr) svm(price ~ ., data = tr,
+                           cost = svm_grid$cost[j], gamma = svm_grid$gamma[j])))
+head(svm_grid[order(svm_grid$cv), ], 3)
+#&gt;    cost gamma       cv
+#&gt; 8    64  0.05 1.230577
+#&gt; 12   64  0.10 1.246467
+#&gt; 11   16  0.10 1.247646</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The cross-validated winner is <code>cost = 64</code>, <code>gamma = 0.05</code>, scoring 1.231, a calm setting nothing like the spiky <code>gamma = 0.72</code> the single slice fell in love with. One caution that will matter at the end: this 1.231 is a score for <strong>choosing</strong>, not a number to promise. We evaluated 16 candidates and kept the best, so even this cross-validated minimum is a little optimistic by the same winner's-curse logic, just far less so than the one-slice score. The honest promise still has to come from the sealed exam.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Cross-validation buys you a low-variance signal to <em>select</em> on. It does not buy you a number to <em>report</em>. The moment a score is used to choose something, it stops being an unbiased estimate of the future, because you kept it precisely for being low.</div></div>
 <div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":5}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">Same recipe, other families</div>
-<h2>Tune the Gaussian process and the forest</h2>
+<div class="lesson-step-eyebrow">The same recipe, three families</div>
+<h2>Tune the GP and the forest the same honest way</h2>
 
-<p>The recipe generalizes: pick each family's dial, walk a small grid, judge with a score no candidate can court. For the Gaussian process the dial is the <strong>lengthscale</strong> (Lesson 4): how far one car's price echoes across the age-km-tier space. <code>gausspr()</code> expresses it through the RBF kernel parameter \(\sigma = 1 / (2\ell^2)\), where \(\ell\) is the lengthscale after the inputs are standardized, so a BIG sigma means a short lengthscale and a wiggly fit, and a small sigma means a long, stiff one. We hold the noise dial at <code>var = 0.05</code>, saying a few percent of price variance is unlearnable noise, and walk sigma across a factor of twenty:</p>
+<p>The beauty of the <code>cv_rmse()</code> helper is that "tuning" is now the same act for every model: hand it a recipe with a dial set, read back one honest number, keep the best dial. The Gaussian process has one dial that matters here, the RBF kernel's <code>sigma</code> (its inverse lengthscale: bigger <code>sigma</code> means the model trusts only very nearby cars). Same grid-and-score move.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
@@ -286,9 +295,7 @@ gp_grid
   <div class="webr-plot-output"></div>
 </div>
 
-<p>A clean U: too stiff at 0.02 (the surface cannot bend around the scrap cliff), too wiggly at 0.40 (it starts chasing the thousand-dollar noise), best at 0.10 with a cross-validated 1.249. One dial, one honest curve, done.</p>
-
-<p>The forest brings its own yardstick, and it is free. Every tree trains on a bootstrap resample that leaves out roughly a third of the cars, so each car can be scored by the trees that never saw it: the <strong>out-of-bag (OOB) error</strong> from the forest course, cross-validation without folding anything. One forest per mtry value:</p>
+<p><code>sigma = 0.10</code> wins at 1.249, and notice the familiar U-shape: too small and the GP is too stiff, too large and it chases noise. The forest has its own dial, <code>mtry</code>, the number of features each split is allowed to consider, and it comes with a gift you met in the random-forest course: <strong>out-of-bag error</strong>, a free cross-validation baked into the bagging itself. Every tree is grown on a bootstrap sample, so roughly a third of the cars are out-of-bag for that tree and can be scored for free, no separate folds needed.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
@@ -297,7 +304,7 @@ gp_grid
 oob &lt;- sapply(1:4, function(m)
   sqrt(tail(randomForest(price ~ ., data = train, ntree = 400, mtry = m)$mse, 1)))
 round(setNames(oob, paste0(&quot;mtry=&quot;, 1:4)), 3)
-#&gt; mtry=1 mtry=2 mtry=3 mtry=4 
+#&gt; mtry=1 mtry=2 mtry=3 mtry=4
 #&gt;  2.716  1.392  1.375  1.385</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -308,41 +315,35 @@ round(setNames(oob, paste0(&quot;mtry=&quot;, 1:4)), 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Sit with the first number, because it is the quiet scandal of this step. mtry is how many features each split may consider, and for regression <code>randomForest()</code> defaults to a third of them: here exactly 1 of the 4. A tree whose every split must use one randomly assigned feature keeps being handed <code>accidents</code> when the split it needs is on <code>age</code>. De-correlating the trees is the forest's whole trick, but with only four features that de-correlation costs far more tree strength than it returns. The untuned default would have shipped a 2,716-dollar typical miss; one tuned dial halves it, with mtry 3 winning by a nose over 4. And 400 trees sits comfortably past the flattening point of the OOB curve, the shape you can drag below (the forest course's churn model, same curves, different lot):</p>
-
-<p>Three families, three dials, three honest yardsticks, and not one glance at the sealed 300:</p>
+<p><code>mtry = 3</code> is best at 1.375. Look hard at <code>mtry = 1</code>: 2.716, more than twice as bad, and that is the <strong>default</strong> a regression forest would have picked on its own (regression uses <code>floor(p/3)</code>, which is 1 for four features). Left untuned, the forest here would have been nearly useless. Each family had a different tuning instrument, but the discipline was identical: one honest score, computed inside the training cars, choosing one dial.</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Family</th>
 <th>Dial tuned</th>
-<th>Judged by</th>
+<th>Honest scoring instrument</th>
 <th>Winner</th>
-<th>Score (for choosing only)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>SVM</td>
-<td>cost, gamma</td>
-<td>5-fold CV</td>
-<td>cost 64, gamma 0.05</td>
-<td>1.231</td>
+<td><code>cost</code>, <code>gamma</code></td>
+<td>5-fold CV (<code>cv_rmse</code>)</td>
+<td>64, 0.05 -> 1.231</td>
 </tr>
 <tr>
 <td>Gaussian process</td>
-<td>lengthscale (sigma)</td>
-<td>5-fold CV</td>
-<td>sigma 0.10</td>
-<td>1.249</td>
+<td><code>sigma</code></td>
+<td>5-fold CV (<code>cv_rmse</code>)</td>
+<td>0.10 -> 1.249</td>
 </tr>
 <tr>
 <td>Random forest</td>
-<td>mtry</td>
+<td><code>mtry</code></td>
 <td>out-of-bag error</td>
-<td>mtry 3</td>
-<td>1.375</td>
+<td>3 -> 1.375</td>
 </tr>
 </tbody>
 </table>
@@ -350,30 +351,33 @@ round(setNames(oob, paste0(&quot;mtry=&quot;, 1:4)), 3)
 </section>
 
 <section class="lesson-step" data-step="7" data-step-type="concept">
-<div class="lesson-step-eyebrow">The stack returns</div>
-<h2>Honest columns for the tuned four</h2>
+<div class="lesson-step-eyebrow">Stacking, hardened</div>
+<h2>Out-of-fold columns, and the correlation that runs the show</h2>
 
-<p>From here, Lesson 5 takes over with upgraded members. Four base learners: the tuned SVM, the tuned GP, the tuned forest, and plain linear regression. Keep the linear model even though you can guess it will struggle on a lot full of interactions: Lesson 5's deepest point was that a weak model with DIFFERENT mistakes can still earn a seat, and the committee, not us, should make that call. The meta-learner needs <strong>out-of-fold predictions</strong>, every car predicted by models that never trained on it, and we reuse the same 5 folds dealt in the grid step:</p>
+<p>Now we assemble the stack. From the stacking lesson you know the recipe: a meta-learner should not learn to blend from predictions a base model made on cars it trained on (those are dishonestly good), but from <strong>out-of-fold</strong> predictions, each car predicted by a model that never saw it. So we rebuild the five-fold loop one more time, and in each fold we fit all four members, each with its tuned dial, and record their predictions on the held-out cars. We add a plain linear model as a fourth member, to see whether the fancy machines are even earning their keep.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">set.seed(7)
-oof &lt;- data.frame(linear = rep(NA_real_, nrow(train)), svm = NA_real_,
-                  gp = NA_real_, rf = NA_real_)
+    <div class="webr-editor" data-language="r">best_cost  &lt;- svm_grid$cost[which.min(svm_grid$cv)]    # 64
+best_gamma &lt;- svm_grid$gamma[which.min(svm_grid$cv)]   # 0.05
+best_sigma &lt;- gp_grid$sigma[which.min(gp_grid$cv)]     # 0.10
+best_mtry  &lt;- which.min(oob)                           # 3
+
+set.seed(7)
+oof &lt;- data.frame(linear = rep(NA_real_, nrow(train)),
+                  svm = NA_real_, gp = NA_real_, rf = NA_real_)
 for (k in 1:5) {
   tr &lt;- train[fold != k, ]
   te &lt;- which(fold == k)
   oof$linear[te] &lt;- predict(lm(price ~ ., data = tr), train[te, ])
-  oof$svm[te]    &lt;- predict(svm(price ~ ., data = tr,
-                                cost = 64, gamma = 0.05), train[te, ])
+  oof$svm[te]    &lt;- predict(svm(price ~ ., data = tr, cost = best_cost, gamma = best_gamma), train[te, ])
   oof$gp[te]     &lt;- as.numeric(predict(gausspr(price ~ ., data = tr, kernel = &quot;rbfdot&quot;,
-                                kpar = list(sigma = 0.1), var = 0.05), train[te, ]))
-  oof$rf[te]     &lt;- predict(randomForest(price ~ ., data = tr,
-                                ntree = 400, mtry = 3), train[te, ])
+                                       kpar = list(sigma = best_sigma), var = 0.05), train[te, ]))
+  oof$rf[te]     &lt;- predict(randomForest(price ~ ., data = tr, ntree = 400, mtry = best_mtry), train[te, ])
 }
-round(sapply(oof, rmse, actual = train$price), 3)
-#&gt; linear    svm     gp     rf 
+round(sapply(oof, function(p) rmse(train$price, p)), 3)   # each member's honest CV RMSE
+#&gt; linear    svm     gp     rf
 #&gt;  2.199  1.240  1.259  1.410</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -384,13 +388,13 @@ round(sapply(oof, rmse, actual = train$price), 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The honest report card: the two kernel machines nearly tied around 1.25, the forest at 1.41, and the linear model wrecked at 2.199 by exactly the structure we built into this lot. A flat plane cannot bend a different depreciation curve for each tier, and it has no way to multiply anything by an accident count. Now the numbers that decide how much blending can pay, the error correlations:</p>
+<p>So on its own, the SVM is best (1.240), the GP close behind (1.259), the forest clearly worst of the three nonlinear members (1.410), and the linear model is out of its depth (2.199) against those sharp nonlinear effects. A tempting conclusion would be "just ship the SVM." Resist it, and look at something the solo scores hide: how the members' <strong>mistakes</strong> relate. Two models that are wrong on the same cars in the same direction have nothing to teach each other; two that are wrong on different cars can cover for each other. We measure that with the correlation of their out-of-fold errors.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">res &lt;- train$price - oof             # each model's miss on each unseen car
-round(cor(res), 2)
+    <div class="webr-editor" data-language="r">resid &lt;- train$price - oof            # each member's out-of-fold error on every car
+round(cor(resid), 2)
 #&gt;        linear  svm   gp   rf
 #&gt; linear   1.00 0.56 0.60 0.46
 #&gt; svm      0.56 1.00 0.98 0.68
@@ -405,29 +409,46 @@ round(cor(res), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>One matrix, three verdicts. The SVM and the GP correlate at <strong>0.98</strong>: they are clones. Of course they are. One draws its surface with RBF kernels around support vectors, the other with an RBF covariance; two dialects of the same smooth worldview, and tuning pushed both to the same smoothness. Lesson 5's variance formula says the shared part of the error is the floor no blend digs below, so this pair blends to almost nothing. The forest disagrees with both at 0.68: its axis-aligned staircase and its appetite for tier and accident splits make genuinely different mistakes, and that 0.68 is where the blend's gains will come from. The linear model is the most independent voice in the room at 0.46 to 0.60, but independence is not competence: its mistakes are different AND enormous. Whether that trade deserves a seat is precisely the question the meta-learner answers next.</p>
+<p>There is the whole plot. The SVM and the GP are near <strong>clones</strong>: their errors correlate 0.98, because they are both smooth kernel machines that stumble on the same cars. The forest, splitting instead of smoothing, is wrong on <strong>different</strong> cars, correlating only 0.68 with each. It is the worst solo performer and the most valuable teammate, because it brings information the other two do not have.</p>
 <div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["linear","svm","gp","rf"],"matrix":[[1,0.56,0.6,0.46],[0.56,1,0.98,0.68],[0.6,0.98,1,0.68],[0.46,0.68,0.68,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<div class="lesson-step-eyebrow">Open the envelope</div>
-<h2>The blend, the refits, and the exam sat once</h2>
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which member earns its place?</h2>
 
-<p>Lesson 5's convex committee, unchanged: route each weight through <code>exp</code> so all stay positive, divide by their sum so they total exactly 1, and let <code>optim()</code> pick the shares that make the blended out-of-fold predictions track the 600 true prices:</p>
+<p>The forest has the worst solo out-of-fold RMSE of the three nonlinear members (1.410, versus the SVM's 1.240). Yet in a moment the blend will give the forest a healthy weight while nearly benching the more accurate GP. What makes the weaker forest more valuable to the stack than the stronger GP?</p>
+<section class="exercise" data-exercise-id="A-Tuned-Stacked-Model-End-to-End-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A stack always distributes weight in proportion to each member's solo accuracy, so this cannot happen; the forest must actually have the lower error</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The forest's errors are decorrelated from the SVM and GP (0.68 versus their mutual 0.98), so it is wrong on different cars and can cover mistakes the two kernel clones share; the GP mostly repeats what the SVM already says</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The forest is less likely to have overfit, because out-of-bag error is more trustworthy than cross-validation</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Blending helps most when members err independently. The SVM and GP correlate 0.98, so adding the GP is nearly free redundancy; the forest at 0.68 brings genuinely new information, which is worth more to the blend than a little extra solo accuracy.</div><div class="lesson-qfb lesson-qfb-no">Out-of-bag and cross-validated errors are both honest held-out estimates; neither is what is going on here. The forest's value comes from its error correlation with the others (0.68), not from which validation scheme scored it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The blend</div>
+<h2>Convex weights that split the clone seat</h2>
+
+<p>Now the meta-learner: choose weights \(w_i\) that mix the four out-of-fold columns into a single prediction with the lowest RMSE. We keep the weights <strong>convex</strong>, meaning each is at least zero and together they sum to one, so the blend is an honest weighted average that cannot invent prices outside the members' range. A clean trick enforces that: parametrize the weights through a softmax of four free numbers,</p>
+
+<p>\[ w_i \;=\; \frac{e^{\beta_i}}{\sum_{k} e^{\beta_k}}, \qquad w_i \ge 0, \quad \sum_i w_i = 1, \]</p>
+
+<p>and let a general optimizer search the \(\beta_i\) freely while the softmax guarantees the constraint. The blended prediction is then just \(\hat{y} = \sum_i w_i \hat{y}_i\).</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">sl_rmse &lt;- function(b) {             # b: four free numbers -&gt; a fair committee
-  w &lt;- exp(b) / sum(exp(b))          # all positive, summing to exactly 1
+    <div class="webr-editor" data-language="r">blend_rmse &lt;- function(logits) {
+  w &lt;- exp(logits) / sum(exp(logits))              # softmax -&gt; weights &gt;= 0 that sum to 1
   rmse(train$price, as.matrix(oof) %*% w)
 }
-opt &lt;- optim(c(0, 0, 0, 0), sl_rmse)
-w &lt;- exp(opt$par) / sum(exp(opt$par))
-round(setNames(w, names(oof)), 2)
-#&gt; linear    svm     gp     rf 
-#&gt;   0.00   0.63   0.06   0.30 
-round(rmse(train$price, as.numeric(as.matrix(oof) %*% w)), 3)
+best &lt;- optim(c(0, 0, 0, 0), blend_rmse)           # search the weight simplex
+w    &lt;- setNames(exp(best$par) / sum(exp(best$par)), names(oof))
+round(w, 2)
+#&gt; linear    svm     gp     rf
+#&gt;   0.00   0.63   0.06   0.30
+round(rmse(train$price, as.numeric(as.matrix(oof) %*% w)), 3)   # blended out-of-fold RMSE
 #&gt; [1] 1.196</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -438,46 +459,14 @@ round(rmse(train$price, as.numeric(as.matrix(oof) %*% w)), 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Three rulings the committee reached on its own. The linear model is benched at 0.00: an equal average would be forced to carry its 2,199-dollar misses, but a learned committee can simply say no. The forest, weakest of the three survivors on its own score, still holds a 0.30 seat, because disagreement is fuel, exactly as Lesson 5 promised. And the clone pair shares roughly a 0.70 seat between them. How that seat splits (0.63 against 0.06 here) is close to arbitrary: at correlation 0.98 the optimizer is choosing between near-identical columns, and handing the GP the SVM's share barely moves the blend's score on its own columns (1.196 becomes 1.206). The data pins down the seat, not which clone sits in it.</p>
-
-<p>The stack that ships uses base learners refit on ALL 600 training cars (the folds existed only to write the meta-learner's honest textbook), and it predicts in two stages: each member quotes, then the committee blends the quotes. Time to open the envelope. It is opened once, to grade the finished pipeline; while it is open we also grade the also-rans, an author's privilege that shows what each earlier decision was worth:</p>
+<p>Read the weights as the stack's verdict on its members. The linear model is <strong>benched at 0.00</strong>, correctly judged to add nothing the others lack. The forest, worst solo, takes a full 0.30 because its decorrelated errors are gold. And the SVM and GP together hold 0.69, but split it lopsidedly (0.63 and 0.06). That split is not meaningful: because the two are 0.98-correlated clones, only their <em>combined</em> weight is really determined. Shift it between them and the blend barely notices.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">m_lin &lt;- lm(price ~ ., data = train)
-m_svm &lt;- svm(price ~ ., data = train, cost = 64, gamma = 0.05)
-m_gp  &lt;- gausspr(price ~ ., data = train, kernel = &quot;rbfdot&quot;,
-                 kpar = list(sigma = 0.1), var = 0.05)
-set.seed(7)
-m_rf  &lt;- randomForest(price ~ ., data = train, ntree = 400, mtry = 3)
-
-p_test &lt;- cbind(linear = predict(m_lin, test), svm = predict(m_svm, test),
-                gp = as.numeric(predict(m_gp, test)), rf = predict(m_rf, test))
-set.seed(7)
-rf_default &lt;- randomForest(price ~ ., data = train, ntree = 400)  # untuned: mtry 1
-exam &lt;- data.frame(
-  model = c(&quot;stacked blend&quot;, &quot;tuned SVM&quot;, &quot;tuned GP&quot;, &quot;tuned forest&quot;, &quot;linear&quot;,
-            &quot;equal average&quot;, &quot;slice-tuned SVM&quot;, &quot;default forest&quot;),
-  exam_rmse = round(c(rmse(test$price, as.numeric(p_test %*% w)),
-                      rmse(test$price, p_test[, &quot;svm&quot;]),
-                      rmse(test$price, p_test[, &quot;gp&quot;]),
-                      rmse(test$price, p_test[, &quot;rf&quot;]),
-                      rmse(test$price, p_test[, &quot;linear&quot;]),
-                      rmse(test$price, rowMeans(p_test)),
-                      curse[4, &quot;delivered&quot;],
-                      rmse(test$price, predict(rf_default, test))), 3))
-exam &lt;- exam[order(exam$exam_rmse), ]
-print(exam, row.names = FALSE)
-#&gt;            model exam_rmse
-#&gt;    stacked blend     1.161
-#&gt;        tuned SVM     1.222
-#&gt;         tuned GP     1.232
-#&gt;    equal average     1.278
-#&gt;     tuned forest     1.301
-#&gt;  slice-tuned SVM     1.448
-#&gt;           linear     2.409
-#&gt;   default forest     2.943</div>
+    <div class="webr-editor" data-language="r">w_swap &lt;- w[c(&quot;linear&quot;, &quot;gp&quot;, &quot;svm&quot;, &quot;rf&quot;)]        # hand the SVM's share to its clone, the GP
+round(rmse(train$price, as.numeric(as.matrix(oof) %*% w_swap)), 3)
+#&gt; [1] 1.206</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -487,16 +476,82 @@ print(exam, row.names = FALSE)
   <div class="webr-plot-output"></div>
 </div>
 
+<p>Swapping the two clone weights moves the blended RMSE from 1.196 to 1.206, a rounding error. The stack has essentially decided "give the smooth-kernel idea about 0.69 and the forest idea 0.30"; which clone carries the kernel share is a coin flip it does not care about.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The moment of truth</div>
+<h2>Refit, then open the exam exactly once</h2>
+
+<p>Every choice is now made: three tuned dials, one benched member, a set of blend weights, all derived from the 600 training cars without the test set contributing a single decision. The last steps are mechanical. Refit each member on <strong>all</strong> 600 training cars (no more holding folds out; that was only to get honest columns for the meta-learner), predict the sealed 300, blend, and grade. This is the two-stage prediction: stage one, each member prices the car; stage two, the weights combine them.</p>
+
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">ggplot(exam, aes(exam_rmse, reorder(model, -exam_rmse))) +
-  geom_col(fill = &quot;#1f7a55&quot;, width = 0.72) +
-  geom_text(aes(label = sprintf(&quot;%.3f&quot;, exam_rmse)), hjust = -0.15, size = 3.3) +
-  scale_x_continuous(limits = c(0, 3.4)) +
-  labs(title = &quot;The exam, opened once&quot;,
-       subtitle = &quot;typical miss per car on the 300 sealed cars (thousand dollars)&quot;,
-       x = &quot;test RMSE&quot;, y = NULL) +
+    <div class="webr-editor" data-language="r">m_lin &lt;- lm(price ~ ., data = train)
+m_svm &lt;- svm(price ~ ., data = train, cost = best_cost, gamma = best_gamma)
+m_gp  &lt;- gausspr(price ~ ., data = train, kernel = &quot;rbfdot&quot;,
+                 kpar = list(sigma = best_sigma), var = 0.05)
+set.seed(7)
+m_rf  &lt;- randomForest(price ~ ., data = train, ntree = 400, mtry = best_mtry)
+
+P &lt;- cbind(linear = predict(m_lin, test), svm = predict(m_svm, test),
+           gp = as.numeric(predict(m_gp, test)), rf = predict(m_rf, test))
+stack_pred &lt;- as.numeric(P %*% w)      # stage two: blend the four columns with the weights</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now, and only now, we open the exam. To put the stack's number in context we also grade each tuned member alone, an equal-weight average, and three cautionary tales: the SVM the naive one-slice tuning chose, a plain linear model, and the forest at its untuned default.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+rf_default &lt;- randomForest(price ~ ., data = train, ntree = 400)   # mtry defaults to 1
+scores &lt;- c(
+  &quot;stacked blend&quot;   = rmse(test$price, stack_pred),
+  &quot;tuned SVM&quot;       = rmse(test$price, P[, &quot;svm&quot;]),
+  &quot;tuned GP&quot;        = rmse(test$price, P[, &quot;gp&quot;]),
+  &quot;equal average&quot;   = rmse(test$price, rowMeans(P)),
+  &quot;tuned forest&quot;    = rmse(test$price, P[, &quot;rf&quot;]),
+  &quot;slice-tuned SVM&quot; = unname(curse[4, &quot;test_delivered&quot;]),
+  &quot;linear only&quot;     = rmse(test$price, P[, &quot;linear&quot;]),
+  &quot;default forest&quot;  = rmse(test$price, predict(rf_default, test)))
+round(sort(scores), 3)
+#&gt;   stacked blend       tuned SVM        tuned GP   equal average    tuned forest
+#&gt;           1.161           1.222           1.232           1.278           1.301
+#&gt; slice-tuned SVM     linear only  default forest
+#&gt;           1.448           2.409           2.943</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The stacked blend wins the exam at <strong>1.161</strong>, below every single member including the best solo SVM at 1.222. Blending a redundant clone (the GP) and a mediocre-but-decorrelated forest onto the SVM still beat the SVM alone, exactly as the error correlations promised. And the scoreboard also tells the story of this whole lesson in its lower half: the slice-tuned SVM (1.448) is the winner's curse made real, the default forest (2.943) is what "just fit a model" gets you, and both are worlds away from the tuned, stacked, honestly-graded top. Here is the same board as a picture.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+board &lt;- data.frame(model = names(scores), rmse = as.numeric(scores))
+board$model &lt;- reorder(board$model, -board$rmse)
+ggplot(board, aes(rmse, model, fill = model == &quot;stacked blend&quot;)) +
+  geom_col(width = 0.72, show.legend = FALSE) +
+  geom_text(aes(label = sprintf(&quot;%.3f&quot;, rmse)), hjust = -0.15, size = 3.4) +
+  scale_fill_manual(values = c(&quot;#c5cdda&quot;, &quot;#1f7a55&quot;)) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.16))) +
+  labs(title = &quot;One sealed exam, taken once: the tuned stack wins&quot;,
+       x = &quot;test RMSE ($1,000s), lower is better&quot;, y = NULL) +
   theme_minimal(base_size = 13)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -506,134 +561,87 @@ print(exam, row.names = FALSE)
   </div>
   <div class="webr-plot-output"></div>
 </div>
-
-<p>Every decision in the lesson is priced on this board. The pipeline delivers <strong>1.161</strong>, beating the best single member (1.222) by about 61 dollars a car: stacking's usual small, reliable nose. The equal average (1.278) loses to the best single model here, unlike in Lesson 5, because it is forced to carry the linear model the committee benched. The slice-tuned memorizer costs 287 dollars a car over the honest pipeline, the winner's curse made cash. And the untuned default forest (2.943) against its tuned sibling (1.301) prices a single dial at 1,642 dollars a car.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">No 300 cars to spare? The honest substitute is <strong>nested cross-validation</strong>: an outer loop of folds wrapped around this entire recipe, grids, out-of-fold columns and blending rerun inside every outer fold, so selection never touches the outer scoring fold. It grades the recipe rather than one final model, and it costs a multiple of everything you just ran, but the logic is the same sealed envelope, rebuilt five times. Varma and Simon, in the references, measure exactly how large the optimism is when you skip it.</div></div>
-
-<p>In production the hand-rolled loops compress into a few declarative lines; this is the same pipeline in tidymodels, to run on your own machine:</p>
-
-<pre><code class="language-r"># The production route (run locally): tune, collect out-of-fold columns, stack
-library(tidymodels)
-library(stacks)
-folds   &lt;- vfold_cv(train, v = 5)
-svm_res &lt;- tune_grid(svm_rbf(cost = tune(), rbf_sigma = tune(), mode = &quot;regression&quot;),
-                     price ~ ., resamples = folds, grid = 16,
-                     control = control_stack_grid())
-rf_res  &lt;- tune_grid(rand_forest(mtry = tune(), trees = 400, mode = &quot;regression&quot;),
-                     price ~ ., resamples = folds, grid = 4,
-                     control = control_stack_grid())
-car_stack &lt;- stacks() |&gt;
-  add_candidates(svm_res) |&gt;
-  add_candidates(rf_res) |&gt;
-  blend_predictions() |&gt;     # convex weights on the out-of-fold columns
-  fit_members()              # refit the surviving members on all the data</code></pre>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Four numbers, one promise</h2>
+<h2>Which number do you promise?</h2>
 
-<p>Priya's manager wants a single number for the quarterly plan: "a typical quote will miss by about ____." The pipeline produced four candidates on its way here:</p>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Number</th>
-<th>Where it came from</th>
-<th>What it was used for</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1.130</td>
-<td>best of 40 candidates on one 60-car slice</td>
-<td>the cautionary tale</td>
-</tr>
-<tr>
-<td>1.231</td>
-<td>the grid winner's 5-fold CV score</td>
-<td>choosing the SVM's dials</td>
-</tr>
-<tr>
-<td>1.196</td>
-<td>the blend's score on its own out-of-fold columns</td>
-<td>fitting the trust shares</td>
-</tr>
-<tr>
-<td>1.161</td>
-<td>the 300 sealed cars, touched once</td>
-<td>nothing else, ever</td>
-</tr>
-</tbody>
-</table>
-
-<p>Which number does she promise?</p>
-<section class="exercise" data-exercise-id="A-Tuned-Stacked-Model-End-to-End-step9" data-grade-mode="self-check" data-difficulty="advanced">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">1.196: it is cross-validated, it uses all 600 cars, and unlike the others it scores the complete stack rather than a single member</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">1.231: cross-validation is the gold standard, and this one was computed without ever touching the envelope</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">1.161, and the envelope is now spent: any future promise needs cars this pipeline has never influenced</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">1.161 for today, then re-open the envelope after each future improvement so the promise stays current</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right on both halves. It is the only number in the table that no decision was optimized against, and quoting it retires it: the moment a rerun against those 300 cars influences anything, they become one more validation slice being mined.</div><div class="lesson-qfb lesson-qfb-no">The second opening starts the slide: choose against the exam twice and it is just another slice. Step 3 showed where that road ends, 1.130 promised, 1.448 delivered. New promises need new cars, or nested cross-validation from scratch.</div></div>
+<p>You now hold three numbers: the best SVM's cross-validated grid score (1.231), the blend's out-of-fold RMSE (1.196), and the stacked blend's score on the sealed test set (1.161). Marcus asks: "How far off will this be on next month's trade-ins?" Which number is the honest answer?</p>
+<section class="exercise" data-exercise-id="A-Tuned-Stacked-Model-End-to-End-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">1.196, the out-of-fold blend RMSE, because it averages five folds and so is the most stable estimate</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">1.161, the sealed test RMSE, because those 300 cars influenced no dial, no weight and no model choice, and were scored a single time at the very end</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">1.231, the SVM's cross-validated grid score, since cross-validation is the gold-standard estimate of generalization error</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Only the test set was never used to decide anything, so its score is the one honest estimate of future error. That is why you sealed it on step 2 and did not touch it until now.</div><div class="lesson-qfb lesson-qfb-no">Cross-validation is an excellent way to CHOOSE, but a CV score you selected the winner from is still optimistic, and this one is also just a single member, not the shipped stack. The pipeline you actually deploy must be graded as a whole, once, on data it never saw.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Quote Monday's first car</h2>
+<h2>Price one trade-in with the finished pipeline</h2>
 
-<p>A 4.5-year mid-tier car with 52,000 km and a clean accident record rolls onto the lot. Priya's pipeline prices it in two stages. Stage one, every base member quotes: the refit members <code>m_lin</code>, <code>m_svm</code>, <code>m_gp</code>, <code>m_rf</code> are still in your session, as are the trust shares <code>w</code>. Stage two is yours: combine the four opinions into the one number she writes on the windshield, each opinion times its trust share, summed.</p>
-<section class="exercise" data-exercise-id="A-Tuned-Stacked-Model-End-to-End-step10" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="w\s*\*\s*p_new|p_new\s*\*\s*w|p_new\s*%\*%\s*w|w\s*%\*%\s*p_new"><textarea class="lesson-tryit-input" spellcheck="false">new_car &lt;- data.frame(age = 4.5, km = 52,
-                      tier = factor(&quot;mid&quot;, levels = levels(lot$tier)), accidents = 0)
-p_new &lt;- c(linear = unname(predict(m_lin, new_car)),
-           svm    = unname(predict(m_svm, new_car)),
-           gp     = as.numeric(predict(m_gp, new_car)),
-           rf     = unname(predict(m_rf, new_car)))
-round(p_new, 2)
-quote &lt;- ____                    # stage two: blend the four opinions
-round(quote, 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the entire deployment path: four opinions, each multiplied by its learned trust share, summed. Note the linear model quoting 16.70 and the committee multiplying that opinion by 0.00: benched at prediction time too.</span><span class="lesson-tryit-fb lesson-tryit-no">Blend with the trust shares learned from the out-of-fold columns: each member's quote times its weight, added up, which in R is sum(w * p_new). The shares already sum to 1, so nothing else is needed.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">new_car &lt;- data.frame(age = 4.5, km = 52,
-                      tier = factor(&quot;mid&quot;, levels = levels(lot$tier)), accidents = 0)
-p_new &lt;- c(linear = unname(predict(m_lin, new_car)),
-           svm    = unname(predict(m_svm, new_car)),
-           gp     = as.numeric(predict(m_gp, new_car)),
-           rf     = unname(predict(m_rf, new_car)))
-round(p_new, 2)
-#&gt; linear    svm     gp     rf 
-#&gt;  16.70  15.37  15.34  15.21 
-quote &lt;- sum(w * p_new)          # each opinion times its trust share
-round(quote, 2)
-#&gt; [1] 15.32</code></pre></details></div>
+<p>A customer rolls in with a 4.5-year-old mid-tier car, 52,000 km, no accidents. Run it through the finished two-stage pipeline: stage one asks each fitted member for a price, stage two blends them with the learned weights <code>w</code>. The <code>members</code> vector and <code>w</code> are both still in your session (<code>w</code> is ordered <code>linear, svm, gp, rf</code>, matching the columns of <code>members</code>). Fill in the blank with the blend.</p>
+<section class="exercise" data-exercise-id="A-Tuned-Stacked-Model-End-to-End-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="w\s*\*\s*members|members\s*\*\s*w|members\s*%\*%\s*w|w\s*%\*%\s*members"><textarea class="lesson-tryit-input" spellcheck="false">new_car &lt;- data.frame(age = 4.5, km = 52,
+                      tier = factor(&quot;mid&quot;, levels = levels(lot$tier)),
+                      accidents = 0)
+members &lt;- c(linear = unname(predict(m_lin, new_car)),
+             svm    = unname(predict(m_svm, new_car)),
+             gp     = as.numeric(predict(m_gp, new_car)),
+             rf     = unname(predict(m_rf, new_car)))
+quote &lt;- ____                       # blend the four member prices with the weights w
+round(c(members, quote = quote), 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the whole pipeline in one line: each member's price, weighted by w and summed. The quote lands at 15.32, a hair under the SVM's own 15.37 because the benched linear model's high guess gets zero say.</span><span class="lesson-tryit-fb lesson-tryit-no">Stage two is a weighted sum: sum(w * members). Because w and members are in the same order, that multiplies each member's price by its weight and adds them up.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">new_car &lt;- data.frame(age = 4.5, km = 52,
+                      tier = factor(&quot;mid&quot;, levels = levels(lot$tier)),
+                      accidents = 0)
+members &lt;- c(linear = unname(predict(m_lin, new_car)),
+             svm    = unname(predict(m_svm, new_car)),
+             gp     = as.numeric(predict(m_gp, new_car)),
+             rf     = unname(predict(m_rf, new_car)))
+quote &lt;- sum(w * members)
+round(c(members, quote = quote), 2)
+#&gt;  linear     svm      gp      rf   quote
+#&gt;   16.70   15.37   15.34   15.21   15.32</code></pre></details></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="13" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
-<p>Five places to take the honest pipeline further, in reading order:</p>
+<p>Four places to take the capstone further:</p>
 
 <ul>
 
-<li><a href="https://jmlr.org/papers/v11/cawley10a.html">Cawley and Talbot (2010), "On Over-fitting in Model Selection and Subsequent Selection Bias in Performance Evaluation" (JMLR 11)</a> - step 3's winner's curse made rigorous: why model selection overfits, how badly, and what controls it.</li>
+<li><a href="https://jmlr.org/papers/v11/cawley10a.html">Cawley and Talbot (2010), "On Over-fitting in Model Selection", JMLR 11</a> - the winner's curse of step 3, formalized, and why nested cross-validation is the cure when you have no spare test set.</li>
 
-<li><a href="https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-7-91">Varma and Simon (2006), "Bias in error estimation when using cross-validation for model selection" (BMC Bioinformatics 7:91)</a> - measures the optimism of promising a tuned CV score, and shows nested cross-validation removing it.</li>
+<li><a href="https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-7-91">Varma and Simon (2006), "Bias in error estimation when using cross-validation for model selection", BMC Bioinformatics</a> - measures how optimistic a selected CV score is, the exact reason 1.196 is not the promise.</li>
 
-<li><a href="https://hastie.su.domains/ElemStatLearn/">Hastie, Tibshirani and Friedman, The Elements of Statistical Learning, chapter 7 (free PDF)</a> - model assessment and selection: the train/validation/test contract underneath everything in this lesson.</li>
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, chapter 7 (free PDF)</a> - model assessment and selection, the theory behind sealing a test set and the right and wrong ways to cross-validate.</li>
 
-<li><a href="https://stacks.tidymodels.org/">stacks: tidymodels model stacking</a> - the production route for steps 7 and 8: tuned candidates in, out-of-fold columns, penalized convex weights, member refits out.</li>
-
-<li><a href="https://www.tmwr.org/">Kuhn and Silge, Tidy Modeling with R</a> - grid search, workflow sets and resampling done end to end; chapters 10 to 15 are this lesson at industrial scale.</li>
+<li><a href="https://www.tmwr.org/">Tidy Modeling with R (free book)</a> - how to run this whole pipeline in production with <code>tidymodels</code>: <code>rsample</code> for the split, <code>tune</code> for the grids, and <code>stacks</code> for the blend.</li>
 
 </ul>
+
+<p>For the production version of exactly this stack, <code>stacks</code> wires the out-of-fold columns and the convex meta-learner together for you:</p>
+
+<pre><code class="language-r">library(tidymodels)
+library(stacks)
+# each base model is a tuned workflow; stacks() collects their out-of-fold
+# predictions and blend_predictions() fits the non-negative meta-learner.
+car_stack &lt;- stacks() |&gt;
+  add_candidates(svm_res) |&gt;
+  add_candidates(gp_res) |&gt;
+  add_candidates(rf_res) |&gt;
+  blend_predictions() |&gt;       # the convex blend we hand-built with optim()
+  fit_members()                # refit each member on all training data</code></pre>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="14" data-step-type="complete">
 <h2>Lesson 8 complete</h2>
 
-<p>You built the whole thing, in the only order that works. A sealed exam first, before any decision. Then the demonstration that the natural way to tune, keeping the best score on one slice, promises 1.130, delivers 1.448, and gets worse the harder you search, because the minimum of noisy scores is a flatterer by construction. Then the honest recipe: five folds judging a 16-setting SVM grid (cost 64, gamma 0.05), the same folds walking the GP's lengthscale to sigma 0.10, and the forest judging itself out-of-bag, where the untuned default would have doubled the error. Then Lesson 5's machinery at full strength: out-of-fold columns for the tuned four, a correlation matrix that outed the SVM and GP as 0.98 clones and the forest as the useful dissenter, and a convex committee that benched the linear model, seated the forest at 0.30, and delivered 1.161 on the one exam ever sat, beating every member, the equal vote, and every shortcut on the board. You even know which number to say out loud, and why saying it retires it.</p>
+<p>You have built the thing this whole course was preparing you for: not another model, but a disciplined pipeline that tunes, blends and grades itself honestly. You sealed a test set and never let it vote; you watched the winner's curse punish tuning on one noisy slice and cured it with cross-validation; you tuned an SVM, a Gaussian process and a forest with one honest recipe; you stacked them on out-of-fold columns and saw that a decorrelated, mediocre forest is worth more to a blend than a redundant, accurate clone; and you opened the exam exactly once to earn a number you can promise out loud.</p>
 
-<p>That completes Advanced Supervised Learning. The course opened with a straight line and the widest possible margin; it ends with margins, kernels, function distributions, committees and search strategies working as one honest pipeline. Carry the contract with you, because it travels: seal the exam, make every choice inside the training data, spend each score on one decision, and promise only the number nothing was optimized against. The models will keep changing. The envelope rule never does.</p>
+<p>That is the end of Advanced Supervised Learning. You started with a single maximum-margin line and finished with a tuned ensemble evaluated without self-deception, which is, in the end, most of what separates a model that demos well from one you would stake a business on. Take it to the certification, and to your own data.</p>
 </section>
 
 {% endraw %}

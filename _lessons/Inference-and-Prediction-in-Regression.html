@@ -1,7 +1,7 @@
 ---
 title: "Regression Modeling Lesson 6: Inference and Prediction in Regression"
-description: "Tell a confidence interval from a prediction interval, test whether a regression slope is real with its t-value and p-value, and see why explaining differs from predicting."
-keywords: "confidence interval, prediction interval, regression inference, coefficient t-test, p-value, predict in R, explaining vs predicting, standard error of the slope, confint, lm prediction interval"
+description: "Confidence intervals and t-tests for regression coefficients, confidence versus prediction intervals for a new day, and why explaining differs from predicting."
+keywords: "confidence interval, prediction interval, regression inference, t-test coefficient, confint, predict lm, explain vs predict, standard error, R"
 mathjax: true
 webr: true
 curriculum_id: "6.20.6"
@@ -14,7 +14,7 @@ course_landing: "R-Regression-Modeling-Course.html"
 course_next: "Logistic-Regression-Done-Properly.html"
 course_prev: "Heteroskedasticity-and-Autocorrelation.html"
 lesson_access: "free"
-catalog_blurb: "Confidence vs prediction intervals, and whether a coefficient is real."
+catalog_blurb: "Whether an effect is real, and how far a single prediction can miss."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
@@ -23,86 +23,76 @@ catalog_blurb: "Confidence vs prediction intervals, and whether a coefficient is
 <div class="lesson-step-eyebrow">Lesson 6 of 8</div>
 <h2>Inference and Prediction in Regression</h2>
 
-<p>In Lesson 5 you learned to <em>trust</em> a standard error: when a regression's errors misbehave, you fix the standard error so it tells the truth. Now you will put that honest number to work, because it powers the two questions Priya actually cares about, and they are not the same question.</p>
+<p>In Lesson 5 you learned to make a standard error honest even when the errors misbehave. Now you get to spend it. A trustworthy standard error is the raw material for the two questions every regression is really asked: <em>is this relationship real</em>, and <em>what will happen next</em>.</p>
 
-<p>Priya's fitted line says each warmer degree buys about two more cups. But she needs to know two different things. First, the <strong>explaining</strong> question: is that effect <em>real</em>, or could a flat no-effect world produce a slope this big by luck, and how precisely do I know it? Second, the <strong>predicting</strong> question: tomorrow's forecast is 25 degrees, so how many cups will I <em>actually</em> sell, and how wide should my bet be? This lesson gives each question its own answer, and shows why mixing them up will leave Priya either out of stock or buried in melting ice.</p>
+<p>We come back to Priya's original iced-coffee cart from Lesson 1, the clean 12-day log where the line's assumptions hold, so the numbers <code>lm()</code> prints are trustworthy as they stand. On that honest fit you will answer both of Priya's questions with numbers, not hand-waving.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Test whether a coefficient is real: state the null hypothesis, read its t-value and p-value, and read its confidence interval</li>
+<li>Wrap a coefficient in a confidence interval and run the t-test that asks whether it is really non-zero</li>
 
-<li>Build and read a confidence interval for the average and a prediction interval for a single new day, and explain why the second is always wider</li>
+<li>Predict a brand-new day two different ways: a confidence interval for the average, and a prediction interval for one specific day</li>
 
-<li>Pick the right interval for a real decision, and tell the job of explaining apart from the job of predicting</li>
+<li>Explain why a prediction interval is always wider, and why explaining a relationship and predicting a value are two different jobs</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> Lessons 1 to 5 (you can fit a line with <code>lm()</code>, and read its coefficients, standard error and p-value). You can run R. Every new term is defined as it appears.</p>
-
-<p>The tight inner band and the wide outer band above are the whole lesson in one picture. By the end you will know exactly what each one means and when to use it.</p>
+<p><strong>Prerequisites:</strong> Lessons 1 to 5. You can fit a line with <code>lm()</code> and read its coefficients, standard errors and p-values. Every new term is defined as it appears.</p>
 <div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The two jobs</div>
-<h2>The two jobs: explaining and predicting</h2>
+<div class="lesson-step-eyebrow">The framing</div>
+<h2>Two jobs, two questions</h2>
 
-<p>A regression quietly does two different jobs, and a point estimate hides both behind a single number. Priya's slope of "about 2 cups per degree" is one such number; her prediction of "about 49 cups tomorrow" is another. Each is the <em>center</em> of an answer, with no sense of how sure it is. The rest of this lesson is about putting honest error bars on each one.</p>
+<p>A fitted line quietly does two jobs at once, and confusing them is the single most common regression mistake. Priya has one model, <code>lm(cups ~ temp)</code>, but two very different things she wants from it:</p>
 
-<p>A fresh R session starts empty, so we rebuild Priya's clean 12-day log (the one from Lessons 1 to 4, where the line's assumptions hold) and fit the line again.</p>
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Priya asks...</th>
+<th>The job</th>
+<th>The tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Is warmer weather really driving my sales, and how sure can I be?</td>
+<td><strong>Explain</strong> the relationship</td>
+<td>a test and a confidence interval on the slope</td>
+</tr>
+<tr>
+<td>How many cups will tomorrow's forecast 25-degree day bring?</td>
+<td><strong>Predict</strong> a new value</td>
+<td>a prediction interval for one new day</td>
+</tr>
+</tbody>
+</table>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Priya's log: the day's high temperature (deg C) and iced coffees sold.
-coffee &lt;- data.frame(
-  temp = c(15, 17, 18, 20, 21, 23, 24, 26, 27, 29, 30, 31),
-  cups = c(30, 36, 33, 42, 40, 47, 44, 52, 55, 56, 61, 60)
-)
-fit &lt;- lm(cups ~ temp, data = coffee)
-round(coef(fit), 3)
-#&gt; (Intercept)        temp
-#&gt;       0.818       1.944</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<p>The first question is about the <em>slope</em>: a number describing the whole relationship. The second is about a <em>single future day</em>: one dot that has not happened yet. They use different intervals, and mixing them up leads either to false confidence or to pointless caution.</p>
 
-<p>There is the line: predicted cups equal \(0.818 + 1.944 \cdot \text{temp}\). The scatter below is the single object both jobs work on. <strong>Explaining</strong> asks about the <em>slope</em> of that line (the relationship): how steep, how certain, is it real. <strong>Predicting</strong> asks about a <em>point on or near</em> that line (a future value): where will the next day land, and how far off could it be. Same line, two completely different questions.</p>
-<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":15,"y":30},{"x":17,"y":36},{"x":18,"y":33},{"x":20,"y":42},{"x":21,"y":40},{"x":23,"y":47},{"x":24,"y":44},{"x":26,"y":52},{"x":27,"y":55},{"x":29,"y":56},{"x":30,"y":61},{"x":31,"y":60}],"geoms":["point"],"x":"temp","y":"cups"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Explaining asks "what is the true effect, and how precisely do we know it?" Predicting asks "what value will the next observation take, and how wide is that bet?" Both are built from one number you already have, the standard error. This lesson uses it twice.</div></div>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The explaining job</div>
-<h2>Is the slope real? Testing a coefficient</h2>
+<div class="lesson-step-eyebrow">Set the stage</div>
+<h2>Priya's 12 days, and the line</h2>
 
-<p>Priya measured 1.944 cups per degree. But she measured it on <em>one</em> particular run of 12 days. Hand her a different 12 days from the same cart and the slope would come back a little different, maybe 1.8, maybe 2.1. The slope is an estimate, and estimates wobble from sample to sample. Inference is the discipline of asking: given that wobble, is the slope I see real evidence of an effect, or could pure noise have produced it?</p>
-
-<p>We measure the wobble with the <strong>standard error</strong> of the slope, \(\operatorname{SE}(\hat\beta_1)\): the typical sample-to-sample spread of the slope estimate \(\hat\beta_1\) (the little hat means "estimated from data"). The formal test sets up a sceptic's world, the <strong>null hypothesis</strong>, written</p>
-
-<p>\[ H_0: \beta_1 = 0 \]</p>
-
-<p>read as "the <em>true</em> slope \(\beta_1\) is zero, temperature has no effect on cups at all." Then it asks how many standard errors our estimate sits away from that zero. That ratio is the <strong>t-statistic</strong>:</p>
-
-<p>\[ t = \frac{\hat\beta_1}{\operatorname{SE}(\hat\beta_1)} \]</p>
-
-<p>A big \(|t|\) means the estimate is many standard errors clear of zero, which would be a freak accident if the true slope really were zero. The <strong>p-value</strong> is exactly that freak-accident probability: the chance of seeing a slope at least this far from zero <em>if</em> \(H_0\) were true. Small p, strong evidence against "no effect." Drag the observed t below and watch its tail area (the p-value) shrink as t grows.</p>
-
-<p>R computes all of this for you in the coefficient table. Each row gets its estimate, its standard error, its t-value and its p-value.</p>
+<p>A fresh R session starts empty, so we rebuild Priya's original 12-day log and fit the line exactly as Lesson 1 did.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(summary(fit)$coef, 3)
+    <div class="webr-editor" data-language="r">coffee &lt;- data.frame(
+  temp = c(15, 17, 18, 20, 21, 23, 24, 26, 27, 29, 30, 31),  # each day's high, Celsius
+  cups = c(30, 36, 33, 42, 40, 47, 44, 52, 55, 56, 61, 60))  # cups sold that day
+fit &lt;- lm(cups ~ temp, data = coffee)
+round(summary(fit)$coef, 3)
 #&gt;             Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept)    0.818      2.851   0.287    0.780
-#&gt; temp           1.944      0.119  16.336    0.000</div>
+#&gt; (Intercept)    0.818      2.851   0.287     0.78
+#&gt; temp           1.944      0.119  16.336     0.00</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -112,21 +102,30 @@ round(coef(fit), 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Look at the <code>temp</code> row. The slope is 16.3 standard errors away from zero (t = 16.336), so far out it is literally off the right edge of the widget above, and its p-value is 0.000 (really \(1.5 \times 10^{-8}\)). A no-effect world would essentially never produce a slope this strong, so we reject \(H_0\): temperature genuinely drives sales. (The intercept row tells the opposite story, t = 0.29, p = 0.78, but recall from Lesson 1 the intercept is cups at 0 degrees, an extrapolation with no real meaning here.)</p>
+<p>Read the <code>temp</code> row, because it carries the whole story. The <strong>Estimate</strong>, 1.944, is the slope: each extra degree buys Priya about two more cups. Right beside it sits the <strong>Std. Error</strong>, 0.119, the give-or-take on that slope that you learned to trust in Lesson 5. The last two columns, the t-value and the p-value, are built entirely from those first two, and unpacking them is the first half of this lesson.</p>
 
-<p>How <em>precise</em> is that slope? Turn the test around into a range. The <strong>confidence interval</strong> for the slope is the estimate give-or-take a margin of standard errors:</p>
+<p>(The intercept, 0.818, is the predicted sales at 0 degrees, a temperature Priya never trades in, so we leave it be and focus on the slope.)</p>
+</section>
 
-<p>\[ \hat\beta_1 \pm t^{*}\,\operatorname{SE}(\hat\beta_1) \]</p>
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Explain, part 1</div>
+<h2>A confidence interval for the slope</h2>
 
-<p>where \(t^{<em>}\) is the critical value from the t-distribution with \(n - 2\) degrees of freedom (here \(t^{</em>} = 2.23\) for 95% confidence on 10 degrees of freedom). <code>confint()</code> does it directly.</p>
+<p>Here is the key idea behind everything that follows. If Priya had worked a <em>different</em> 12 days, she would have logged slightly different points, and <code>lm()</code> would have returned a slightly different slope. The slope estimate \(\hat\beta_1\) is itself a random quantity, and its standard error \(\operatorname{SE}(\hat\beta_1)\) is the typical amount it wobbles from one sample to the next. R printed it: 0.119.</p>
+
+<p>A single number like 1.944 hides that wobble. A <strong>confidence interval</strong> puts it back, by adding a margin on each side:</p>
+
+<p>\[ \hat\beta_1 \;\pm\; t_{0.975,\;n-2}\;\operatorname{SE}(\hat\beta_1) \]</p>
+
+<p>where \(\hat\beta_1\) is the estimated slope (1.944), \(\operatorname{SE}(\hat\beta_1)\) is its standard error (0.119), and \(t_{0.975,\;n-2}\) is a critical value from a t-distribution with \(n-2\) degrees of freedom. The \(n-2\) is the sample size minus the two numbers the line already spent estimating itself, its slope and its intercept. With \(n=12\) days, that is 10 degrees of freedom, and the critical value is \(t_{0.975,10}=2.228\). R hands you the whole interval with one function:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">round(confint(fit), 3)
-#&gt;               2.5 %  97.5 %
-#&gt; (Intercept) -5.535   7.171
-#&gt; temp         1.679   2.209</div>
+#&gt;              2.5 % 97.5 %
+#&gt; (Intercept) -5.535  7.171
+#&gt; temp         1.679  2.209</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -136,43 +135,15 @@ round(coef(fit), 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>We are 95% confident the true slope lies between <strong>1.68 and 2.21</strong> cups per degree. Notice it does not contain zero, which is the same verdict the p-value gave: a 95% interval that excludes zero always matches a p-value below 0.05. The interval just says <em>more</em>, it also tells Priya the effect is somewhere between "a bit under two cups" and "a bit over two cups" a degree, not merely "not zero."</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A tiny p-value means the effect is <em>real</em>, not that it is <em>large</em> or that it is <em>causal</em>. With enough data a trivially small slope can be highly significant. Read the size from the coefficient and its confidence interval; read causality from how the data was collected, never from the p-value alone.</div></div>
-<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":5,"start":2,"label":"observed t"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>What does the p-value say?</h2>
-
-<p>Priya's <code>summary()</code> reports the temperature slope as 1.944 with a standard error of 0.119, a t-value of 16.3, and a p-value of about \(1.5 \times 10^{-8}\). Which statement reads that p-value correctly?</p>
-<section class="exercise" data-exercise-id="Inference-and-Prediction-in-Regression-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">If temperature truly had no effect (a real slope of zero), a sample slope this far from zero would be astronomically unlikely, so we reject the idea that temperature does nothing</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">There is only about a 1-in-65-million chance that the true slope is actually zero</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The slope of 1.944 is pinned down to within 0.00000002 cups per degree</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The p-value is computed <em>assuming</em> the null is true and measures how surprising the data would be in that world. A vanishingly small p means "this slope would almost never happen by chance," which is strong evidence against the no-effect hypothesis.</div><div class="lesson-qfb lesson-qfb-no">That confuses the p-value with precision. Precision is the standard error (0.119) and the 95% confidence interval [1.68, 2.21]. The p-value is a measure of evidence against zero, not a margin on the estimate.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">The predicting job</div>
-<h2>Two intervals for a prediction</h2>
-
-<p>Now the other job. Tomorrow's forecast is 25 degrees, and the line's best guess is \(0.818 + 1.944 \times 25 \approx 49.4\) cups, exactly the <code>predict()</code> answer from Lesson 1. But "49.4" alone is a tightrope with no net. Priya needs a <em>range</em>. Here is the subtlety that trips up almost everyone: there are two different ranges, answering two different questions.</p>
-
-<p>The first question is about the <strong>average</strong>: across <em>all</em> 25-degree days, where does the mean number of cups sit? That uncertainty is only about where the <em>line</em> is, and it is captured by the <strong>confidence interval for the mean response</strong>. The second question is about <em>one specific tomorrow</em>: where will this single 25-degree day actually land? That has to include the day's own random ups and downs (a tour group, a drizzle), and it is captured by the wider <strong>prediction interval</strong>. In R it is a single argument:</p>
+<p>And it is exactly the formula above, done by hand:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">new_day &lt;- data.frame(temp = 25)
-round(predict(fit, newdata = new_day, interval = &quot;confidence&quot;), 2)
-#&gt;     fit   lwr   upr
-#&gt; 1 49.41 48.00 50.82
-round(predict(fit, newdata = new_day, interval = &quot;prediction&quot;), 2)
-#&gt;     fit   lwr   upr
-#&gt; 1 49.41 44.53 54.29</div>
+    <div class="webr-editor" data-language="r">b  &lt;- coef(fit)[[&quot;temp&quot;]]                       # 1.944 (double bracket drops the name)
+se &lt;- summary(fit)$coef[&quot;temp&quot;, &quot;Std. Error&quot;]   # 0.119
+round(b + c(-1, 1) * qt(0.975, df = 10) * se, 3)
+#&gt; [1] 1.679 2.209</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -182,92 +153,306 @@ round(predict(fit, newdata = new_day, interval = &quot;prediction&quot;), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Same center (49.41), wildly different widths. The confidence interval for the average 25-degree day spans under 3 cups, [48.0, 50.8]. The prediction interval for <em>tomorrow</em> spans nearly 10 cups, [44.5, 54.3], about three and a half times wider. Both come from the same standard error \(s\) (the residual spread), scaled differently:</p>
-
-<p>\[ \operatorname{SE}_{\text{mean}} = s\sqrt{\tfrac{1}{n} + \tfrac{(x_0 - \bar x)^2}{S_{xx}}}, \qquad \operatorname{SE}_{\text{pred}} = s\sqrt{1 + \tfrac{1}{n} + \tfrac{(x_0 - \bar x)^2}{S_{xx}}} \]</p>
-
-<p>where \(x_0\) is the new temperature (25), \(\bar x\) the average temperature in the data, \(n\) the number of days, and \(S_{xx} = \sum_i (x_i - \bar x)^2\) the spread of the temperatures. The two formulas are identical except for that lone \(1\) under the prediction root. Drag the sample size in the widget and watch what that single \(1\) does.</p>
-<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">We are 95% confident that the true cups-per-degree effect lies between <strong>1.68 and 2.21</strong>. Now notice what the interval does <em>not</em> contain: zero. A slope of zero would mean temperature does nothing to sales, and the data has ruled that out with room to spare.</div></div>
 </section>
 
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">Why the gap never closes</div>
-<h2>Why the prediction interval is wider</h2>
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading the interval</h2>
 
-<p>That extra \(1\) is the whole story, and it comes from a clean split of where a new day's error comes from. The uncertainty in a single new observation breaks into two independent pieces:</p>
+<p>Priya's 95% confidence interval for the slope is \([1.68,\ 2.21]\) cups per degree. Which reading is correct?</p>
+<section class="exercise" data-exercise-id="Inference-and-Prediction-in-Regression-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">We are 95% confident that the true effect of temperature on sales lies between 1.68 and 2.21 cups per degree</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">On 95% of Priya's days, sales rose by between 1.68 and 2.21 cups per degree</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">There is a 95% chance the slope R computed, 1.944, falls between 1.68 and 2.21</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The interval is a plausible range for the one unknown TRUE slope, built to capture it 95% of the time. Because it excludes zero, the effect is convincingly real.</div><div class="lesson-qfb lesson-qfb-no">The estimate 1.944 is a fixed number and always sits in the middle of its own interval; there is no chance involved. The uncertainty is about the unknown TRUE slope, which the interval is trying to pin down.</div></div>
+</section>
+</section>
 
-<p>\[ \underbrace{\operatorname{Var}(\text{new } y_0)}_{\text{prediction}} = \underbrace{\operatorname{Var}(\hat y_0)}_{\text{where the line is}} + \underbrace{\sigma^2}_{\text{the day's own noise}} \]</p>
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<div class="lesson-step-eyebrow">Explain, part 2</div>
+<h2>Is the effect real? Testing the slope</h2>
 
-<p>The first piece, \(\operatorname{Var}(\hat y_0)\), is our uncertainty about the <em>line</em> itself, the height of the mean at \(x_0\). The second, \(\sigma^2\), is the <strong>irreducible noise</strong>: the scatter of individual days around the line that no straight line could ever remove (Priya's weekends, weather, passing crowds).</p>
+<p>The confidence interval already hints at the answer, but the formal question is worth stating on its own: could the entire temperature-sales relationship be a fluke of 12 lucky days? The <strong>hypothesis test</strong> asks exactly that. It starts from a deliberately skeptical assumption, the null hypothesis:</p>
 
-<p>Here is the consequence you felt on the slider. As you collect more data and \(n\) grows, the first piece shrinks toward zero, you can pin down <em>where the line is</em> as precisely as you like, so the green confidence band collapses onto the line. But the second piece, \(\sigma^2\), never moves. A single future day carries its own randomness no matter how much history you have. So the orange prediction band stops at a floor of roughly \(\pm t^{*}\sigma\) and refuses to shrink further.</p>
+<p>\[ H_0:\ \beta_1 = 0 \qquad \text{(temperature has no effect on sales)} \]</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">More data makes you sure about the <em>average</em>, never about the <em>next individual</em>. The confidence interval can shrink to nothing; the prediction interval is floored by the world's own noise. That floor is a feature, not a flaw: it is the model being honest that one new day is partly unpredictable.</div></div>
+<p>and measures how far Priya's data departs from it, using the <strong>t-statistic</strong>:</p>
+
+<p>\[ t = \frac{\hat\beta_1 - 0}{\operatorname{SE}(\hat\beta_1)} = \frac{1.944}{0.119} = 16.34 \]</p>
+
+<p>Read \(t\) as a signal-to-noise ratio: the estimated effect divided by its own wobble. A big \(|t|\) means the slope sits many standard errors away from zero, so a true zero is hard to believe. The <strong>p-value</strong> turns that into a probability: the chance of seeing a \(t\) at least this extreme <em>if</em> \(H_0\) were true, which is the shaded tail area under the t-distribution with \(n-2=10\) degrees of freedom. That is precisely the <code>Pr(&gt;|t|)</code> column R printed, and you can reproduce it from the t-value alone:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">2 * pt(-16.336, df = 10)   # both tails of the t-distribution, df = n - 2
+#&gt; [1] 1.536038e-08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Drag the observed t below and watch the tail area, the p-value, shrink as t grows. Priya's t of 16.3 sits far off the right edge of this chart, which is why her p-value is essentially zero.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A confidence interval and a test are two views of one fact: <strong>the 95% interval excludes 0 exactly when p is below 0.05.</strong> Priya's interval \([1.68, 2.21]\) misses zero by a mile, and her p-value (0.0000000154) is far below 0.05. Same verdict, reported two ways.</div></div>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"start":2.05,"label":"observed t"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Bracket tomorrow honestly</h2>
+<h2>Get both intervals at once</h2>
 
-<p>Priya is loading the cart for tomorrow's 25-degree forecast and wants the range her <em>actual</em> sales could fall in, not the range of the long-run average. That is the prediction interval. Fill in the blank with the right interval type, then check it.</p>
-<section class="exercise" data-exercise-id="Inference-and-Prediction-in-Regression-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="[&quot;&#x27;]prediction[&quot;&#x27;]"><textarea class="lesson-tryit-input" spellcheck="false">new_day &lt;- data.frame(temp = 25)
-predict(fit, newdata = new_day, interval = ____)   # the range a SINGLE new day could land in</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. interval = prediction returns [44.5, 54.3]: the band for one specific new day, which must include the day's own noise. Priya should stock for the upper end, not the point estimate of 49.</span><span class="lesson-tryit-fb lesson-tryit-no">For a single future day you need the prediction interval. Set interval = "prediction" (in quotes). The confidence interval would give the much narrower range for the AVERAGE 25-degree day.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">new_day &lt;- data.frame(temp = 25)
-round(predict(fit, newdata = new_day, interval = &quot;prediction&quot;), 2)
-#&gt;     fit   lwr   upr
-#&gt; 1 49.41 44.53 54.29</code></pre></details></div>
+<p>Priya wants the 95% confidence intervals for <em>every</em> coefficient in her model, not just the slope. One function does the whole table. Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Inference-and-Prediction-in-Regression-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="confint\s*\("><textarea class="lesson-tryit-input" spellcheck="false"># 95% confidence intervals for every coefficient in the fitted model.
+____(fit)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. confint(fit) returns the lower and upper 95% bounds for each coefficient, the same interval as b +/- t * SE, done for you.</span><span class="lesson-tryit-fb lesson-tryit-no">Use confint(fit). It reads the estimates and standard errors from the fit and returns each coefficient's 95% interval.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">confint(fit)</code></pre></details></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Which interval stocks the cart?</h2>
+<h2>What a tiny p-value means</h2>
 
-<p>Tomorrow's forecast is 25 degrees. Priya wants to load enough cups that she neither sells out nor hauls home a pile of melted ice. The model gives a point prediction of 49.4 cups, a confidence interval of [48.0, 50.8], and a prediction interval of [44.5, 54.3]. Which should she stock by?</p>
+<p>Priya's slope has a very small p-value, about 0.000000015. Her friend concludes that the temperature effect must therefore be huge. Is that right?</p>
 <section class="exercise" data-exercise-id="Inference-and-Prediction-in-Regression-step8" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The confidence interval [48.0, 50.8], because it is the tightest and most precise range the model offers</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The prediction interval [44.5, 54.3], because a single real tomorrow carries the day-to-day noise, so she should prep near the top, around 54</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The point prediction of 49.4 alone, since it is the model's single best estimate</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. One specific day can land anywhere in the prediction band, so to avoid stockouts she plans for its upper end. The prediction interval is the one that answers "where will this one day actually fall."</div><div class="lesson-qfb lesson-qfb-no">A bare point estimate gives her no margin at all. Roughly half of real 25-degree days will sell more than 49.4, so stocking exactly that runs her out one day in two. A decision needs an interval, and for one day it is the prediction interval.</div></div>
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">No. The tiny p-value says the effect is very unlikely to be zero, not that it is large. The SIZE of the effect is the slope itself, about 1.9 cups per degree; the p-value only measures how sure we are that it is not zero</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Yes. The smaller the p-value, the larger the effect, so a p of 0.000000015 signals a very large slope</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Yes. A tiny p-value proves temperature causes the sales, and a proven cause is by definition a large effect</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Significance and size are separate questions. A tiny p can come from a small but very precisely measured effect; here the slope happens to be both clearly non-zero AND a healthy 1.9 cups per degree, but the p-value alone never tells you the magnitude.</div><div class="lesson-qfb lesson-qfb-no">A p-value speaks to whether an effect is distinguishable from zero, not to causation and not to size. Even granting the effect is real, its magnitude is the slope, read separately.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="9" data-step-type="concept">
-<div class="lesson-step-eyebrow">Tying it together</div>
-<h2>Explaining versus predicting, reconciled</h2>
+<div class="lesson-step-eyebrow">Predict, the setup</div>
+<h2>Predicting a brand-new day</h2>
 
-<p>These really are two jobs, and a model can be strong at one while weak at the other. Priya's line <em>explains</em> beautifully: the slope is tightly estimated and overwhelmingly significant, so she can say with confidence that warmth drives sales and roughly by how much. Yet its <em>predictions</em> for a single day still carry a 10-cup band, because individual days are genuinely noisy. High explanatory confidence and wide prediction bands live happily together.</p>
+<p>So much for explaining. Now the other job. Tomorrow's forecast says 25 degrees, and Priya has to decide how many cups to load into the van tonight. The fitted line answers in a single step: plug the temperature into the equation.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Explaining is about the <em>line</em> (the slope, its test, its confidence interval); predicting is about a <em>future point</em> (its prediction interval). A significant coefficient does not promise sharp predictions, and a sharp prediction does not prove a cause. Match the tool to the job: confidence interval and t-test to understand a relationship, prediction interval to commit to a number.</div></div>
+<p>\[ \hat y_0 = \hat\beta_0 + \hat\beta_1 x_0 = 0.818 + 1.944 \times 25 = 49.4 \]</p>
 
-<p>And both jobs inherit Lesson 1's cliff: trust them only inside the range of the data. Asked about a record 40-degree day, the slope's confidence interval and the prediction interval are <em>both</em> extrapolations, quietly assuming the straight line still holds where Priya has no evidence at all. Honest inference and honest prediction stop at the edge of the data.</p>
+<p>where \(x_0 = 25\) is tomorrow's temperature and \(\hat y_0\) is the predicted cups. In R:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit, newdata = data.frame(temp = 25))
+#&gt;        1 
+#&gt; 49.41088 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 49 cups. But that is a single bare guess with no margin at all, and Priya cannot stock a van on a point. She actually has two different follow-up questions hiding inside "how many cups," and they have two genuinely different answers.</p>
 </section>
 
 <section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Predict, question 1</div>
+<h2>A confidence interval for the average</h2>
+
+<p>The first question is about the long run: <em>on average</em>, across all the 25-degree days Priya will ever work, how many cups does she sell? That is a question about the <strong>mean response</strong>, the true height of the line at 25 degrees. Our only uncertainty here is that we do not know the true line exactly; we estimated it from just 12 points. That uncertainty is modest, and it shrinks as data piles up.</p>
+
+<p>\[ \hat y_0 \;\pm\; t_{0.975,\,n-2}\; s\sqrt{\tfrac{1}{n} + \tfrac{(x_0 - \bar x)^2}{S_{xx}}} \]</p>
+
+<p>where \(s\) is the residual standard error (2.098, the typical size of a daily miss from Lesson 2), \(\bar x\) is the average temperature (23.4), and \(S_{xx} = \sum_i (x_i - \bar x)^2\) is the total spread of the temperatures. Ask R for it with <code>interval = &quot;confidence&quot;</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit, newdata = data.frame(temp = 25), interval = &quot;confidence&quot;)
+#&gt;        fit      lwr      upr
+#&gt; 1 49.41088 47.99767 50.82409</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <em>average</em> 25-degree day brings between <strong>48.0 and 50.8</strong> cups, a tight band of give or take about 1.4 cups. If Priya opened a hundred stalls on hundred 25-degree days, their mean sales would land in this narrow range. But she is not opening a hundred stalls. She is opening one, tomorrow.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="widget">
+<div class="lesson-step-eyebrow">Predict, question 2</div>
+<h2>A prediction interval for one day</h2>
+
+<p>The second question is the one Priya actually has to answer: how many cups will she sell on <em>one specific</em> 25-degree day, tomorrow? This is a question about a single <strong>new observation</strong>, and it carries a second source of uncertainty the average did not. Even if we knew the true line perfectly, tomorrow still rolls its own dice: a passing tour group, a sudden shower, a slow Monday. That noise never averages away.</p>
+
+<p>So the <strong>prediction interval</strong> adds one more term under the root. Set the two formulas side by side:</p>
+
+<p>\[ \underbrace{\hat y_0 \pm t_{0.975,10}\, s\sqrt{\tfrac{1}{n} + \tfrac{(x_0-\bar x)^2}{S_{xx}}}}_{\text{average day (confidence)}} \qquad \underbrace{\hat y_0 \pm t_{0.975,10}\, s\sqrt{1 + \tfrac{1}{n} + \tfrac{(x_0-\bar x)^2}{S_{xx}}}}_{\text{one new day (prediction)}} \]</p>
+
+<p>They are identical except for the lone \(1\) added inside the second root. That \(1\) is the new day's own variance \(s^2\), the irreducible noise no model can remove, and it dwarfs the rest. Ask R with <code>interval = &quot;prediction&quot;</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit, newdata = data.frame(temp = 25), interval = &quot;prediction&quot;)
+#&gt;        fit      lwr      upr
+#&gt; 1 49.41088 44.52735 54.29441</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A single 25-degree day could bring anywhere from <strong>44.5 to 54.3</strong> cups, about give or take 4.9, roughly three and a half times wider than the average band. <em>This</em> is the interval Priya stocks the van by. Slide the sample size below: the green confidence band collapses onto the line as data grows, but the orange prediction band barely moves, because it is floored by the noise, not the sample size.</p>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where the width comes from</div>
+<h2>Proving the two widths by hand</h2>
+
+<p>It is worth seeing that those two intervals are not magic; they come straight from the formulas. Build each standard error by hand and watch it match <code>predict</code> exactly.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n    &lt;- 12
+s    &lt;- summary(fit)$sigma            # residual standard error, 2.098
+xbar &lt;- mean(coffee$temp)             # 23.417
+Sxx  &lt;- sum((coffee$temp - xbar)^2)   # 310.92
+x0   &lt;- 25
+se_mean &lt;- s * sqrt(1/n + (x0 - xbar)^2 / Sxx)       # uncertainty about the LINE only
+se_new  &lt;- s * sqrt(1 + 1/n + (x0 - xbar)^2 / Sxx)   # + the new day's own noise
+round(c(se_mean = se_mean, se_new = se_new), 3)
+#&gt;  se_mean   se_new 
+#&gt;    0.634    2.192 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standard error for one new day (2.192) is more than three times the one for the average (0.634), and nearly all of that gap is the single \(1\) we added inside the root. Turn each into an interval with \(\hat y_0 \pm 2.228 \times \operatorname{SE}\), and you land back on the exact bounds <code>predict</code> reported: \([48.0, 50.8]\) for the average, \([44.5, 54.3]\) for one day. The formula and the function agree, because they are the same thing.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which interval, which decision?</h2>
+
+<p>Priya has to decide how much stock to bring for <em>tomorrow</em>, a single forecast 25-degree day. Which interval should she plan around?</p>
+<section class="exercise" data-exercise-id="Inference-and-Prediction-in-Regression-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The confidence interval for the mean, [48.0, 50.8], because it is the more precise, up-to-date estimate</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The prediction interval for a new day, [44.5, 54.3], because tomorrow is one specific day with its own noise</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither; the point prediction of 49.4 is the single best number, so she should just bring 49 cups</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A single day carries the irreducible noise on top of the line's uncertainty, so the prediction interval is the honest range for one tomorrow. Plan for the wide band, not the narrow one.</div><div class="lesson-qfb lesson-qfb-no">A point estimate has no margin at all, so it is wrong almost every day by some amount. The whole reason for an interval is to plan for that spread; 49 is the center of the bet, not the bet itself.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Predict a hotter day</h2>
+
+<p>A heatwave is forecast: 30 degrees tomorrow. Priya wants the range a <em>single</em> new 30-degree day could land in. Complete the call with the interval type that accounts for one new day's own noise.</p>
+<section class="exercise" data-exercise-id="Inference-and-Prediction-in-Regression-step14" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="prediction"><textarea class="lesson-tryit-input" spellcheck="false"># The range for ONE new 30-degree day (not the average).
+predict(fit, newdata = data.frame(temp = 30), interval = ____)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. interval = "prediction" gives the range for a single new day, here about [54.0, 64.3] cups, wide enough to plan stock by.</span><span class="lesson-tryit-fb lesson-tryit-no">Use interval = "prediction" (in quotes). That adds the new day's own noise; interval = "confidence" would give the much narrower band for the average.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">predict(fit, newdata = data.frame(temp = 30), interval = &quot;prediction&quot;)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">The two edges</div>
+<h2>Extrapolation, and explaining versus predicting</h2>
+
+<p>Two cautions close the loop, both visible in the bands you have been sliding.</p>
+
+<p>First, <strong>both intervals are narrowest at the average temperature and flare out toward the edges</strong> (the \((x_0 - \bar x)^2\) term in every formula). Push past the data entirely and the model is guessing. Priya's log runs 15 to 31 degrees; ask it about a 40-degree day it never saw:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(predict(fit, newdata = data.frame(temp = 40), interval = &quot;prediction&quot;), 2)
+#&gt;     fit   lwr   upr
+#&gt; 1 78.57 72.01 85.12
+range(coffee$temp)   # the temperatures the model actually observed
+#&gt; [1] 15 31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R returns a confident-looking 78.6 cups, but 40 degrees is far beyond anything in the data. That number is arithmetic, not evidence; the interval's math cannot warn you that you have left the map. <strong>Extrapolation</strong> is where prediction quietly breaks.</p>
+
+<p>Second, keep the two jobs distinct:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Explaining</th>
+<th>Predicting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The question</td>
+<td>Is the effect real, and how big?</td>
+<td>What will one new value be?</td>
+</tr>
+<tr>
+<td>The tool</td>
+<td>slope test + confidence interval</td>
+<td>prediction interval</td>
+</tr>
+<tr>
+<td>Shrinks with more data?</td>
+<td>yes, the estimate sharpens</td>
+<td>no, floored by the noise</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A tight, wildly significant slope (great explaining) can still sit inside a wide prediction interval (humble predicting), because individual days are noisy no matter how well you know the line. And explaining a relationship is not the same as proving it causes anything: that needs the study design of a later course, not a smaller p-value. Know which job you are doing, and reach for the matching interval.</div></div>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
-<p>A few authoritative places to take inference and prediction further:</p>
+<p>A few authoritative places to take regression inference and prediction further:</p>
 
 <ul>
 
-<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 3 (free PDF)</a> - the clearest first treatment of coefficient tests, confidence intervals, and the confidence-versus-prediction-interval distinction.</li>
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 3 (free PDF)</a> - the "Assessing the Accuracy of the Coefficient Estimates" section covers coefficient confidence intervals, the t-test, and the confidence-versus-prediction-interval distinction you used here.</li>
 
-<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 3 (free PDF)</a> - the full sampling theory behind the standard errors and t-tests on least-squares coefficients.</li>
+<li><a href="https://online.stat.psu.edu/stat501/lesson/3">Penn State STAT 501: Regression Methods</a> - free, worked lessons on inference for the slope and on confidence versus prediction intervals, with the same formulas.</li>
 
-<li><a href="https://online.stat.psu.edu/stat501/">Penn State STAT 501: Regression Methods</a> - free, worked lessons that walk through the confidence interval for the mean response versus the prediction interval for a new observation.</li>
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/predict.lm.html">predict.lm: R documentation for interval = "confidence" and "prediction"</a> - the exact function you called, with what each interval means.</li>
 
-<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/predict.lm.html">R documentation: predict.lm()</a> - the function you used, with the exact meaning of its <code>interval = &quot;confidence&quot;</code> and <code>interval = &quot;prediction&quot;</code> arguments.</li>
+<li><a href="https://doi.org/10.1214/10-STS330">Shmueli (2010), "To Explain or to Predict?", Statistical Science 25(3)</a> - the canonical paper on why explaining and predicting are genuinely different modeling goals.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="complete">
+<section class="lesson-step" data-step="17" data-step-type="complete">
 <h2>Lesson 6 complete</h2>
 
-<p>You now run a regression's two jobs without confusing them. <strong>Explaining:</strong> the slope is an estimate that wobbles, so you test it against the null of no effect (\(t = \hat\beta_1 / \operatorname{SE}\), with the p-value as the tail area) and report its confidence interval, reading "real" from the test and "how big" from the interval. <strong>Predicting:</strong> a new value needs an interval too, and there are two, a narrow confidence interval for the average response and a wider prediction interval for a single new day, wider because one day carries irreducible noise that more data can never average away. The skill is matching the interval to the question: the line, or the next point.</p>
+<p>You put a trustworthy standard error to work in both directions. For <strong>explaining</strong>, you wrapped the slope in a confidence interval (\(\hat\beta_1 \pm t\,\operatorname{SE}\)) and ran the coefficient t-test (\(t = \hat\beta_1 / \operatorname{SE}\), with its p-value the tail area under the t-distribution), and saw that the interval excluding zero and the p-value below 0.05 are one verdict. For <strong>predicting</strong>, you learned the two intervals that answer two different questions at a new temperature: a narrow confidence interval for the average day, and a wider prediction interval for one specific day, wider by exactly the irreducible noise term that never averages away. And you saw both bands flare past the data, where prediction turns into extrapolation.</p>
 
-<p>Next, Lesson 7: Logistic Regression Done Properly. Every model so far predicted a <em>number</em> of cups. But many questions are yes-or-no (did this customer buy, will this loan default), and a straight line is the wrong tool for a probability. You will meet the logit link that bends the line into an S-curve and keeps every prediction safely between 0 and 1.</p>
+<p>Next, Lesson 7: Logistic Regression, Done Properly. Every model so far predicted a <em>count</em> of cups, a number that can slide anywhere. But what if the outcome is a yes or no, did this customer buy or not? A straight line breaks on that question, and you will meet the S-shaped curve built to answer it.</p>
 </section>
 
 {% endraw %}

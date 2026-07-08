@@ -1,8 +1,8 @@
 ---
 title: "Gradient Boosting Lesson 3: The Hyperparameters That Matter"
-catalog_blurb: "The few boosting settings that actually change results, and how to set them."
-description: "The handful of gradient boosting hyperparameters that actually matter: number of trees, learning rate, tree depth and regularization, how they trade off, and how to tune them."
-keywords: "gradient boosting hyperparameters, learning rate, number of trees, max_depth, num_leaves, regularization, XGBoost tuning, LightGBM tuning, shrinkage, boosting overfitting, n_estimators"
+catalog_blurb: "The handful of boosting settings that actually move results, and how to set them."
+description: "The gradient boosting hyperparameters that actually matter: trees, learning rate, depth, and regularization, how they interact, and how to set them in R."
+keywords: "gradient boosting hyperparameters, learning rate, number of trees, tree depth, max_depth, regularization, min_child_weight, subsample, XGBoost, LightGBM, tuning, R"
 post_type: "LESSON"
 curriculum_id: "6.40.3"
 webr: true
@@ -21,271 +21,364 @@ course_prev: "LightGBM-and-CatBoost-in-R.html"
 ::eyebrow Lesson 3 of 6
 ## The Hyperparameters That Matter
 
-In Lesson 2 you handed Sam's bike-kiosk chain to LightGBM and CatBoost and met a fistful of settings in passing: `num_leaves`, `learning_rate`, `max_bin`, `nrounds`. A real booster exposes dozens more. Stare at that wall of options and tuning feels like turning random dials.
+In Lesson 2 you met the fast production boosters and the settings they hand you: LightGBM alone exposes more than a hundred. Stare at that list and it is easy to freeze. The good news is that almost none of them decide whether your model is good. Just four do, and the rest are fine-tuning.
 
-It is not. A handful of knobs do almost all the work, they trade off against each other in predictable ways, and once you see the picture you can set them on purpose instead of by luck.
+Sam's citywide bike-share is still our example: predict how many bikes go out on a given day from the day's temperature and whether it is a weekend. A booster keeps stacking small corrective trees, so the very first question is not "which model" but "how far do I let it go, and how big are its steps." That is what these four knobs control.
 
 By the end of this lesson you will be able to:
 
-- Name the four hyperparameters that actually move a booster, and say what each controls
-- Explain the learning-rate and number-of-trees trade-off, and set the two together
-- Explain why boosting wants shallow trees when a random forest wants deep ones
-- Use regularization to shrink the gap between training and validation error
-- Follow a sensible tuning ORDER instead of guessing knobs at random
+- Name the four hyperparameters that actually move a booster, and say what each one does
+- Explain why more trees is not always better, and read the U-shaped validation curve it produces
+- Set the learning rate and the number of trees together, because they trade off against each other
+- Set tree depth to match your data, and use regularization to pull an over-eager model back
 
-**Prerequisites:** Lesson 1 ([Gradient Boosting from Scratch](Gradient-Boosting-from-Scratch.html): residuals, the learning rate, shallow trees in sequence) and Lesson 2 ([LightGBM and CatBoost in R](LightGBM-and-CatBoost-in-R.html)). You can run R and you know what a training and validation split is, and what RMSE measures.
-
-::widget process-flow {"steps":[{"title":"Number of trees","sub":"how many boosting rounds: the total model capacity"},{"title":"Learning rate","sub":"how much of each tree to keep: the step size"},{"title":"Tree depth","sub":"how complex each tree is: weak vs strong learners"},{"title":"Regularization","sub":"the brakes that stop it memorizing the training data"}]}
-
-=== step === concept
-::eyebrow The short list
-## Most settings do not matter, these four do
-
-A trained booster is an *additive model*: it starts from one flat guess and stacks many small trees on top, each one nudging the prediction toward what the last batch still got wrong. Write that as
-
-\[ F_M(x) = F_0(x) + \nu \sum_{m=1}^{M} h_m(x) \]
-
-where \(F_0(x)\) is the initial guess (the mean of the target), \(h_m(x)\) is the \(m\)-th tree, \(M\) is the number of trees, and \(\nu\) (the Greek letter "nu") is the **learning rate** (some libraries call it the *shrinkage*), a small multiplier between 0 and 1 applied to every tree. Read straight off that one formula, the knobs that change the answer are: how many trees \(M\), how big a slice of each you keep \(\nu\), how complex each tree \(h_m\) is allowed to be, and how hard you penalize complexity to stop overfitting. Everything else is a refinement.
-
-Those four ideas wear different names in every library. Here is the same knob across the three boosters you met in Lesson 2:
-
-| What it controls | XGBoost | LightGBM | CatBoost |
-|---|---|---|---|
-| Number of trees | `nrounds` / `n_estimators` | `num_iterations` | `iterations` |
-| Learning rate (shrinkage) | `eta` | `learning_rate` | `learning_rate` |
-| Tree complexity | `max_depth` | `num_leaves` | `depth` |
-| Min data per leaf | `min_child_weight` | `min_data_in_leaf` | `min_data_in_leaf` |
-| Row / column sampling | `subsample` / `colsample_bytree` | `bagging_fraction` / `feature_fraction` | `subsample` / `rsm` |
-| L1 / L2 penalty | `alpha` / `lambda` | `lambda_l1` / `lambda_l2` | `l2_leaf_reg` |
-
-In code, a booster's settings are just a named list. A LightGBM run on Sam's chain might start like this:
-
-```r-static
-# The four knobs (plus their regularization helpers), named the LightGBM way:
-params <- list(
-  num_iterations   = 500,   # number of trees M
-  learning_rate    = 0.05,  # nu: how much of each tree to keep
-  num_leaves       = 31,    # tree complexity (XGBoost calls it max_depth)
-  min_data_in_leaf = 20,    # regularization: smallest leaf allowed
-  bagging_fraction = 0.8,   # regularization: sample 80% of rows each tree
-  feature_fraction = 0.8,   # regularization: sample 80% of columns each tree
-  lambda_l2        = 1.0    # regularization: L2 penalty on leaf scores
-)
-```
-
-The rest of this lesson takes those four knobs one at a time, on a small slice of Sam's data you can boost right here in the browser.
-
-=== step === widget
-::eyebrow Knob 1
-## Number of trees
-
-Each boosting round adds one more tree that corrects the leftover error, so more trees means more capacity to fit. The catch: a booster fits the *training* data a little better with every single tree, forever. Training error only ever falls. Validation error, the error on rentals the model never saw, falls at first while the trees are still learning real demand, bottoms out, then climbs as later trees start memorizing the noise in the training days.
-
-Drag the slider below. The orange training curve slides down without end, the validation curve makes a U, and the dashed line marks the round where validation is lowest, the best number of trees.
+**Prerequisites:** Lesson 1 ([Gradient Boosting from Scratch](Gradient-Boosting-from-Scratch.html): the residual loop, the learning rate as a shrunken slice, shallow trees in sequence) and Lesson 2 ([LightGBM and CatBoost in R](LightGBM-and-CatBoost-in-R.html): you met `num_leaves` and `learning_rate` in passing). It also helps to have met overfitting as [bias versus variance](The-Bias-Variance-Tradeoff.html). You can run R and you know what a training/validation split is and what RMSE measures.
 
 ::widget learning-curve {"rounds":40}
 
-Let us see that U for real on Sam's data. First we build one kiosk's daily rentals against temperature (demand humps near a pleasant 22 degrees), and a tiny booster we will reuse to test every knob. Each lesson runs in a fresh R session, so run this setup block once.
+=== step === concept
+::eyebrow First, the short list
+## Four knobs, not a hundred
+
+A **hyperparameter** is a setting you choose before training, as opposed to the tree splits and leaf values the algorithm learns from the data on its own. Boosters expose dozens of them, but they are not equally important. Change most of them and your validation error barely twitches. Four of them move it a lot, and they are the same four in every gradient booster (XGBoost, LightGBM, CatBoost), just under different names.
+
+1. **Number of trees** (how many corrective trees you add in total).
+2. **Learning rate** (how big a slice of each tree you keep).
+3. **Tree depth** (how complex each individual tree is allowed to be).
+4. **Regularization** (extra brakes that stop any single tree from memorizing).
+
+The whole rest of this lesson is these four, one at a time, and then the part that trips people up: they are not independent. Turn one and you often have to compensate with another.
+
+::widget process-flow {"steps":[{"title":"Number of trees","sub":"how many corrective trees you add in total"},{"title":"Learning rate","sub":"how big a slice of each tree you keep"},{"title":"Tree depth","sub":"how complex each single tree may be"},{"title":"Regularization","sub":"extra brakes so no tree memorizes noise"}]}
+
+=== step === concept
+::eyebrow Meet the data
+## Sam's days, and a booster we can turn
+
+Every lesson starts a fresh R session, so we build the data right here. Each row is one day: the daily high temperature, whether it was a weekend, and how many bikes went out. Rentals climb with temperature and then fall on scorching days, and weekends lift demand, more so on warm days (a real temperature-by-weekend interaction we will lean on later). We make two independent sets from the same recipe: `train` to fit on, `valid` to score on.
 
 ```r
 library(rpart)
-set.seed(1)
-n <- 240
-temp    <- runif(n, -2, 36)                                          # daily high temperature, deg C
-rentals <- 120 + 180 * exp(-((temp - 22)^2) / 120) + rnorm(n, 0, 22) # demand peaks near 22 C
-day <- data.frame(temp = temp, rentals = rentals)
-tr  <- 1:170; te <- 171:n                                            # training rows / validation rows
 
-# A tiny gradient booster we will reuse to test each knob. It stacks `rounds`
-# shallow trees (each fit to the current residuals) and returns the training
-# and validation RMSE, so we can watch both move as we turn the dials.
-boost_tv <- function(depth, lr, rounds, minbucket = 1) {
-  pred <- rep(mean(day$rentals[tr]), nrow(day))                # start at the mean
-  for (m in 1:rounds) {
-    res  <- data.frame(temp = day$temp[tr], r = day$rentals[tr] - pred[tr])
-    tree <- rpart(r ~ temp, data = res,
-                  control = rpart.control(maxdepth = depth, minsplit = 2,
-                                          minbucket = minbucket, cp = 0))
-    pred <- pred + lr * predict(tree, day)                     # add a shrunken correction
-  }
-  c(train = sqrt(mean((day$rentals[tr] - pred[tr])^2)),
-    val   = sqrt(mean((day$rentals[te] - pred[te])^2)))
+make_days <- function(n, seed) {
+  set.seed(seed)
+  temp    <- round(runif(n, 2, 34), 1)              # daily high, degrees C
+  weekend <- rbinom(n, 1, 2 / 7)                    # 1 on weekends
+  rentals <- round(40 + 5 * temp - 0.14 * temp^2 +  # a hump in temperature
+                   6 * weekend + 1.3 * weekend * temp +  # weekend lift, bigger when warm
+                   rnorm(n, 0, 8))                   # day-to-day noise
+  data.frame(temp, weekend = factor(weekend), rentals)
 }
-nrow(day)
-#> [1] 240
+
+train <- make_days(160, 1)   # days we fit on
+valid <- make_days(160, 2)   # held-out days we score on
+head(train)
+#>   temp weekend rentals
+#> 1 10.5       0      80
+#> 2 13.9       1     105
+#> 3 20.3       0      92
+#> 4 31.1       1     114
+#> 5  8.5       1      84
+#> 6 30.7       0      79
 ```
 
-Now sweep the number of trees at a fixed learning rate and watch validation RMSE turn the corner.
+The scatter below plots temperature against rentals: a hump that peaks around a comfortable 22 degrees. No single tree fits that well, which is exactly the gap boosting closes, tree by tree.
+
+::widget chart-plotter {"data":[{"x":2.4,"y":72},{"x":4.3,"y":78},{"x":5.5,"y":68},{"x":7.6,"y":87},{"x":8.5,"y":56},{"x":9.6,"y":91},{"x":10.5,"y":80},{"x":12.5,"y":99},{"x":13.3,"y":79},{"x":14.4,"y":82},{"x":15.9,"y":90},{"x":16.6,"y":65},{"x":17.3,"y":104},{"x":18.2,"y":112},{"x":19.7,"y":82},{"x":21.1,"y":84},{"x":22.3,"y":96},{"x":22.9,"y":119},{"x":24,"y":120},{"x":25.3,"y":90},{"x":26.5,"y":61},{"x":27.4,"y":83},{"x":29.6,"y":69},{"x":30.6,"y":61},{"x":32.2,"y":54},{"x":33.8,"y":106}],"geoms":["point"],"x":"temp","y":"rentals"}
+
+Now a small booster we can turn. It is the exact residual loop from Lesson 1, with the four knobs exposed as arguments. It returns the training and validation RMSE (the typical prediction miss, in bikes) of the final model, so we can watch each knob move those two numbers.
 
 ```r
-rounds <- c(10, 40, 120, 300)
-val    <- sapply(rounds, function(R) unname(boost_tv(depth = 2, lr = 0.1, rounds = R)["val"]))
-data.frame(rounds, val_rmse = round(val, 1))
-#>   rounds val_rmse
-#> 1     10     34.8
-#> 2     40     23.2
-#> 3    120     23.3
-#> 4    300     24.4
+boost <- function(n_trees = 300, lr = 0.1, depth = 2, min_leaf = 8, subsample = 1) {
+  pred_tr <- rep(mean(train$rentals), nrow(train))   # start every day at the average
+  pred_va <- rep(mean(train$rentals), nrow(valid))
+  if (subsample < 1) set.seed(7)
+  for (m in seq_len(n_trees)) {
+    resid <- train$rentals - pred_tr                 # what the model still gets wrong
+    rows  <- if (subsample < 1) sample(nrow(train), round(subsample * nrow(train)))
+             else seq_len(nrow(train))
+    fit_df <- data.frame(temp = train$temp[rows], weekend = train$weekend[rows],
+                         resid = resid[rows])         # the rows this tree fits, with the residual target
+    tree  <- rpart(resid ~ temp + weekend, data = fit_df,
+                   control = rpart.control(maxdepth = depth, cp = 0,
+                                           minbucket = min_leaf, xval = 0))
+    pred_tr <- pred_tr + lr * predict(tree, train)   # add a shrunken slice
+    pred_va <- pred_va + lr * predict(tree, valid)
+  }
+  rmse <- function(a, b) sqrt(mean((a - b)^2))
+  c(train = round(rmse(train$rentals, pred_tr), 2),
+    valid = round(rmse(valid$rentals, pred_va), 2))
+}
+
+boost(n_trees = 200, lr = 0.05, depth = 2)   # a sensible baseline
+#> train valid
+#>  6.65  8.70
 ```
 
-[KEY INSIGHT]
-More trees is not "more is better." It is a dial with a sweet spot: too few and the model has not finished learning the signal (underfit), too many and it starts fitting noise (overfit). Lesson 4 shows how *early stopping* finds that sweet spot for you automatically.
+A validation RMSE of 8.70 bikes is our reference point. Every knob from here on is a question of pushing that number down without letting the training number run away from it.
 
 === step === widget
+::eyebrow Knob 1
+## Number of trees: more is not always better
+
+Each boosting round adds one more corrective tree, so more trees means the model fits the *training* days ever more closely. The training error therefore falls a little every single round and never turns back up. The validation error is a different story. It falls while the trees are still learning real, repeatable demand, then bottoms out, then **climbs** once later trees start fitting the random noise in the training days. Plotted against the round number, the validation curve makes a **U**.
+
+Drag the slider below to move where you stop. Stop too early (far left) and both curves are still high: the model has more real signal to learn. Stop too late (far right) and the training curve keeps dropping while the validation curve creeps back up: that widening gap is memorized noise.
+
+::widget learning-curve {"rounds":40}
+
+Let us see the U on Sam's own data. We run `boost` for a few different tree counts and read off both errors.
+
+```r
+trees <- c(50, 100, 300, 600)
+sapply(trees, function(nt) boost(n_trees = nt, lr = 0.1, depth = 2))
+#>       [,1] [,2] [,3] [,4]
+#> train 7.06 6.66 5.90 5.16
+#> valid 8.72 8.70 9.07 9.30
+```
+
+Read the bottom row left to right: validation dips to its best near 100 trees (8.70), then rises to 9.07 and 9.30 as we pile on more. The top row only ever falls. More trees kept helping the training fit and started hurting the model that matters. Finding the exact bottom of that U is the whole subject of Lesson 4; for now, just hold onto the shape.
+
+[KEY INSIGHT]
+Training error falls with every tree. Validation error makes a U. The best number of trees sits at the bottom of that U, not at the maximum you can afford.
+
+=== step === quiz
+::eyebrow Check yourself
+## Is more trees always safer?
+
+A colleague reasons: "A random forest never gets worse when you add trees, so I will just set my booster to 5,000 trees and stop worrying about it." Why is that risky for a booster?
+
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- It is fine: like a forest, a booster only converges as you add trees, it never overfits from extra trees ::no That is true for a forest (independent trees, averaged) but not a booster. A booster's trees are added in sequence, each pushing harder on the training data, so past a point they fit noise and validation error rises.
+- Each extra tree fits the training data a little more, so past the validation minimum the model starts memorizing noise and validation error climbs ::ok Right. Adding trees only ever lowers training error, but validation error makes a U. Run far past its minimum and you are fitting noise, which is why the number of trees is a knob you must set, not maximize.
+- More trees always slow training so much that the model never finishes ::no Speed is a real cost, but it is not the reason for the risk here. The statistical problem is overfitting: past the validation minimum, extra trees make the model worse on new data, not just slower.
+
+=== step === concept
 ::eyebrow Knob 2
-## Learning rate
+## Learning rate: small, safe steps
 
-The learning rate \(\nu\) decides how much of each new tree you actually add. After round \(m\) the model updates by
+The learning rate, written \(\eta\) (the Greek letter eta), is the fraction of each new tree you actually keep. Recall the booster as an additive model: after \(M\) rounds its prediction is
 
-\[ F_m(x) = F_{m-1}(x) + \nu\, h_m(x) \]
+\[ F_M(x) = F_0(x) + \eta \sum_{m=1}^{M} h_m(x) \]
 
-so \(\nu = 1\) adds each tree in full, while \(\nu = 0.05\) adds only a twentieth of it. A small \(\nu\) means each tree barely moves the prediction, so the booster takes small, cautious steps toward the answer. That is exactly gradient descent, and the picture below is its simplest form: a ball rolling down a loss bowl by steps of size \(\nu\). Slide the learning rate. Too small and it crawls, just right and it walks smoothly to the bottom, too large and it overshoots and bounces, or flies out of the bowl entirely.
+where \(F_0(x)\) is the starting guess (the mean of the target), \(h_m(x)\) is the tree grown at round \(m\) to fit the current residuals, and \(\eta\) scales every one of those trees before it is added. With \(\eta = 1\) you add each tree whole; with \(\eta = 0.05\) you add a twentieth of it. A typical value is between 0.01 and 0.3.
+
+Why hold back? Because one tree's idea of the fix is noisy. Applied in full, the model lurches and overshoots, chasing quirks of your particular training days. Shrinking every step means no single tree can dominate, so the model creeps toward a good fit in many small, safe moves instead of a few reckless leaps.
+
+The widget below shows exactly that trade on a simple bowl-shaped error surface, where the lowest point is the best model. Slide the learning rate and step downhill: too small and it crawls, just right and it settles into the bottom, too large and it overshoots and bounces. A booster feels the same forces.
 
 ::widget gradient-descent {}
 
-A booster behaves the same way. Small steps are safer and generalize better, but you need more of them to arrive, so the learning rate and the number of trees are two ends of one trade-off. Roughly, what matters is the total signal added, \(\nu \times M\): halve the learning rate and you need about twice as many trees to fit the same amount. See it on Sam's data, same trees, three settings:
+=== step === concept
+::eyebrow How knobs 1 and 2 interact
+## The learning rate and the tree count trade off
+
+Here is the first interaction, and the most important one in all of boosting. The learning rate and the number of trees are not two separate decisions. They are two ways of controlling the same thing: how far the model travels from its flat starting guess. A smaller \(\eta\) moves less per tree, so it needs *more* trees to cover the same ground. Halve the learning rate and you roughly double the trees you need.
+
+So the pairing matters more than either number alone. Let us prove it on Sam's data with three settings.
 
 ```r
-round(rbind(
-  "big steps, few trees"    = boost_tv(depth = 2, lr = 0.30, rounds = 40),
-  "small steps, few trees"  = boost_tv(depth = 2, lr = 0.03, rounds = 40),
-  "small steps, many trees" = boost_tv(depth = 2, lr = 0.03, rounds = 300)
-), 1)
-#>                         train  val
-#> big steps, few trees     15.8 23.2
-#> small steps, few trees   29.8 32.7
-#> small steps, many trees  17.1 23.1
+rbind(
+  "lr 0.50, 300 trees" = boost(n_trees = 300, lr = 0.50, depth = 2),
+  "lr 0.05, 600 trees" = boost(n_trees = 600, lr = 0.05, depth = 2),
+  "lr 0.05,  60 trees" = boost(n_trees =  60, lr = 0.05, depth = 2)
+)
+#>                    train valid
+#> lr 0.50, 300 trees  3.91  9.90
+#> lr 0.05, 600 trees  5.88  9.05
+#> lr 0.05,  60 trees  7.57  9.31
 ```
 
-The middle row, a small learning rate with too few trees, has barely started: it underfits. Give the same small rate enough trees (the third row) and it catches the aggressive setting and tends to generalize a touch better. This is why practitioners pick a low learning rate and then add trees, rather than cranking the rate to finish faster.
+Read all three rows. The big-step model (top) drives training error way down to 3.91 but overfits: validation 9.90, the worst of the three. The small-step model with enough trees (middle) is the best on validation (9.05), the slow-and-steady winner. The small-step model with too few trees (bottom) never travels far enough: its training error is still high at 7.57, so it underfits. Same learning rate as the middle row, but starved of trees.
 
-[NOTE]
-A high learning rate is the single fastest way to overfit a booster: each big step can blow past the best fit, and a few trees are enough to start carving the training noise. When in doubt, lower \(\nu\) and add trees.
+[KEY INSIGHT]
+A low learning rate with enough trees almost always beats a high learning rate with few. In practice you fix a small \(\eta\) first, then add trees until validation stops improving. Set them together, never in isolation.
 
 === step === quiz
 ::eyebrow Check yourself
-## Learning rate and trees together
+## You just cut the learning rate
 
-Your booster does well with `learning_rate = 0.1` and 500 trees. You decide to halve the learning rate to `0.05` for a smoother, steadier fit. To keep roughly the same quality of fit, what should you do with the number of trees?
+You had a booster working reasonably at `lr = 0.3` with 200 trees. You cut the learning rate to `lr = 0.05` and change nothing else. What should you expect, and what should you do?
 
-::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Halve the trees too, to about 250, so the two cuts cancel out ::no That cuts the total signal twice over. With half the step size AND half the trees you add only a quarter of what you did before, so the model underfits badly.
-- Roughly double the trees, to about 1000, since the smaller steps each add less ::ok Right. What fits the data is roughly the total signal added, \(\nu \times M\). Halve \(\nu\) and you must roughly double \(M\) to keep that product, and you get a smoother, usually better-generalizing fit for the extra compute.
-- Leave the trees at 500, the learning rate has nothing to do with how many you need ::no They are coupled. With half the step size and the same number of trees, the model has only travelled half as far toward the fit, so it underfits.
+::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
+- Each tree now moves the prediction much less, so with the same 200 trees the model underfits; you need to add trees to make up the distance ::ok Right. A sixth of the step size covers a sixth of the ground per tree, so 200 trees no longer reach a good fit. Lower the rate and you must raise the tree count to match, roughly in proportion.
+- Nothing changes, since the final model only depends on the number of trees ::no The final model depends on the learning rate and the tree count together. At a fixed tree count, cutting the rate shrinks how far the model travels, so it underfits until you add trees.
+- The smaller rate will overfit faster, so you should also cut the number of trees ::no It is the opposite. A smaller rate is more cautious and overfits more slowly, so you generally need MORE trees with it, not fewer.
+
+=== step === concept
+::eyebrow Knob 3
+## Tree depth is interaction order
+
+The third knob controls how complex each single tree is allowed to be, set by its maximum depth. This one is subtler than it looks, because depth is really controlling something specific: how many features a single tree can combine in one decision.
+
+A depth-1 tree, a **stump**, asks exactly one question, so it can only use one feature at a time. Stack a whole boosting run of stumps and every tree is a function of a single feature, which means the model can add up "the temperature effect" and "the weekend effect" but can never say "warm *and* weekend." It is a purely **additive** model. To capture "the weekend lift is bigger on warm days," the exact interaction we built into Sam's data, a tree has to ask two questions in a row: first weekend, then temperature. That takes **depth 2**.
+
+The depth-2 tree below does exactly that. Its maximum depth is the number of questions from the top down to a leaf, and that number is the highest-order interaction the tree can express.
+
+::widget tree-diagram {"root":"weekend day?","l":"temp over 22C?","r":"temp over 22C?","leaves":["135 bikes","90 bikes","95 bikes","75 bikes"]}
+
+Follow the two warm-day leaves: on a weekend, warm days rent about 135; on a weekday, warm days rent about 95, a 40-bike weekend lift. Now the two cool-day leaves: 90 on a weekend versus 75 on a weekday, only a 15-bike lift. The weekend effect depends on the temperature. A stump, with its single question, cannot represent that at all. Depth is the knob that decides how rich these combinations may get.
 
 === step === widget
-::eyebrow Knob 3
-## Tree depth
+::eyebrow Knob 3, the trade
+## Deeper fits more, and overfits sooner
 
-How complex should each individual tree be? Tree depth (or, equivalently, the leaf count `num_leaves`) sets that. A depth-1 tree (a "stump") asks one question. A depth-10 tree asks a long chain of them and can carve the data into hundreds of tiny regions. Depth also sets the *interaction order*: a depth-\(d\) tree can combine up to \(d\) features in a single rule, so depth 1 captures one feature at a time while depth 4 can learn "cold AND weekend AND downtown."
-
-The bias-variance picture below is the same U you saw for trees, now driven by complexity. Slide it: too simple underfits (high bias), too complex overfits (high variance), and the sweet spot sits in between.
+So a deeper tree is more expressive. But every gain in expressiveness is also a chance to memorize noise, which is the same bias-variance U you have seen for the number of trees, now driven by per-tree complexity. The widget below shows the universal shape on a simple curve fit: as you let the model get more flexible, training error keeps falling but validation error dips and then climbs. Slide the flexibility up and watch the gap open.
 
 ::widget bias-variance {}
 
-Here is the twist that trips people up. A **random forest wants deep trees**, because it averages many independent deep trees and the averaging cancels their variance. **Boosting wants shallow trees**, because the trees are added in sequence and each one already corrects the last, so a deep tree per round overshoots and the ensemble overfits fast. Depth 3 to 8 is the usual home for a booster. Watch stumps beat deep trees on Sam's data:
+Now the real thing, on Sam's data. We sweep the depth from a stump up to a deep tree, holding the learning rate and tree count fixed.
 
 ```r
-round(rbind(
-  "depth-1 stumps" = boost_tv(depth = 1,  lr = 0.1, rounds = 80),
-  "depth-10 trees" = boost_tv(depth = 10, lr = 0.1, rounds = 80)
-), 1)
-#>                train val
-#> depth-1 stumps  21.7  25
-#> depth-10 trees   0.1  29
+depths <- c(1, 2, 3, 6)
+sapply(depths, function(d) boost(n_trees = 300, lr = 0.05, depth = d))
+#>        [,1] [,2] [,3] [,4]
+#> train  8.87 6.43 6.15 5.49
+#> valid 10.35 8.76 9.00 9.29
 ```
 
-The deep-tree row drives training RMSE lower (it can memorize) but validation RMSE is worse: each over-eager tree has chased noise. Shallow trees, added patiently, win.
-
-=== step === concept
-::eyebrow Knob 4
-## Regularization: the brakes
-
-The first three knobs decide how much a booster *can* fit. Regularization decides how much you *let* it, by penalizing or restricting complexity so the model spends its capacity on signal, not noise. The everyday symptom regularization fixes is a big gap between a low training error and a high validation error: the model has memorized the training days.
-
-The main brakes, all of which you turn toward "more conservative" when you see overfitting:
-
-| Knob | What it does | Turn it... |
-|---|---|---|
-| Min data per leaf | refuse leaves built on a few rows | UP to fight overfit |
-| Subsample (rows) | fit each tree on a random fraction of rows | DOWN (e.g. 0.8) to fight overfit |
-| Column sample | offer each tree a random subset of features | DOWN (e.g. 0.8) to decorrelate trees |
-| L2 penalty \(\lambda\) | shrink large leaf scores toward zero | UP for a smoother model |
-| Min split gain \(\gamma\) | refuse splits that barely help | UP to prune weak splits |
-
-The math behind the last two is one extra term added to what the booster minimizes. Alongside the prediction loss, each tree \(h\) pays a complexity price
-
-\[ \Omega(h) = \gamma\, T + \tfrac{1}{2}\,\lambda \sum_{j=1}^{T} w_j^2 \]
-
-where \(T\) is the number of leaves in the tree, \(w_j\) is the score (the value) on leaf \(j\), \(\gamma\) charges a flat fee per leaf (so the tree only grows leaves that earn their keep), and \(\lambda\) is the L2 penalty that pulls every leaf score toward zero (so no single leaf can shout). Bigger \(\gamma\) and \(\lambda\) mean simpler, calmer trees. The L1 penalty in the table (XGBoost's `alpha`) does the same job with absolute values and can push some leaf scores to exactly zero; L2 is the usual default.
-
-You can feel the simplest brake right now. Take the over-eager depth-10 booster from the last step and just forbid tiny leaves, demand at least 25 rows in every leaf:
-
-```r
-round(rbind(
-  "unregularized (min leaf 1)"  = boost_tv(depth = 10, lr = 0.1, rounds = 120, minbucket = 1),
-  "regularized   (min leaf 25)" = boost_tv(depth = 10, lr = 0.1, rounds = 120, minbucket = 25)
-), 1)
-#>                             train  val
-#> unregularized (min leaf 1)    0.0 29.0
-#> regularized   (min leaf 25)  20.8 27.1
-```
-
-The unregularized row has the lower training RMSE but the wider gap to validation, the signature of overfitting. One brake closes most of that gap. The trade is real, though: lean too hard on the brakes and you swing the other way into underfitting, so regularization is a dial to balance, not a switch to slam.
-
-=== step === tryit
-::eyebrow Your turn
-## Set a safe learning rate
-
-You have seen the rule: small, cautious steps generalize better, as long as you give the booster enough trees to arrive. Set a **low** learning rate (a value below 0.1) on Sam's data and let it run for 300 trees. Fill in the blank with a small learning rate.
-
-```r
-boost_tv(depth = 3, lr = ____, rounds = 300)
-```
-::check {"regex":"lr\\s*=\\s*0\\.0\\d","gate":true,"difficulty":"beginner","ok":"Nicely cautious. A learning rate of 0.0x takes small steps; with 300 trees it has room to reach a smooth, well-generalizing fit.","no":"You want a SMALL learning rate, something like lr = 0.05 (a value of the form 0.0x, below 0.1). Small steps plus enough trees is the safe recipe."}
-::solution
-```r
-round(boost_tv(depth = 3, lr = 0.05, rounds = 300), 1)
-#> train   val 
-#>  10.7  23.5
-```
-
-=== step === widget
-::eyebrow Putting it together
-## The tuning recipe
-
-The four knobs interact, so the order you set them in matters. Tuning all of them at once is a hopeless search; tuning them in this sequence is a short, reliable one. This is the workflow seasoned practitioners reach for, and the order most automated tuners follow too.
-
-::widget process-flow {"steps":[{"title":"1. Fix a low learning rate","sub":"start around 0.05 to 0.1: small, safe steps"},{"title":"2. Pick the number of trees","sub":"let validation error choose it (early stopping, Lesson 4)"},{"title":"3. Tune tree complexity","sub":"search depth / num_leaves and min data per leaf"},{"title":"4. Add regularization","sub":"row and column sampling, plus L1 / L2, to taste"},{"title":"5. Final squeeze","sub":"lower the learning rate, raise the trees, refit"}]}
-
-Notice the learning rate appears twice: you fix a sensible value early so the rest of the search is stable, then lower it at the very end (adding trees to compensate) to wring out the last bit of accuracy. The number of trees is the one knob you almost never tune by hand, because validation error picks it for free. That is the whole subject of Lesson 4.
+Read the validation row. Depth 1 is the **worst** at 10.35, and look at its training error: 8.87, also high. That is underfitting, not overfitting: a stump-only model is purely additive, so it literally cannot represent the temperature-by-weekend interaction, and it leaves real signal on the table. Depth 2 is the sweet spot (8.76): just enough to capture that one interaction. Depth 3 and 6 fit training better (6.15, 5.49) but generalize worse (9.00, 9.29): now they are overfitting. The best depth matches the interaction order your data actually has, and for a booster that is usually shallow (depth 2 to 8), never the deep trees a random forest wants.
 
 === step === quiz
 ::eyebrow Check yourself
-## Your model is overfitting
+## Why did the stump do worst?
 
-You train a booster on Sam's full chain and see a training RMSE of 14 but a validation RMSE of 41: a wide gap. The model has memorized the training days. Which set of moves is most likely to close the gap?
+In the sweep above, depth 1 gave the worst validation error (10.35) and also a high training error (8.87). A learner says "depth 1 is the simplest, so it must be overfitting the least, so it should be safest." Where does that reasoning go wrong here?
 
-::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- Add more trees and raise the learning rate, to push training error even lower ::no Both moves add capacity and *widen* the gap. Lower training error with the same memorizing trees is exactly the overfit getting worse, not better.
-- Nothing, a low training error means the model is excellent, validation error always lags ::no A large gap is the definition of overfitting, not a feature. The honest measure of the model is the validation error, and right now it is poor.
-- Lower the tree depth, raise the minimum leaf size, add row and column sampling, and lower the learning rate with more trees ::ok Exactly. Every one of those is a brake: shallower and larger-leaf trees fit less aggressively, sampling decorrelates them, and a smaller learning rate takes safer steps. Together they trade a little training error for a lot of validation error, closing the gap.
+::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
+- It is right: depth 1 overfits the least, and its high validation error is just noise in the estimate ::no Both errors are high together, which is the signature of underfitting, not overfitting. If depth 1 were overfitting, its training error would be low while validation was high, and it is not: training is 8.87.
+- Depth 1 is too simple for this data: a stump-only booster is additive and cannot capture the temperature-by-weekend interaction, so it underfits, high error on both sets ::ok Exactly. Simpler is not automatically safer. When the true pattern has an interaction, a purely additive (depth-1) model has too little capacity and underfits. Depth is the knob that buys just enough interaction, and here that is depth 2.
+- Depth 1 trains too slowly, so 300 trees was not enough for it to converge ::no Speed is not the issue. Its high training error is a capacity ceiling: no number of additive stumps can express a two-feature interaction, so adding trees would not close the gap.
+
+=== step === concept
+::eyebrow Knob 4
+## Regularization: extra brakes on each tree
+
+The first three knobs set how far the model travels (trees and learning rate) and how complex each step may be (depth). Regularization is a family of smaller brakes that make each individual tree less able to memorize, so you can afford a longer or deeper run without overfitting. Three matter in practice.
+
+- **Minimum leaf size.** Require every leaf to hold at least, say, 10 training rows. A leaf built from 1 or 2 rows is almost certainly fitting noise, so a floor on leaf size forbids the tiniest, most over-eager splits. (In XGBoost and LightGBM this is `min_child_weight` / `min_data_in_leaf`.)
+- **Subsampling (stochastic gradient boosting).** Before growing each tree, draw a random fraction of the rows (say 60 or 80 percent) and fit that tree on only those. Each tree sees a slightly different slice, which decorrelates them and adds a dose of the averaging that makes forests resistant to noise. The strip below shows one such draw: the greyed rows sat this tree out.
+- **Leaf-value penalties (L1 and L2).** Add a penalty for large leaf values so the model prefers gentle corrections. Formally, boosters like XGBoost add to each tree a cost \(\Omega(h) = \gamma T + \tfrac{1}{2}\lambda \sum_{j=1}^{T} w_j^2\), where \(T\) is the number of leaves in the tree, \(w_j\) is the value on leaf \(j\), \(\lambda\) (lambda) is the L2 penalty that shrinks those values, and \(\gamma\) (gamma) charges a fixed price per extra leaf. Both make trees simpler and their corrections smaller.
+
+::widget bootstrap-sample {"tail":"The greyed rows sat this tree out. Each tree seeing a different subset is stochastic gradient boosting, a regularizer."}
+
+Let us watch the minimum-leaf-size brake rescue an over-eager model. We deliberately overdo it, depth 6 at a brisk learning rate for 400 trees, then vary only the leaf-size floor.
+
+```r
+rbind(
+  "min_leaf  2" = boost(n_trees = 400, lr = 0.1, depth = 6, min_leaf = 2),
+  "min_leaf 10" = boost(n_trees = 400, lr = 0.1, depth = 6, min_leaf = 10),
+  "min_leaf 20" = boost(n_trees = 400, lr = 0.1, depth = 6, min_leaf = 20)
+)
+#>             train valid
+#> min_leaf  2  2.50 10.44
+#> min_leaf 10  4.67  9.52
+#> min_leaf 20  6.33 10.10
+```
+
+With a floor of 2, the model memorizes: training error is a tiny 2.50 while validation is a miserable 10.44, a huge gap. Raise the floor to 10 and the brake bites: training rises to 4.67 (the model is allowed to fit less), and validation drops to 9.52. That is regularization working, trading a little training fit for a lot less overfitting. But push the floor to 20 and you have over-braked: validation climbs back to 10.10, because now the leaves are too coarse to capture real structure. Regularization has its own sweet spot, exactly like every other knob.
+
+Subsampling follows the same pattern, with a caveat worth stating: on a small, clean dataset like Sam's 160 days it can even hurt slightly, because there is little noise to average away. It earns its keep on large, noisy data, where seeing a different slice per tree is a real advantage.
+
+=== step === tryit
+::eyebrow Your turn
+## Apply the brake
+
+The call below is the over-eager model from above: depth 6, `lr = 0.1`, 400 trees, with a leaf-size floor of just 2, so it overfits (training 2.50, validation 10.44). Change the minimum leaf size to `10` so each leaf must hold at least ten training days, then run it.
+
+```r
+boost(n_trees = 400, lr = 0.1, depth = 6, min_leaf = ____)
+```
+::check {"regex":"min_leaf\\s*=\\s*10","gate":true,"difficulty":"intermediate","ok":"That floor forbids the tiniest, noise-fitting leaves. Validation improves from 10.44 to 9.52 while training rises to 4.67, the fingerprint of regularization: a little less training fit for much less overfitting.","no":"Set the leaf-size floor to ten: min_leaf = 10. That requires every leaf to hold at least ten training rows."}
+::solution
+```r
+boost(n_trees = 400, lr = 0.1, depth = 6, min_leaf = 10)
+#> train valid
+#>  4.67  9.52
+```
+
+=== step === concept
+::eyebrow Putting it together
+## The knobs interact, so tune them in order
+
+You have now seen every knob move validation error, and you have seen two of them interact (a lower learning rate needs more trees). That interaction is the general rule, not an exception. Turn one knob and you usually have to compensate with another.
+
+| Turn this up | And compensate with | Why |
+|---|---|---|
+| Learning rate down | More trees | Smaller steps cover less ground per tree |
+| Tree depth up | Fewer trees, more regularization | Deeper trees are stronger, so they peak sooner and overfit faster |
+| Regularization up | Deeper trees or more trees can now be afforded | The brakes let a more flexible model behave |
+
+That depth-and-trees link is real and measurable: in the depth sweep earlier, the deeper models reached their best validation score in *fewer* rounds (a stump kept improving out to round 299, while the depth-6 model peaked around round 93). Stronger trees travel faster, so they need fewer of them.
+
+Because the knobs interact, the practical move is to tune them in a sensible order rather than all at once. A recipe that works:
+
+::widget process-flow {"steps":[{"title":"Fix a low learning rate","sub":"start around 0.05 to 0.1 and leave it"},{"title":"Set the number of trees","sub":"add trees until validation stops improving (early stopping, Lesson 4)"},{"title":"Tune tree depth","sub":"try shallow depths, pick the best validation, usually 2 to 8"},{"title":"Add regularization","sub":"raise the leaf-size floor and subsample to close any remaining gap"}]}
+
+=== step === tryit
+::eyebrow Your turn
+## Fix the overfit with the recipe
+
+Start from the same over-eager model: 400 trees at `lr = 0.1` overfit badly at depth 6. Apply the recipe. We have already dropped the learning rate to 0.05 and set a leaf-size floor of 10 for you; your job is the depth. Set it to the value that matched this data's interaction order (you found it in the depth sweep), then run.
+
+```r
+boost(n_trees = 400, lr = 0.05, depth = ____, min_leaf = 10)
+```
+::check {"regex":"depth\\s*=\\s*2\\b","gate":true,"difficulty":"intermediate","ok":"That is the interaction order of Sam's data. Validation falls to about 9.04, well below the overfit model's 10.44, and no single heroic knob did it: a low rate, a matched depth, and a leaf floor together. The tree count is still not perfectly set, which is exactly what early stopping fixes next.","no":"The depth sweep found depth 2 was best here (it captures the one temperature-by-weekend interaction without overfitting). Set depth = 2."}
+::solution
+```r
+boost(n_trees = 400, lr = 0.05, depth = 2, min_leaf = 10)
+#> train valid
+#>  6.42  9.04
+```
+
+=== step === concept
+::eyebrow The same four knobs, real names
+## Where these live in XGBoost and LightGBM
+
+You tuned the four knobs on a hand-rolled booster so you could see each one move. In a production booster the ideas are identical; only the argument names change. Here is the map, and the same recipe written for real (install and run these in your own R, they are compiled packages).
+
+| The knob | XGBoost | LightGBM |
+|---|---|---|
+| Number of trees | `nrounds` | `num_iterations` |
+| Learning rate | `eta` | `learning_rate` |
+| Tree depth | `max_depth` | `max_depth` / `num_leaves` |
+| Min leaf size | `min_child_weight` | `min_data_in_leaf` |
+| Subsampling | `subsample`, `colsample_bytree` | `bagging_fraction`, `feature_fraction` |
+| Leaf penalties | `lambda` (L2), `alpha` (L1), `gamma` | `lambda_l2`, `lambda_l1`, `min_gain_to_split` |
+
+```r-static
+library(xgboost)
+
+X <- model.matrix(rentals ~ temp + weekend - 1, data = train)
+dtrain <- xgb.DMatrix(X, label = train$rentals)
+
+params <- list(
+  objective        = "reg:squarederror",
+  eta              = 0.05,   # learning rate: small, safe steps
+  max_depth        = 2,      # tree depth: match the interaction order
+  min_child_weight = 10,     # min leaf size: no tiny, noise-fitting leaves
+  subsample        = 0.8,    # stochastic gradient boosting
+  lambda           = 1       # L2 penalty on leaf values
+)
+fit <- xgb.train(params, dtrain, nrounds = 400)   # number of trees
+```
+
+Every argument you set there is one of the four knobs from this lesson. Learn the four ideas once and you can tune any booster, whatever it chooses to call them.
 
 === step === concept
 ::eyebrow Go deeper
 ## References
 
-A few authoritative places to take this further:
-
-- [The Elements of Statistical Learning, ch. 10 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - boosting, the shrinkage (learning-rate) and tree-size parameters, with the full theory.
-- [An Introduction to Statistical Learning, ch. 8 (free PDF)](https://www.statlearning.com/) - the gentler companion on tree boosting and its three tuning parameters.
-- [Chen and Guestrin (2016), XGBoost: A Scalable Tree Boosting System](https://arxiv.org/abs/1603.02754) - the regularized objective (the \(\gamma\) and \(\lambda\) penalty) you saw, straight from the source.
-- [XGBoost docs: Notes on Parameter Tuning](https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html) - practical advice on trees, depth, learning rate and the bias-variance trade-off.
-- [Friedman (2002), Stochastic Gradient Boosting](https://doi.org/10.1016/S0167-9473%2801%2900065-2) - why fitting each tree on a random subsample of rows improves accuracy.
+- [The Elements of Statistical Learning, ch. 10 (free PDF)](https://hastie.su.domains/ElemStatLearn/) - section 10.11 "Right-Sized Trees for Boosting" is the source for depth as interaction order, and 10.12 covers shrinkage (the learning rate).
+- [Friedman (2002), Stochastic Gradient Boosting, Computational Statistics and Data Analysis 38(4)](https://doi.org/10.1016/S0167-9473(01)00065-2) - the paper that introduced subsampling rows per tree as a regularizer.
+- [Chen and Guestrin (2016), XGBoost: A Scalable Tree Boosting System, KDD](https://doi.org/10.1145/2939672.2939785) - defines the regularized objective with the leaf penalties \(\gamma\) and \(\lambda\) you met here.
+- [XGBoost docs: Notes on Parameter Tuning](https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html) - practical advice on the same knobs and the order to turn them.
+- [LightGBM docs: Parameters Tuning](https://lightgbm.readthedocs.io/en/latest/Parameters-Tuning.html) - the LightGBM names for every knob in the table above.
 
 === step === complete
 ## Lesson 3 complete
 
-You now know the four knobs that actually move a booster: the number of trees \(M\) (capacity, with a sweet spot), the learning rate \(\nu\) (the step size, traded off against the number of trees through \(\nu \times M\)), the tree depth (keep it shallow, the opposite of a random forest), and regularization (the brakes that shrink the gap between training and validation error). And you have a recipe: fix a low learning rate, let validation error choose the trees, then tune complexity and regularization.
+You now know the four hyperparameters that actually move a gradient booster, and, just as important, how they interact. The **number of trees** and the **learning rate** trade off (a lower rate needs more trees, and slow-and-steady generalizes best). **Tree depth** buys interaction order (too shallow underfits real interactions, too deep overfits, so a booster stays shallow). **Regularization** (leaf-size floors, subsampling, L1/L2 penalties) puts extra brakes on each tree, with its own sweet spot. You saw all of it on Sam's data, and you tuned an over-eager model back into shape with a sensible recipe.
 
-Next, Lesson 4: Early Stopping and Learning Curves. You met the learning curve here and saw that validation error makes a U. Next you will read that curve properly and let it stop training at the bottom automatically, so you never have to guess the number of trees again.
+You also met the picture at the heart of it: the U-shaped validation curve from the number-of-trees knob. Next, Lesson 4: Early Stopping and Learning Curves. You will learn to read that curve properly and let the booster find the bottom of the U for you, so you never have to guess the number of trees by hand again.
