@@ -1,13 +1,11 @@
 ---
 title: "Survival Analysis Lesson 1: Survival Data and Censoring"
-catalog_blurb: "What censored follow-up data really says, and why ordinary averages get it wrong."
 description: "Learn what makes time-to-event data special: right-censoring, the survival function S(t), the hazard, and why ordinary regression fails on censored follow-up."
 keywords: "survival analysis, censoring, right censoring, time-to-event data, survival function, hazard rate, median survival, survival package, Surv object, censored data in R"
-post_type: "LESSON"
-curriculum_id: "6.150.1"
-webr: true
 mathjax: true
-lesson_access: "free"
+webr: true
+curriculum_id: "6.150.1"
+post_type: "LESSON"
 course_id: "ds-survival"
 course_title: "Survival Analysis"
 course_lesson: "1"
@@ -15,6 +13,8 @@ course_total: "7"
 course_landing: "R-Survival-Analysis-Course.html"
 course_next: "Kaplan-Meier-and-the-Log-Rank-Test.html"
 course_prev: ""
+lesson_access: "free"
+catalog_blurb: "What censored follow-up data really says, and why ordinary averages get it wrong."
 ---
 
 === step === cover
@@ -115,7 +115,7 @@ Arun was still alive when the study closed, 18 months after he enrolled. His row
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - Only that his survival time is longer than 18 months. The 18 is a floor, not his time of death ::ok Right. Arun was alive at last contact, so his row carries the partial but real information that T is greater than 18. Every method in this course is built to use that floor honestly.
-- His survival time is 18 months, so we can use 18 as his time of death ::no That invents a death that never happened. Arun was alive at month 18. Writing 18 down as a death time systematically shortens survival, and the next step shows by how much.
+- His survival time is 18 months, so we can use 18 as his time of death
 - His outcome is missing, so the honest fix is to drop his row ::no Partial is not missing. His row proves he survived at least 18 months, and dropping survivors like him keeps mostly the early deaths, which biases every estimate low.
 
 === step === concept
@@ -165,7 +165,7 @@ You regress `months` on treatment arm with ordinary least squares, using all 200
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - Every censored time enters the fit as if it were a death time, so the model systematically underestimates survival. It is shortcut 2 wearing a formula ::ok Right. Least squares needs one exact outcome per row, so a floor like "18 or more" silently becomes the value 18. All those substitutions point the same way, and the bias does not shrink with more data.
-- Censored rows are just noisy measurements of the death time, and with 200 rows the noise averages out ::no Censoring is not noise. Noise scatters symmetrically around the truth; a censored value always sits BELOW the true time, so the errors all point one way and averaging cannot cancel them.
+- Censored rows are just noisy measurements of the death time, and with 200 rows the noise averages out
 - Dropping the censored rows first makes the regression valid ::no That is shortcut 1: keeping only observed deaths discards the long survivors. In our simulation that estimate came out at 6.1 months against a truth of 11.7.
 
 === step === tryit
@@ -182,16 +182,8 @@ response
 #>  [1] 18.0+  3.2  11.5  24.0+  6.1   9.4+ 15.8   2.7  24.0+ 12.6
 ```
 
-Read Arun's entry: `18.0+`. The plus sign is R's notation for "at least": a survival time known only to exceed 18. Exact death times print plain. This object is what goes on the left-hand side of every model formula in this course, so the model always knows which numbers are floors and which are facts.
+Now your turn. Take just two of these patients: Arun, last seen alive at 18 months, and Chitra, who died on study at 11.5 months. Build their `Surv` outcome by hand. The times are `c(18, 11.5)`, so all that is left is the event vector: which patient gets a 1, and which gets a 0?
 
-Now encode two patients yourself. Ask of each one: did we see the event happen?
-
-```r
-# Arun was still alive at his last contact, 18 months in.
-# Chitra died 11.5 months after enrolling.
-# Fill in the two event codes (1 = death observed, 0 = censored):
-Surv(time = c(18, 11.5), event = c(____, ____))
-```
 ::check {"regex":"c\\(\\s*0\\s*,\\s*1\\s*\\)","gate":true,"difficulty":"intermediate","ok":"Arun gets 0: his 18 is a floor, and it prints as 18+. Chitra gets 1: her death was observed at 11.5.","no":"Ask of each patient: did we see the event happen? Arun was alive at last contact, so his code is 0 (censored). Chitra died on study, so hers is 1."}
 ::solution
 ```r
@@ -217,9 +209,9 @@ Three things are always true of this curve, whatever the data:
 
 Now look again at the chart from the cover, this time knowing how to read it. The vertical axis is \(S(t)\). The dashed line marks 50 percent. The standard arm's curve crosses it around 6 months; the new drug's curve around 13.5 months. And the little ticks are the Aruns: censored patients, sitting on the curve without pulling it down.
 
-::widget km-curve {}
-
 How those censored ticks are handled, giving each patient credit for every month they were seen alive and no more, is exactly what the Kaplan-Meier estimator does, and it is the whole of Lesson 2. One more reading note: the standard summary is the median, not the mean, because survival times are stretched to the right by long survivors, and with open-ended censored times like `24+` in the data the mean may not even be computable within the study window. The median sits right there on the curve.
+
+::widget km-curve {}
 
 === step === concept
 ::eyebrow The second lens
@@ -269,7 +261,7 @@ Take the new drug's hazard as roughly constant at 0.06 per month. Then \(S(12) =
 
 ::quiz {"correct":1,"gate":true,"difficulty":"advanced"}
 - A new-drug patient has about a 49 percent chance of living longer than 12 months, so 12 months is close to the median survival on that arm ::ok Exactly. S(t) is the probability of surviving PAST t, and the curve crossing 0.5 marks the median: log(2)/0.06 is about 11.6 months, so month 12 sits just past it.
-- There is about a 49 percent chance a new-drug patient is dead by month 12 ::no That is the classic inversion. S(12) is the chance of still being ALIVE at month 12. The chance of dying by then is 1 minus 0.49, about 51 percent.
+- There is about a 49 percent chance a new-drug patient is dead by month 12
 - The average new-drug patient survives 12 months ::no The 0.5 crossing is the median, not the mean. Survival times are stretched right by long survivors; for this constant hazard the mean is 1/0.06, nearly 17 months, well above the median.
 
 === step === concept
