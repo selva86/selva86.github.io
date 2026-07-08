@@ -1,13 +1,11 @@
 ---
 title: "Causal Inference for Decisions Lesson 8: Uplift and Heterogeneous Effects"
-catalog_blurb: "Find which customers a treatment helps and which it hurts, then target accordingly."
 description: "A flat average effect hides who a treatment helps and who it hurts. Build a T-learner in R to score per-customer uplift, validate it, and target with a Qini curve."
 keywords: "uplift modeling, heterogeneous treatment effects, T-learner, Qini curve, CATE, conditional average treatment effect, causal forest, targeting, sleeping dogs, R"
-post_type: "LESSON"
-curriculum_id: "6.180.8"
-webr: true
 mathjax: true
-lesson_access: "pro"
+webr: true
+curriculum_id: "6.180.8"
+post_type: "LESSON"
 course_id: "ds-causal-decisions"
 course_title: "Causal Inference for Decisions"
 course_lesson: "8"
@@ -15,6 +13,8 @@ course_total: "11"
 course_landing: "R-Causal-Decisions-Course.html"
 course_next: "Double-Debiased-Machine-Learning.html"
 course_prev: "Synthetic-Control.html"
+lesson_access: "pro"
+catalog_blurb: "Find which customers a treatment helps and which it hurts, then target accordingly."
 ---
 
 === step === cover
@@ -141,8 +141,8 @@ Here is the catch that makes this hard. For any one customer we only ever see **
 Customer #4 in the data got the email (`email = 1`) and renewed (`renewed = 1`). Nadia asks: "For *this* customer, how much did the email help?" What is the honest answer?
 
 ::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- The uplift is 1: they got the email and renewed, so the email caused the renewal ::no A renewal is the outcome \(Y(1)\), not the effect. This customer might have renewed anyway (a sure thing), in which case the email did nothing. You cannot tell the two apart from one row.
-- The uplift is 0.15, the average effect applies to everyone ::no The +0.15 is the average across all customers. This customer's true effect could be -0.20 or +0.50 depending on their engagement; the average is exactly what hides that.
+- The uplift is 1: they got the email and renewed, so the email caused the renewal
+- The uplift is 0.15, the average effect applies to everyone
 - You cannot know it: you see only their emailed outcome, never what they would have done unemailed ::ok Exactly. We observe \(Y_i(1)\) here but never \(Y_i(0)\) for the same person, so \(\tau_i = Y_i(1) - Y_i(0)\) is unknowable at the individual level. The best we can do is estimate the average uplift for customers **like** this one.
 - The uplift is 0.60, the treated group's renewal rate ::no 0.60 is the treated group's average renewal, an outcome level, not an effect. An effect is always a difference between two futures, and we only ever see one of them per person.
 
@@ -151,8 +151,6 @@ Customer #4 in the data got the email (`email = 1`) and renewed (`renewed = 1`).
 ## Model each arm, then subtract
 
 We cannot see any customer's two futures, but we can do the next best thing: learn what each future looks like **on average** for a given engagement, and take the difference. That is the **T-learner** (T for "two models"): fit one outcome model on the emailed customers, another on the not-emailed customers, then ask both models to predict every customer's renewal probability and subtract.
-
-::widget process-flow {"steps":[{"title":"Split by arm","sub":"separate the emailed customers from the not-emailed ones"},{"title":"Model each arm","sub":"fit an outcome model on each group: renewal probability as a function of engagement"},{"title":"Subtract the predictions","sub":"for every customer, predicted renewal if emailed minus if not = predicted uplift"}]}
 
 Write \(\hat\mu_1(x)\) for the model trained on the emailed arm and \(\hat\mu_0(x)\) for the model trained on the control arm; each predicts a renewal probability at engagement \(x\). The predicted uplift is their gap,
 
@@ -170,6 +168,8 @@ rbind(emailed = coef(m1), control = coef(m0))
 ```
 
 Notice the `engagement` slope: **2.611** in the emailed model versus **0.593** in the control model. Engagement matters far more when there is an offer on the table, which is exactly the heterogeneity we are trying to capture.
+
+::widget process-flow {"steps":[{"title":"Split by arm","sub":"separate the emailed customers from the not-emailed ones"},{"title":"Model each arm","sub":"fit an outcome model on each group: renewal probability as a function of engagement"},{"title":"Subtract the predictions","sub":"for every customer, predicted renewal if emailed minus if not = predicted uplift"}]}
 
 === step === tryit
 ::eyebrow Your turn
@@ -242,9 +242,9 @@ It works. The bottom quartile's true uplift is **-0.09** (these customers are hu
 In the top quartile, emailed customers renewed 39 points more than un-emailed ones, and we called that an honest estimate of the quartile's true uplift, even though no individual's uplift is observable. What makes that estimate trustworthy?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The T-learner is accurate, so its predictions can be trusted directly ::no That would be circular, using the model to prove the model. The check has to lean on something the model did not touch. It does: the randomized assignment.
+- The T-learner is accurate, so its predictions can be trusted directly
 - The email was randomized, so within the quartile the treated and control customers are comparable, and their renewal gap estimates the group's average effect ::ok Exactly. Sorting by predicted uplift does not break randomization *within* a bin, so treated and control there are still like-for-like. Their observed difference is a clean estimate of that group's true average uplift, no counterfactual needed.
-- The quartile has 1,000 customers, and any large sample gives the right answer ::no Sample size shrinks noise but cannot remove bias. If assignment were confounded, a million customers would still give a biased gap. Randomization, not size, is what makes the comparison fair.
+- The quartile has 1,000 customers, and any large sample gives the right answer
 - Uplift is defined as treated minus control, so the two must agree by definition ::no The predicted uplift (from the models) and the observed group difference are computed in completely different ways. That they line up is evidence the model ranks customers correctly, not a definition.
 
 === step === concept
@@ -252,8 +252,6 @@ In the top quartile, emailed customers renewed 39 points more than un-emailed on
 ## Target by uplift, and stop before the sleeping dogs
 
 Now the decision Nadia actually faces: given a score per customer, **who gets the email?** Rank everyone from most-helped to least, treat from the top down, and track the cumulative extra renewals you win. That running total is the **Qini curve**, the uplift cousin of a lift chart. Toggle the widget below between **Uplift model** and **Random targeting**: ordering by predicted uplift bends the curve well above the random diagonal, the same email budget saves far more subscribers.
-
-::widget uplift-curve {}
 
 We can build the Qini in a few lines of base R. At each depth it compares renewals among the treated we have reached to the control renewal rate, scaled to the same headcount:
 
@@ -290,6 +288,8 @@ average_treatment_effect(cf)                          # the ATE, plus targeting 
 
 Same idea you built by hand, one sturdier estimator. Building the T-learner from scratch is how you know what a causal forest is doing under the hood, and when to trust its scores.
 
+::widget uplift-curve {}
+
 === step === quiz
 ::eyebrow Check yourself
 ## Should Nadia email the whole list?
@@ -298,8 +298,8 @@ The average treatment effect was a healthy **+0.15**, and the offer costs Cadenc
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - No: the bottom quartile has negative uplift and the Qini curve peaks around 82%, so emailing the whole list destroys value on the sleeping dogs ::ok Right. A positive *average* does not mean a positive effect for *everyone*. The model located a group the email actively hurts; targeting down to the Qini peak captures more renewals than blasting all 4,000.
-- Yes: a positive average effect means every customer benefits at least a little ::no An average is a blend. Here 28% of customers have negative true uplift, so "positive on average" and "positive for everyone" are very different claims, which is the whole point of the lesson.
-- Yes: the offer is cheap, so any customer who might renew is worth emailing ::no Cost is not the issue; the sleeping dogs do not just waste a cheap email, the email itself lowers their renewal. Contacting them is negative-value at any price.
+- Yes: a positive average effect means every customer benefits at least a little
+- Yes: the offer is cheap, so any customer who might renew is worth emailing
 - It cannot be decided without running a second experiment ::no The one randomized experiment already carries the answer. The predicted-uplift quartiles and the Qini curve, both validated on this data, are enough to see that full-list targeting is worse than targeting the top.
 
 === step === concept
