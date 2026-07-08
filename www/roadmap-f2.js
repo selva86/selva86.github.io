@@ -89,8 +89,11 @@
   function lessonRow(o){
     var inter=o.kind==='interactive', quiz=o.kind==='quiz', locked=(o.kind==='pro'||o.kind==='soon');
     var cls='lsn'+(inter?' inter':'')+(quiz?' quiz':'')+(locked?' lk':'')+(o.kind==='pro'?' pro':'')+(o.kind==='soon'?' soon':'');
+    var chip=o.access?(String(o.access).toLowerCase()==='pro'
+      ?'<span class="ltag pro" title="Part of the Program"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9z"/></svg> Pro</span>'
+      :'<span class="ltag free">Free</span>'):'';
     var inner='<span class="ldot"></span><span class="lw"><span class="lt">'+esc(o.title)+'</span>'
-      +(o.sub?'<span class="lsub">'+esc(o.sub)+'</span>':'')+'</span>'+badge(o.kind)+ARR;
+      +(o.sub?'<span class="lsub">'+esc(o.sub)+'</span>':'')+'</span>'+chip+badge(o.kind)+ARR;
     if(o.href) return '<a class="'+cls+'" href="'+esc(o.href)+'">'+inner+'</a>';
     return '<span class="'+cls+'">'+inner+'</span>';
   }
@@ -363,7 +366,7 @@
           bySec[n].forEach(function(c){
             (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
               if(l.built===false)return; cnt++;
-              rows+=lessonRow({title:l.title,sub:(l.subtitle||'').trim(),href:'/'+l.slug+'.html',kind:l.kind==='quiz'?'quiz':'interactive'});
+              rows+=lessonRow({title:l.title,sub:(l.subtitle||'').trim(),href:'/'+l.slug+'.html',kind:l.kind==='quiz'?'quiz':'interactive',access:l.access});
             });
           });
           if(!rows)return;
