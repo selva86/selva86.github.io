@@ -1,0 +1,586 @@
+---
+title: "Uncertainty Quantification Lesson 3: Conformal Prediction for Classification"
+description: "Conformal prediction for classification in R: adaptive-width CQR bands, class-conditional coverage, and prediction sets that grow when the model is unsure."
+keywords: "conformal prediction classification, prediction sets, conformalized quantile regression, CQR, class-conditional coverage, Mondrian conformal, adaptive prediction sets, distribution-free, uncertainty quantification, R"
+mathjax: true
+webr: true
+curriculum_id: "6.210.3"
+post_type: "LESSON"
+course_id: "ds-uncertainty"
+course_title: "Uncertainty Quantification in R"
+course_lesson: "3"
+course_total: "7"
+course_landing: "R-Uncertainty-Course.html"
+course_next: "Quantile-and-Distributional-Regression.html"
+course_prev: "Split-Conformal-Prediction.html"
+lesson_access: "pro"
+catalog_blurb: "When the model is unsure, predict a set of classes instead of one guess."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 7</div>
+<h2>Conformal Prediction for Classification</h2>
+
+<p>Lesson 2 left Rohan the real-estate agent with a band whose coverage was <em>guaranteed</em> but whose width was <em>rigid</em>. One fixed half-width, applied to every home, covered 90% of listings overall, yet only about 81% of his big, high-scatter homes and a wasteful 98% of the small ones. A guarantee about the average that quietly fails the very clients who matter most.</p>
+
+<p>This lesson makes conformal prediction <strong>adapt</strong>. First we let the band's width follow the data, so it stretches over the uncertain homes and tightens over the easy ones, rescuing that under-covered subgroup. Then we carry the whole idea across a bridge that surprises most people: to <strong>classification</strong>, where "adapt" means the model returns not one label but a <em>set</em> of labels, a set that stays small when it is confident and grows only when it genuinely hesitates.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Build a conformalized quantile regression (CQR) band whose width adapts to the input, and watch it equalize coverage across subgroups</li>
+
+<li>Turn a classifier's probabilities into a conformal prediction <em>set</em>, and explain exactly why the set grows when the model is unsure</li>
+
+<li>Measure a set predictor's coverage and average set size, and fix a class that the average is quietly starving (class-conditional, or Mondrian, coverage)</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> <a href="Split-Conformal-Prediction.html">Lesson 2</a> (calibration set, nonconformity score, the conformal quantile, and why coverage is marginal not conditional) and <a href="Prediction-Intervals-You-Can-Trust.html">Lesson 1</a> (prediction intervals and coverage). Basic R: vectors, logical indexing, <code>sort</code>, and writing a small function. Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="conformal-bands" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where we left off</div>
+<h2>One width cannot fit every home</h2>
+
+<p>Recall the shape of Rohan's market: price climbs with size at roughly \$180 a square foot, but the <em>scatter</em> grows with size too, so a 2,500 sq ft home is far less predictable than a 700 sq ft one. Let us rebuild it and run Lesson 2's constant-width band on it once more, to see the failure with our own eyes. Each lesson runs in a fresh R session, so we create the data right here (run this once).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+N     &lt;- 3000
+sqft  &lt;- round(runif(N, 600, 2600))
+price &lt;- round(60000 + 180 * sqft + rnorm(N, 0, 18 * sqft))   # spread grows with size
+homes &lt;- data.frame(sqft, price)
+train &lt;- homes[1:1000, ]      # fit the model
+calib &lt;- homes[1001:2000, ]   # measure its misses
+test  &lt;- homes[2001:3000, ]   # final coverage check
+big   &lt;- test$sqft &gt; 1600     # the large, high-scatter homes
+sum(big)
+#&gt; [1] 516</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the Lesson 2 recipe exactly: fit a model, score the calibration misses by their absolute residual, take the conformal quantile as one half-width \(\hat q\), and wrap \(\hat y \pm \hat q\) around every home. Watch how a single width lands on the big homes versus the small ones.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit      &lt;- lm(price ~ sqft, data = train)
+resid    &lt;- abs(calib$price - predict(fit, calib))          # nonconformity = |residual|
+qc       &lt;- sort(resid)[ceiling((nrow(calib) + 1) * 0.90)]  # ONE fixed half-width
+guess    &lt;- predict(fit, test)
+in_const &lt;- test$price &gt;= guess - qc &amp; test$price &lt;= guess + qc
+round(c(overall = mean(in_const),
+        big     = mean(in_const[big]),
+        small   = mean(in_const[!big])), 3)
+#&gt; overall     big   small
+#&gt;   0.884   0.795   0.979</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is again, in cold numbers. The overall coverage is a healthy 88%, but that average is a blend of <strong>79.5%</strong> on the big homes and <strong>97.9%</strong> on the small ones. The one width Rohan can offer is too tight where the market is wild and far too loose where it is calm. The band needs to breathe.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix, part 1</div>
+<h2>Let the band read the data: conditional quantiles</h2>
+
+<p>The constant width was doomed because it summarized the whole market with a single number. The cure is to let the band's edges <em>depend on the home</em>. Instead of predicting the middle price and padding it by a fixed amount, we predict the edges directly with <strong>quantile regression</strong>.</p>
+
+<p>A quantile is just a cut point of a distribution. The \(\tau\)-th conditional quantile, written \(q_\tau(x)\), is the price below which a fraction \(\tau\) of homes of size \(x\) fall. So \(q_{0.05}(x)\) is a low line that only about 5% of homes of that size dip beneath, and \(q_{0.95}(x)\) is a high line that only about 5% rise above. Fit both and you have a raw band, \([\,q_{0.05}(x),\, q_{0.95}(x)\,]\), that is <em>already</em> wide where homes scatter and narrow where they do not, because each line is free to have its own slope.</p>
+
+<p>The interactive below shows the idea on a different dataset (income versus experience, where the spread also grows). Toggle the quantiles and watch the 10th, 50th and 90th percentile lines <strong>fan apart</strong>: a single averaged line could never describe that spread, but three quantile lines can.</p>
+
+<p>The lines fanning apart is exactly the adaptivity Rohan needs. But quantile regression alone comes with no coverage guarantee, its 90% is a hope, not a promise. The next step fixes that.</p>
+<div class="lesson-widget" data-widget-type="quantile-lines" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix, part 2</div>
+<h2>CQR: conformalize the quantile band</h2>
+
+<p><strong>Conformalized quantile regression</strong> (CQR) keeps the adaptive shape of the quantile band and bolts the Lesson 2 guarantee back on. The trick is to measure, on held-out data, how far each home falls <em>outside</em> the raw band, and then pad the band by a single conformal amount so that the promise holds.</p>
+
+<p>The nonconformity score for CQR is how far outside the raw band a home lands, on whichever side it misses:</p>
+
+<p>\[ E_i = \max\bigl\{\, q_{\text{lo}}(x_i) - y_i,\;\; y_i - q_{\text{hi}}(x_i) \,\bigr\} \]</p>
+
+<p>Read it slowly. If the true price \(y_i\) sits <em>inside</em> the raw band, both differences are negative and \(E_i\) is negative (a home to spare). If it pokes out the bottom, \(q_{\text{lo}}(x_i) - y_i\) is positive and measures how far below; out the top, \(y_i - q_{\text{hi}}(x_i)\) does the same. Then, exactly as in Lesson 2, we take the conformal quantile of these scores,</p>
+
+<p>\[ \hat q = E_{(k)}, \qquad k = \bigl\lceil (n+1)(1-\alpha) \bigr\rceil, \]</p>
+
+<p>where \(E_{(k)}\) is the \(k\)-th smallest score, \(n\) is the number of calibration homes and \(\alpha = 0.10\) for 90% coverage. Finally we pad <em>both</em> quantile lines by \(\hat q\), giving the CQR band \(\bigl[\,q_{\text{lo}}(x) - \hat q,\; q_{\text{hi}}(x) + \hat q\,\bigr]\). Let us fit it. The <code>quantreg</code> package fits a quantile line with <code>rq</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(quantreg)
+fit_lo &lt;- rq(price ~ sqft, tau = 0.05, data = train)   # the low (5th-percentile) line
+fit_hi &lt;- rq(price ~ sqft, tau = 0.95, data = train)   # the high (95th-percentile) line
+
+lo_cal &lt;- predict(fit_lo, calib)
+hi_cal &lt;- predict(fit_hi, calib)
+E      &lt;- pmax(lo_cal - calib$price, calib$price - hi_cal)   # how far OUTSIDE the raw band
+qhat   &lt;- sort(E)[ceiling((nrow(calib) + 1) * 0.90)]         # the conformal pad
+round(unname(qhat))
+#&gt; [1] 65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pad is only \$65, because the raw 5th/95th band was already close to 90%; conformal just nudges it and, crucially, <em>certifies</em> it. Now build the padded band on the fresh test homes and check coverage on the big and small groups separately, the exact split that broke the constant width.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lo_test &lt;- predict(fit_lo, test) - qhat   # widen the low line down by the pad
+hi_test &lt;- predict(fit_hi, test) + qhat   # widen the high line up by the pad
+in_cqr  &lt;- test$price &gt;= lo_test &amp; test$price &lt;= hi_test
+round(c(overall = mean(in_cqr),
+        big     = mean(in_cqr[big]),
+        small   = mean(in_cqr[!big])), 3)
+#&gt; overall     big   small
+#&gt;   0.899   0.901   0.897</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the big and small columns: <strong>90.1%</strong> and <strong>89.7%</strong>, both right on target, where the constant width gave 79.5% and 97.9%. The reason is that the band's width now genuinely differs by home:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(big   = mean((hi_test - lo_test)[big]),
+        small = mean((hi_test - lo_test)[!big])))
+#&gt;    big  small
+#&gt; 128179  64350</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The big homes get a band nearly twice as wide (\$128k versus \$64k). The band widened itself exactly where the market is uncertain, which is what "adaptive" means.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Coverage where it counts</h2>
+
+<p>In Lesson 2 the constant-width band covered only <strong>81%</strong> of the big homes, and here the constant width scored 79.5%. CQR was built to rescue exactly that subgroup. <code>in_cqr</code> is <code>TRUE</code> for every test home whose price landed inside its adaptive CQR band, and <code>big</code> flags the large homes. Compute the CQR band's coverage among the big homes alone, then run it.</p>
+<section class="exercise" data-exercise-id="Conformal-Prediction-for-Classification-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mean\(\s*in_cqr\s*\[\s*big\s*\]\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">big_coverage &lt;- ____   # fraction of the BIG homes inside the CQR band
+round(big_coverage, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">0.901. The subgroup that a single fixed width covered at only 79.5% is now right on the 90% target, because the band widened itself for exactly these homes. Coverage is the mean of a TRUE/FALSE vector, restricted to the big homes: mean(in_cqr[big]).</span><span class="lesson-tryit-fb lesson-tryit-no">Coverage is the mean of a TRUE/FALSE vector; restrict it to the big homes by subsetting in_cqr with the big flag: mean(in_cqr[big]).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">big_coverage &lt;- mean(in_cqr[big])
+round(big_coverage, 3)
+#&gt; [1] 0.901</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What did CQR change?</h2>
+
+<p>Constant-width split conformal and CQR both delivered about 90% coverage <em>overall</em> on Rohan's homes. What did switching to CQR actually buy?</p>
+<section class="exercise" data-exercise-id="Conformal-Prediction-for-Classification-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A higher overall coverage guarantee; CQR promises more than 90% where split conformal promised 90%</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A width that adapts to each home, so coverage is near 90% <em>within</em> subgroups instead of only on average</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A guarantee that no longer needs a held-out calibration set</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The constant width gave 79.5% on big homes and 97.9% on small; CQR's per-home width brought both to about 90%. Same marginal promise, far better conditional behaviour.</div><div class="lesson-qfb lesson-qfb-no">CQR still calibrates on held-out scores exactly as split conformal did; that held-out set is what makes the coverage a guarantee. CQR only changes the <em>score</em> (distance outside a quantile band) and therefore the <em>shape</em> of the band.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The bridge</div>
+<h2>The same idea, aimed at classification</h2>
+
+<p>Step back and notice what CQR really did. The constant width failed because it promised coverage <em>on average</em> while starving a subgroup. CQR fixed it by making the band adapt to how uncertain the model was about each home.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The deep principle is: <strong>calibrate where you are unsure.</strong> Give more room exactly where the model hesitates, and coverage stops being a lucky average and starts holding everywhere. Holding it <em>within groups</em> rather than only on average has a name, Mondrian (class-conditional) conformal, and we will use it by the end of this lesson.</div></div>
+
+<p>Now the surprising part. Everything so far has been a numeric interval. But the same machinery, a held-out nonconformity score and a single conformal quantile, works when the answer is not a number at all but a <strong>category</strong>. There, the interval becomes a <strong>set of labels</strong>: instead of forcing one guess, the model returns every label that is plausible, and the set grows precisely when the model is unsure. That is conformal prediction for classification, and it is where the rest of the lesson lives.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">A classification problem</div>
+<h2>Rohan's new job: tag each listing by type</h2>
+
+<p>Rohan wants to auto-tag every incoming listing as a <strong>condo</strong>, a <strong>townhouse</strong>, or a <strong>detached</strong> house, from just its size and a neighbourhood desirability score (<code>loc</code>, from 0 to 10). The three types cluster: condos are small, townhouses mid-sized, detached homes large, but they <em>overlap</em>, so a 1,500 sq ft home could honestly be either a big condo or a small townhouse. That overlap is where a single-label guess becomes a lie, and where a prediction set earns its keep.</p>
+
+<p>We build the three overlapping types inline, then split into the same three roles as before: train, calibrate, test.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+condo &lt;- data.frame(sqft = round(rnorm(700,  950, 312)), loc = round(rnorm(700, 4.5, 2.34), 1), type = &quot;condo&quot;)
+town  &lt;- data.frame(sqft = round(rnorm(700, 1750, 390)), loc = round(rnorm(700, 5.5, 2.34), 1), type = &quot;townhouse&quot;)
+det   &lt;- data.frame(sqft = round(rnorm(700, 2650, 442)), loc = round(rnorm(700, 6.8, 2.34), 1), type = &quot;detached&quot;)
+listings &lt;- rbind(condo, town, det)
+listings$sqft &lt;- pmax(400, listings$sqft)
+listings$loc  &lt;- pmin(10, pmax(0, listings$loc))
+listings$type &lt;- factor(listings$type, levels = c(&quot;condo&quot;, &quot;townhouse&quot;, &quot;detached&quot;))
+listings &lt;- listings[sample(nrow(listings)), ]   # shuffle so the three slices stay exchangeable
+tr  &lt;- listings[1:700, ]      # train the classifier
+cal &lt;- listings[701:1400, ]   # calibrate
+tst &lt;- listings[1401:2100, ]  # test
+table(tr$type)
+#&gt;
+#&gt;     condo townhouse  detached
+#&gt;       232       232       236</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now fit a classifier that outputs a probability for each type. Multinomial logistic regression (the <code>multinom</code> function in <code>nnet</code>) is the three-class cousin of ordinary logistic regression: for each listing it returns three numbers that sum to 1, its confidence in condo, townhouse and detached.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(nnet)
+clf    &lt;- multinom(type ~ sqft + loc, data = tr, trace = FALSE)   # 3-class logistic
+P_cal  &lt;- predict(clf, cal, type = &quot;probs&quot;)    # one probability per class, per listing
+P_test &lt;- predict(clf, tst, type = &quot;probs&quot;)
+round(head(P_test, 3), 2)
+#&gt;      condo townhouse detached
+#&gt; 495   0.96      0.04     0.00
+#&gt; 1545  0.00      0.01     0.99
+#&gt; 331   0.99      0.01     0.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is a listing; each number is the model's confidence in that type. These first three are easy calls (one class near 1). The interesting listings are the ones split between two types, and those are what a prediction set is for.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Scoring a classifier</div>
+<h2>How little did the model give the truth?</h2>
+
+<p>To turn these probabilities into a guaranteed set, we need a nonconformity score, a number that is small when the model was right and confident, and large when it was wrong or unsure. The simplest such score, and the one we will use, is direct: <strong>one minus the probability the model gave the <em>true</em> class.</strong></p>
+
+<p>\[ s_i = 1 - \hat p\bigl(y_i \mid x_i\bigr) \]</p>
+
+<p>Here \(y_i\) is listing \(i\)'s actual type, \(x_i\) is its features, and \(\hat p(y_i \mid x_i)\) is the probability the model assigned to that correct type. If the model gave the true type 0.98, the score is a tiny 0.02: it nailed it. If it gave the true type only 0.30, the score is 0.70: it was badly unsure. Watch it on a single calibration listing before we do all of them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">classes &lt;- c(&quot;condo&quot;, &quot;townhouse&quot;, &quot;detached&quot;)
+row1    &lt;- P_cal[1, ]                    # the first calibration listing's class probabilities
+true1   &lt;- as.character(cal$type[1])     # its actual type
+cat(&quot;true type:&quot;, true1,
+    &quot;\nprob the model gave that type:&quot;, round(row1[[true1]], 2),
+    &quot;\nnonconformity score (1 - that prob):&quot;, round(1 - row1[[true1]], 2), &quot;\n&quot;)
+#&gt; true type: detached
+#&gt; prob the model gave that type: 0.62
+#&gt; nonconformity score (1 - that prob): 0.38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This listing was truly detached, but the model was only 62% sure of that, so its nonconformity score is 0.38, a middling miss. A confident, correct listing would score near 0; a badly confused one near 1.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The threshold</div>
+<h2>From the conformal quantile to a probability cut-off</h2>
+
+<p>Now the Lesson 2 move, unchanged. Score every calibration listing, then take the conformal quantile of those scores. That quantile \(\hat q\) answers: "on held-out listings, 90% of the time the model gave the true class at least <em>how much</em> probability short of certainty?"</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">truth  &lt;- as.character(cal$type)
+p_true &lt;- P_cal[cbind(1:nrow(cal), match(truth, classes))]   # prob each listing gave ITS OWN class
+scores &lt;- 1 - p_true
+alpha  &lt;- 0.10
+k      &lt;- ceiling((nrow(cal) + 1) * (1 - alpha))
+qhat_c &lt;- sort(scores)[k]
+threshold &lt;- 1 - qhat_c
+round(c(k = k, qhat = qhat_c, threshold = threshold), 3)
+#&gt;         k      qhat threshold
+#&gt;   631.000     0.690     0.310</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The conformal quantile of the scores is \(\hat q = 0.69\). Subtract it from 1 and you get a <strong>probability threshold</strong> of 0.31. This flips the score into a simple, beautiful rule for building the set:</p>
+
+<p>\[ C(x) = \bigl\{\, c : \hat p(c \mid x) \ge 1 - \hat q \,\bigr\} \]</p>
+
+<p>In words: <strong>the prediction set is every class the model gave at least 0.31 probability.</strong> A class clears the bar, it is in the set; it does not, it is out. That single threshold, learned from held-out data, is what makes the set's coverage a guarantee.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Show it</div>
+<h2>Watch the set grow</h2>
+
+<p>A rule is abstract; let us see it act on two real test listings, a confident one and a torn one. The set is just the classes whose probability clears our 0.31 threshold.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_set &lt;- function(prob_row, thr) classes[prob_row &gt;= thr]   # keep every class above the line
+
+round(P_test[which.max(apply(P_test, 1, max)), ], 2)   # the most confident listing
+#&gt;     condo townhouse  detached
+#&gt;         0         0         1
+pred_set(P_test[which.max(apply(P_test, 1, max)), ], threshold)
+#&gt; [1] &quot;detached&quot;
+
+round(P_test[which.min(apply(P_test, 1, max)), ], 2)   # the least confident listing
+#&gt;     condo townhouse  detached
+#&gt;      0.49      0.50      0.01
+pred_set(P_test[which.min(apply(P_test, 1, max)), ], threshold)
+#&gt; [1] &quot;condo&quot;     &quot;townhouse&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is the whole point of the lesson in six lines. The confident listing (all its mass on detached) gets a <strong>set of one</strong>: <code>{detached}</code>, a clean single answer. The torn listing, split 49/50 between condo and townhouse, gets a <strong>set of two</strong>: <code>{condo, townhouse}</code>, honestly reporting that it could be either and refusing to fake a decision. The set size <em>is</em> the model's uncertainty, made visible.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">Measure it</div>
+<h2>Coverage and set size</h2>
+
+<p>Two numbers judge a set predictor. <strong>Coverage</strong> is how often the true class is inside the set (it should be at least our 90%). <strong>Average set size</strong> is how big the sets are (smaller is more useful, as long as coverage holds). Compute both on the test listings.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sets    &lt;- lapply(1:nrow(tst), function(i) pred_set(P_test[i, ], threshold))
+covered &lt;- mapply(function(i) as.character(tst$type[i]) %in% sets[[i]], 1:nrow(tst))
+round(c(coverage = mean(covered), avg_set_size = mean(lengths(sets))), 3)
+#&gt;     coverage avg_set_size
+#&gt;        0.900        1.217</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Exactly the 90% we asked for, delivered on fresh listings, with an average set size of just 1.22, so most answers are a single confident label and only a minority hedge. The split makes that concrete:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(lengths(sets))
+#&gt;
+#&gt;   1   2
+#&gt; 548 152</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Of 700 test listings, <strong>548 got a single-label answer</strong> and <strong>152 got a two-label set</strong>. No listing needed all three. The method spends its uncertainty budget precisely where the types overlap, and nowhere else.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>How often did the model hedge?</h2>
+
+<p>A size-2 set is the model hedging between two plausible types instead of committing to one. Using <code>sets</code> (the list of prediction sets you just built), compute the <strong>fraction of listings that got a size-2 set</strong>, then run it. <code>lengths(sets)</code> gives each set's size.</p>
+<section class="exercise" data-exercise-id="Conformal-Prediction-for-Classification-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mean\(\s*lengths\(\s*sets\s*\)\s*==\s*2\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">hedge_rate &lt;- ____   # fraction of listings whose set has exactly 2 labels
+round(hedge_rate, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">0.217. About one listing in five sits close enough to a type boundary that the model honestly hedges between two. lengths(sets) == 2 is a TRUE/FALSE vector, and its mean is the fraction that are TRUE: mean(lengths(sets) == 2).</span><span class="lesson-tryit-fb lesson-tryit-no">lengths(sets) == 2 gives a TRUE/FALSE vector (was this set size 2 or not); the fraction that are TRUE is its mean: mean(lengths(sets) == 2).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">hedge_rate &lt;- mean(lengths(sets) == 2)
+round(hedge_rate, 3)
+#&gt; [1] 0.217</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">The familiar trap</div>
+<h2>Does 90% hold for every type?</h2>
+
+<p>That 90% coverage is an average over all listings, and Lesson 2 taught us the hard way never to trust an average without breaking it apart. The big homes were the subgroup that a marginal guarantee starved before. Here the natural subgroups are the <strong>three types</strong>. Check coverage within each.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(tapply(covered, tst$type, mean), 3)
+#&gt;     condo townhouse  detached
+#&gt;     0.926     0.864     0.908</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same crack, in a new shape. Condos and detached homes are covered above 90%, but <strong>townhouses, the overlapping middle type, come in at only 86.4%.</strong> The threshold was tuned on the <em>pooled</em> scores, and because townhouses are the hardest type to call (they blur into both neighbours), a single global threshold under-serves them. The overall 90% is again an average hiding a subgroup left behind.</p>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix, generalized</div>
+<h2>Mondrian: calibrate within each class</h2>
+
+<p>This is the promise from the bridge, cashed in. Instead of one threshold from the pooled scores, compute a <strong>separate conformal quantile for each class</strong>, using only that class's calibration listings. This is <strong>class-conditional</strong>, or <strong>Mondrian</strong>, conformal prediction: it guarantees coverage <em>within</em> each class, not just on average.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qhat_by_class &lt;- sapply(classes, function(cl) {
+  s &lt;- scores[truth == cl]                       # calibration scores for THIS class only
+  sort(s)[ceiling((length(s) + 1) * (1 - alpha))]
+})
+round(qhat_by_class, 3)
+#&gt;     condo townhouse  detached
+#&gt;     0.581     0.757     0.678</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read those numbers: townhouse gets the largest quantile, 0.757, so its threshold (\(1 - \hat q\)) is the <em>lowest</em>, meaning classes are admitted into a townhouse-containing set more readily, widening exactly the sets that were starving that class. Now include class \(c\) whenever its probability clears <em>its own</em> threshold, and re-check per-class coverage.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">thr_by_class &lt;- 1 - qhat_by_class
+pred_set_cc  &lt;- function(prob_row) classes[prob_row &gt;= thr_by_class]
+sets_cc    &lt;- lapply(1:nrow(tst), function(i) pred_set_cc(P_test[i, ]))
+covered_cc &lt;- mapply(function(i) as.character(tst$type[i]) %in% sets_cc[[i]], 1:nrow(tst))
+round(tapply(covered_cc, tst$type, mean), 3)
+#&gt;     condo townhouse  detached
+#&gt;     0.905     0.895     0.896</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three types now sit right around 90%, townhouses lifted from 86.4% to <strong>89.5%</strong>. This is the exact same move that CQR made for the big homes, expressed for classes: stop promising an average, and guarantee coverage inside every group. The cost, as always, is slightly larger sets for the hard class, which is simply honesty about where the model struggles.</p>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Sets, sizes, and subgroups</h2>
+
+<p>You built a conformal classifier that returned <code>{condo, townhouse}</code> for one listing and <code>{detached}</code> for another, covered 90% overall, but only 86% of townhouses until you switched to class-conditional thresholds. Which statement is exactly right?</p>
+<section class="exercise" data-exercise-id="Conformal-Prediction-for-Classification-step16" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A two-label set like {condo, townhouse} means the model made an error that a single-label prediction would have avoided</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The townhouse shortfall means conformal prediction failed and its guarantee cannot be trusted</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Set size tracks the model's uncertainty, and calibrating a separate threshold per class restores ~90% coverage within each class at the cost of slightly larger sets for the hard class</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Confident listings get singletons, torn ones grow to two, and Mondrian calibration lifts the starved townhouse class back to target by giving it its own (lower) threshold, paid for in slightly wider sets there.</div><div class="lesson-qfb lesson-qfb-no">The marginal guarantee held perfectly: overall coverage was 90%. Per-class shortfall is the <em>marginal-versus-conditional</em> gap from Lesson 2, not a broken method, and class-conditional (Mondrian) calibration fixes it on purpose.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know your tool</div>
+<h2>Honest limits, and where to go next</h2>
+
+<p>Conformal classification is powerful, but it is not magic, and knowing its edges is what makes you trustworthy with it.</p>
+
+<ul>
+
+<li><strong>Exchangeability is still the load-bearing assumption.</strong> As in Lesson 2, the guarantee holds only if new listings are drawn like the calibration listings. A shift in the market (a new neighbourhood, a new year) can break coverage silently.</li>
+
+<li><strong>A set can be empty or full.</strong> If no class clears the threshold, the set is empty (the model is uniformly unsure and refusing to guess); if the classes are near-tied, it can hold all of them. Both are information, not bugs.</li>
+
+<li><strong>Adaptivity trades size for fairness.</strong> Class-conditional coverage lifts the weak class by enlarging its sets. There is no free lunch: honesty about a hard class costs a little decisiveness there.</li>
+
+<li><strong>The score is a choice.</strong> We used \(1 - \hat p(\text{true class})\) (the LAC, or least-ambiguous-set, method). A popular alternative, <strong>APS (Adaptive Prediction Sets)</strong>, accumulates sorted probabilities instead, trading slightly larger sets for even coverage across easy and hard inputs. The framework is identical; only the score changes.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="18" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://arxiv.org/abs/1905.03222">Romano, Patterson and Candes (2019), Conformalized Quantile Regression, NeurIPS</a> - the CQR method from the first half of this lesson, with its coverage proof.</li>
+
+<li><a href="https://arxiv.org/abs/1609.00451">Sadinle, Lei and Wasserman (2019), Least Ambiguous Set-Valued Classifiers with Bounded Error Levels, JASA</a> - the exact classification score (\(1 - \hat p\)) and set rule you built here.</li>
+
+<li><a href="https://arxiv.org/abs/2006.02544">Romano, Sesia and Candes (2020), Classification with Valid and Adaptive Coverage, NeurIPS</a> - the APS refinement mentioned above, for adaptive-size prediction sets.</li>
+
+<li><a href="https://arxiv.org/abs/2107.07511">Angelopoulos and Bates (2023), A Gentle Introduction to Conformal Prediction</a> - the modern primer; classification sets and Mondrian coverage worked slowly and in plain language.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="19" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You made conformal prediction <em>adapt</em>, twice. In regression, conformalized quantile regression replaced one rigid half-width with a band whose edges follow the data, lifting the starved big homes from 79.5% to 90% coverage while keeping the distribution-free guarantee. Then you carried the same held-out-score-and-quantile machinery across to classification, where the interval becomes a <strong>prediction set</strong>: score each listing by \(1 - \hat p(\text{true class})\), take the conformal quantile, and keep every class above the resulting threshold. Confident listings got clean singletons, genuinely ambiguous ones grew to two-label sets, and coverage held at 90% overall. Finally you met the marginal-versus-conditional gap once more, and closed it with <strong>class-conditional (Mondrian)</strong> calibration, a private threshold per class that rescued the under-covered townhouses.</p>
+
+<p>Next, Lesson 4: Quantile and Distributional Regression. You leaned on quantile regression here as a tool; now you will study it in its own right, fitting conditional quantiles directly by minimizing the pinball loss, to model not just the average outcome but its whole spread, the natural next step in describing uncertainty honestly.</p>
+</section>
+
+{% endraw %}

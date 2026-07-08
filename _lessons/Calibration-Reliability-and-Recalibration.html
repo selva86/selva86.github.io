@@ -1,0 +1,514 @@
+---
+title: "Uncertainty Quantification Lesson 5: Calibration, Reliability and Recalibration"
+description: "Calibration in R: read a reliability diagram, measure miscalibration with ECE and the Brier score, then recalibrate with Platt scaling and isotonic regression."
+keywords: "calibration, reliability diagram, expected calibration error, ECE, Brier score, Platt scaling, isotonic regression, probability calibration, recalibration, over-confident model, discrimination vs calibration, uncertainty quantification, R"
+mathjax: true
+webr: true
+curriculum_id: "6.210.5"
+post_type: "LESSON"
+course_id: "ds-uncertainty"
+course_title: "Uncertainty Quantification in R"
+course_lesson: "5"
+course_total: "7"
+course_landing: "R-Uncertainty-Course.html"
+course_next: "The-Bootstrap-and-Jackknife-Plus.html"
+course_prev: "Quantile-and-Distributional-Regression.html"
+lesson_access: "pro"
+catalog_blurb: "Test whether a predicted probability is honest, and fix it when it is not."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 7</div>
+<h2>Calibration, Reliability and Recalibration</h2>
+
+<p>For four lessons you have been building things that report a number and asking it to be honest: a prediction interval that really covers 90% of the time, a quantile band whose width breathes with the data. Every one of those promises rested on a probability meaning what it says. This lesson finally puts that assumption on trial.</p>
+
+<p>Meet Nadia. She built the rain model behind a bike-courier app: every morning it gives each neighborhood a probability of rain, and the dispatcher pays for extra rain-gear couriers wherever that number tops 0.6. So the number is not decoration, it spends real money. If the model says "0.90 chance of rain" on mornings when it actually rains only about eight times in ten, Nadia is over-provisioning gear she did not need. Her model is good at <em>ranking</em> the wet mornings above the dry ones, and yet its probabilities can still be lies. Telling those two things apart, and repairing the second without touching the first, is the whole lesson.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Say exactly what a <em>calibrated</em> probability is, and read a reliability diagram to spot an over-confident or under-confident model</li>
+
+<li>Put a single number on miscalibration with the expected calibration error and the Brier score, in R</li>
+
+<li>Recalibrate a model with Platt scaling and isotonic regression, on a held-out set, and prove the fix worked while its ranking power stayed identical</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> <a href="Prediction-Intervals-You-Can-Trust.html">Lessons 1 to 4</a> of this course (prediction intervals, coverage, and the held-out-split idea you met in conformal). Base R: <code>glm()</code>, <code>plogis()</code>/<code>qlogis()</code>, <code>predict()</code>, logical indexing, and writing a small function. Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="calibration-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where we left off</div>
+<h2>A predicted probability is a promise</h2>
+
+<p>In Lesson 4 you priced Rohan's homes, a number outcome, and asked whether an interval covered it. Nadia's world is different in one way that changes everything: her outcome is a yes/no event (did it rain?), and her model reports a <em>probability</em>. There is no interval to check. Instead there is a subtler promise to keep.</p>
+
+<p>A probability is <strong>calibrated</strong> when it matches long-run reality. Take every morning where the model said "0.70 chance of rain." If it truly rained on about 70% of those mornings, the 0.70 was honest. If it rained on only 55% of them, the model was over-confident: it said 0.70 but the world delivered 0.55. Calibration is that simple, and that demanding, promise: <em>of all the times you say q, a fraction q should come true.</em></p>
+
+<p>Let us build Nadia's world so we can test it. Each lesson runs in a fresh R session, so we create the data right here (run this once). We simulate an honest rain chance from the morning's humidity, draw whether it actually rained, and then, crucially, give the model a score that <strong>ranks mornings correctly but is too extreme</strong>, the single most common way real models (boosted trees, neural nets, naive Bayes) go wrong.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+n        &lt;- 4000
+humidity &lt;- runif(n, 0, 1)                    # 0 = bone dry air, 1 = saturated
+true_lo  &lt;- -0.3 + 4.6 * (humidity - 0.5)     # the honest log-odds of rain
+true_p   &lt;- plogis(true_lo)                    # the honest probability
+rain     &lt;- rbinom(n, 1, true_p)               # did it actually rain? 1 = yes
+
+# Nadia's model: SAME ranking as the truth, but over-confident (log-odds stretched 1.6x)
+model_p  &lt;- plogis(1.6 * true_lo)
+
+dat  &lt;- data.frame(humidity, model_p, rain)
+cal  &lt;- dat[1:2000, ]     # a held-out CALIBRATION set (we will need it later)
+test &lt;- dat[2001:4000, ]  # a separate set for honest scoring
+round(range(model_p), 3)
+#&gt; [1] 0.015 0.961
+c(base_rate = round(mean(test$rain), 3))
+#&gt; base_rate
+#&gt;     0.456</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model issues the full range of confidences, from 0.015 to 0.961, and it rains on about 46% of test mornings overall. Stretching the log-odds by 1.6 keeps the <em>order</em> of the mornings exactly as the truth had it (a bigger honest chance is still a bigger score), so the model ranks perfectly well. What it breaks is the <em>values</em>: high scores are pushed too high and low scores too low. Now we need a way to see that.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<div class="lesson-step-eyebrow">The picture</div>
+<h2>What a reliability diagram shows</h2>
+
+<p>To check the promise you cannot look at one prediction, a single "0.70" morning either rained or did not. You have to gather all the mornings with a similar prediction and ask what fraction of <em>them</em> rained. That is a <strong>reliability diagram</strong>: chop the predictions into bins (0 to 0.1, 0.1 to 0.2, and so on), and for each bin plot the mean predicted probability on the x-axis against the observed frequency of rain on the y-axis.</p>
+
+<p>A perfectly calibrated model lands every point on the 45-degree diagonal, because in each bin the predicted probability equals the observed frequency. Formally, calibration is the statement</p>
+
+<p>\[ \mathbb{P}\!\left(Y = 1 \;\middle|\; \hat p = q\right) \;=\; q \qquad \text{for every } q, \]</p>
+
+<p>read as: among all cases the model assigns probability \(q\) (here \(\hat p\) is the model's predicted probability and \(Y\) is the 0/1 outcome), the fraction that turn out positive is exactly \(q\). When a model strays off the diagonal it does so in one of two ways. Drag the slider below from <strong>over-confident</strong> to <strong>under-confident</strong> and watch the curve bow:</p>
+
+<ul>
+
+<li><strong>Over-confident</strong> (the curve bows below the diagonal on the right, above it on the left): the model exaggerates, pushing predictions toward 0 and 1, so its high claims overstate the true chance and its low claims understate it. This is Nadia's model.</li>
+
+<li><strong>Under-confident</strong> (the curve bows the other way): the model hedges toward the middle, so a stated 0.70 actually happens more than 70% of the time.</li>
+
+</ul>
+
+<p>The runnable panel beside the chart fits a real logistic model, bins its predictions, and draws this exact curve. Next we draw it for Nadia.</p>
+<div class="lesson-widget" data-widget-type="calibration-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Read Nadia's reliability curve</h2>
+
+<p>Let us compute the diagram for the raw model on the test set. We write one small helper that bins the predictions and, for each bin, returns the mean prediction, the observed rain frequency, and the bin's size.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reliability &lt;- function(p, y, bins = 10) {
+  cut_pts &lt;- seq(0, 1, length.out = bins + 1)
+  b       &lt;- cut(p, cut_pts, include.lowest = TRUE)   # which bin each prediction falls in
+  data.frame(
+    predicted = tapply(p, b, mean),   # mean predicted probability in the bin
+    observed  = tapply(y, b, mean),   # fraction that actually rained
+    n         = tapply(y, b, length)) # how many mornings in the bin
+}
+rel &lt;- reliability(test$model_p, test$rain)
+round(rel, 3)
+#&gt;           predicted observed   n
+#&gt; [0,0.1]       0.048    0.092 532
+#&gt; (0.1,0.2]     0.148    0.307 218
+#&gt; (0.2,0.3]     0.249    0.365 137
+#&gt; (0.3,0.4]     0.349    0.460 124
+#&gt; (0.4,0.5]     0.454    0.500 126
+#&gt; (0.5,0.6]     0.552    0.590 117
+#&gt; (0.6,0.7]     0.650    0.610 136
+#&gt; (0.7,0.8]     0.754    0.623 167
+#&gt; (0.8,0.9]     0.854    0.770 200
+#&gt; (0.9,1]       0.935    0.885 243</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two columns against each other. Down in the <code>[0,0.1]</code> bin the model predicted 0.048 but 0.092 of those mornings rained: it was <em>too low</em>. Up in the <code>(0.7,0.8]</code> bin it predicted 0.754 but only 0.623 rained: <em>too high</em>. Low predictions understate, high predictions overstate, exactly the over-confident signature. Plotting <code>predicted</code> against <code>observed</code> makes the bow obvious against the diagonal:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(rel$predicted, rel$observed, type = &quot;b&quot;, pch = 19, col = &quot;#1a73e8&quot;,
+     xlim = 0:1, ylim = 0:1,
+     xlab = &quot;mean predicted probability&quot;, ylab = &quot;observed rain frequency&quot;,
+     main = &quot;Reliability: Nadia's raw model&quot;)
+abline(0, 1, lty = 2)              # the diagonal = perfect calibration</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it. The line sits above the diagonal on the left and dips below it on the right, sagging away from the honest 45 degrees precisely where Nadia's dispatcher is spending money.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Over-confident or under-confident?</h2>
+
+<p>In the <code>(0.7,0.8]</code> bin, Nadia's model predicted an average of <strong>0.754</strong> but only <strong>0.623</strong> of those mornings actually rained. On mornings the model calls high, is it over-confident or under-confident, and what does that mean for the dispatcher's "gear if above 0.6" rule?</p>
+<section class="exercise" data-exercise-id="Calibration-Reliability-and-Recalibration-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Over-confident: its high claims overstate the true chance, so the dispatcher orders rain gear on more mornings than really need it</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Under-confident: 0.623 is still a high number, so the model is hedging and should be pushed even higher</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither: a gap of about 0.13 is too small to call, the model is essentially calibrated here</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Predicted 0.75 but observed 0.62 means the model exaggerates on the high end, so a "0.7 chance" morning rains less often than promised, and the app over-provisions.</div><div class="lesson-qfb lesson-qfb-no">A systematic 0.13 overstatement across a bin of 167 mornings is exactly the miscalibration we are hunting, and it repeats in every high bin. It is a real, spendable error, not noise.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Put a number on it</div>
+<h2>Expected calibration error, and the Brier score</h2>
+
+<p>Eyeballing a curve is a start, but Nadia needs a single number to track. The <strong>expected calibration error</strong> (ECE) is the natural one: the average gap between predicted and observed across the bins, weighted by how many predictions land in each bin. With \(B\) bins, bin \(b\) holding \(n_b\) of the \(n\) predictions,</p>
+
+<p>\[ \text{ECE} \;=\; \sum_{b=1}^{B} \frac{n_b}{n}\,\bigl|\, \text{obs}_b - \text{pred}_b \,\bigr|, \]</p>
+
+<p>where \(\text{pred}_b\) is the mean predicted probability in bin \(b\) and \(\text{obs}_b\) is the observed frequency there. It is 0 for a perfectly calibrated model and grows as the curve pulls away from the diagonal. We already have every piece in <code>reliability()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ece &lt;- function(p, y, bins = 10) {
+  r &lt;- reliability(p, y, bins)
+  r &lt;- r[!is.na(r$observed), ]                 # drop any empty bin
+  sum(r$n / sum(r$n) * abs(r$observed - r$predicted))
+}
+round(ece(test$model_p, test$rain), 4)
+#&gt; [1] 0.0771</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An ECE of 0.077 means Nadia's stated probabilities are off by about 8 percentage points on average, weighted across the mornings, a lot when each point of that error is dispatch money. A second, complementary number is the <strong>Brier score</strong>, the mean squared distance between the predicted probability and the 0/1 outcome:</p>
+
+<p>\[ \text{Brier} \;=\; \frac{1}{n}\sum_{i=1}^{n} \left(\hat p_i - y_i\right)^2 . \]</p>
+
+<p>Where ECE only asks whether the probabilities are honest <em>on average within a bin</em>, the Brier score is a <strong>proper scoring rule</strong>: it rewards being both honest and confident in the right places, and it is minimized only by the true probabilities. Lower is better on both.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">brier &lt;- function(p, y) mean((p - y)^2)
+round(brier(test$model_p, test$rain), 4)
+#&gt; [1] 0.1799</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hold onto 0.0771 and 0.1799. They are the "before" that recalibration has to beat.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Measure the over-confidence where it costs money</h2>
+
+<p>The dispatcher acts on mornings the model rates above 0.6. So the number that matters to Nadia is concrete: of exactly those mornings, what fraction actually rained? <code>test$rain</code> is 1 for a rainy morning, and <code>test$model_p</code> is the model's claim. Fill in the blank to compute the observed rain frequency among the mornings the model rated above 0.6.</p>
+<section class="exercise" data-exercise-id="Calibration-Reliability-and-Recalibration-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="mean\(\s*test\$rain\[\s*test\$model_p\s*&gt;\s*0\.6\s*\]\s*\)"><textarea class="lesson-tryit-input" spellcheck="false"># fraction of ACTUALLY rainy mornings, among those the model rated &gt; 0.6
+obs_high &lt;- ____
+round(obs_high, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">0.745. The model averaged a claim near 0.82 on those same mornings, so it overstated the chance by about 8 points on exactly the days the dispatcher spends. Coverage of a subset is the mean of a TRUE/FALSE vector restricted to it: mean(test$rain[test$model_p > 0.6]).</span><span class="lesson-tryit-fb lesson-tryit-no">You want the mean of the 0/1 rain outcome, restricted to the high-confidence mornings. Subset test$rain by the condition test$model_p > 0.6, then take its mean: mean(test$rain[test$model_p > 0.6]).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">obs_high &lt;- mean(test$rain[test$model_p &gt; 0.6])
+round(obs_high, 3)
+#&gt; [1] 0.745</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>Why a great AUC does not save you</h2>
+
+<p>Here is where most people go wrong. Nadia's model is genuinely <em>good</em> at telling wet mornings from dry ones. The standard measure of that skill is the <strong>AUC</strong> (area under the ROC curve): the probability that a randomly chosen rainy morning is scored higher than a randomly chosen dry one. A tiny base-R computation gives it via ranks:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auc &lt;- function(p, y) {
+  n1 &lt;- sum(y == 1); n0 &lt;- sum(y == 0)
+  r  &lt;- rank(p)                                   # rank the scores, ties averaged
+  (sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0)
+}
+round(auc(test$model_p, test$rain), 4)
+#&gt; [1] 0.8174</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.82 is a solidly discriminating model. And yet we just saw it is badly miscalibrated. How can both be true? Because <strong>AUC only reads the ranking</strong>. It asks whether wet mornings score higher than dry ones, never whether the scores equal the right probabilities. Squash, stretch, or bend the scores any way you like, as long as the <em>order</em> is preserved the AUC does not move a hair. That is exactly why over-confidence is invisible to it: stretching the log-odds by 1.6 kept the order intact.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Discrimination</strong> (does the model rank cases correctly? measured by AUC or accuracy) and <strong>calibration</strong> (do the probabilities match reality? measured by ECE or Brier) are <em>different goals</em>. A model can ace one and fail the other. To see the two come apart completely, look at a model that predicts the base rate, the overall rain frequency, for every single morning:</div></div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">base_p &lt;- rep(mean(cal$rain), nrow(test))         # same number for everyone
+c(ECE = round(ece(base_p, test$rain), 4),
+  AUC = round(auc(base_p, test$rain), 4))
+#&gt;    ECE    AUC
+#&gt; 0.0085 0.5000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This lazy model is <em>beautifully</em> calibrated (ECE near 0: on average it states the true rain rate) and <em>completely</em> useless (AUC 0.5: it cannot tell any morning from any other). Calibration without discrimination is worthless, and, as Nadia's model shows, discrimination without calibration is dangerous. You want both, and AUC will never tell you about the second one.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Is a high AUC enough?</h2>
+
+<p>A teammate ships a churn model with <strong>AUC 0.91</strong> and says: "the AUC is excellent, so the predicted probabilities are trustworthy, we can act on the numbers directly." Its reliability curve, though, bows well below the diagonal on the high end. Who is right?</p>
+<section class="exercise" data-exercise-id="Calibration-Reliability-and-Recalibration-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The teammate is right: an AUC of 0.91 is high enough that the probabilities must be close to correct</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The teammate is wrong: AUC certifies the ranking, but the bowing curve shows the probabilities themselves are miscalibrated, so acting on their values (thresholds, expected costs) will misfire</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The teammate is wrong, but only because AUC above 0.9 is impossible in practice, so the number must be an error</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Discrimination and calibration are separate. A high AUC guarantees good ordering, nothing about whether "0.8" means 0.8. Before trusting the values, check and if needed fix calibration.</div><div class="lesson-qfb lesson-qfb-no">AUC of 0.91 is perfectly achievable. The real issue is not the AUC value, it is that AUC cannot see calibration at all, so a high one does not license trusting the probabilities.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Recalibration, and the golden rule of a held-out set</h2>
+
+<p>Good news: because the ranking is already fine, we do not need a new model. We only need to <em>relabel</em> the scores, learning a function that maps each raw score to the probability that actually holds there. Since the ranking must be preserved (we do not want to undo the discrimination we have), that function must be <strong>monotone</strong>: it may stretch and bend the scores but never reorder them. Learn a good monotone map and the curve snaps back onto the diagonal while the AUC stays put. That relabeling is <strong>recalibration</strong>.</p>
+
+<p>There is one non-negotiable rule about <em>where</em> you learn it. You must fit the calibration map on a <strong>held-out calibration set</strong>: data the model did not train on and that you will not use to report the final score. Fit it on the model's own training data and the map learns the model's memorized quirks, reporting rosy calibration that evaporates on new mornings, the same leakage trap that made us split off a calibration set for conformal in Lessons 2 and 3. That is exactly why we carved out <code>cal</code> back at the start.</p>
+
+<p>Two classic ways to learn that map follow: a parametric one (Platt) and a nonparametric one (isotonic).</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split off a calibration set","sub":"held-out rows the model never trained on"},{"title":"Fit the calibrator on it","sub":"learn a monotone map from raw score to honest probability"},{"title":"Apply it, then score on a separate test set","sub":"so the reported calibration is honest, not leaked"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Method 1</div>
+<h2>Platt scaling: a logistic recalibration</h2>
+
+<p><strong>Platt scaling</strong> assumes the fix has a simple shape: a logistic (S-shaped) squashing of the model's log-odds. You fit an ordinary logistic regression whose single predictor is the model's own score on the log-odds scale, and whose response is the true outcome. Writing \(s\) for a raw score and \(\sigma(z) = 1/(1+e^{-z})\) for the logistic function, the calibrated probability is</p>
+
+<p>\[ g(s) \;=\; \sigma\!\left(a + b\,\operatorname{logit}(s)\right), \qquad \operatorname{logit}(s) = \log\frac{s}{1-s}, \]</p>
+
+<p>and the intercept \(a\) and slope \(b\) are fit by logistic regression on the calibration set. The slope \(b\) is the key: our model over-stretched the log-odds by 1.6, so a slope near \(1/1.6 \approx 0.63\) would exactly undo it. Let us fit it and see.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cal$logodds &lt;- qlogis(cal$model_p)                       # the model's score as log-odds
+platt &lt;- glm(rain ~ logodds, data = cal, family = binomial)
+round(coef(platt), 3)
+#&gt; (Intercept)     logodds
+#&gt;       0.065       0.577</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted slope is 0.58, close to the 0.63 that would perfectly reverse the 1.6x stretch (not exact, because the calibrator learns from noisy 0/1 rain, not the hidden true probabilities, an honest limit of any calibration). A slope below 1 shrinks the over-confident log-odds back toward the middle. Apply it to the test set and look at one headline morning, the model's most confident "0.90 chance of rain":</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">test$platt_p &lt;- predict(platt, newdata = data.frame(logodds = qlogis(test$model_p)),
+                        type = &quot;response&quot;)
+round(ece(test$platt_p, test$rain), 4)
+#&gt; [1] 0.032
+round(predict(platt, newdata = data.frame(logodds = qlogis(0.90)), type = &quot;response&quot;), 3)
+#&gt;     1
+#&gt; 0.791</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ECE fell from 0.077 to 0.032, less than half. And Platt now reports that a raw "0.90" morning really carries about a <strong>0.79</strong> chance of rain, honest arithmetic Nadia's dispatcher can finally trust.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>What the fix does to the decision</h2>
+
+<p>Recalibration is not an academic tidy-up, it changes what the app <em>does</em>. The raw model flagged <strong>746</strong> of the 2000 test mornings as "gear needed" (probability above 0.6). Now that Platt has pulled the over-confident high scores down toward the truth, how many mornings clear the same 0.6 line? <code>test$platt_p</code> holds the calibrated probabilities. Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Calibration-Reliability-and-Recalibration-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="sum\(\s*test\$platt_p\s*&gt;\s*0\.6\s*\)"><textarea class="lesson-tryit-input" spellcheck="false"># how many test mornings does the CALIBRATED model still flag (prob &gt; 0.6)?
+flagged_platt &lt;- ____
+flagged_platt</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">690, down from 746. About 56 mornings that the over-confident model pushed above the line fall back under it once the probabilities are honest, so Nadia stops paying for gear on days that did not warrant it. Counting how many values clear a threshold is the sum of a TRUE/FALSE vector: sum(test$platt_p > 0.6).</span><span class="lesson-tryit-fb lesson-tryit-no">You want the count of calibrated probabilities above 0.6. test$platt_p > 0.6 is a TRUE/FALSE vector; its sum counts the TRUEs: sum(test$platt_p > 0.6).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">flagged_platt &lt;- sum(test$platt_p &gt; 0.6)
+flagged_platt
+#&gt; [1] 690</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">Method 2</div>
+<h2>Isotonic regression: let the data choose the shape</h2>
+
+<p>Platt assumes the miscalibration is a smooth logistic squashing. But what if the true reliability curve has kinks Platt's S cannot follow? <strong>Isotonic regression</strong> drops the shape assumption entirely and fits the <em>best possible monotone step function</em>, the non-decreasing map that minimizes squared error to the outcomes:</p>
+
+<p>\[ \hat g \;=\; \arg\min_{g \,\text{ non-decreasing}} \; \sum_{i=1}^{n} \bigl(g(s_i) - y_i\bigr)^2 . \]</p>
+
+<p>Base R computes it with <code>isoreg()</code> (the pool-adjacent-violators algorithm). We sort the calibration scores, fit the isotonic values, and turn them into a lookup we can apply to new scores with <code>approxfun()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">o        &lt;- order(cal$model_p)                           # isoreg wants x in order
+iso_fit  &lt;- isoreg(cal$model_p[o], cal$rain[o])
+iso_map  &lt;- approxfun(cal$model_p[o], iso_fit$yf,        # a step function score -&gt; prob
+                      method = &quot;constant&quot;, rule = 2, ties = &quot;ordered&quot;)
+test$iso_p &lt;- iso_map(test$model_p)
+round(ece(test$iso_p, test$rain), 4)
+#&gt; [1] 0.0279</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Isotonic drives the ECE down to 0.028, a touch better than Platt's 0.032 here, because it can bend to the data's exact shape instead of assuming an S. That flexibility is a double-edged sword: with few calibration points a step function chases noise and overfits, whereas Platt's two parameters stay steady. Isotonic shines when you have thousands of held-out points (Nadia has 2000); Platt is the safer default on a few hundred.</p>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<div class="lesson-step-eyebrow">Weigh it up</div>
+<h2>Which one, and where recalibration stops</h2>
+
+<p>Line up all three on the same test set. The <code>auc</code> column is the one to stare at.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare &lt;- data.frame(
+  model = c(&quot;raw&quot;, &quot;Platt&quot;, &quot;isotonic&quot;),
+  ECE   = round(c(ece(test$model_p, test$rain),
+                  ece(test$platt_p, test$rain),
+                  ece(test$iso_p,   test$rain)), 4),
+  Brier = round(c(brier(test$model_p, test$rain),
+                  brier(test$platt_p, test$rain),
+                  brier(test$iso_p,   test$rain)), 4),
+  AUC   = round(c(auc(test$model_p, test$rain),
+                  auc(test$platt_p, test$rain),
+                  auc(test$iso_p,   test$rain)), 4))
+compare
+#&gt;      model    ECE  Brier    AUC
+#&gt; 1      raw 0.0771 0.1799 0.8174
+#&gt; 2    Platt 0.0320 0.1742 0.8174
+#&gt; 3 isotonic 0.0279 0.1747 0.8153</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both fixes cut the ECE and the Brier score sharply, and the AUC barely moves: 0.8174 to 0.8174 for Platt (identical, because a logistic map is monotone) and 0.8153 for isotonic (a whisker of wobble from tied steps). That is the promise of recalibration made concrete: <strong>it makes the probabilities honest without spending or gaining a single point of ranking power.</strong></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Recalibration is a relabeling, not a rescue. Three limits to respect:</div></div>
+
+<ul>
+
+<li>It <strong>cannot improve discrimination.</strong> A monotone map preserves the ranking, so if the underlying model ranks poorly (AUC near 0.5), calibrating it just gives you honest but useless probabilities. Fix ranking by improving the model; fix calibration by recalibrating.</li>
+
+<li>It is <strong>population-specific.</strong> A map fit on one season or one city calibrates <em>that</em> distribution. Ship the model somewhere the base rate differs and you must recalibrate again.</li>
+
+<li>It <strong>needs enough held-out data</strong>, and always data the model never trained on. Too few points and isotonic overfits; the wrong data and the calibration is leaked and fake.</li>
+
+</ul>
+
+<p>Pick Platt for small calibration sets or a smooth sigmoidal bow; pick isotonic when you have plenty of held-out data and the miscalibration might be an odd shape.</p>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Choose the method</h2>
+
+<p>You have a model whose reliability curve is a smooth, stretched-S over-confidence, and only about <strong>200</strong> labeled points to calibrate on. Which recalibration method is the safer choice, and what will it do to the model's AUC?</p>
+<section class="exercise" data-exercise-id="Calibration-Reliability-and-Recalibration-step15" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Platt scaling, because its two parameters are stable on a small set and its S-shape matches the smooth bow, and the AUC will be unchanged because Platt is a monotone map</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Isotonic regression, because it is more flexible, and the extra flexibility will also raise the AUC by fitting the data better</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Either one, because both are calibration methods they will give the same result and the AUC will drop toward 0.5</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. With few points, isotonic's step function would chase noise; Platt's smooth two-parameter fit stays steady and matches a sigmoidal bow. And since any calibration map is monotone, the ranking, so the AUC, is untouched.</div><div class="lesson-qfb lesson-qfb-no">They differ (isotonic risks overfitting on 200 points; Platt is steadier), and recalibration does not push AUC toward 0.5. It leaves the ranking, and thus the AUC, essentially unchanged.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1145/1102351.1102430">Niculescu-Mizil and Caruana (2005), Predicting Good Probabilities With Supervised Learning (ICML)</a> - the careful empirical comparison of Platt scaling and isotonic regression across many learners, and which model families need calibrating; the standard reference for the two methods you just used.</li>
+
+<li><a href="https://doi.org/10.1145/775047.775151">Zadrozny and Elkan (2002), Transforming Classifier Scores into Accurate Multiclass Probability Estimates (KDD)</a> - the paper that brought isotonic regression to probability calibration.</li>
+
+<li><a href="https://arxiv.org/abs/1706.04599">Guo, Pleiss, Sun and Weinberger (2017), On Calibration of Modern Neural Networks (ICML)</a> - reliability diagrams, expected calibration error, and why modern high-accuracy models are so often over-confident.</li>
+
+<li><a href="https://scikit-learn.org/stable/modules/calibration.html">scikit-learn User Guide: Probability calibration</a> - a clear, worked reference implementation of both sigmoid (Platt) and isotonic calibration with reliability curves, if you want to see the same ideas in another ecosystem.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You put a model's probabilities on trial and learned to repair them. A probability is <strong>calibrated</strong> when, of all the times you say \(q\), a fraction \(q\) come true; a <strong>reliability diagram</strong> shows the promise kept or broken, and <strong>ECE</strong> and the <strong>Brier score</strong> put a number on it. You saw the trap that fools most practitioners: a high <strong>AUC</strong> certifies ranking, never honesty, so discrimination and calibration are genuinely different goals, one provable with a base-rate model that is perfectly calibrated and perfectly useless. Then you fixed Nadia's over-confident model two ways, <strong>Platt scaling</strong> (a logistic squashing of the log-odds) and <strong>isotonic regression</strong> (the best monotone step function), always on a held-out set, cutting the ECE by more than half while the AUC stood still, and you even watched 56 needless gear-days fall off the dispatcher's ledger.</p>
+
+<p>Next, Lesson 6: The Bootstrap and the Jackknife+. So far every interval and probability leaned on a model's assumptions. Now you will get uncertainty almost for free by <em>resampling the data itself</em>, turning one dataset into a whole sampling distribution, and turn leave-one-out residuals into a predictive interval with a coverage guarantee.</p>
+</section>
+
+{% endraw %}
