@@ -665,6 +665,11 @@ def render_sidebar_html(sections, current_slug):
         "document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});"
         "try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}"
     )
+    fold_onclick=("var r=document.body.classList.toggle('tools-rail');"
+                  "try{localStorage.setItem('rsc-tools-rail',r?'1':'0')}catch(e){}")
+    parts.append(f'<button class="rail-fold" type="button" title="Collapse sidebar to icons" '
+                 f'aria-label="Collapse sidebar to icons" onclick="{fold_onclick}">'
+                 f'<span class="rf-a">&#171; Collapse</span><span class="rf-b">&#187;</span></button>')
     parts.append('<div class="sidebar-tabs" role="tablist">')
     parts.append(f'<button class="{posts_tab_class}" data-tab="posts" type="button" role="tab" onclick="{onclick}">Posts</button>')
     parts.append(f'<button class="{tools_tab_class}" data-tab="tools" type="button" role="tab" onclick="{onclick}">Tools</button>')
@@ -2575,6 +2580,15 @@ def patch_tool_pages(sections, asset_hrefs):
         # .tool-chrome-side. The wrapper is the only scroll container here.
         '.tool-chrome-side #sidebar-nav{padding:0;position:static;max-height:none;overflow:visible}'
         '.tool-chrome-main{min-width:0}'
+        '.sidebar-close{display:none}'
+        '.rail-fold{display:flex;align-items:center;justify-content:flex-end;width:100%;'
+        'background:transparent;border:none;cursor:pointer;color:#57606a;font:600 11.5px/1 -apple-system,BlinkMacSystemFont,sans-serif;'
+        'letter-spacing:.04em;padding:2px 6px 10px;border-radius:6px}'
+        '.rail-fold:hover{color:#0d1117}'
+        '.rail-fold .rf-b{display:none;font-size:15px}'
+        'body.tools-rail .rail-fold{justify-content:center;padding:2px 0 10px}'
+        'body.tools-rail .rail-fold .rf-a{display:none}'
+        'body.tools-rail .rail-fold .rf-b{display:inline}'
         '.sidebar-toggle{display:none}'
         '.sidebar-backdrop{display:none}'
         # Collapse-to-icon-rail (desktop): body.tools-rail shrinks the sidebar
@@ -2603,6 +2617,7 @@ def patch_tool_pages(sections, asset_hrefs):
         'overflow-y:auto;padding:60px 14px 16px;box-shadow:2px 0 16px rgba(13,17,23,0.15);'
         'top:0;max-height:none}'
         '.rail-toggle{display:none}'
+        '.rail-fold{display:none}'
         'body.sidebar-open .tool-chrome-side{transform:translateX(0)}'
         '.sidebar-backdrop{position:fixed;inset:0;background:rgba(13,17,23,0.42);'
         'z-index:999;opacity:0;pointer-events:none;transition:opacity .22s}'
