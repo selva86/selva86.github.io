@@ -3,8 +3,8 @@
   <head>
     <title>Survival Analysis Lesson 5: Parametric and AFT Models</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Fit Weibull survival models in R with survreg, read AFT coefficients as time ratios, check the shape against Kaplan-Meier, and predict past follow-up.">
-    <meta name="Keywords" content="parametric survival analysis in R, accelerated failure time model, AFT model in R, survreg, Weibull survival model, exponential survival, time ratio, survival extrapolation, flexsurv, Weibull vs Cox">
+    <meta name="Description" content="Fit Weibull and exponential survival models in R with survreg, read the accelerated failure time (AFT) time ratio, predict survival beyond your follow-up, and see when a parametric fit beats Cox.">
+    <meta name="Keywords" content="parametric survival models, accelerated failure time, AFT model in R, Weibull survival model, exponential survival, survreg, time ratio, survival extrapolation, survival analysis, Cox vs parametric">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -553,14 +553,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Survival Analysis Lesson 5: Parametric and AFT Models">
-    <meta property="og:description" content="Fit Weibull survival models in R with survreg, read AFT coefficients as time ratios, check the shape against Kaplan-Meier, and predict past follow-up.">
+    <meta property="og:description" content="Fit Weibull and exponential survival models in R with survreg, read the accelerated failure time (AFT) time ratio, predict survival beyond your follow-up, and see when a parametric fit beats Cox.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Parametric-and-AFT-Models.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Parametric-and-AFT-Models.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Survival Analysis Lesson 5: Parametric and AFT Models">
-    <meta name="twitter:description" content="Fit Weibull survival models in R with survreg, read AFT coefficients as time ratios, check the shape against Kaplan-Meier, and predict past follow-up.">
+    <meta name="twitter:description" content="Fit Weibull and exponential survival models in R with survreg, read the accelerated failure time (AFT) time ratio, predict survival beyond your follow-up, and see when a parametric fit beats Cox.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Parametric-and-AFT-Models.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -568,12 +568,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Survival Analysis Lesson 5: Parametric and AFT Models",
-      "description": "Fit Weibull survival models in R with survreg, read AFT coefficients as time ratios, check the shape against Kaplan-Meier, and predict past follow-up.",
+      "description": "Fit Weibull and exponential survival models in R with survreg, read the accelerated failure time (AFT) time ratio, predict survival beyond your follow-up, and see when a parametric fit beats Cox.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Parametric-and-AFT-Models.html",
-      "datePublished": "2026-07-02",
-      "dateModified": "2026-07-02",
+      "datePublished": "2026-07-08",
+      "dateModified": "2026-07-08",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -679,183 +679,76 @@
 <div class="lesson-step-eyebrow">Lesson 5 of 7</div>
 <h2>Parametric and AFT Models</h2>
 
-<p>In Lesson 4 you put the Cox model's one promise on trial. This lesson confronts the one thing every tool so far has refused to do: say what the survival curve actually looks like. Kaplan-Meier hands Dr. Rao a jagged staircase that stops dead at 24 months, the end of her follow-up. Cox deliberately leaves the baseline hazard blank. So when her newest patient, Mr. Sharma, 65 years old and weighing his options, asks the question every patient asks, "how long, doctor?", neither model can give him a smooth curve, a personal median, or any number at all beyond month 24.</p>
+<p>For four lessons, every model Dr. Rao fit has refused to say one thing. Kaplan-Meier drew a staircase but stopped dead at the last observed death. Cox handed her a hazard ratio but shrugged when she asked what the baseline hazard actually looked like. Both were deliberately silent about the <em>shape</em> of survival time, and that silence has a cost: neither can tell a patient "you have about 26 months," and neither can say anything at all about the world past the end of the study.</p>
 
-<p>A parametric model can, because it commits. It assumes the event times follow a named distribution, a Weibull or an exponential, and estimates that distribution's two or three parameters from the data. Commit to a shape and you get smooth survival curves, a predicted median for Mr. Sharma specifically, and careful answers past the end of the data.</p>
+<p>This lesson breaks the silence. You will <strong>commit to a shape</strong> for the survival time itself, a smooth curve with a formula, and in return you get to predict real survival times, read a treatment's effect as "the drug multiplies your time by 1.65," and extend the survival curve confidently past the last follow-up.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Say what a parametric survival model commits to, and read the Weibull shape: falling, constant, or rising risk</li>
+<li>Fit <strong>exponential</strong> and <strong>Weibull</strong> survival models with <code>survreg</code>, and read the Weibull shape to say whether risk rises, falls, or holds steady over time</li>
 
-<li>Read <code>survreg</code> output as accelerated time, where exp(coef) multiplies survival time itself, and reconcile it with Lesson 3's hazard ratio</li>
+<li>Interpret an <strong>accelerated failure time (AFT)</strong> coefficient as a <strong>time ratio</strong> that stretches the whole survival curve by one constant factor</li>
 
-<li>Predict a specific patient's median survival, check the fitted shape against the Kaplan-Meier staircase, and judge when extrapolating past follow-up is defensible</li>
+<li>Predict a median survival time and a survival probability <strong>beyond the follow-up window</strong>, and choose a distribution (and know when a parametric fit beats Cox, and when it is risky)</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> <a href="Survival-Data-and-Censoring.html">Lesson 1</a> (the survival function S(t), the hazard, right-censoring), <a href="Kaplan-Meier-and-the-Log-Rank-Test.html">Lesson 2</a> (the KM staircase and its median), and <a href="Cox-Proportional-Hazards.html">Lesson 3</a> (the Cox model and its hazard ratio of 0.36). You can run R and read a coefficient table.</p>
-
-<p>Below is the staircase you have drawn since Lesson 2: jagged, and silent past the last observation. By the end of this lesson you will lay a smooth curve over it, one with a name, a formula, and an opinion about month 30.</p>
+<p><strong>Prerequisites:</strong> <a href="Survival-Data-and-Censoring.html">Lesson 1</a> (the survival function \(S(t)\), the hazard \(h(t)\), right-censoring, <code>Surv()</code>), <a href="Kaplan-Meier-and-the-Log-Rank-Test.html">Lesson 2</a> (the empirical staircase and its median), <a href="Cox-Proportional-Hazards.html">Lesson 3</a> (the hazard ratio \(e^{\beta}\), and that Cox never names the baseline hazard), and <a href="Checking-Proportional-Hazards.html">Lesson 4</a> (the proportional-hazards promise \(S_1=S_0^{\text{HR}}\)). You can run R and read a coefficient table.</p>
 <div class="lesson-widget" data-widget-type="km-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The idea</div>
-<h2>Name the shape</h2>
+<div class="lesson-step-eyebrow">Two questions Cox cannot answer</div>
+<h2>Where the Cox model stops</h2>
 
-<p>Think about what the Kaplan-Meier staircase really is: a model with no opinions. It assumes nothing about the shape of risk, and it pays for that humility three times over. The curve can only move at observed death times, so between deaths it pretends risk is zero. Its estimate wobbles hard in a 30-patient trial like Dr. Rao's. And at the last observation it simply ends, with nothing to say about any later month.</p>
+<p>Dr. Rao's new drug works. Lesson 3 proved it: her Cox model put the hazard ratio well below 1, protective even after adjusting for age. But two clinical questions keep coming back, and the Cox model cannot answer either one.</p>
 
-<p>The parametric move is to spend one assumption and buy all three problems back. Assume the survival times were drawn from a named probability distribution, a formula with two or three unknown parameters, then estimate those parameters from the 30 patients. Now the whole curve is smooth, every month has an estimate, and the formula extends as far as you dare trust it.</p>
+<p><strong>First, a patient wants a number, not a ratio.</strong> "Doctor, how long do I have?" A hazard ratio of 0.47 says nothing about <em>months</em>. To answer, you need an actual survival time, and for that you need the whole survival curve, not just a comparison of two hazards.</p>
 
-<p>Which named shapes are candidates? Survival times are strictly positive (nobody survives negative months) and usually right-skewed: events pile up early-to-middle and a long tail of durable survivors stretches right. Toggle the widget below, a menu of density shapes for exactly this kind of outcome. Focus on the Gamma panel: positive, humped near the typical value, long right tail. That silhouette is what a duration looks like. (Beta, bounded between 0 and 1, is for proportions, not times; Tweedie is for costs with a pile of zeros. If you took the Advanced Regression course, you have seen this pick-the-shape move before.) Survival analysis keeps its own menu with the duration silhouette: the exponential, the Weibull, the log-normal.</p>
+<p><strong>Second, the trial closed at 36 months, but people live longer than that.</strong> Roughly what fraction of drug patients are still alive at 5 years? Cox's baseline survival is a nonparametric staircase that simply <em>ends</em> at the last observed event; ask it about month 60 and it has nothing to say. There is no step out there to read.</p>
 
-<p>And censoring, the thing that breaks ordinary regression (Lesson 1), slots into the fitting machinery cleanly. Parametric models are fit by maximum likelihood, which asks: which parameter values make the data we actually saw most probable? Each patient contributes exactly what we know about them. A patient who died at time \(t_i\) contributes the density \(f(t_i)\), the probability of an event right there. A patient censored at \(t_i\) contributes the survival function \(S(t_i)\), the probability of lasting beyond \(t_i\), which is all we know:</p>
-
-<p>\[ L = \prod_{\text{deaths}} f(t_i) \;\times \prod_{\text{censored}} S(t_i). \]</p>
-
-<p>No throwing censored patients away, no pretending they died. Every row of the data tells the likelihood precisely as much as it knows, and nothing more.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Kaplan-Meier estimates the whole curve point by point and stops at the data's edge. A parametric model estimates two or three numbers, and the named formula does the rest: smoothness, per-patient medians, and predictions beyond the data all flow from the shape you committed to. That is also the risk. If the shape is wrong, everything it bought is wrong with it.</div></div>
-<div class="lesson-widget" data-widget-type="glm-family-shapes" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The workhorse</div>
-<h2>One knob for the shape of risk</h2>
-
-<p>Start with the simplest possible commitment. The <strong>exponential</strong> distribution says the hazard, the risk-of-the-moment from Lesson 1, is one flat constant at every age of follow-up. A thing that fails this way is called <strong>memoryless</strong>: a light bulb that has burned for a year is exactly as likely to fail tonight as a brand-new one. For bulbs that is roughly true. For Dr. Rao's patients it is plainly false; risk climbs as the disease advances.</p>
-
-<p>The <strong>Weibull</strong> distribution fixes that with one extra number. It has a scale \(\lambda\) (lambda) and a shape \(k\), and its hazard and survival functions are</p>
-
-<p>\[ h(t) = \frac{k}{\lambda}\left(\frac{t}{\lambda}\right)^{k-1}, \qquad S(t) = \exp\!\left[-\left(\frac{t}{\lambda}\right)^{k}\right]. \]</p>
-
-<p>Both parameters have plain meanings. The scale \(\lambda\) is a characteristic lifetime in months: whatever the shape, by time \(t = \lambda\) exactly \(1 - e^{-1} \approx 63\%\) of subjects have had the event. The shape \(k\) bends the hazard, and its three regimes each tell a different everyday story:</p>
-
-<ul>
-
-<li>\(k < 1\): risk starts high and falls. Hip implants: most failures happen in the first months after surgery (loosening, infection), and an implant that settles in rarely fails later.</li>
-
-<li>\(k = 1\): risk is flat. This is the exponential, the memoryless light bulb, as a special case.</li>
-
-<li>\(k > 1\): risk grows with time. Machine bearings wearing out, and, plausibly, Dr. Rao's patients as the disease progresses.</li>
-
-</ul>
-
-<p>Run the block to draw all three regimes with the same characteristic lifetime:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># The Weibull hazard: one scale (lambda, months) and one shape (k)</span></span>
-<span class="cl">h <span class="o">&lt;-</span> <span class="kr">function</span>(t, k, lam) (k <span class="o">/</span> lam) <span class="o">*</span> (t <span class="o">/</span> lam)<span class="o">^</span>(k <span class="o">-</span> <span class="m">1</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">curve</span>(<span class="nf">h</span>(x, <span class="m">0.6</span>, <span class="m">12</span>), from <span class="o">=</span> <span class="m">0.2</span>, to <span class="o">=</span> <span class="m">24</span>, ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0.3</span>),</span>
-<span class="cl">      lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, xlab <span class="o">=</span> <span class="s">&quot;months&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;hazard h(t)&quot;</span>,</span>
-<span class="cl">      main <span class="o">=</span> <span class="s">&quot;Three Weibull hazard shapes&quot;</span>)</span>
-<span class="cl"><span class="nf">curve</span>(<span class="nf">h</span>(x, <span class="m">1.0</span>, <span class="m">12</span>), add <span class="o">=</span> <span class="kc">TRUE</span>, lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;grey40&quot;</span>)</span>
-<span class="cl"><span class="nf">curve</span>(<span class="nf">h</span>(x, <span class="m">2.2</span>, <span class="m">12</span>), add <span class="o">=</span> <span class="kc">TRUE</span>, lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;firebrick&quot;</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topleft&quot;</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>,</span>
-<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;steelblue&quot;</span>, <span class="s">&quot;grey40&quot;</span>, <span class="s">&quot;firebrick&quot;</span>),</span>
-<span class="cl">       legend <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;k = 0.6  risk falls (early failures)&quot;</span>,</span>
-<span class="cl">                  <span class="s">&quot;k = 1.0  constant risk (exponential)&quot;</span>,</span>
-<span class="cl">                  <span class="s">&quot;k = 2.2  risk rises (wear-out)&quot;</span>))</span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>One family, three lives of risk, selected by a single knob the data can estimate.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The menu has more entries. The log-normal and log-logistic allow a hazard that rises and then falls, a pattern seen after surgery, where risk peaks in recovery and then eases. The Weibull cannot bend that way, and later in this lesson you will let the data referee between shapes.</div></div>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Which shape is that?</h2>
-
-<p>A hospital tracks how long hip implants last before needing replacement. Failures pile up in the first few months after surgery (loosening, infection), and an implant that survives its first year almost never fails afterward. Which Weibull shape fits this story?</p>
-<section class="exercise" data-exercise-id="Parametric-and-AFT-Models-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Shape k below 1: the hazard starts high and falls, a burst of early failures followed by calm</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Shape k above 1: lots of early failures means the risk must be rising</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Shape k equal to 1: failures happen throughout, so risk is constant</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">No Weibull fits: a Weibull hazard can only increase</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. Failures cluster early exactly because the risk-of-the-moment is highest at the start; survivors face ever-lower risk. That falling hazard is the k below 1 regime.</div><div class="lesson-qfb lesson-qfb-no">The shape knob covers all three regimes. With k below 1 the Weibull hazard falls; only k above 1 makes it rise.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">The second idea</div>
-<h2>Accelerated time: effects stretch the clock</h2>
-
-<p>Now bring in covariates. Cox let the drug multiply the hazard. The parametric tradition uses a different, arguably more human dial: it lets a covariate stretch or shrink time itself. This is the <strong>accelerated failure time</strong> view, AFT for short.</p>
-
-<p>Concrete first. The saying goes that one dog year equals seven human years: a 10-year-old dog is "as old as" a 70-year-old person, the same life run at seven times the speed. An AFT model says a covariate does that to disease time. If Dr. Rao's drug carries a <strong>time ratio</strong> of 1.6, a patient on the drug reaches every milestone of the disease 1.6 times later. What took 10 months on standard care takes 16 on the drug. The clock of the illness runs slower.</p>
-
-<p>Formally, an AFT model is ordinary regression on the logarithm of survival time \(T\):</p>
-
-<p>\[ \log T = \beta_0 + \beta_1\,\text{arm} + \beta_2\,\text{age} + \sigma\,W, \]</p>
-
-<p>where the \(\beta\)s (betas) are coefficients on the log-time scale, \(\sigma\) (sigma) is a spread parameter, printed as Scale in R output, and \(W\) is a standardized error term whose distribution picks the family (an extreme-value \(W\) makes \(T\) Weibull). Because the outcome is log time, exponentiating a coefficient multiplies time: \(\text{TR} = e^{\beta}\) is the time ratio, also called the acceleration factor. TR above 1 stretches survival time, good news; TR below 1 compresses it. In curve language, \(S_{\text{drug}}(t) = S_{\text{std}}(t/\text{TR})\): the drug arm's survival at 16 months equals the standard arm's at 10.</p>
-
-<p>Here is the coincidence that makes the Weibull the workhorse of parametric survival: for the Weibull family, and only the Weibull family (with its exponential special case), the AFT model and the proportional-hazards model are the same model in different clothes. Stretching time by TR is exactly the same curve as multiplying the hazard by</p>
-
-<p>\[ \text{HR} = \text{TR}^{-k} = e^{-\beta/\sigma}, \]</p>
-
-<p>where \(k = 1/\sigma\) is the Weibull shape. Toggle the widget below and read the gap between the curves both ways. Vertically, one curve's risk is a fixed multiple of the other's at every instant: the hazard-ratio reading, Lesson 3's language. Horizontally, one curve reaches every survival level later by a fixed stretch factor: the time-ratio reading. Same two curves, two dialects.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A Cox coefficient speaks hazard: the drug multiplies the risk of dying right now by 0.36. An AFT coefficient speaks time: the drug multiplies survival time by 1.6. Patients and clinicians usually find the time sentence easier to grasp and repeat. Mind the directions, though: they run opposite ways. A helpful drug has a time ratio ABOVE 1 but a hazard ratio BELOW 1.</div></div>
-<div class="lesson-widget" data-widget-type="hazard-ratio" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>survreg on Dr. Rao's trial</h2>
-
-<p>Time to fit one. The <code>survival</code> package's <code>survreg()</code> fits parametric AFT models; <code>dist = &quot;weibull&quot;</code> is the default and our shape of choice, since the disease's risk plausibly climbs with time. Each lesson starts a fresh R session, so rebuild the trial exactly as Lessons 3 and 4 built it:</p>
+<p>Both gaps have the same fix: instead of leaving the survival time's shape unspecified, we will <strong>assume it follows a specific distribution</strong>. First, meet the data. We build Dr. Rao's 400-patient trial right here, because each lesson runs in its own fresh R session:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(survival)</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2024</span>)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Dr. Rao&#39;s 30 patients, exactly as Lessons 3 and 4 built them.</span></span>
-<span class="cl">std_months <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">2.7</span>, <span class="m">3.2</span>, <span class="m">4.5</span>, <span class="m">5.5</span>, <span class="m">6.1</span>, <span class="m">7.0</span>, <span class="m">8.3</span>, <span class="m">9.4</span>, <span class="m">11.5</span>, <span class="m">12.6</span>, <span class="m">13.5</span>, <span class="m">15.8</span>, <span class="m">18.0</span>, <span class="m">24.0</span>, <span class="m">24.0</span>)</span>
-<span class="cl">std_status <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">1</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">0</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">0</span>,<span class="m">0</span>,<span class="m">0</span>)</span>
-<span class="cl">std_age    <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">67</span>,<span class="m">71</span>,<span class="m">69</span>,<span class="m">74</span>,<span class="m">66</span>,<span class="m">75</span>,<span class="m">65</span>,<span class="m">65</span>,<span class="m">71</span>,<span class="m">63</span>,<span class="m">66</span>,<span class="m">55</span>,<span class="m">62</span>,<span class="m">61</span>,<span class="m">56</span>)</span>
-<span class="cl">new_months <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">9.0</span>,<span class="m">24.0</span>,<span class="m">19.2</span>,<span class="m">24.0</span>,<span class="m">13.0</span>,<span class="m">22.5</span>,<span class="m">24.0</span>,<span class="m">16.4</span>,<span class="m">24.0</span>,<span class="m">20.8</span>,<span class="m">15.0</span>,<span class="m">24.0</span>,<span class="m">18.0</span>,<span class="m">21.0</span>,<span class="m">23.0</span>)</span>
-<span class="cl">new_status <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">1</span>,<span class="m">0</span>,<span class="m">1</span>,<span class="m">0</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">0</span>,<span class="m">1</span>,<span class="m">0</span>,<span class="m">1</span>,<span class="m">0</span>,<span class="m">0</span>,<span class="m">1</span>,<span class="m">1</span>,<span class="m">1</span>)</span>
-<span class="cl">new_age    <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">57</span>,<span class="m">63</span>,<span class="m">68</span>,<span class="m">53</span>,<span class="m">58</span>,<span class="m">63</span>,<span class="m">69</span>,<span class="m">62</span>,<span class="m">55</span>,<span class="m">63</span>,<span class="m">68</span>,<span class="m">59</span>,<span class="m">60</span>,<span class="m">57</span>,<span class="m">57</span>)</span>
+<span class="cl">n   <span class="o">&lt;-</span> <span class="m">400</span></span>
+<span class="cl">trt <span class="o">&lt;-</span> <span class="nf">rbinom</span>(n, <span class="m">1</span>, <span class="m">0.5</span>)                    <span class="c1"># 1 = new drug, 0 = standard care</span></span>
+<span class="cl">age <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">rnorm</span>(n, <span class="m">60</span>, <span class="m">9</span>))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># the truth we simulate: the drug and youth MULTIPLY survival time</span></span>
+<span class="cl">scale_i <span class="o">&lt;-</span> <span class="nf">exp</span>(<span class="m">3.0</span> <span class="o">+</span> <span class="m">0.5</span> <span class="o">*</span> trt <span class="o">-</span> <span class="m">0.02</span> <span class="o">*</span> (age <span class="o">-</span> <span class="m">60</span>))</span>
+<span class="cl">t_event <span class="o">&lt;-</span> <span class="nf">rweibull</span>(n, shape <span class="o">=</span> <span class="m">1.5</span>, scale <span class="o">=</span> scale_i)   <span class="c1"># each patient&#39;s true event time</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># follow-up: the study closes at 36 months, with some earlier dropout</span></span>
+<span class="cl">dropout <span class="o">&lt;-</span> <span class="nf">runif</span>(n, <span class="m">8</span>, <span class="m">60</span>)</span>
+<span class="cl">seen    <span class="o">&lt;-</span> <span class="nf">pmin</span>(dropout, <span class="m">36</span>)                 <span class="c1"># last month we could still observe this patient</span></span>
+<span class="cl">time    <span class="o">&lt;-</span> <span class="nf">pmin</span>(t_event, seen)               <span class="c1"># what we record: event or last contact</span></span>
+<span class="cl">status  <span class="o">&lt;-</span> <span class="nf">as.integer</span>(t_event <span class="o">&lt;=</span> seen)       <span class="c1"># 1 = died, 0 = censored (still alive)</span></span>
+<span class="cl"></span>
 <span class="cl">trial <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
-<span class="cl">  months <span class="o">=</span> <span class="nf">c</span>(std_months, new_months),</span>
-<span class="cl">  status <span class="o">=</span> <span class="nf">c</span>(std_status, new_status),</span>
-<span class="cl">  arm    <span class="o">=</span> <span class="nf">factor</span>(<span class="nf">rep</span>(<span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>,<span class="s">&quot;new&quot;</span>), each <span class="o">=</span> <span class="m">15</span>), levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>,<span class="s">&quot;new&quot;</span>)),</span>
-<span class="cl">  age    <span class="o">=</span> <span class="nf">c</span>(std_age, new_age))</span>
-<span class="cl"></span>
-<span class="cl">wfit <span class="o">&lt;-</span> <span class="nf">survreg</span>(<span class="nf">Surv</span>(months, status) <span class="o">~</span> arm <span class="o">+</span> age, data <span class="o">=</span> trial,</span>
-<span class="cl">                dist <span class="o">=</span> <span class="s">&quot;weibull&quot;</span>)</span>
-<span class="cl"><span class="nf">summary</span>(wfit)</span>
-<span class="cl"><span class="c1">#&gt; Call:</span></span>
-<span class="cl"><span class="c1">#&gt; survreg(formula = Surv(months, status) ~ arm + age, data = trial,</span></span>
-<span class="cl"><span class="c1">#&gt;     dist = &quot;weibull&quot;)</span></span>
-<span class="cl"><span class="c1">#&gt;               Value Std. Error     z       p</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept)  6.4729     1.2397  5.22 1.8e-07</span></span>
-<span class="cl"><span class="c1">#&gt; armnew       0.4906     0.2034  2.41  0.0158</span></span>
-<span class="cl"><span class="c1">#&gt; age         -0.0597     0.0190 -3.14  0.0017</span></span>
-<span class="cl"><span class="c1">#&gt; Log(scale)  -0.8007     0.1853 -4.32 1.6e-05</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; Scale= 0.449</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; Weibull distribution</span></span>
-<span class="cl"><span class="c1">#&gt; Loglik(model)= -73   Loglik(intercept only)= -80</span></span>
-<span class="cl"><span class="c1">#&gt;   Chisq= 13.93 on 2 degrees of freedom, p= 0.00095</span></span>
-<span class="cl"><span class="c1">#&gt; Number of Newton-Raphson Iterations: 5</span></span>
-<span class="cl"><span class="c1">#&gt; n= 30</span></span></div>
+<span class="cl">  time   <span class="o">=</span> <span class="nf">round</span>(time, <span class="m">1</span>),</span>
+<span class="cl">  status <span class="o">=</span> status,</span>
+<span class="cl">  arm    <span class="o">=</span> <span class="nf">factor</span>(<span class="nf">ifelse</span>(trt <span class="o">==</span> <span class="m">1</span>, <span class="s">&quot;drug&quot;</span>, <span class="s">&quot;standard&quot;</span>), levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;drug&quot;</span>)),</span>
+<span class="cl">  age    <span class="o">=</span> age</span>
+<span class="cl">)</span>
+<span class="cl"><span class="nf">head</span>(trial, <span class="m">5</span>)</span>
+<span class="cl"><span class="c1">#&gt;   time status      arm age</span></span>
+<span class="cl"><span class="c1">#&gt; 1 30.2      0     drug  60</span></span>
+<span class="cl"><span class="c1">#&gt; 2 36.0      0 standard  64</span></span>
+<span class="cl"><span class="c1">#&gt; 3  8.4      1     drug  53</span></span>
+<span class="cl"><span class="c1">#&gt; 4 16.0      1     drug  62</span></span>
+<span class="cl"><span class="c1">#&gt; 5  7.8      1 standard  69</span></span>
+<span class="cl"><span class="nf">table</span>(trial<span class="o">$</span>arm, trial<span class="o">$</span>status)               <span class="c1"># censored (0) and deaths (1) per arm</span></span>
+<span class="cl"><span class="c1">#&gt;          </span></span>
+<span class="cl"><span class="c1">#&gt;             0   1</span></span>
+<span class="cl"><span class="c1">#&gt;   standard  46 152</span></span>
+<span class="cl"><span class="c1">#&gt;   drug      99 103</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -865,29 +758,60 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read the table with AFT eyes: every coefficient lives on the log-time scale.</p>
+<p>Read a couple of rows so the table is concrete. Row 3 is a 53-year-old drug patient who died at month 8.4 (<code>status</code> 1). Row 2 is a 64-year-old on standard care who was still alive when the study closed at month 36, so we censor them (<code>status</code> 0): we know only that they lived <em>at least</em> 36 months. The <code>table</code> shows the drug arm is much more heavily censored (99 of 202 still alive at the end) precisely because those patients survive longer, exactly the good problem a parametric model helps us describe.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Kaplan-Meier and Cox are <em>nonparametric</em> about the baseline: they never write down a formula for how survival time is distributed. That makes them robust, but it is also why they cannot extrapolate or report a survival time. A parametric model trades a distributional assumption for the power to do both.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing the shape</div>
+<h2>Every parametric model starts by picking a shape</h2>
+
+<p>A parametric survival model commits to a named distribution for the survival time \(T\). Which one? Look at what a survival time <em>is</em>: it is strictly positive (nobody survives for negative months) and usually right-skewed (most patients cluster at shorter times, a few live much longer). That rules out the symmetric bell of a normal model and points to a family of positive, right-skewed shapes.</p>
+
+<p>The widget below shows this same logic from the world of regression: the <em>shape</em> of an outcome decides which distribution family fits it. Toggle to <strong>Gamma</strong>, the panel labelled "spend, claim size, time-to-complete." A time-to-complete is exactly a survival time: positive, right-skewed, a long tail of slow finishers. That is the shape we are looking for.</p>
+
+<p>Survival analysis plays this same game with its own positive-support families. The three you will meet most often, in increasing flexibility:</p>
 
 <ul>
 
-<li><strong>armnew = 0.4906</strong> (p = 0.016). Exponentiate: \(e^{0.4906} = 1.63\). On the new drug, survival time stretches by 63%, holding age fixed. That is the time ratio from the last step, estimated from real data.</li>
+<li><strong>Exponential</strong>, the simplest: a single rate, a constant hazard.</li>
 
-<li><strong>age = -0.0597</strong>. Each extra year of age multiplies survival time by \(e^{-0.0597} = 0.94\), about 6% less time per year, holding arm fixed.</li>
+<li><strong>Weibull</strong>, the workhorse: adds a shape knob so the hazard can rise or fall over time.</li>
 
-<li><strong>Scale = 0.449</strong>. That is \(\sigma\). R estimates it on the log scale, which is the <code>Log(scale)</code> row above: \(e^{-0.8007} = 0.449\). So the Weibull shape is \(k = 1/0.449 = 2.23\). Well above 1: a rising, wear-out hazard, exactly the regime the disease story predicted.</li>
+<li><strong>Log-normal</strong> and <strong>log-logistic</strong>, for hazards that rise then fall.</li>
 
 </ul>
 
-<p>One small block translates the fit into all three languages at once:</p>
+<p>Committing to one lets us write the two curves from Lesson 1 as formulas. If \(T\) is the survival time, the <strong>survival function</strong> \(S(t)=\Pr(T>t)\) is the probability of living past \(t\), the <strong>density</strong> \(f(t)\) is how event times pile up, and the <strong>hazard</strong> \(h(t)=f(t)/S(t)\) is the risk of the moment. Censoring slots in cleanly: a patient who <em>dies</em> at \(t\) contributes \(f(t)\) to the likelihood, and a patient <em>censored</em> at \(t\) (alive when last seen) contributes \(S(t)\), the probability of surviving at least that long. Fitting just finds the distribution's parameters that make the observed deaths and survivals most likely.</p>
+<div class="lesson-widget" data-widget-type="glm-family-shapes" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The simplest parametric model</div>
+<h2>The exponential model: one constant hazard</h2>
+
+<p>Start with the simplest possible shape: a <strong>constant hazard</strong>. The exponential model says the risk of the moment never changes, \(h(t)=\lambda\) for some fixed rate \(\lambda>0\). Integrate that flat hazard and the survival curve is a clean exponential decay:</p>
+
+<p>\[ h(t)=\lambda, \qquad S(t)=e^{-\lambda t}. \]</p>
+
+<p>Here \(\lambda\) (lambda) is the constant hazard rate, and \(t\) is time in months. A larger \(\lambda\) means a steeper decay and shorter lives. In R, <code>survreg</code> fits it. Notice it models covariates on the <strong>log-time</strong> scale, so a positive coefficient means <em>longer</em> survival:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">sigma <span class="o">&lt;-</span> wfit<span class="o">$</span>scale</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(time_ratio_drug <span class="o">=</span> <span class="nf">exp</span>(<span class="nf">coef</span>(wfit))[[<span class="s">&quot;armnew&quot;</span>]],</span>
-<span class="cl">        shape_k         <span class="o">=</span> <span class="m">1</span> <span class="o">/</span> sigma,</span>
-<span class="cl">        implied_HR      <span class="o">=</span> <span class="nf">exp</span>(<span class="o">-</span><span class="nf">coef</span>(wfit)[[<span class="s">&quot;armnew&quot;</span>]] <span class="o">/</span> sigma)), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; time_ratio_drug         shape_k      implied_HR</span></span>
-<span class="cl"><span class="c1">#&gt;           1.633           2.227           0.335</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl">exp_fit <span class="o">&lt;-</span> <span class="nf">survreg</span>(<span class="nf">Surv</span>(time, status) <span class="o">~</span> arm <span class="o">+</span> age, data <span class="o">=</span> trial, dist <span class="o">=</span> <span class="s">&quot;exponential&quot;</span>)</span>
+<span class="cl"><span class="nf">summary</span>(exp_fit)</span>
+<span class="cl"><span class="c1">#&gt;                Value Std. Error     z       p</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)  4.56047    0.45470 10.03 &lt; 2e-16</span></span>
+<span class="cl"><span class="c1">#&gt; armdrug      0.64913    0.12768  5.08 3.7e-07</span></span>
+<span class="cl"><span class="c1">#&gt; age         -0.02552    0.00727 -3.51 0.00045</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Scale fixed at 1</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Exponential distribution</span></span>
+<span class="cl"><span class="c1">#&gt; Loglik(model)= -1085.9   Loglik(intercept only)= -1106.1</span></span>
+<span class="cl"><span class="c1">#&gt; n= 400</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -897,200 +821,431 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Look at that implied hazard ratio: 0.335. Lesson 3's Cox model, which refused to commit to any shape at all, estimated 0.357 for the same drug in the same patients (we reported it as 0.36). Two completely different roads, one effect. When the committed shape fits, the parametric model agrees with Cox and then keeps going, saying things Cox cannot.</p>
+<p>The <code>armdrug</code> coefficient is positive (0.649), confirming the drug extends survival, and <code>age</code> is negative, so older patients have shorter times. The line **<code>Scale fixed at 1</code>** is the whole personality of the exponential: it has no shape parameter to estimate, the hazard is locked flat.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A constant hazard is a strong claim: it says a patient's risk of dying next month is the same whether they enrolled yesterday or have already survived three years. For most diseases that is simply false, risk climbs as the illness progresses. The exponential is a useful baseline and a building block, but rarely the final model. We need a shape that can bend.</div></div>
 </section>
 
-<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
-<div class="lesson-step-eyebrow">Your turn</div>
-<h2>Answer Mr. Sharma</h2>
-
-<p>Mr. Sharma is 65 and weighing the two arms. The staircase cannot answer him; your fitted Weibull can. On a <code>survreg</code> fit, <code>predict()</code> returns time quantiles: ask it for the 50% quantile, the predicted <strong>median</strong> survival time, for a 65-year-old on each arm. Fill in the blank.</p>
-<section class="exercise" data-exercise-id="Parametric-and-AFT-Models-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="type\s*=\s*.quantile"><textarea class="lesson-tryit-input" spellcheck="false">newpat &lt;- data.frame(
-  arm = factor(c(&quot;standard&quot;, &quot;new&quot;), levels = c(&quot;standard&quot;, &quot;new&quot;)),
-  age = 65)
-
-predict(wfit, newdata = newpat, type = &quot;____&quot;, p = 0.5)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: asking for the 0.5 quantile of each fitted time distribution returns the predicted medians, 11.3 months on standard care and 18.5 on the drug. And 18.5 divided by 11.3 is 1.63, the time ratio made flesh.</span><span class="lesson-tryit-fb lesson-tryit-no">Ask for a time QUANTILE: set type to quantile (with p = 0.5, the median). A survreg prediction is a time, and the median is the 50 percent quantile of the fitted time distribution.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">newpat &lt;- data.frame(
-  arm = factor(c(&quot;standard&quot;, &quot;new&quot;), levels = c(&quot;standard&quot;, &quot;new&quot;)),
-  age = 65)
-predict(wfit, newdata = newpat, type = &quot;quantile&quot;, p = 0.5)
-#&gt;        1        2
-#&gt; 11.34978 18.53843</code></pre></details></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<div class="lesson-step-eyebrow">Trust, then verify</div>
-<h2>Does the Weibull actually fit?</h2>
-
-<p>Everything the parametric model buys rests on the shape being right, so check it the honest way: lay the fitted smooth curve over the Kaplan-Meier staircase and look. If the smooth curve rides the steps, the commitment was sound. If it cuts corners systematically, too high early and too low late, or the reverse, the shape is wrong and every prediction it makes is decoration.</p>
-
-<p>The overlay uses a small trick: <code>survreg</code> predicts time quantiles, so hand it a grid of survival levels and plot predicted time against level. One flip to keep straight: quantiles count from the event side. At a survival level of 0.90, 10% of patients have had the event, so that point on the curve is the 0.10 quantile. Hence <code>p = 1 - s</code> below.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">km <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(months, status) <span class="o">~</span> arm, data <span class="o">=</span> trial)</span>
-<span class="cl"><span class="nf">plot</span>(km, col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;grey40&quot;</span>, <span class="s">&quot;firebrick&quot;</span>), lwd <span class="o">=</span> <span class="m">2</span>,</span>
-<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;months&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;fraction still event-free&quot;</span>,</span>
-<span class="cl">     main <span class="o">=</span> <span class="s">&quot;The staircase vs the committed shape&quot;</span>)</span>
-<span class="cl"></span>
-<span class="cl">s <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">0.995</span>, <span class="m">0.005</span>, by <span class="o">=</span> <span class="m">-0.005</span>)   <span class="c1"># survival levels: 99.5% down to 0.5%</span></span>
-<span class="cl">pat_std <span class="o">&lt;-</span> <span class="nf">data.frame</span>(arm <span class="o">=</span> <span class="nf">factor</span>(<span class="s">&quot;standard&quot;</span>, levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;new&quot;</span>)), age <span class="o">=</span> <span class="m">65</span>)</span>
-<span class="cl">pat_new <span class="o">&lt;-</span> <span class="nf">data.frame</span>(arm <span class="o">=</span> <span class="nf">factor</span>(<span class="s">&quot;new&quot;</span>,      levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;new&quot;</span>)), age <span class="o">=</span> <span class="m">65</span>)</span>
-<span class="cl"><span class="nf">lines</span>(<span class="nf">predict</span>(wfit, newdata <span class="o">=</span> pat_std, type <span class="o">=</span> <span class="s">&quot;quantile&quot;</span>, p <span class="o">=</span> <span class="m">1</span> <span class="o">-</span> s), s,</span>
-<span class="cl">      lty <span class="o">=</span> <span class="m">2</span>, lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;grey40&quot;</span>)</span>
-<span class="cl"><span class="nf">lines</span>(<span class="nf">predict</span>(wfit, newdata <span class="o">=</span> pat_new, type <span class="o">=</span> <span class="s">&quot;quantile&quot;</span>, p <span class="o">=</span> <span class="m">1</span> <span class="o">-</span> s), s,</span>
-<span class="cl">      lty <span class="o">=</span> <span class="m">2</span>, lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;firebrick&quot;</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;bottomleft&quot;</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;grey40&quot;</span>, <span class="s">&quot;firebrick&quot;</span>),</span>
-<span class="cl">       legend <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;standard: KM steps + Weibull (dashed)&quot;</span>,</span>
-<span class="cl">                  <span class="s">&quot;new drug: KM steps + Weibull (dashed)&quot;</span>))</span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The dashed Weibull curves track both staircases well: same starting plunge, same ordering, same neighborhood for the medians. (One honest footnote: the dashed curves are drawn for a 65-year-old, while each staircase pools its arm's actual ages, so small gaps are expected even from a perfect shape.)</p>
-
-<p>Eyes first, then a number. The <strong>AIC</strong> (Akaike information criterion) scores each candidate distribution's fit with a penalty for extra parameters; lower is better, and gaps of 2 or less are within noise:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">dists <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;exponential&quot;</span>, <span class="s">&quot;weibull&quot;</span>, <span class="s">&quot;lognormal&quot;</span>)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">sapply</span>(dists, <span class="kr">function</span>(d)</span>
-<span class="cl">  <span class="nf">AIC</span>(<span class="nf">survreg</span>(<span class="nf">Surv</span>(months, status) <span class="o">~</span> arm <span class="o">+</span> age, data <span class="o">=</span> trial, dist <span class="o">=</span> d))), <span class="m">1</span>)</span>
-<span class="cl"><span class="c1">#&gt; exponential     weibull   lognormal</span></span>
-<span class="cl"><span class="c1">#&gt;       165.2       154.1       153.1</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The exponential loses by 11 points: decisive evidence that a flat, memoryless hazard is the wrong story for this disease, just as Scale told us (k = 2.23). The log-normal edges the Weibull by 1.0 point, and a 1-point gap on 30 patients is a coin flip, not a verdict. We stay with the Weibull for its translation superpower, the only family that speaks both time ratios and hazard ratios, and we note honestly that a log-normal fit would predict similarly here.</p>
-</section>
-
-<section class="lesson-step" data-step="9" data-step-type="concept">
-<div class="lesson-step-eyebrow">The payoff</div>
-<h2>Month 30, and other things Cox cannot say</h2>
-
-<p>Dr. Rao's follow-up ended at 24 months, but her hospital board asks a fair question: what fraction of patients on the new drug will still be event-free at month 30? The staircase is silent; it ended. Cox is silent; it has no baseline shape to extend. The Weibull has a formula, and formulas do not stop. Two ingredients: the model's <strong>linear predictor</strong> for a patient, the fitted \(\beta_0 + \beta_1\,\text{arm} + \beta_2\,\text{age}\) sum, is exactly \(\log\lambda\), the log of that patient's characteristic lifetime. Exponentiate it to get \(\lambda\), then plug month 30 into the survival formula from the Weibull step:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">pat <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
-<span class="cl">  arm <span class="o">=</span> <span class="nf">factor</span>(<span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;new&quot;</span>), levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;new&quot;</span>)),</span>
-<span class="cl">  age <span class="o">=</span> <span class="m">65</span>)</span>
-<span class="cl">lp <span class="o">&lt;-</span> <span class="nf">predict</span>(wfit, newdata <span class="o">=</span> pat, type <span class="o">=</span> <span class="s">&quot;lp&quot;</span>)   <span class="c1"># linear predictor = log(lambda) per patient</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="o">-</span>(<span class="m">30</span> <span class="o">/</span> <span class="nf">exp</span>(lp))<span class="o">^</span>(<span class="m">1</span> <span class="o">/</span> wfit<span class="o">$</span>scale)), <span class="m">3</span>)   <span class="c1"># Weibull S(30) = exp(-(t/lambda)^k)</span></span>
-<span class="cl"><span class="c1">#&gt;     1     2</span></span>
-<span class="cl"><span class="c1">#&gt; 0.002 0.132</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>For a 65-year-old: about 13% on the drug, essentially zero on standard care. Be clear-eyed about what you just did. Months 24 to 30 contain no data at all; the 13% is the formula's opinion, and it deserves exactly as much trust as the shape check in the last step earned, thinning the further past the data you push. Quote it with its assumption attached: "if the Weibull pattern we validated through month 24 continues."</p>
-
-<p>So when do you reach for a parametric model, and when for Cox?</p>
-
-<table class="table table-striped">
-<thead>
-<tr>
-<th>You need</th>
-<th>Reach for</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>A shape-free estimate of a hazard ratio</td>
-<td>Cox</td>
-</tr>
-<tr>
-<td>Smooth per-patient curves and medians</td>
-<td>Parametric</td>
-</tr>
-<tr>
-<td>Any statement beyond the last observation</td>
-<td>Parametric, shape check attached</td>
-</tr>
-<tr>
-<td>Stable estimates from a small trial, shape roughly right</td>
-<td>Parametric</td>
-</tr>
-<tr>
-<td>Effects in time language patients can repeat</td>
-<td>Parametric (AFT)</td>
-</tr>
-<tr>
-<td>A hazard no simple family matches</td>
-<td>Cox, or flexible splines below</td>
-</tr>
-</tbody>
-</table>
-
-<p>And when the fixed menu feels too rigid, the <code>flexsurv</code> package fits everything <code>survreg</code> does plus spline-based shapes that bend where the data demands. Run this one on your own machine:</p>
-
-<pre><code class="language-r"># On your own machine: flexible parametric fits beyond the survreg menu
-library(flexsurv)
-ffit &lt;- flexsurvreg(Surv(months, status) ~ arm + age, data = trial,
-                    dist = &quot;gengamma&quot;)   # generalized gamma: nests Weibull and log-normal
-ffit
-plot(ffit)   # KM staircase with the fitted curve and its confidence band, one line</code></pre>
-</section>
-
-<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Two models, two numbers</h2>
+<h2>What does "constant hazard" mean?</h2>
 
-<p>Your <code>survreg</code> output says exp(coef) = 1.63 for the new drug. Lesson 3's Cox model said the hazard ratio is 0.36. A colleague objects: "one model says 1.63, the other says 0.36; they cannot both be right, so I would not trust that month-30 extrapolation either." What do you tell her?</p>
-<section class="exercise" data-exercise-id="Parametric-and-AFT-Models-step10" data-grade-mode="self-check" data-difficulty="advanced">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">She is right about the numbers: 1.63 means 63% more risk, so the two models genuinely disagree about the drug</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The two agree: 1.63 stretches time and 0.36 cuts hazard, and under the Weibull HR = TR to the power minus k = 1.63^(-2.23), about 0.34, right beside Cox's 0.36. The month-30 number stands or falls on the shape check, not on this comparison</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">They estimate the same quantity, so one of the two fits must simply have failed to converge</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The extrapolation is trustworthy regardless, because both models found the drug significant at p below 0.05</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. Time ratios and hazard ratios run in opposite directions, and for a Weibull fit they are two readings of one model: HR = TR^(-k) = 0.335 here, agreeing with Cox's shape-free 0.357. Whether to trust month 30 is a separate question, answered by how well the committed shape tracked the KM staircase.</div><div class="lesson-qfb lesson-qfb-no">Significance says the effect is unlikely to be zero. It says nothing about whether the Weibull shape keeps holding past month 24, and that, not any p-value, is what an extrapolation leans on.</div></div>
+<p>Dr. Rao fits an exponential model, so its hazard is constant at \(h(t)=\lambda\). Which statement correctly describes what that assumes?</p>
+<section class="exercise" data-exercise-id="Parametric-and-AFT-Models-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The number of patients still alive stays constant over time</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A patient's risk in the next month is the same whether they just enrolled or have already survived two years</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Every patient survives for exactly the same length of time</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The survival curve \(S(t)\) is a flat horizontal line</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A constant hazard is "memoryless": the risk of the moment does not depend on how long a patient has already lived. It is a strong, often unrealistic, assumption.</div><div class="lesson-qfb lesson-qfb-no">\(S(t)=e^{-\lambda t}\) is a decaying curve, not flat. It is the hazard \(h(t)=\lambda\) that is flat over time.</div></div>
 </section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">A shape that can bend</div>
+<h2>The Weibull model: a hazard that rises or falls</h2>
+
+<p>The Weibull distribution keeps the exponential's simplicity but adds one knob: a <strong>shape parameter</strong> \(a\) that lets the hazard change over time. Its survival and hazard functions are</p>
+
+<p>\[ S(t)=e^{-(t/b)^{a}}, \qquad h(t)=\frac{a}{b}\left(\frac{t}{b}\right)^{a-1}, \]</p>
+
+<p>where \(b>0\) is the <strong>scale</strong> (a stretch of the time axis, in months) and \(a>0\) is the <strong>shape</strong>. The shape is the whole story of how risk evolves:</p>
+
+<ul>
+
+<li>\(a>1\): the hazard <strong>rises</strong> with time, risk accelerates as the disease runs (the usual case).</li>
+
+<li>\(a=1\): the hazard is <strong>flat</strong>, and the Weibull collapses back to the exponential.</li>
+
+<li>\(a<1\): the hazard <strong>falls</strong>, high early risk that eases (think early post-surgery mortality).</li>
+
+</ul>
+
+<p>Run this to see all three shapes at once. It plots the Weibull hazard \(h(t)\) for a falling, flat, and rising shape:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Weibull hazard h(t) = (a/b) (t/b)^(a-1), three shapes at the same scale b = 20</span></span>
+<span class="cl">haz <span class="o">&lt;-</span> <span class="kr">function</span>(x, a, b <span class="o">=</span> <span class="m">20</span>) (a <span class="o">/</span> b) <span class="o">*</span> (x <span class="o">/</span> b)<span class="o">^</span>(a <span class="o">-</span> <span class="m">1</span>)</span>
+<span class="cl"><span class="nf">curve</span>(<span class="nf">haz</span>(x, <span class="m">0.6</span>), <span class="m">0.1</span>, <span class="m">40</span>, ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0.15</span>), lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;tomato&quot;</span>,</span>
+<span class="cl">      xlab <span class="o">=</span> <span class="s">&quot;months&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;hazard h(t)&quot;</span>)</span>
+<span class="cl"><span class="nf">curve</span>(<span class="nf">haz</span>(x, <span class="m">1.0</span>), <span class="m">0.1</span>, <span class="m">40</span>, add <span class="o">=</span> <span class="kc">TRUE</span>, lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;grey40&quot;</span>)</span>
+<span class="cl"><span class="nf">curve</span>(<span class="nf">haz</span>(x, <span class="m">1.5</span>), <span class="m">0.1</span>, <span class="m">40</span>, add <span class="o">=</span> <span class="kc">TRUE</span>, lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>)</span>
+<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topright&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;a = 0.6  falling&quot;</span>, <span class="s">&quot;a = 1  flat (exponential)&quot;</span>, <span class="s">&quot;a = 1.5  rising&quot;</span>),</span>
+<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;tomato&quot;</span>, <span class="s">&quot;grey40&quot;</span>, <span class="s">&quot;steelblue&quot;</span>), lwd <span class="o">=</span> <span class="m">2</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now fit the Weibull to Dr. Rao's trial and let the data choose the shape:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">wb_fit <span class="o">&lt;-</span> <span class="nf">survreg</span>(<span class="nf">Surv</span>(time, status) <span class="o">~</span> arm <span class="o">+</span> age, data <span class="o">=</span> trial, dist <span class="o">=</span> <span class="s">&quot;weibull&quot;</span>)</span>
+<span class="cl"><span class="nf">summary</span>(wb_fit)</span>
+<span class="cl"><span class="c1">#&gt;              Value Std. Error     z       p</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)  4.1949     0.2932 14.31 &lt; 2e-16</span></span>
+<span class="cl"><span class="c1">#&gt; armdrug      0.5028     0.0832  6.04 1.5e-09</span></span>
+<span class="cl"><span class="c1">#&gt; age         -0.0198     0.0047 -4.20 2.6e-05</span></span>
+<span class="cl"><span class="c1">#&gt; Log(scale)  -0.4420     0.0519 -8.52 &lt; 2e-16</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Scale= 0.643</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Weibull distribution</span></span>
+<span class="cl"><span class="c1">#&gt; Loglik(model)= -1056.1   Loglik(intercept only)= -1084.3</span></span>
+<span class="cl"><span class="c1">#&gt; n= 400</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exponential's <code>Scale fixed at 1</code> is now a <em>fitted</em> <code>Scale= 0.643</code>. That is not the Weibull scale \(b\); it is <code>survreg</code>'s parameter \(\sigma\) (sigma), and the shape is its reciprocal, \(a=1/\sigma\):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="m">1</span> <span class="o">/</span> wb_fit<span class="o">$</span>scale, <span class="m">3</span>)   <span class="c1"># Weibull shape a = 1 / Scale</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 1.556</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A shape of <strong>1.556</strong> is comfortably above 1, so the hazard <em>rises</em> with time: Dr. Rao's patients face growing risk the longer their disease runs. And because the shape is not 1, the constant-hazard exponential was the wrong model. The data asked for a bendable curve.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The interpretation that makes it click</div>
+<h2>Reading AFT coefficients as time ratios</h2>
+
+<p>Why is <code>survreg</code> on the log-time scale, and what do those coefficients <em>mean</em>? Because <code>survreg</code> fits an <strong>accelerated failure time (AFT)</strong> model, which describes survival time directly:</p>
+
+<p>\[ \log T = \beta_0 + \beta_1 x_1 + \dots + \sigma W. \]</p>
+
+<p>Read it piece by piece. \(\log T\) is the log of the survival time, the \(x\)'s are the covariates (arm, age), \(\beta_0\) is the intercept, and \(\sigma W\) is random scatter (\(W\) is a standard noise term, \(\sigma\) its size). Because the left side is \(\log T\), a covariate acts by <strong>adding</strong> to log-time, which is the same as <strong>multiplying</strong> the time itself. Exponentiate a coefficient and you get a <strong>time ratio</strong>: the factor by which that covariate stretches or shrinks survival time.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="nf">coef</span>(wb_fit)), <span class="m">3</span>)   <span class="c1"># exp(coef) = time ratios</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)     armdrug         age </span></span>
+<span class="cl"><span class="c1">#&gt;      66.349       1.653       0.980 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The drug's time ratio is <strong>1.653</strong>. A drug patient's survival time is multiplied by about 1.65: they live roughly 65% longer than an otherwise-identical standard-care patient. Age's time ratio is 0.980, so each additional year of age shrinks survival time by about 2%. And the effect is precise, not a fluke:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="nf">confint</span>(wb_fit)), <span class="m">3</span>)   <span class="c1"># 95% confidence intervals for the time ratios</span></span>
+<span class="cl"><span class="c1">#&gt;              2.5 %  97.5 %</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) 37.349 117.865</span></span>
+<span class="cl"><span class="c1">#&gt; armdrug      1.404   1.946</span></span>
+<span class="cl"><span class="c1">#&gt; age          0.971   0.989</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The drug's time ratio is between 1.40 and 1.95 with 95% confidence, comfortably above 1. Now here is the phrase "accelerated failure time" made literal. A time ratio does not just move the median, it stretches <strong>every</strong> point of the survival curve by the same factor. Compute the 25th, 50th, and 75th percentile survival times for a 60-year-old in each arm and take their ratios:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">newpt <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  arm <span class="o">=</span> <span class="nf">factor</span>(<span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;drug&quot;</span>), levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;drug&quot;</span>)),</span>
+<span class="cl">  age <span class="o">=</span> <span class="nf">c</span>(<span class="m">60</span>, <span class="m">60</span>)</span>
+<span class="cl">)</span>
+<span class="cl">q <span class="o">&lt;-</span> <span class="nf">predict</span>(wb_fit, newpt, type <span class="o">=</span> <span class="s">&quot;quantile&quot;</span>, p <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.25</span>, <span class="m">0.5</span>, <span class="m">0.75</span>))</span>
+<span class="cl"><span class="nf">rownames</span>(q) <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;drug&quot;</span>); <span class="nf">colnames</span>(q) <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;q25&quot;</span>, <span class="s">&quot;q50&quot;</span>, <span class="s">&quot;q75&quot;</span>)</span>
+<span class="cl"><span class="nf">round</span>(q, <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;          q25  q50  q75</span></span>
+<span class="cl"><span class="c1">#&gt; standard 9.1 16.0 25.0</span></span>
+<span class="cl"><span class="c1">#&gt; drug    15.0 26.5 41.3</span></span>
+<span class="cl"><span class="nf">round</span>(q[<span class="s">&quot;drug&quot;</span>, ] <span class="o">/</span> q[<span class="s">&quot;standard&quot;</span>, ], <span class="m">3</span>)   <span class="c1"># the same factor at every percentile</span></span>
+<span class="cl"><span class="c1">#&gt;   q25   q50   q75 </span></span>
+<span class="cl"><span class="c1">#&gt; 1.653 1.653 1.653 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every quantile scales by exactly <strong>1.653</strong>, the drug's time ratio. That is what an AFT model <em>is</em>: the treatment runs the survival clock slower (or faster) by one constant factor, stretching the entire curve. Nothing about early-versus-late, just a rescaling of time.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Reading a time ratio</h2>
+
+<p>Dr. Rao's Weibull AFT model gives the new drug a <strong>time ratio of 1.65</strong>. Which interpretation is correct?</p>
+<section class="exercise" data-exercise-id="Parametric-and-AFT-Models-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A drug patient's survival time is multiplied by about 1.65, so they live roughly 65% longer than a comparable standard-care patient</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A drug patient's hazard is multiplied by 1.65, so the drug raises the risk of death</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A drug patient dies about 1.65 months sooner</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Only the median survival is multiplied by 1.65; other survival times are unaffected</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. In an AFT model \(e^{\beta}\) is a time ratio, and 1.65 stretches survival time (every quantile) by that factor. Above 1 means longer life, so the drug is protective.</div><div class="lesson-qfb lesson-qfb-no">An AFT time ratio scales <em>every</em> quantile by the same factor, not just the median, as the 25th, 50th, and 75th percentiles all scaling by 1.653 showed.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fit the Weibull model</h2>
+
+<p>Dr. Rao's <code>trial</code> data frame is in memory. Fit an accelerated failure time model with the Weibull distribution, then print its shape. Fill in the distribution argument.</p>
+<section class="exercise" data-exercise-id="Parametric-and-AFT-Models-step9" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="dist\s*=\s*.weibull"><textarea class="lesson-tryit-input" spellcheck="false"># Fit a Weibull AFT model, then read its shape (a = 1 / Scale)
+wb &lt;- survreg(Surv(time, status) ~ arm + age, data = trial, dist = ____)
+round(1 / wb$scale, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That fits the Weibull AFT model. Its shape prints as 1.556, above 1, so the hazard rises with time: risk grows the longer the disease runs.</span><span class="lesson-tryit-fb lesson-tryit-no">Set the distribution argument to the Weibull family: dist takes the family name as a quoted string. It generalizes the exponential by adding a shape parameter.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">wb &lt;- survreg(Surv(time, status) ~ arm + age, data = trial, dist = &quot;weibull&quot;)
+round(1 / wb$scale, 3)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Predicting real survival times, even past the follow-up</h2>
+
+<p>Here is what committing to a shape buys back: actual survival times, and answers beyond the data. First the median survival time for a 60-year-old in each arm, the number a patient actually wants:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">predict</span>(wb_fit, newpt, type <span class="o">=</span> <span class="s">&quot;quantile&quot;</span>, p <span class="o">=</span> <span class="m">0.5</span>), <span class="m">1</span>)   <span class="c1"># median survival, months</span></span>
+<span class="cl"><span class="c1">#&gt;    1    2 </span></span>
+<span class="cl"><span class="c1">#&gt; 16.0 26.5 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A standard-care patient's median survival is 16.0 months; a drug patient's is 26.5. (And 16.0 times the time ratio 1.653 is 26.5, the scaling again.) Now the question Cox could not touch: what fraction is still alive at <strong>60 months</strong>, well past the 36-month close of the study? With a fitted Weibull we just read the formula \(S(t)=e^{-(t/b)^{a}}\), where the scale \(b=e^{x'\beta}\) comes from the linear predictor and \(a\) is the shape:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">a <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> wb_fit<span class="o">$</span>scale                                  <span class="c1"># Weibull shape</span></span>
+<span class="cl">b <span class="o">&lt;-</span> <span class="nf">exp</span>(<span class="nf">predict</span>(wb_fit, newpt, type <span class="o">=</span> <span class="s">&quot;linear&quot;</span>))      <span class="c1"># Weibull scale, one per patient</span></span>
+<span class="cl"><span class="nf">round</span>(b, <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;    1    2 </span></span>
+<span class="cl"><span class="c1">#&gt; 20.3 33.5 </span></span>
+<span class="cl">Sfun <span class="o">&lt;-</span> <span class="kr">function</span>(t) <span class="nf">round</span>(<span class="nf">exp</span>(<span class="o">-</span>(t <span class="o">/</span> b)<span class="o">^</span>a), <span class="m">3</span>)          <span class="c1"># S(t) = exp(-(t/b)^a)</span></span>
+<span class="cl"><span class="nf">data.frame</span>(arm <span class="o">=</span> newpt<span class="o">$</span>arm, S_at_36mo <span class="o">=</span> <span class="nf">Sfun</span>(<span class="m">36</span>), S_at_60mo <span class="o">=</span> <span class="nf">Sfun</span>(<span class="m">60</span>))</span>
+<span class="cl"><span class="c1">#&gt;        arm S_at_36mo S_at_60mo</span></span>
+<span class="cl"><span class="c1">#&gt; 1 standard     0.087     0.004</span></span>
+<span class="cl"><span class="c1">#&gt; 2     drug     0.327     0.084</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 5 years the model estimates about 8.4% of drug patients still alive against 0.4% of standard-care patients, a genuine extrapolation the nonparametric staircase could never give. Plot it to see the whole story: the Kaplan-Meier steps (the data), the smooth Weibull fit laid over them, and the fit continuing confidently past the follow-up line at month 36:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">km <span class="o">&lt;-</span> <span class="nf">survfit</span>(<span class="nf">Surv</span>(time, status) <span class="o">~</span> arm, data <span class="o">=</span> trial)</span>
+<span class="cl"><span class="nf">plot</span>(km, col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;grey40&quot;</span>, <span class="s">&quot;steelblue&quot;</span>), lwd <span class="o">=</span> <span class="m">2</span>, mark.time <span class="o">=</span> <span class="kc">FALSE</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;months&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;S(t)&quot;</span>, xlim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">60</span>))</span>
+<span class="cl">tt <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">60</span>, <span class="m">0.5</span>)</span>
+<span class="cl"><span class="kr">for</span> (a_arm <span class="kr">in</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;drug&quot;</span>)) {</span>
+<span class="cl">  lp <span class="o">&lt;-</span> <span class="nf">predict</span>(wb_fit, <span class="nf">data.frame</span>(arm <span class="o">=</span> <span class="nf">factor</span>(a_arm, levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;standard&quot;</span>, <span class="s">&quot;drug&quot;</span>)), age <span class="o">=</span> <span class="m">60</span>),</span>
+<span class="cl">                type <span class="o">=</span> <span class="s">&quot;linear&quot;</span>)</span>
+<span class="cl">  <span class="nf">lines</span>(tt, <span class="nf">exp</span>(<span class="o">-</span>(tt <span class="o">/</span> <span class="nf">exp</span>(lp))<span class="o">^</span>a), lty <span class="o">=</span> <span class="m">2</span>, lwd <span class="o">=</span> <span class="m">2</span>,</span>
+<span class="cl">        col <span class="o">=</span> <span class="nf">ifelse</span>(a_arm <span class="o">==</span> <span class="s">&quot;drug&quot;</span>, <span class="s">&quot;steelblue&quot;</span>, <span class="s">&quot;grey40&quot;</span>))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">abline</span>(v <span class="o">=</span> <span class="m">36</span>, col <span class="o">=</span> <span class="s">&quot;grey70&quot;</span>, lty <span class="o">=</span> <span class="m">3</span>)   <span class="c1"># study closed here; the dashed curves past it are extrapolation</span></span>
+<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topright&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;Kaplan-Meier (data)&quot;</span>, <span class="s">&quot;Weibull fit + extrapolation&quot;</span>),</span>
+<span class="cl">       lty <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>), lwd <span class="o">=</span> <span class="m">2</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed Weibull curves track the KM staircases closely inside the data, then glide smoothly past month 36 where the staircases simply stop. That extension is the payoff, and, as we will see, also the risk.</p>
 </section>
 
 <section class="lesson-step" data-step="11" data-step-type="concept">
-<div class="lesson-step-eyebrow">Go deeper</div>
-<h2>References</h2>
+<div class="lesson-step-eyebrow">One model, two lenses</div>
+<h2>AFT and PH are the same Weibull</h2>
 
-<p>Four solid places to take this further:</p>
+<p>You now have two ways to describe the drug's effect: the AFT <strong>time ratio</strong> of 1.65 (from this lesson) and the Cox <strong>hazard ratio</strong> from Lesson 3. They sound like different worlds, one multiplies time, the other multiplies risk. For the Weibull, they are the <em>same model seen from two angles</em>. In fact the Weibull is the only distribution that is both an AFT model and a proportional-hazards model, and the two are linked by a clean formula:</p>
+
+<p>\[ \text{HR} = e^{-\beta/\sigma} = (\text{time ratio})^{-a}. \]</p>
+
+<p>A covariate that stretches time (time ratio above 1) must lower the hazard (HR below 1); they are two descriptions of one effect. Check it. Compute the hazard ratio the Weibull <em>implies</em> from its AFT coefficients, and fit a separate Cox model to the same data for comparison:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">cox_fit <span class="o">&lt;-</span> <span class="nf">coxph</span>(<span class="nf">Surv</span>(time, status) <span class="o">~</span> arm <span class="o">+</span> age, data <span class="o">=</span> trial)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="nf">coef</span>(cox_fit)), <span class="m">3</span>)                                    <span class="c1"># Cox hazard ratios</span></span>
+<span class="cl"><span class="c1">#&gt;  armdrug     age </span></span>
+<span class="cl"><span class="c1">#&gt;    0.466   1.031 </span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(<span class="o">-</span><span class="nf">coef</span>(wb_fit)[<span class="nf">c</span>(<span class="s">&quot;armdrug&quot;</span>, <span class="s">&quot;age&quot;</span>)] <span class="o">/</span> wb_fit<span class="o">$</span>scale), <span class="m">3</span>)   <span class="c1"># Weibull-implied HR</span></span>
+<span class="cl"><span class="c1">#&gt;  armdrug     age </span></span>
+<span class="cl"><span class="c1">#&gt;    0.457   1.031 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Weibull's implied drug hazard ratio is <strong>0.457</strong>, and Cox, fit independently with no distributional assumption, gets <strong>0.466</strong>. Nearly identical. The drug's time ratio of 1.65 and its hazard ratio of about 0.46 are not two competing answers, they are one effect in two vocabularies. Toggle the widget to feel the hazard-ratio view: an HR below 1 pulls the survival curve <em>up</em>, exactly the "lives longer" story the time ratio told.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">When the true survival time really is Weibull, the AFT and Cox descriptions agree because they are describing the same thing. The AFT view gives you interpretable survival <em>times</em> and extrapolation; the Cox view gives you a robust hazard ratio without committing to a shape. Same effect, different currency.</div></div>
+<div class="lesson-widget" data-widget-type="hazard-ratio" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Time ratio 1.65, hazard ratio 0.46</h2>
+
+<p>From one Weibull fit, Dr. Rao reads a drug time ratio of 1.65, and its implied hazard ratio of 0.457 matches a Cox HR of 0.47. Which statement is correct?</p>
+<section class="exercise" data-exercise-id="Parametric-and-AFT-Models-step12" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The models contradict each other: the time ratio (1.65) says the drug helps while the hazard ratio (0.46) says it harms</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">They agree: for a Weibull, the AFT time ratio (above 1, longer life) and the PH hazard ratio (below 1, lower risk) are two views of the same effect, linked by \(\text{HR}=e^{-\beta/\sigma}\)</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The close match proves the Weibull distribution is correct, so extrapolation past follow-up is now guaranteed safe</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Cox and Weibull will always return the same hazard ratio on any data set</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The Weibull is both an AFT and a proportional-hazards model, so the time ratio and hazard ratio are the same effect in two vocabularies, and Cox recovers the same number without assuming a shape.</div><div class="lesson-qfb lesson-qfb-no">Only when the survival time truly is Weibull (proportional hazards holds) do they coincide. On non-Weibull data the parametric HR and the Cox HR can diverge, which is one way to catch a bad distributional assumption.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing wisely</div>
+<h2>Which distribution, and when to trust it</h2>
+
+<p>Dr. Rao has fit three shapes now. Which to report? Compare them with the <strong>AIC</strong> (Akaike Information Criterion), which rewards fit and penalizes extra parameters; lower is better:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ln_fit <span class="o">&lt;-</span> <span class="nf">survreg</span>(<span class="nf">Surv</span>(time, status) <span class="o">~</span> arm <span class="o">+</span> age, data <span class="o">=</span> trial, dist <span class="o">=</span> <span class="s">&quot;lognormal&quot;</span>)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">AIC</span>(exp_fit, wb_fit, ln_fit), <span class="m">1</span>)     <span class="c1"># lower AIC = better trade of fit vs complexity</span></span>
+<span class="cl"><span class="c1">#&gt;         df    AIC</span></span>
+<span class="cl"><span class="c1">#&gt; exp_fit  3 2177.7</span></span>
+<span class="cl"><span class="c1">#&gt; wb_fit   4 2120.2</span></span>
+<span class="cl"><span class="c1">#&gt; ln_fit   4 2157.2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Weibull wins decisively (2120 against 2157 and 2178). The exponential is far behind, its forced constant hazard fits Dr. Rao's rising-risk data poorly, and the log-normal, with its rise-then-fall hazard, fits worse than the Weibull here. AIC gives an honest, data-driven vote.</p>
+
+<p>So when does a parametric model beat Cox, and when does it burn you?</p>
 
 <ul>
 
-<li><a href="https://cran.r-project.org/web/packages/survival/vignettes/survival.pdf">The survival package vignette (Therneau, CRAN)</a> - the canonical reference for <code>survreg</code>, its distributions, and prediction, by the package's author.</li>
+<li><strong>Reach for parametric when</strong> you need a survival <em>time</em> or probability, when you must <strong>extrapolate</strong> past the data, when you want the interpretable time-ratio statement, or when the shape is well understood and a smooth curve is more efficient than a staircase.</li>
 
-<li><a href="https://doi.org/10.18637/jss.v070.i08">Jackson (2016), flexsurv: A Platform for Parametric Survival Modeling in R, Journal of Statistical Software 70(8)</a> - the tool to reach for when the survreg menu is too rigid: spline-based and custom parametric survival models.</li>
+<li><strong>Stay with Cox when</strong> you only need a hazard ratio and do not want to bet on a shape. Cox is robust precisely because it assumes nothing about the baseline.</li>
 
-<li><a href="https://grodri.github.io/glms/notes/c7.pdf">Rodriguez, Survival Models lecture notes, ch. 7 (Princeton)</a> - a free, rigorous walk through parametric survival likelihoods and the AFT formulation.</li>
+</ul>
 
-<li><a href="https://doi.org/10.1007/978-1-4419-6646-9">Kleinbaum and Klein (2012), Survival Analysis: A Self-Learning Text, Springer</a> - the gentlest full-length treatment; its parametric chapter works through Weibull, AFT, and the PH-AFT link with worked examples.</li>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Extrapolation is a loan against your assumption. The 5-year survival estimate is only as trustworthy as the Weibull shape being right out there in the tail, where you have no data to check it. A tiny p-value on a coefficient says nothing about whether the <em>distribution</em> is correct far past your last observation. Always overlay the fit on the KM curve (as we did) and compare distributions before you extend a curve into territory you never observed.</div></div>
+
+<p>When <code>survreg</code>'s handful of shapes is too rigid, richer families exist. This runs locally (it needs a package beyond the browser session):</p>
+
+<pre><code class="language-r">library(flexsurv)
+# generalized gamma nests the Weibull, gamma and log-normal in one family,
+# so you can let the data choose among them and formally test the Weibull shape.
+fs &lt;- flexsurvreg(Surv(time, status) ~ arm + age, data = trial, dist = &quot;gengamma&quot;)
+fs</code></pre>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Predict a survival probability</h2>
+
+<p>Use Dr. Rao's fitted <code>wb_fit</code> to estimate the probability that a 60-year-old <strong>drug</strong> patient survives past 24 months. The scale <code>b</code> and shape <code>a</code> for this patient are set up for you; fill in the Weibull survival function \(S(t)=e^{-(t/b)^{a}}\) at \(t=24\).</p>
+<section class="exercise" data-exercise-id="Parametric-and-AFT-Models-step14" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="24\s*/\s*b.*\^\s*a"><textarea class="lesson-tryit-input" spellcheck="false">a  &lt;- 1 / wb_fit$scale
+b  &lt;- exp(predict(wb_fit,
+        data.frame(arm = factor(&quot;drug&quot;, levels = c(&quot;standard&quot;, &quot;drug&quot;)), age = 60),
+        type = &quot;linear&quot;))
+# S(t) = exp( -(t / b)^a ). Fill in the survival probability at t = 24 months:
+S24 &lt;- ____
+round(S24, 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That returns 0.551: the model puts a 60-year-old drug patient's chance of surviving past 2 years at about 55%. You just read a real probability straight off a fitted survival curve.</span><span class="lesson-tryit-fb lesson-tryit-no">Plug t = 24 into S(t) = exp(-(t/b)^a): write exp(-(24 / b)^a). The scale b and shape a are already defined above.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">a  &lt;- 1 / wb_fit$scale
+b  &lt;- exp(predict(wb_fit,
+        data.frame(arm = factor(&quot;drug&quot;, levels = c(&quot;standard&quot;, &quot;drug&quot;)), age = 60),
+        type = &quot;linear&quot;))
+S24 &lt;- exp(-(24 / b)^a)
+round(S24, 3)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://cran.r-project.org/package=survival">survival: Survival Analysis (CRAN package page)</a> - the reference manual and vignettes for <code>survreg</code> and the parametric distributions you fit here.</li>
+
+<li><a href="https://doi.org/10.1002/sim.4780111409">Wei (1992), The accelerated failure time model, Statistics in Medicine 11(14-15):1871</a> - the classic argument for AFT as a useful, interpretable alternative to Cox regression.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v070.i08">Jackson (2016), flexsurv: A Platform for Parametric Survival Modeling in R, J Stat Software 70(8)</a> - flexible parametric families (generalized gamma, splines) beyond <code>survreg</code>, and how to compare them.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 11 (free PDF)</a> - a gentle textbook companion on survival analysis and these models.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="16" data-step-type="complete">
 <h2>Lesson 5 complete</h2>
 
-<p>You made the commitment the first four lessons refused, and collected on it. A <strong>parametric</strong> model names the distribution of event times and estimates a few parameters by maximum likelihood, with deaths contributing \(f(t)\) and censored patients \(S(t)\), so censoring costs nothing. The <strong>Weibull</strong> covers three lives of risk with one shape knob: falling (k below 1), constant (k = 1, the exponential), rising (k above 1). The <strong>AFT</strong> reading turns coefficients into time ratios, the drug stretched survival time by 1.63, each extra year of age multiplied it by 0.94, and because the Weibull speaks both dialects, that 1.63 converts exactly to a hazard ratio of 0.335, landing beside the Cox model's shape-free 0.357. You predicted Mr. Sharma's medians (11.3 vs 18.5 months), verified the shape against the staircase by eye and by AIC, and pushed one careful step beyond the data to month 30 with the assumption stated out loud.</p>
+<p>You can now make a survival model name the shape it was hiding. The <strong>exponential</strong> assumes one constant, memoryless hazard (\(S(t)=e^{-\lambda t}\), <code>Scale fixed at 1</code>); the <strong>Weibull</strong> adds a shape \(a\) so the hazard can rise (\(a>1\)), fall (\(a<1\)), or stay flat (\(a=1\)), and Dr. Rao's data chose \(a=1.556\), a rising risk. <code>survreg</code> fits both on the <strong>accelerated failure time</strong> scale, where \(e^{\beta}\) is a <strong>time ratio</strong>: the drug's 1.65 stretches <em>every</em> survival quantile by the same factor (16.0 to 26.5 months at the median). That shape is what lets you <strong>predict</strong> real survival times and extend the curve past the 36-month follow-up (about 8% of drug patients alive at 5 years), and it ties the AFT and Cox worlds together, the time ratio 1.65 and the hazard ratio 0.46 being one effect in two vocabularies. Choose the distribution by AIC, and never trust the far tail more than the shape that draws it.</p>
 
-<p>One assumption has been hiding in every lesson so far: each patient faces only ONE way to have the event. Real patients do not oblige. A transplant patient can relapse, or die of infection before relapse ever gets the chance, and the moment two events compete, the familiar 1-minus-KM starts overcounting risk. Next, Lesson 6: Competing risks and cumulative incidence, where you meet the estimator that gets it right, and the Fine-Gray idea behind regression on it.</p>
+<p>Next, Lesson 6: competing risks and cumulative incidence. When patients can fail from more than one cause, the familiar "1 minus Kaplan-Meier" quietly overcounts, and you will see why, and what to compute instead.</p>
 </section>
 
 
@@ -1186,7 +1341,11 @@ plot(ffit)   # KM staircase with the fitted curve and its confidence band, one l
       tex2jax: {
         inlineMath: [['$','$'], ['\\(','\\)']],
         displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
@@ -1200,9 +1359,9 @@ plot(ffit)   # KM staircase with the fitted curve and its confidence band, one l
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=ca04edb3"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
-  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <script src="www/lesson-mode.min.js?h=378afac5"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
        scripting doesn't compete with the critical path. Events fired before
        the loader lands get buffered on window.dataLayer and flushed once
