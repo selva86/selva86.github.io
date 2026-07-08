@@ -43,7 +43,7 @@
   function vizShell(el,label,svg){el.innerHTML=svg;}
   function vizResearcher(el){
     var Z=205,rows=[{y:66,a:98,b:178,d:138,s:1},{y:100,a:150,b:250,d:200,s:0},{y:134,a:120,b:192,d:156,s:1},{y:168,a:182,b:262,d:222,s:0},{y:202,a:216,b:288,d:252,s:1}];
-    var s='<line x1="'+Z+'" y1="42" x2="'+Z+'" y2="216" style="stroke:var(--faint)" stroke-width="1" stroke-dasharray="3 4" opacity=".7"/><text x="'+Z+'" y="34" text-anchor="middle" font-family="JetBrains Mono" font-size="10" style="fill:var(--faint)">no effect</text>';
+    var s='<line x1="'+Z+'" y1="42" x2="'+Z+'" y2="216" style="stroke:var(--faint)" stroke-width="1" stroke-dasharray="3 4" opacity=".7"/><text x="'+Z+'" y="34" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="10" style="fill:var(--faint)">no effect</text>';
     rows.forEach(function(r,i){var c=r.s?'var(--c)':'var(--faint)',o=r.s?1:.5;
       s+='<g class="hv-in" style="animation-delay:'+(i*120)+'ms"><line x1="'+r.a+'" y1="'+r.y+'" x2="'+r.b+'" y2="'+r.y+'" style="stroke:'+c+'" stroke-width="2" stroke-linecap="round" opacity="'+o+'"/><line x1="'+r.a+'" y1="'+(r.y-4)+'" x2="'+r.a+'" y2="'+(r.y+4)+'" style="stroke:'+c+'" stroke-width="1.6" opacity="'+o+'"/><line x1="'+r.b+'" y1="'+(r.y-4)+'" x2="'+r.b+'" y2="'+(r.y+4)+'" style="stroke:'+c+'" stroke-width="1.6" opacity="'+o+'"/><circle cx="'+r.d+'" cy="'+r.y+'" r="4.6"'+(r.s?' class="hv-pulse"':'')+' style="fill:'+c+'" stroke="#fff" stroke-width="1.5"/></g>';});
     vizShell(el,'model estimates, with uncertainty','<svg viewBox="0 0 410 230">'+s+'</svg>');
@@ -61,7 +61,7 @@
   }
   function vizForecaster(el){
     var hist='M40 150 L70 140 L100 150 L130 126 L160 138 L190 120 L205 126';
-    vizShell(el,'a forecast, with its uncertainty','<svg viewBox="0 0 410 230"><line x1="40" y1="196" x2="380" y2="196" style="stroke:var(--line)"/><line x1="205" y1="44" x2="205" y2="196" style="stroke:var(--faint)" stroke-width="1" stroke-dasharray="3 4" opacity=".6"/><text x="205" y="36" text-anchor="middle" font-family="JetBrains Mono" font-size="10" style="fill:var(--faint)">now</text><path id="hvfan" style="fill:var(--c)" opacity="0.12"/><path d="'+hist+'" fill="none" style="stroke:var(--c)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path id="hvfore" fill="none" style="stroke:var(--c)" stroke-width="2.2" stroke-dasharray="2 5" stroke-linecap="round"/></svg>');
+    vizShell(el,'a forecast, with its uncertainty','<svg viewBox="0 0 410 230"><line x1="40" y1="196" x2="380" y2="196" style="stroke:var(--line)"/><line x1="205" y1="44" x2="205" y2="196" style="stroke:var(--faint)" stroke-width="1" stroke-dasharray="3 4" opacity=".6"/><text x="205" y="36" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="10" style="fill:var(--faint)">now</text><path id="hvfan" style="fill:var(--c)" opacity="0.12"/><path d="'+hist+'" fill="none" style="stroke:var(--c)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path id="hvfore" fill="none" style="stroke:var(--c)" stroke-width="2.2" stroke-dasharray="2 5" stroke-linecap="round"/></svg>');
     var fan=el.querySelector('#hvfan'),fore=el.querySelector('#hvfore');
     function fy(x){return 126+(78-126)*((x-205)/175);}function fw(x){return ((x-205)/175)*32;}
     function fr(ts){var p=(ts%4400)/4400,rev,op=1;if(p<0.84)rev=p/0.84;else{rev=1;op=1-(p-0.84)/0.16;}var xE=205+175*rev,dd='M205 126',top='M205 126',bot=[],i;for(i=211;i<=xE;i+=6){dd+=' L'+i+' '+fy(i).toFixed(1);top+=' L'+i+' '+(fy(i)-fw(i)).toFixed(1);bot.push([i,fy(i)+fw(i)]);}fore.setAttribute('d',dd);fore.setAttribute('opacity',op.toFixed(3));for(var j=bot.length-1;j>=0;j--)top+=' L'+bot[j][0]+' '+bot[j][1].toFixed(1);top+=' Z';fan.setAttribute('d',top);fan.setAttribute('opacity',(0.13*op).toFixed(3));if(!reduceMo)requestAnimationFrame(fr);}
@@ -268,7 +268,7 @@
           });
         });
       }
-      if((role==='analyst'||role==='foundations')&&grand){var rm=document.getElementById('roleMeta');
+      if((role==='analyst'||role==='foundations'||role==='ds')&&grand){var rm=document.getElementById('roleMeta');
         if(rm)rm.innerHTML='<span><b>'+secs.length+'</b> sections</span><span><b>'+grand+'</b> interactive lessons</span><span>Certificate: <b>'+esc(L.cert)+'</b></span>';}
     }).catch(function(){});
   })();
