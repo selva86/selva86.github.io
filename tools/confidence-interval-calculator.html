@@ -140,6 +140,13 @@ details.how[open] summary::after{content:'-'}
 .ft .in{max-width:1120px;margin:0 auto;padding:30px 24px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;font-size:13.5px}
 .ft a{color:#e8ecf4;text-decoration:none;font-weight:500}
 .ft .sp{margin-left:auto;color:#8fa0bb}
+.iwant{font:600 20px/1.45 'Inter Tight',Inter,sans-serif;letter-spacing:-.01em;color:var(--ink);margin:20px 0 0}
+.iwant .psel{position:relative;display:inline-flex;align-items:baseline;color:var(--acc-dk);background:var(--acc-soft);border-radius:10px;padding:2px 9px;cursor:pointer}
+.iwant .psel::after{content:'BE';font-size:13px;margin-left:7px;color:var(--acc)}
+.iwant select{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.infline{margin:16px 26px 0;padding:14px 0 0;border-top:1px solid var(--line2);font:500 15.5px/1.6 Inter;color:var(--ink)}
+.infline .ik{font:700 10.5px/1 Inter;letter-spacing:.13em;text-transform:uppercase;color:var(--acc);display:block;margin-bottom:5px}
+.infline b{color:var(--acc-dk)}
 @media(max-width:880px){
   .grid{grid-template-columns:1fr}
   .stats{grid-template-columns:repeat(2,1fr)}
@@ -162,7 +169,7 @@ details.how[open] summary::after{content:'-'}
     <span class="crumb"><a href="/">Home</a> / <a href="/tools/">Tools</a> / Confidence Interval Calculator</span>
     <span class="eyebrow">Statistics calculator</span>
     <h1>Confidence Interval Calculator</h1>
-    <p class="dek">Turn a sample into an honest range for the truth: eight interval types, the working shown. <b>Everything runs in your browser.</b></p>
+    <p class="dek">A confidence interval turns one sample into an honest range for the truth: instead of a single guess, you get the full band of values your data actually support. Pick what you are estimating, enter your numbers, and read the bounds with the working shown. <b>Everything runs in your browser.</b></p>
     <div class="modes" role="tablist" aria-label="Interval type">
       <button class="mode on" data-mode="mean">Mean</button>
       <button class="mode" data-mode="diffmean">Two means</button>
@@ -182,6 +189,7 @@ details.how[open] summary::after{content:'-'}
       <button class="chip" data-scen="rate">Events per hour</button>
       <button class="chip" data-scen="corr">How strong is this correlation?</button>
     </div>
+    <p class="iwant" id="iwant"></p>
   </section>
 
   <div class="grid">
@@ -279,6 +287,7 @@ details.how[open] summary::after{content:'-'}
         <div class="st"><div class="k">Upper bound</div><div class="v" id="v4">-</div></div>
       </div>
       <p class="plain" id="plain"></p>
+      <p class="infline" id="infline"></p>
       <div class="copyrow">
         <span class="report" id="report"></span>
         <button class="copy" id="copybtn">Copy result line</button>
@@ -408,6 +417,7 @@ function calc(){
           'Critical t with '+r.df+' df: <code>t* = '+fmt(r.crit,3)+'</code>',
           'Interval: <code>'+mm+' &plusmn; '+fmt(r.crit,3)+' &times; '+fmt(r.se,3)+'</code>');
     rcode('# from summary statistics\nm <- '+mm+'; s <- '+s+'; n <- '+n+'\nse <- s / sqrt(n)\ntc <- qt(1 - '+((1-conf)/2)+', df = n - 1)\nc(lower = m - tc*se, upper = m + tc*se)');
+    inf('You can be <b>'+lvl+'% confident</b> the true mean lies between <b>'+fmt(r.lo)+'</b> and <b>'+fmt(r.hi)+'</b>; means outside this range are not supported by this sample.');
     drawInterval(r.lo, r.hi, mm, null, 2);
   }
   else if(m==='diffmean'){
@@ -425,6 +435,7 @@ function calc(){
           'Welch-Satterthwaite df: <code>'+fmt(r2.df,1)+'</code>',
           'Interval: <code>'+fmt(r2.est,2)+' &plusmn; '+fmt(r2.crit,3)+' &times; '+fmt(r2.se,3)+'</code>');
     rcode('# Welch interval from summary statistics\nm1 <- '+m1+'; s1 <- '+s1+'; n1 <- '+n1+'\nm2 <- '+m2+'; s2 <- '+s2+'; n2 <- '+n2+'\nse <- sqrt(s1^2/n1 + s2^2/n2)\ndf <- se^4 / ((s1^2/n1)^2/(n1-1) + (s2^2/n2)^2/(n2-1))\ntc <- qt(1 - '+((1-conf)/2)+', df)\nc((m1-m2) - tc*se, (m1-m2) + tc*se)');
+    inf(excl0 ? 'Since the '+lvl+'% interval excludes 0, <b>conclude the two group means genuinely differ</b> (equivalent to p &lt; '+((100-lvl)/100)+').' : 'Since the '+lvl+'% interval includes 0, <b>do not claim a difference</b>: no gap at all is still consistent with this data.');
     drawInterval(r2.lo, r2.hi, r2.est, null, 2, true);
   }
   else if(m==='prop'){
@@ -448,6 +459,7 @@ function calc(){
             'Beta quantiles: <code>qbeta(&alpha;/2, x, n-x+1)</code> and <code>qbeta(1-&alpha;/2, x+1, n-x)</code>');
       rcode('binom.test('+x+', '+nn+', conf.level = '+conf+')$conf.int');
     }
+    inf('You can be <b>'+lvl+'% confident</b> the true rate is between <b>'+fmt(100*r3.lo,1)+'%</b> and <b>'+fmt(100*r3.hi,1)+'%</b>; plan against the bound that costs you more if wrong.');
     drawInterval(r3.lo, r3.hi, x/nn, [0,1], 3);
   }
   else if(m==='diffprop'){
@@ -465,6 +477,7 @@ function calc(){
           'Unpooled SE: <code>sqrt(p&#8321;(1-p&#8321;)/n&#8321; + p&#8322;(1-p&#8322;)/n&#8322;) = '+fmt(r4.se,4)+'</code>',
           'Interval: <code>'+fmt(r4.est,3)+' &plusmn; '+fmt(r4.crit,3)+' &times; '+fmt(r4.se,4)+'</code>');
     rcode('prop.test(c('+x1+', '+x2+'), c('+n1b+', '+n2b+'), conf.level = '+conf+', correct = FALSE)$conf.int');
+    inf(excl0b ? 'Since the '+lvl+'% interval excludes 0, <b>conclude the two proportions genuinely differ</b> (equivalent to p &lt; '+((100-lvl)/100)+').' : 'Since the '+lvl+'% interval includes 0, <b>do not claim a difference</b> between the two rates yet.');
     drawInterval(r4.lo, r4.hi, r4.est, null, 3, true);
   }
   else if(m==='poisson'){
@@ -481,6 +494,7 @@ function calc(){
           'Exact bounds from chi-square quantiles: <code>qchisq(&alpha;/2, 2x)/2T</code> and <code>qchisq(1-&alpha;/2, 2(x+1))/2T</code>',
           'This is the same interval poisson.test() reports.');
     rcode('poisson.test('+ox+', '+ot+', conf.level = '+conf+')$conf.int');
+    inf('You can be <b>'+lvl+'% confident</b> the true rate is between <b>'+fmt(r5.lo,2)+'</b> and <b>'+fmt(r5.hi,2)+'</b> events per unit of exposure.');
     drawInterval(r5.lo, r5.hi, r5.est, null, 2);
   }
   else if(m==='variance'){
@@ -497,6 +511,7 @@ function calc(){
           'Chi-square bounds: <code>(n-1)s&#178; / qchisq(1-&alpha;/2)</code> and <code>(n-1)s&#178; / qchisq(&alpha;/2)</code>',
           'Take square roots for the SD interval. Sensitive to non-normal data.');
     rcode('s <- '+sv+'; n <- '+nv+'\na <- '+(1-conf)+'\nlo <- (n-1)*s^2 / qchisq(1 - a/2, n-1)\nhi <- (n-1)*s^2 / qchisq(a/2, n-1)\nsqrt(c(lo, hi))   # CI for the SD');
+    inf('You can be <b>'+lvl+'% confident</b> the true SD is between <b>'+fmt(r6.sdLo,2)+'</b> and <b>'+fmt(r6.sdHi,2)+'</b>; use the upper bound when sizing safety margins.');
     drawInterval(r6.sdLo, r6.sdHi, sv, null, 2);
   }
   else if(m==='corr'){
@@ -514,6 +529,7 @@ function calc(){
           'SE on the z scale: <code>1/sqrt(n-3) = '+fmt(1/Math.sqrt(nc-3),3)+'</code>',
           'Build the interval in z, map back with <code>tanh</code>. Same as cor.test().');
     rcode('# same interval cor.test(x, y) reports\nr <- '+rr+'; n <- '+nc+'\nz <- atanh(r); se <- 1/sqrt(n-3)\nzc <- qnorm(1 - '+((1-conf)/2)+')\ntanh(c(z - zc*se, z + zc*se))');
+    inf(excl0c ? 'Since the '+lvl+'% interval excludes 0, <b>conclude a real association exists</b>; its strength is plausibly anywhere from '+fmt(r7.lo,2)+' to '+fmt(r7.hi,2)+'.' : 'Since the '+lvl+'% interval includes 0, <b>do not claim an association</b>: zero correlation remains consistent with this data.');
     drawInterval(r7.lo, r7.hi, rr, [-1,1], 3);
   }
   else {
@@ -531,6 +547,7 @@ function calc(){
           'Critical t: <code>qt(1 - &alpha;/2, '+df2+') = '+fmt(r8.crit,3)+'</code>',
           'Interval: <code>'+b+' &plusmn; '+fmt(r8.crit,3)+' &times; '+se2+'</code>, what confint(model) computes.');
     rcode('# equivalently: confint(model)["x", ]\nb <- '+b+'; se <- '+se2+'; df <- '+df2+'\ntc <- qt(1 - '+((1-conf)/2)+', df)\nc(b - tc*se, b + tc*se)');
+    inf(excl0d ? 'Since the '+lvl+'% interval excludes 0, <b>the predictor has a real effect</b>: each 1-unit change shifts the outcome by '+fmt(r8.lo)+' to '+fmt(r8.hi)+'.' : 'Since the '+lvl+'% interval includes 0, <b>the data cannot rule out no effect</b> for this predictor.');
     drawInterval(r8.lo, r8.hi, b, null, 2, true);
   }
   if(!usedOnce){ usedOnce=true; try{ if(window.gtag) gtag('event','tool_use',{tool:'confidence-interval-calculator'}); }catch(e){} }
@@ -583,7 +600,16 @@ var SCEN={
   corr:{mode:'corr', set:{cr:0.42, cn:40}}
 };
 
+var IWANT={mean:'estimate a range for one average',diffmean:'compare two group averages',prop:'estimate a range for a percentage',diffprop:'compare two percentages',poisson:'estimate an event rate',variance:'estimate variability (SD)',corr:'bound the true strength of a correlation',regbeta:'put bounds on a regression coefficient'};
+function renderIwant(){
+  var el=document.getElementById('iwant'); if(!el)return;
+  var opts=MODES.map(function(k){return '<option value="'+k+'"'+(state.mode===k?' selected':'')+'>'+IWANT[k]+'</option>';}).join('');
+  el.innerHTML='I want to <span class="psel">'+IWANT[state.mode]+'<select aria-label="What do you want to estimate?">'+opts+'</select></span>.';
+  el.querySelector('select').addEventListener('change',function(){ state.mode=this.value; applyMode(); });
+}
+function inf(h){ var e=document.getElementById('infline'); if(e) e.innerHTML='<span class="ik">Inference</span>'+h; }
 function applyMode(){
+  renderIwant();
   MODES.forEach(function(k){ var el=$('in-'+k); if(el) el.hidden = state.mode!==k; });
   var isProp = state.mode==='prop';
   $('methlbl').hidden=!isProp;
