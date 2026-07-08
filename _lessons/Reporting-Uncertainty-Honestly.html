@@ -1,0 +1,475 @@
+---
+title: "Uncertainty Quantification Lesson 7: Reporting Uncertainty Honestly"
+description: "Report uncertainty honestly in R: tell aleatoric from epistemic uncertainty, match the interval to the decision, and quote a range without false precision."
+keywords: "aleatoric uncertainty, epistemic uncertainty, prediction interval, confidence interval, coverage, over-coverage, under-coverage, critical fractile, decision cost, false precision, communicating uncertainty, uncertainty quantification, R"
+mathjax: true
+webr: true
+curriculum_id: "6.210.7"
+post_type: "LESSON"
+course_id: "ds-uncertainty"
+course_title: "Uncertainty Quantification in R"
+course_lesson: "7"
+course_total: "7"
+course_landing: "R-Uncertainty-Course.html"
+course_next: ""
+course_prev: "The-Bootstrap-and-Jackknife-Plus.html"
+lesson_access: "pro"
+catalog_blurb: "Pick the interval that fits the decision and report it without false precision."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 7</div>
+<h2>Reporting Uncertainty Honestly</h2>
+
+<p>Across six lessons you built machinery for honesty: a prediction interval that really covers 90% of the time, a conformal band with a guarantee, a recalibrated probability that means what it says, a bootstrap standard error for a statistic with no formula. You can now put a defensible number on what you do not know. This final lesson is about the last, most human step: carrying that number into a decision, and saying it out loud, without lying, either by sounding more certain than you are or by dressing a rough estimate in false precision.</p>
+
+<p>Rohan the real-estate agent and Nadia the rain forecaster both come back, each holding an honest number and facing a real choice: what to quote, how much to stock, how to write it down. Getting from a correct interval to an honest decision turns on four ideas, and we take them one at a time.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Separate <strong>aleatoric</strong> uncertainty (the world's own irreducible noise) from <strong>epistemic</strong> uncertainty (what more data could still teach you), and see which part of a prediction interval each one is</li>
+
+<li>Match the uncertainty tool to the question, so you quote the interval a decision actually needs</li>
+
+<li>Weigh the asymmetric cost of over- versus under-covering, and pick the coverage level or quantile a decision's stakes call for</li>
+
+<li>Communicate an estimate without false precision: a point, a range, its meaning, and its assumptions</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 6 of this course, especially <a href="Prediction-Intervals-You-Can-Trust.html">prediction intervals and coverage</a>, <a href="Calibration-Reliability-and-Recalibration.html">calibration</a>, and the <a href="The-Bootstrap-and-Jackknife-Plus.html">bootstrap and jackknife+</a>. Base R: <code>lm()</code>, <code>predict()</code>, <code>quantile()</code>, vectors, a small function. A residual is actual minus predicted. Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="calibration-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where we left off</div>
+<h2>Two honest questions, one hidden split</h2>
+
+<p>In Lesson 6 you handed Rohan two honest numbers by resampling: a standard error for his headline median, and a jackknife+ range for one new home. Both were correct. But before you can <em>report</em> a number well, you have to understand what its uncertainty is made of, because not all not-knowing is the same kind.</p>
+
+<p>Let us rebuild Rohan's 50 recent sales so we have something concrete to take apart. Each lesson runs in a fresh R session, so we create the data right here (run this once). Sizes are right-skewed like a real market, and price climbs with size plus honest, even scatter.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n     &lt;- 50
+sqft  &lt;- round(exp(rnorm(n, log(1500), 0.35)))          # home sizes, right-skewed like a real market
+price &lt;- round(60000 + 175 * sqft + rnorm(n, 0, 20000)) # price grows with size, plus honest noise
+homes &lt;- data.frame(sqft, price)
+head(homes, 3)
+#&gt;   sqft  price
+#&gt; 1 1205 278837
+#&gt; 2 1600 327759
+#&gt; 3 1120 262822</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rohan's client is back with the same 1,500 square foot flat from Lesson 1. When Rohan predicts its price, his uncertainty comes from two completely separate places, and telling them apart is the first honest move.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first idea</div>
+<h2>Aleatoric and epistemic: two kinds of not-knowing</h2>
+
+<p>Picture the two reasons Rohan cannot name an exact sale price.</p>
+
+<p>First, suppose Rohan somehow knew the <em>true</em> average price of every 1,500 square foot flat in the city, down to the dollar. This one flat would still not sell for exactly that average. It has its own story: a fresh kitchen, a motivated seller, a bidding war, a rainy open-house week. That built-in, one-home-at-a-time randomness is <strong>aleatoric uncertainty</strong>, the irreducible noise in the world itself. No amount of extra data removes it, because it is not about Rohan's knowledge, it is about the coin the world flips for each home.</p>
+
+<p>Second, Rohan does <em>not</em> know the true average line. He estimated it from just 50 sales, so the line itself could be a little off. That is <strong>epistemic uncertainty</strong>, uncertainty that comes from limited knowledge. It is the reducible kind: gather more sales and the line pins down, and this piece shrinks toward zero. (The names come from Latin <em>alea</em>, a die, and Greek <em>episteme</em>, knowledge.)</p>
+
+<p>The prediction interval you met in Lesson 1 is exactly these two pieces combined. Its normal-theory half-width for a new home at size \(x_0\) was</p>
+
+<p>\[ t \; s \sqrt{\,1 \;+\; \frac{1}{n} \;+\; \frac{(x_0 - \bar x)^2}{S_{xx}}\,}, \]</p>
+
+<p>where \(s\) is the residual standard deviation (the typical miss), \(t\) is the multiplier that sets the level, \(n\) is the sample size, \(\bar x\) is the mean size, and \(S_{xx} = \sum_i (x_i - \bar x)^2\) is the spread of the sizes. The lone \(1\) under the root is the <strong>aleatoric</strong> piece: a single home's own scatter. It carries no \(n\), so more data cannot shrink it. The \(\tfrac{1}{n} + \tfrac{(x_0 - \bar x)^2}{S_{xx}}\) piece is the <strong>epistemic</strong> wobble in the fitted line, and every term in it has an \(n\), so it melts as data grows.</p>
+
+<p>The aleatoric scale is a number we can read straight off the fitted model: it is \(s\), the residual standard deviation.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- lm(price ~ sqft, data = homes)
+s   &lt;- summary(fit)$sigma        # residual standard deviation: the typical single-home miss
+round(s)
+#&gt; [1] 19563</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That \(s\), about \$19,600, is the scale of the aleatoric noise: a typical home lands roughly \$19,600 off the line for reasons no model of size can explain. Hold onto it.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">Feel it</div>
+<h2>Which piece shrinks with data?</h2>
+
+<p>The cleanest way to feel the split is to watch the two pieces respond differently to more data. In the panel below, slide the sample size up. The green <strong>confidence</strong> band, the epistemic uncertainty about the average line, collapses toward the line as data piles up. The orange <strong>prediction</strong> band, which also carries the aleatoric scatter of a single new home, barely narrows: you can always learn the average better, but you can never learn away an individual home's own dice.</p>
+
+<p>Push the sample size to the maximum: the green band nearly vanishes, the orange band holds its width. That stubborn orange floor is aleatoric uncertainty. Next we put real numbers on both pieces.</p>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Measure the split</div>
+<h2>Put a number on each piece</h2>
+
+<p>Let us compute the two pieces for Rohan's flat directly from the formula, using the \(s\), \(n\), and sizes we already have. The client's flat is \(x_0 = 1500\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x0   &lt;- 1500                                       # the client's flat
+xbar &lt;- mean(homes$sqft)
+Sxx  &lt;- sum((homes$sqft - xbar)^2)
+epistemic &lt;- s * sqrt(1/n + (x0 - xbar)^2 / Sxx)   # uncertainty about the average LINE
+aleatoric &lt;- s                                     # one home's own scatter (the lone 1)
+round(c(epistemic = epistemic, aleatoric = aleatoric))
+#&gt; epistemic aleatoric
+#&gt;      2864     19563</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 50 sales the epistemic wobble in the line is about \$2,900, while the aleatoric scatter is about \$19,600, nearly seven times larger. For a <em>single new home</em> the irreducible noise dominates. That is why a prediction interval stays stubbornly wide, and why Rohan cannot make the client's range much tighter just by studying harder.</p>
+
+<p>Now the decisive test: does gathering far more data shrink the two pieces differently? Draw 2,000 sales from the very same market and recompute.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+N2     &lt;- 2000
+sqft2  &lt;- round(exp(rnorm(N2, log(1500), 0.35)))
+price2 &lt;- round(60000 + 175 * sqft2 + rnorm(N2, 0, 20000))
+big    &lt;- data.frame(sqft = sqft2, price = price2)
+fit2   &lt;- lm(price ~ sqft, data = big)
+s2     &lt;- summary(fit2)$sigma
+epistemic2 &lt;- s2 * sqrt(1/N2 + (x0 - mean(big$sqft))^2 / sum((big$sqft - mean(big$sqft))^2))
+round(c(epistemic_n2000 = epistemic2, aleatoric_n2000 = s2))
+#&gt; epistemic_n2000 aleatoric_n2000
+#&gt;             458           20089</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Forty times more data cut the epistemic piece from about \$2,900 to about \$460 (it falls roughly with \(1/\sqrt{n}\)), while the aleatoric scale barely moved, near \$20,000, exactly what \(s\) estimated all along. More data buys down epistemic uncertainty and leaves aleatoric untouched.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Epistemic uncertainty is a to-do item: collect more or better data and it shrinks. Aleatoric uncertainty is a fact of the world: report it, do not promise to remove it. Knowing which is which tells you whether more data will help, and stops you promising a precision the world will not grant.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>More data, which piece?</h2>
+
+<p>Rohan collects ten times more sales and refits. What happens to the 90% prediction interval for one specific new flat?</p>
+<section class="exercise" data-exercise-id="Reporting-Uncertainty-Honestly-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both the epistemic and aleatoric pieces shrink, so the interval narrows a lot</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The epistemic piece shrinks toward zero but the aleatoric piece stays, so the interval narrows only modestly and then hits a floor</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The prediction interval shrinks until it equals the confidence interval</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Ten times the data pins the line down (epistemic falls with 1 over root n), but a single new home still carries its own irreducible scatter, so the prediction interval settles at a floor set by the aleatoric noise.</div><div class="lesson-qfb lesson-qfb-no">They never meet. The confidence interval is the epistemic piece alone; the prediction interval always adds the aleatoric scatter on top, and that does not shrink. With infinite data the confidence interval goes to zero while the prediction interval keeps its aleatoric width.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second idea</div>
+<h2>Match the interval to the question</h2>
+
+<p>Every tool in this course answers a <em>specific</em> question. Reach for the wrong one and you can be perfectly correct and still mislead. The most common slip is the one from Lesson 1: quoting a <em>confidence</em> interval, which is about the average, when someone asked about <em>one</em> outcome. Watch the two side by side for the client's flat.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ci &lt;- predict(fit, data.frame(sqft = x0), interval = &quot;confidence&quot;, level = 0.90)
+pi &lt;- predict(fit, data.frame(sqft = x0), interval = &quot;prediction&quot;, level = 0.90)
+round(rbind(confidence = ci[1, ], prediction = pi[1, ]))
+#&gt;               fit    lwr    upr
+#&gt; confidence 325046 320243 329849
+#&gt; prediction 325046 291885 358206</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The confidence interval is about \$9,600 wide; the prediction interval is about \$66,000 wide, nearly seven times more. Both are correct, to <em>different questions</em>. The confidence interval answers "what does the average 1,500 foot flat sell for?", the number you would want to price a whole development. The prediction interval answers "what will THIS flat sell for?", the only question the client is asking. Quote the tight \$9,600 range to a single seller and you have technically not lied, yet you have promised a precision that will be wrong most of the time.</p>
+
+<p>So the discipline is: name the decision first, then pick the object. Here is the whole course as a chooser.</p>
+
+<p>Pick by the question, not by habit: a summary statistic wants a bootstrap; one new outcome wants a prediction interval (conformal or jackknife+ when you need a guarantee); a spread that changes with the input wants quantile regression; and a probability wants a calibration check, not an interval at all.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"A summary of your data?","sub":"a mean, median, correlation, or coefficient: bootstrap it for a standard error and a percentile interval"},{"title":"One new numeric outcome?","sub":"a prediction interval: split conformal or the jackknife+ when you need a guarantee"},{"title":"An outcome whose spread changes?","sub":"quantile regression, for a band whose width breathes with the input"},{"title":"Is a stated probability honest?","sub":"a reliability diagram and recalibration, not an interval at all"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which tool answers the question?</h2>
+
+<p>Nadia's dispatcher asks: "on mornings the model calls 0.82, how often does it actually rain, so I know whether to trust that number?" Which tool from this course answers <em>that</em> question?</p>
+<section class="exercise" data-exercise-id="Reporting-Uncertainty-Honestly-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A bootstrap standard error on the overall rain rate</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A reliability diagram, and recalibration if it is off</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A 90% prediction interval from a linear model</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Asking whether mornings labeled 0.82 actually rain about 82% of the time is exactly calibration. A reliability diagram checks it and Platt or isotonic recalibration repairs it; no interval is involved.</div><div class="lesson-qfb lesson-qfb-no">A prediction interval is for a numeric outcome with a spread. Nadia's outcome is a yes or no event summarized by a probability, and the honesty of that probability is a calibration question, not an interval width.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The third idea</div>
+<h2>Over- and under-covering cost different amounts</h2>
+
+<p>An interval keeps a promise about how often the truth lands inside it. You can break that promise in two directions.</p>
+
+<p>An interval that <strong>under-covers</strong> is too narrow: it catches the truth <em>less</em> often than its label claims, a 90% interval that really covers 80%. This is the same disease as an <strong>over-confident</strong> probability from Lesson 5 (predict 0.9, it rains 0.8): the number oversells its certainty, so you are surprised more often than you bargained for. Drag the panel below toward over-confident to see the reliability curve sag below the diagonal, the visual signature of under-coverage.</p>
+
+<p>An interval that <strong>over-covers</strong> is too wide: a 99% interval quoted when 80% would do. It keeps its promise, but says so little that it is nearly useless. Rohan quoting any home at "somewhere between \$0 and \$5,000,000" covers every sale and informs no one.</p>
+
+<p>Between too narrow and too wide sits a real trade, and here is the key move: the right point on it is not automatically 90%. It depends on which mistake hurts more. When being surprised is catastrophic (a bridge load, a drug dose, an evacuation call) you buy wide intervals and high coverage. When a miss is cheap and a wide answer is costly, you accept lower coverage. The decision's stakes, not convention, set the level.</p>
+<div class="lesson-widget" data-widget-type="calibration-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">When the costs are lopsided</div>
+<h2>Let the decision pick the quantile</h2>
+
+<p>Nadia's dispatcher makes exactly this trade, with money. Each morning it must pre-position rain-gear kits before the couriers roll out, without knowing the day's exact demand. The two mistakes are not equal: running one kit <em>short</em> means a courier caught in the rain and a ruined package, while one <em>unused</em> kit is a small waste. Say a shortfall costs four times an overage.</p>
+
+<p>When the costs of over- and under-shooting are lopsided, aiming at the middle (the median demand) is wrong: you should deliberately over-stock, because here the cheap mistake is to have too many. The exact target is a classic result, the <strong>critical fractile</strong>: stock at the quantile</p>
+
+<p>\[ q^\star \;=\; \frac{c_u}{c_u + c_o}, \]</p>
+
+<p>where \(c_u\) is the cost of being one unit short (under-shooting) and \(c_o\) is the cost of one unit of overage. With a shortfall four times as costly as an overage, \(c_u = 4\) and \(c_o = 1\), so \(q^\star = 4/5 = 0.8\): stock at the 80th percentile of demand, not the 50th. Let us build the demand and confirm the fractile.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+demand &lt;- rpois(1000, lambda = 20)   # rain-gear kits needed per morning, uncertain
+cu &lt;- 4                              # cost of being ONE kit short: a courier caught in the rain
+co &lt;- 1                              # cost of ONE unused kit
+round(c(mean_demand = mean(demand), median_demand = median(demand)))
+#&gt;   mean_demand median_demand
+#&gt;            20            20
+q_star &lt;- cu / (cu + co)             # the critical fractile
+q_star
+#&gt; [1] 0.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Stock to the critical fractile</h2>
+
+<p>The cost-minimizing stock is the \(q^\star\) quantile of demand, rounded up to whole kits (you cannot stock a fraction of a kit). <code>demand</code> holds the 1,000 daily figures and <code>q_star</code> is 0.8. Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Reporting-Uncertainty-Honestly-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="quantile\(\s*demand\s*,\s*(q_star|cu\s*/\s*\(\s*cu\s*\+\s*co\s*\)|0?\.8)"><textarea class="lesson-tryit-input" spellcheck="false"># stock at the critical-fractile quantile, rounded up to whole kits
+stock &lt;- ceiling(quantile(demand, ____))
+stock</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">24 kits, four above the median of 20. Because a shortfall costs four times an overage, the honest target is the 0.8 quantile, quantile(demand, cu / (cu + co)), not the middle. Aiming at the median would under-stock on exactly the mornings that hurt most.</span><span class="lesson-tryit-fb lesson-tryit-no">The optimal stock is the critical-fractile quantile of demand. q_star is cu / (cu + co) = 0.8, so quantile(demand, q_star), or equivalently quantile(demand, cu / (cu + co)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">stock &lt;- ceiling(quantile(demand, q_star))
+stock
+#&gt; 80%
+#&gt;  24</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">See the minimum</div>
+<h2>The cost curve confirms it</h2>
+
+<p>You do not have to trust the formula on faith. Sweep every candidate stock level, compute the average daily cost of each against the 1,000 days of demand, and find the cheapest. The average cost of stocking \(S\) kits is \(c_u\) times the shortfall plus \(c_o\) times the overage, averaged over days.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">expected_cost &lt;- function(S) mean(cu * pmax(demand - S, 0) + co * pmax(S - demand, 0))
+kits  &lt;- 14:30
+costs &lt;- sapply(kits, expected_cost)
+best  &lt;- kits[which.min(costs)]
+data.frame(kits = c(20, 22, 24, 26),
+           avg_cost = round(sapply(c(20, 22, 24, 26), expected_cost), 2))
+#&gt;   kits avg_cost
+#&gt; 1   20     9.42
+#&gt; 2   22     7.12
+#&gt; 3   24     6.33
+#&gt; 4   26     6.93
+c(best_stock = best, quantile_0.8 = as.numeric(ceiling(quantile(demand, 0.8))))
+#&gt;   best_stock quantile_0.8
+#&gt;           24           24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Stocking to the median (20 kits) averages 9.42 a day; stocking 24 drops it to 6.33, a third cheaper, purely from aiming at the right quantile. And the cheapest level, 24, is exactly the 0.8 quantile the critical fractile predicted. Plotting the whole sweep shows the familiar U: too few kits is expensive (costly shortfalls), too many is expensive (wasted kits), and the bottom sits at the critical fractile.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(kits, costs, type = &quot;b&quot;, pch = 19, col = &quot;#1a73e8&quot;,
+     xlab = &quot;kits stocked&quot;, ylab = &quot;average daily cost&quot;)
+abline(v = best, lty = 2, col = &quot;#1f7a55&quot;)   # the critical-fractile minimum</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run it: a clean valley bottoming at 24. The coverage, or here the quantile, a decision needs is the one its costs point to, not a default level pulled from habit.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fourth idea</div>
+<h2>Say it without false precision</h2>
+
+<p>You have an honest number and the right interval. The last way to lie is in how you write it down. Ask Rohan's model for the client's price.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred &lt;- predict(fit, data.frame(sqft = x0))   # the point prediction
+pred
+#&gt;        1
+#&gt; 325045.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model prints \$325,045.70, to the cent. Reporting it that way is a quiet falsehood: those trailing digits claim a precision the model does not have. How much precision does it have? Look at the interval around it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">band &lt;- predict(fit, data.frame(sqft = x0), interval = &quot;prediction&quot;, level = 0.90)
+half &lt;- (band[, &quot;upr&quot;] - band[, &quot;lwr&quot;]) / 2
+round(c(point = as.numeric(pred), half_width = as.numeric(half)))
+#&gt;      point half_width
+#&gt;     325046      33160</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 90% interval reaches about \$33,000 either side. When your uncertainty is in the tens of thousands, quoting a prediction to the cent, or even to the exact dollar, is noise dressed as knowledge. The honest rule: round the estimate to the resolution its uncertainty allows, roughly the place of the first significant digit of the interval's half-width. A \$33,000 uncertainty lives in the ten-thousands, so round to the nearest \$10,000.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(as.numeric(pred), -4)                              # the point, nearest 10,000
+#&gt; [1] 330000
+round(as.numeric(c(band[, &quot;lwr&quot;], band[, &quot;upr&quot;])), -4)   # the interval, nearest 10,000
+#&gt; [1] 290000 360000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So Rohan says: "about \$330,000, and I am 90% confident it lands between \$290,000 and \$360,000." Every digit in that sentence is one he can stand behind, and the range does the honest work the point pretended to do.</p>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Round to what you can defend</h2>
+
+<p>Report the point prediction to the precision its roughly 33,000 uncertainty justifies: the nearest 10,000. <code>pred</code> holds the raw prediction. Fill in the blank to produce the honest figure.</p>
+<section class="exercise" data-exercise-id="Reporting-Uncertainty-Honestly-step14" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(round\([^)]*pred[^,]*,\s*-4|signif\([^)]*pred[^,]*,\s*2)"><textarea class="lesson-tryit-input" spellcheck="false"># round to the nearest 10,000, the resolution a ~33,000 uncertainty allows
+honest_point &lt;- ____
+honest_point</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">330000. Rounding to the nearest 10,000 with round(pred, -4), or to two significant figures with signif(pred, 2), drops the fake precision and keeps only the digits the interval can support.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the nearest 10,000: round(as.numeric(pred), -4), or signif(pred, 2) for two significant figures. Both give 330000.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">honest_point &lt;- round(as.numeric(pred), -4)
+honest_point
+#&gt; [1] 330000</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="concept">
+<div class="lesson-step-eyebrow">Put it together</div>
+<h2>An honest number, every time</h2>
+
+<p>Four ideas, one habit. Whenever you report a result under uncertainty, run the same short checklist.</p>
+
+<p>Rohan's brief now reads: about \$330,000 for this flat, 90% confident between \$290,000 and \$360,000, from a straight-line model on 50 recent local sales, valid for homes like these in this neighborhood. Nadia's reads: stock 24 kits, the 80th percentile of demand, because a shortfall costs us four times an unused kit. Neither hides its uncertainty; neither fakes a precision it lacks.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Honest reporting cannot rescue a dishonest model. Every interval in this course assumes the model is roughly right and the data are exchangeable, that the new case looks like the ones you learned from. If the model is biased, or the world has shifted since training (a market crash, a new weather regime), your interval will faithfully quantify the wrong answer. Honest uncertainty still needs an honest model and honest sampling; when either is in doubt, say <em>that</em> too.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"State a point and a range","sub":"never the single number alone: quote the interval it lives in"},{"title":"Say the level and what it means","sub":"90 percent coverage means about nine in ten such cases land inside"},{"title":"Round to the precision you earned","sub":"drop digits finer than the uncertainty: 330,000, not 325,045.70"},{"title":"Name the assumptions and scope","sub":"which population, which method, and when the guarantee holds"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="16" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://arxiv.org/abs/1703.04977">Kendall and Gal (2017), What Uncertainties Do We Need in Bayesian Deep Learning for Computer Vision?</a> - the clean split between aleatoric (data noise) and epistemic (model) uncertainty that this lesson turns on.</li>
+
+<li><a href="https://arxiv.org/abs/0912.0902">Gneiting (2011), Making and Evaluating Point Forecasts</a> - why the summary you report (a mean, a median, or a specific quantile) must match the decision's loss function; the theory behind the critical fractile.</li>
+
+<li><a href="https://doi.org/10.1146/annurev-statistics-010814-020148">Spiegelhalter (2017), Risk and Uncertainty Communication (Annual Review of Statistics)</a> - how to communicate a number and its uncertainty to a real audience without misleading them.</li>
+
+<li><a href="https://doi.org/10.1017/S0266267119000105">Manski (2020), The Lure of Incredible Certitude (Economics and Philosophy)</a> - the damage done by reporting estimates with false precision, and the case for honest interval reporting.</li>
+
+<li><a href="https://arxiv.org/abs/2107.07511">Angelopoulos and Bates (2023), A Gentle Introduction to Conformal Prediction</a> - the distribution-free toolkit this course used to guarantee coverage without assuming a bell curve.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="17" data-step-type="complete">
+<h2>Lesson 7 complete</h2>
+
+<p>You can now carry an uncertain number into a decision and report it honestly. You learned to split uncertainty into <strong>aleatoric</strong> (the world's own irreducible noise, which more data cannot shrink) and <strong>epistemic</strong> (limited knowledge of the model, which it can), and to see both pieces inside a single prediction interval. You learned to <strong>match the tool to the question</strong>, so a single seller hears a prediction interval, not a confidence interval, and a suspect probability gets a calibration check, not a band. You learned that over- and under-covering <strong>cost different amounts</strong>, so the right coverage or quantile is the one a decision's stakes call for, the critical fractile when they are lopsided. And you learned to state a result <strong>without false precision</strong>: a point, a range, its level, and its assumptions.</p>
+
+<p>That closes the course. Across seven lessons you went from a single point prediction to a full, defensible account of what you do not know: prediction intervals and their coverage, split and classification conformal with finite-sample guarantees, quantile and distributional regression for spreads that breathe, calibration for honest probabilities, the bootstrap and jackknife+ for uncertainty from resampling alone, and finally the judgment to report all of it honestly. Quantifying uncertainty well is not pessimism; it is the difference between a number people can act on and one that only sounds confident.</p>
+</section>
+
+{% endraw %}
