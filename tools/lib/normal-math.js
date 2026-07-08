@@ -98,7 +98,7 @@
   function between(a, b, mean, sd) { return pnorm((b - mean) / sd) - pnorm((a - mean) / sd); }
   function twoTail(z) { return 2 * pnorm(-Math.abs(z)); }
 
-  return { lgamma: lgamma, erfc: erfc, pnorm: pnorm, dnorm: dnorm, qnorm: qnorm,
+  return { lgamma: lgamma, erfc: erfc, gammq: gammq, pnorm: pnorm, dnorm: dnorm, qnorm: qnorm,
            zFromX: zFromX, pctFromZ: pctFromZ, zFromPct: zFromPct,
            between: between, twoTail: twoTail };
 }));
