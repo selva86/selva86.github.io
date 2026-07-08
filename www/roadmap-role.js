@@ -133,7 +133,8 @@
   function interRow(l){
     var isQ=l.kind==='quiz', sub=(l.subtitle||'').trim();
     var subHtml=sub?'<span class="lsub">'+esc(sub)+'</span>':'';
-    var tag='<span class="itag'+(isQ?' quiz':'')+'">'+(isQ?'Quiz':'Interactive')+'</span>';
+    var chip=(String(l.access||'').toLowerCase()==='pro')?'<span class="ltag pro">Pro</span>':'<span class="ltag free">Free</span>';
+    var tag=chip+'<span class="itag'+(isQ?' quiz':'')+'">'+(isQ?'Quiz':'Interactive')+'</span>';
     return '<a class="lsn inter" href="/'+l.slug+'.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span>'+subHtml+'</span>'+tag+ARR+'</a>';
   }
   // B6 section block: numbered chip + title + outcome + Free/Pro badge, then a
