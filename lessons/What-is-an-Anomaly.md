@@ -21,7 +21,9 @@ course_prev: ""
 ::eyebrow Lesson 1 of 7
 ## What Is an Anomaly?
 
-One of the dots below is not like the others. Not because someone labelled it, but because it sits alone in a sparse pocket while the rest crowd together. That "does not fit" feeling is the whole job of anomaly detection, and this course teaches you to turn it into a number.
+Picture Maya's debit card: dozens of small $20 charges at the same two coffee shops, then one Tuesday a $2,400 charge from an electronics store 300 miles from home. Your eye jumps to that last one before any model runs. Turning that "does not fit" feeling into a number is the whole job of anomaly detection, and it is what this course teaches.
+
+One of the dots in the picture below behaves the same way. It is not like the others, not because someone labelled it, but because it sits alone in a sparse pocket while the rest crowd together.
 
 Before we can catch anomalies with isolation forests, density scores or autoencoders, we need to pin down what an anomaly actually is, and why it is so easy to fool yourself into thinking you have caught them.
 
@@ -40,9 +42,9 @@ By the end of this lesson you will be able to:
 ::eyebrow The idea
 ## An anomaly is a point that breaks the pattern
 
-Meet Maya. Her debit card tells a steady story: most days she spends $3 to $60 at cafes and the grocery store a few miles from home. Then one Tuesday a $2,400 charge appears from an electronics store 300 miles away. You did not need a model to feel that something is off. That feeling has a definition.
+Back to Maya's card. Her everyday charges tell a steady story: most days she spends $3 to $60 at cafes and the grocery store a few miles from home. The $2,400 charge from the cover breaks that story, and you did not need a model to feel it. That feeling has a definition.
 
-An **anomaly** (or **outlier**) is a data point that does not fit the pattern of the rest of the data. Formally, you build a model of what "normal" looks like, then an anomaly is any point that model assigns a low probability or a high "distance from normal" score. Everything in this course is a different way to build that model of normal.
+An **anomaly** (or **outlier**) is a data point that does not fit the pattern of the rest of the data. Formally, you build a model of what "normal" looks like, then an anomaly is any point that model assigns a low probability, or a high "distance from normal" score. Everything in this course is a different way to build that model of normal.
 
 [KEY INSIGHT]
 Anomalous means unusual, not wrong. Maya's $2,400 charge might be a laptop she genuinely bought, or a thief testing her card. Anomaly detection finds the points worth a second look; deciding what they mean is a separate step. Confusing "rare" with "fraud" is the first mistake to avoid.
@@ -128,20 +130,20 @@ The takeaway: "anomaly" is not one thing. Which method you reach for depends on 
 
 === step === quiz
 ::eyebrow Check yourself
-## What makes an outlier *local*?
+## What makes an outlier local?
 
 A point can be an anomaly even when it is **not** the farthest from the center of the data. What makes it a *local* outlier?
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - It sits in a sparser pocket than the points immediately around it, even if other points are farther from the center ::ok Right. Local outliers are defined by comparing a point's density to its neighbours' density, so a point can be a local outlier without being an extreme global value. That is the gap density methods fill.
-- It has the largest distance from the overall mean ::no That describes a GLOBAL outlier. A single global distance cutoff catches those but misses a point that is only sparse relative to its own neighbourhood.
-- It always belongs to the smallest cluster ::no Cluster size is not the test. A point in a big cluster can still be a local outlier if it sits in a thin patch of it, and a small dense cluster of normal points is not anomalous.
+- It has the largest distance from the overall mean ::no That describes a GLOBAL outlier, the kind a distance cutoff already catches. A local outlier can sit at a perfectly ordinary distance from the center yet be sparse compared to its immediate neighbours, and cluster size is not the test either.
+- It always belongs to the smallest cluster
 
 === step === concept
 ::eyebrow Why this is hard
 ## The base-rate trap
 
-Here is the trap that catches almost everyone. Anomalies are, by definition, **rare**. Suppose 0.5% of a bank's transactions are truly fraud. Screen 10,000 of them:
+Here is the trap that catches almost everyone. Zoom out from Maya's card to her whole bank. Anomalies are, by definition, **rare**: suppose 0.5% of the bank's transactions are truly fraud. Screen 10,000 of them:
 
 ```r
 set.seed(2)
@@ -204,15 +206,15 @@ Where you set the dial depends on the cost of a miss versus the cost of a false 
 A vendor demos a fraud detector: **99% accurate** on 10,000 transactions where 0.5% are fraud. Your manager is thrilled. Why might it still be nearly useless?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- 99% accuracy is excellent for any problem, so the manager is right ::no When one class is rare, accuracy is misleading: predicting "never fraud" alone already scores 99.5% here. High accuracy on imbalanced data is the trap, not the win.
+- 99% accuracy is excellent for any problem, so the manager is right ::no Accuracy is dominated by the huge normal class. A model that flags NOTHING already scores 99.5% here, so 99% can mean the detector did almost no work. And no detector scores 100% on overlapping real data. Judge it by precision (are the alerts real?) and recall (is fraud being caught?) instead.
 - At a 0.5% base rate a detector can hit 99% accuracy while almost every alert it raises is a false alarm, so its precision can be tiny ::ok Exactly. Accuracy is dominated by the huge normal class. You must see precision (are the alerts real?) and recall (is fraud being caught?) before trusting it.
-- The detector must be broken, because a real one would score 100% ::no No detector scores 100% on overlapping data. The issue is not a bug; it is that accuracy is the wrong yardstick when the positive class is rare.
+- The detector must be broken, because a real one would score 100%
 
 === step === tryit
 ::eyebrow Your turn
 ## Measure precision yourself
 
-Precision answers the question that matters to an analyst drowning in alerts: **of the transactions we flagged, what fraction were actually fraud?** Here is one week of alerts, each later confirmed by a human. Fill in the blank so `precision` is the share of alerts that were truly fraud.
+Precision answers the question that matters to an analyst buried in alerts: **of the transactions we flagged, what fraction were actually fraud?** Here is one week of alerts, each later confirmed by a human. Fill in the blank so `precision` is the share of alerts that were truly fraud.
 
 ```r
 confirmed <- c(1, 0, 0, 1, 0, 0, 0, 1, 0, 0)   # 1 = confirmed fraud, 0 = false alarm
