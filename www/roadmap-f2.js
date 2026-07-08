@@ -118,7 +118,11 @@
               var sub=(l.subtitle||'').trim();
               var covHtml=sub?'<span class="lsub">'+esc(sub)+'</span>':'';
               var isQ=l.kind==='quiz';
-              rows+='<a class="lsn inter" href="/'+l.slug+'.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span>'+covHtml+'</span><span class="itag'+(isQ?' quiz':'')+'">'+(isQ?'Quiz':'Interactive')+'</span>'+RARR+'</a>';
+              var isPro=String(l.access||'').toLowerCase()==='pro';
+              var acc=isPro?'<span class="ltag pro" title="Part of the Program">'+
+                '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9z"/></svg> Pro</span>'
+                :'<span class="ltag free">Free</span>';
+              rows+='<a class="lsn inter'+(isPro?' pro-row':'')+'" href="/'+l.slug+'.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span>'+covHtml+'</span>'+acc+'<span class="itag'+(isQ?' quiz':'')+'">'+(isQ?'Quiz':'Interactive')+'</span>'+RARR+'</a>';
             });
           });
           if(!rows)return;
