@@ -61,8 +61,8 @@ Now fit the line and ask it about the client's 1,500 square foot flat:
 fit  <- lm(price ~ sqft, data = homes)
 flat <- data.frame(sqft = 1500)
 round(predict(fit, flat))     # the single-number point prediction
-#>      1 
-#> 329113 
+#>      1
+#> 329113
 ```
 
 There it is: $329,113. That is the model's best single guess, and it is the model's *average* home at 1,500 square feet. But the client is not selling the average flat. They are selling *one* flat, and one flat lands somewhere in a wide cloud around that average. Quote the single number and Rohan is wrong almost every time. The honest move is to quote a range.
@@ -106,13 +106,13 @@ Only about $6,000 either side. With 160 sales we have pinned the average flat do
 
 Slide the sample size below. Watch the green **confidence** band collapse onto the line as data piles up (we learn the average ever more precisely), while the orange **prediction** band barely narrows: a single new home always carries its own irreducible noise, no matter how much data you gather.
 
-::widget regression-intervals {}
-
 The formula makes the split explicit. The normal-theory prediction interval for a new home at size \(x_0\) is
 
 \[ \hat y_0 \;\pm\; t_{1-\alpha/2,\,n-2}\; s\sqrt{\,1 + \tfrac{1}{n} + \tfrac{(x_0-\bar x)^2}{S_{xx}}\,} \]
 
 where \(\hat y_0\) is the point prediction, \(s\) is the residual standard deviation (the typical miss), \(t\) is a multiplier from the t-distribution that sets the level, \(n\) is the sample size, \(\bar x\) the mean size, and \(S_{xx}=\sum_i(x_i-\bar x)^2\) the spread of the sizes. The confidence interval is the SAME formula but *without* the \(1\) under the root. That lone \(1\) is the scatter of an individual home, the piece that never shrinks with more data, and the whole reason a prediction interval stays wide.
+
+::widget regression-intervals {}
 
 === step === quiz
 ::eyebrow Check yourself
@@ -121,7 +121,7 @@ where \(\hat y_0\) is the point prediction, \(s\) is the residual standard devia
 Rohan's client wants to know what THEIR specific 1,500 square foot flat will sell for. Rohan has both intervals in front of him: a confidence interval of $322,785 to $335,441, and a prediction interval of $250,360 to $407,866. Which should he quote, and why?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The confidence interval, $323k to $335k, because it is tighter and more precise ::no That tight band is the uncertainty in the AVERAGE price of all such flats, not where one flat lands. Quote it and Rohan is promising a $13k window when single homes routinely swing by $150k, so it will be wrong most of the time.
+- The confidence interval, $323k to $335k, because it is tighter and more precise ::no They are not close: $13k wide versus $158k wide. More data shrinks the confidence interval toward the line but barely touches the prediction interval, because a new home's own scatter never goes away.
 - The prediction interval, $250k to $408k, because it is about a single new home and includes the home-to-home scatter ::ok Right. The client is selling one flat, not the average of all flats. Only the prediction interval accounts for the irreducible spread of individual homes, so only it can keep a coverage promise about this sale.
 - Either one; at n = 160 they are essentially the same ::no They are not close: $13k wide versus $158k wide. More data shrinks the confidence interval toward the line but barely touches the prediction interval, because a new home's own scatter never goes away.
 
@@ -157,8 +157,6 @@ The band that looked so reasonable is quietly the wrong width almost everywhere.
 
 There is exactly one honest way to check an interval: take a pile of fresh homes whose true prices you know, and count how many land inside their own intervals. That fraction is the **empirical coverage**. If the interval is honest, it should come out near 0.90.
 
-::widget process-flow {"steps":[{"title":"Fit","sub":"fit the model on your training homes"},{"title":"Predict","sub":"build the 90% interval for many fresh homes"},{"title":"Check","sub":"mark each fresh home inside or outside its interval"},{"title":"Average","sub":"the fraction inside is the empirical coverage"}]}
-
 Let us run exactly that recipe on 5,000 brand-new homes drawn from the same market:
 
 ```r
@@ -182,6 +180,8 @@ sum(big)                   # how many big homes we are about to scrutinise
 #> [1] 2530
 ```
 
+::widget process-flow {"steps":[{"title":"Fit","sub":"fit the model on your training homes"},{"title":"Predict","sub":"build the 90% interval for many fresh homes"},{"title":"Check","sub":"mark each fresh home inside or outside its interval"},{"title":"Average","sub":"the fraction inside is the empirical coverage"}]}
+
 === step === tryit
 ::eyebrow Your turn
 ## Uncover the failure
@@ -199,6 +199,8 @@ big_coverage
 big_coverage <- mean(inside[big])
 big_coverage
 #> [1] 0.8213439
+mean(inside[!big])            # the small homes, for contrast
+#> [1] 0.9744939
 ```
 
 === step === quiz
@@ -208,7 +210,7 @@ big_coverage
 Rohan's 90% interval covered 97% of small homes but only 82% of the big ones, even though it averaged out near 90% overall. What is the cause, and the right fix?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The regression is underfit; adding more predictors would fix the coverage ::no The mean line is fine and the slope is right. The problem is not the prediction, it is the single interval WIDTH. More predictors do not change that one pooled spread is wrong for a market whose scatter varies.
+- The regression is underfit; adding more predictors would fix the coverage ::no More predictors can sharpen the line, but the miss here is not bias: the errors genuinely fan out with size. A better mean fit does not make one pooled width right for both ends.
 - The equal-variance assumption is broken, so one pooled width is too narrow for high-scatter homes; the fix is a method that does not assume a constant, bell-shaped error ::ok Exactly. Heteroskedastic errors mean no single width fits everyone. You need an interval whose width can adapt, or a distribution-free guarantee that holds whatever the errors look like. That is where the rest of this course goes.
 - Just raise the level to 95%; a wider interval will cover everyone ::no That widens BOTH groups, pushing small homes past 99% (even more wasteful) while big homes may still fall short. The issue is one-width-fits-all, not the level you picked.
 
