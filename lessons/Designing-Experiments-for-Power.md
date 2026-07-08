@@ -44,18 +44,18 @@ Here is the experiment Meera plans to run. Half of checkout visitors see the old
 
 That verdict can go wrong in exactly two ways, because there are two possible worlds and two possible verdicts:
 
-| | Test says significant | Test says not significant |
+|  | Test says significant | Test says not significant |
 |---|---|---|
 | **The redesign truly lifts conversion** | Correct detection, probability \(1-\beta\) (the power) | **Miss** (Type II error), probability \(\beta\) |
 | **The redesign does nothing** | **False winner** (Type I error), probability \(\alpha\) | Correct |
 
 The first error you already know. \(\alpha\) (alpha) is the false-alarm rate you chose when you set the significance level: if the redesign does nothing, a 0.05 test hands Meera a false winner 5% of the time. The interactive below is that familiar machinery: the bell curve is what the test statistic does when nothing is going on, and the shaded tail is the p-value. Drag the observed statistic and watch when the verdict flips.
 
-::widget null-distribution {"tails":2,"start":2.0,"label":"observed z"}
-
 The second error is the one this lesson exists for. Suppose the one-page checkout genuinely lifts conversion from 4.0% to 4.6%, and the test still comes back not significant, just because too few visitors passed through. Meera scraps a $160,000-a-year improvement and never learns she was holding it. That is a **Type II error**, a miss, and its probability is written \(\beta\) (beta).
 
 **Statistical power** is the flip side of the miss: \(\text{power} = 1 - \beta\), the probability the test detects the lift, assuming the lift is real and of a specific size. The working convention is to design for at least 80% power, the same way 0.05 is the convention for \(\alpha\). In short: alpha protects you from shipping junk; power protects you from throwing away gold.
+
+::widget null-distribution {"tails":2,"start":2.0,"label":"observed z"}
 
 === step === quiz
 ::eyebrow Check yourself
@@ -64,9 +64,9 @@ The second error is the one this lesson exists for. Suppose the one-page checkou
 Meera reports that her checkout test, as designed, has 80% power. Which reading of that sentence is correct?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"beginner"}
-- There is an 80% chance the one-page checkout really is better ::no Power says nothing about whether the redesign works. It is a property of the TEST: it assumes a real lift of a specific size, then asks how often the test would catch it.
+- There is an 80% chance the one-page checkout really is better
 - If the redesign truly lifts conversion from 4.0% to 4.6%, the test has an 80% chance of coming back significant ::ok Exactly. Power is conditional: assume a specific true lift, then ask how often this design detects it. Assume a different lift and the power changes too.
-- The test will only declare a false winner 20% of the time ::no That mixes up the two errors. False winners are governed by alpha, fixed at 5% here. The 20% is the miss rate beta: the chance a real 0.6pp lift slips through undetected.
+- The test will only declare a false winner 20% of the time ::no Neither A nor C is what power means. Power is conditional: assume the lift is real and a specific size (4.0% to 4.6% here), then power is the chance the test detects it. It is not the probability the redesign is truly better (A), and its complement is the miss rate beta = 20%, not the false-winner rate alpha, which stays fixed at 5% (C).
 
 === step === concept
 ::eyebrow Feel it
@@ -186,9 +186,9 @@ where \(z_{\beta}\) is the normal score matching your target power, about 0.84 f
 Impatient, the team runs the checkout test for only two weeks: 6,000 visitors per arm, which gives about 37% power against the expected 0.6pp lift. The result: p = 0.21. What is the right conclusion?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- The redesign does not work; kill it and move on ::no At 37% power, a REAL 0.6pp lift would come back not significant almost two times out of three. This result is exactly what testing a genuine winner with too little traffic usually looks like.
+- The redesign does not work; kill it and move on
 - The result is inconclusive: at 37% power the test would miss a real 0.6pp lift most of the time, so p = 0.21 neither confirms nor rules out the lift ::ok Right. A non-significant result from an underpowered test is an absence of evidence, not evidence of absence. The honest move is to keep the test running toward the planned sample size, not to conclude.
-- Relax the significance level to 0.10 so the same data can clear the bar ::no Moving the bar after seeing the data inflates the false-winner rate, precisely what alpha was fixed in advance to control. Significance rules are set at design time, never renegotiated mid-test.
+- Relax the significance level to 0.10 so the same data can clear the bar ::no Two traps here. Killing the redesign (A) reads a non-significant result from a 37%-power test as proof it fails, but that is absence of evidence, not evidence of absence. Relaxing the bar to 0.10 after seeing the data (C) inflates exactly the false-winner rate alpha was fixed in advance to control. The honest move is to keep running toward the planned sample size.
 
 === step === concept
 ::eyebrow When formulas break
@@ -230,9 +230,9 @@ Everything in this lesson assumes one metric, two arms, and ONE look at the data
 Meera sized the test at roughly 18,000 per arm for the expected 0.6pp lift. A week before launch, the product team walks it back: a 0.3pp lift is more realistic. Roughly how many visitors per arm does 80% power need now?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- About 36,000: half the effect needs twice the visitors ::no Sample size does not scale linearly. It moves with 1 over d squared, so halving the effect QUADRUPLES the requirement, it does not double it.
+- About 36,000: half the effect needs twice the visitors
 - About 70,000: half the effect needs four times the visitors ::ok Right, n scales with 1 over d squared. The exact call, power.prop.test with p2 = 0.043, asks for 69,379 per arm, about 23 weeks of Meera's traffic. Numbers like that are why the next lesson is about shrinking the variance instead.
-- Still about 18,000: alpha and power have not changed, so n stays put ::no The required n depends on the effect size too, and it is the strongest lever of the three. A smaller true lift is harder to see, so n must go up, and by a factor of four here.
+- Still about 18,000: alpha and power have not changed, so n stays put ::no The required n depends on the effect size too, and it is the strongest lever of the three. Halving the true lift does not double the sample, it quadruples it: n scales with 1 over d squared, so 0.3pp needs about 70,000 per arm, not 36,000 (A) and certainly not the same 18,000 (C).
 
 === step === concept
 ::eyebrow Go deeper
