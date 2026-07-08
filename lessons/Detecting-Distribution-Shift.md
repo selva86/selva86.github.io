@@ -106,7 +106,7 @@ The `stable` window scores **0.007** (green), and `drifted` scores **0.348**, we
 A monitor reports **PSI = 0.09** on the `amount` feature this week, up from 0.02 last week. Fraud labels for this week will not arrive for a month. What is the right read?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Alarm: 0.09 is above zero, so the model has already lost accuracy and must be retrained today ::no PSI measures input movement, not accuracy, and 0.09 is below the 0.1 "watch" line. A non-zero PSI does not prove performance fell; it flags that the inputs are starting to move.
+- Alarm: 0.09 is above zero, so the model has already lost accuracy and must be retrained today ::no The whole point of PSI is that it works without labels. It is telling you something real about the inputs; here it says "stable but drifting up, keep an eye on it."
 - Below the 0.1 line, so no significant shift yet, but the jump from 0.02 is worth watching next week ::ok Right. 0.09 is still in the "stable" band (< 0.1), so no action is forced, but the trend from 0.02 toward 0.1 is exactly the early warning PSI exists to give.
 - Ignore it entirely: without labels, PSI tells you nothing useful ::no The whole point of PSI is that it works without labels. It is telling you something real about the inputs; here it says "stable but drifting up, keep an eye on it."
 
@@ -187,8 +187,6 @@ PSI and KS look at **one feature at a time**. But drift often hides in the *comb
 
 That is the **classifier two-sample test (C2ST)**, and its score is exactly the AUC you already know: the probability the model ranks a random current-window row above a random reference row. Slide the threshold below to feel how AUC summarizes separability into one number, then read what the same idea does to Nadia's `amount`.
 
-::widget roc-curve {}
-
 In R, it is a `glm`, a held-out split, and the AUC computed by hand (the Mann-Whitney form, no extra package).
 
 ```r
@@ -216,6 +214,8 @@ On `stable` the classifier manages **0.526**, a hair above 0.5 by luck, as good 
 [KEY INSIGHT]
 Because the "no drift" AUC is about 0.5 rather than exactly 0.5, judge the score against a baseline, not the raw 0.5 line. Reshuffle the pooled labels a few times, recompute AUC, and treat anything above that noise band as real drift.
 
+::widget roc-curve {}
+
 === step === quiz
 ::eyebrow Check yourself
 ## Which detector catches it?
@@ -223,7 +223,7 @@ Because the "no drift" AUC is about 0.5 rather than exactly 0.5, judge the score
 A recommender monitors two features: `session_length` and `items_viewed`. Each feature's own histogram this month matches last month's almost exactly (PSI ~0.02, KS p ~0.6 on each). Yet users who view many items now have very short sessions, the opposite of before. Which detector flags this, and why?
 
 ::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- Per-feature PSI, because a large enough shift always shows up in at least one feature's bins ::no Both features' one-dimensional histograms are unchanged (PSI ~0.02). The shift is in how the two features move *together*, which a per-feature, one-dimensional PSI cannot see.
+- Per-feature PSI, because a large enough shift always shows up in at least one feature's bins ::no You can absolutely catch joint drift without labels; that is what the classifier two-sample test is for. Waiting for labels is the delay this whole lesson exists to avoid.
 - Nothing can catch it without labels, so you must wait for the engagement labels to confirm the drop ::no You can absolutely catch joint drift without labels; that is what the classifier two-sample test is for. Waiting for labels is the delay this whole lesson exists to avoid.
 - The classifier two-sample test, because it uses both features at once and can learn their changed joint pattern ::ok Exactly. C2ST trains on all features together, so it detects a changed relationship between them even when each one's marginal histogram is untouched. PSI and KS, being one feature at a time, miss joint drift.
 
