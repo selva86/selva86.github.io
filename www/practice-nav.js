@@ -116,7 +116,7 @@ window.XN_HUBS=[
     if (!link || link.closest('.xn-wrap')) return;
 
     if (!document.querySelector('link[data-xn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=6';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=7';
       l.setAttribute('data-xn-css', ''); document.head.appendChild(l);
     }
 
@@ -124,7 +124,12 @@ window.XN_HUBS=[
     link.parentNode.insertBefore(wrap, link); wrap.appendChild(link);
     link.classList.add('xn-trigger');
     link.setAttribute('aria-haspopup', 'true'); link.setAttribute('aria-expanded', 'false');
-    link.insertAdjacentHTML('beforeend', ' <svg class="xn-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
+    // The caret is a markup glyph (.ex-caret) supplied by the nav template so
+    // it survives with no JS / no CSS-escape mangling. Only inject the legacy
+    // SVG caret as a fallback when the markup glyph is absent (avoids doubles).
+    if (!link.querySelector('.ex-caret')){
+      link.insertAdjacentHTML('beforeend', ' <svg class="xn-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
+    }
 
     var drop = document.createElement('div'); drop.className = 'xn-drop'; drop.setAttribute('role', 'menu');
     drop.innerHTML = panelHTML(); wrap.appendChild(drop);
