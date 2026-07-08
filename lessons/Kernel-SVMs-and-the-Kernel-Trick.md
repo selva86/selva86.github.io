@@ -13,7 +13,7 @@ course_total: "8"
 course_landing: "R-Advanced-Supervised-Learning-Course.html"
 course_next: "Regularized-Discriminant-Analysis.html"
 course_prev: "Support-Vector-Machines-Maximum-Margin.html"
-lesson_access: "pro"
+lesson_access: "free"
 catalog_blurb: "How kernels bend the boundary to separate classes a straight line cannot."
 ---
 

@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.190.2"
 webr: true
 mathjax: true
-lesson_access: "pro"
+lesson_access: "free"
 course_id: "ds-robustness-drift"
 course_title: "Robustness, Drift and Distribution Shift"
 course_lesson: "2"

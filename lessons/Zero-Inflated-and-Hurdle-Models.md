@@ -13,7 +13,7 @@ course_total: "13"
 course_landing: "R-Advanced-Regression-Course.html"
 course_next: "Gamma-and-Tweedie-Regression.html"
 course_prev: "Count-Models-Poisson-and-Negative-Binomial.html"
-lesson_access: "pro"
+lesson_access: "free"
 catalog_blurb: "How to handle count data with far more zeros than a standard model expects."
 ---
 

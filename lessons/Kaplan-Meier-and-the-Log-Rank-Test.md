@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.150.2"
 webr: true
 mathjax: true
-lesson_access: "pro"
+lesson_access: "free"
 course_id: "ds-survival"
 course_title: "Survival Analysis"
 course_lesson: "2"

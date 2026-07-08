@@ -5,7 +5,7 @@ keywords: "R quiz, robust regression, quantile regression, ridge, lasso, elastic
 post_type: "LESSON"
 curriculum_id: "6.130.14"
 webr: true
-lesson_access: "pro"
+lesson_access: "free"
 course_id: "ds-reg-glm-expert"
 course_title: "Advanced Regression and GLMs"
 course_lesson: "14"

@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.130.12"
 webr: true
 mathjax: true
-lesson_access: "pro"
+lesson_access: "free"
 course_id: "ds-reg-glm-expert"
 course_title: "Advanced Regression and GLMs"
 course_lesson: "12"

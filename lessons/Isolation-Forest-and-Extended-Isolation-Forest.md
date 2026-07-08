@@ -13,7 +13,7 @@ course_total: "7"
 course_landing: "R-Anomaly-Detection-Course.html"
 course_next: "Local-Outlier-Factor-and-One-Class-SVM.html"
 course_prev: "What-is-an-Anomaly.html"
-lesson_access: "pro"
+lesson_access: "free"
 catalog_blurb: "Catch rare outliers by how few random cuts it takes to isolate them."
 ---
 

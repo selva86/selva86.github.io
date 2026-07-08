@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.210.2"
 webr: true
 mathjax: true
-lesson_access: "pro"
+lesson_access: "free"
 course_id: "ds-uncertainty"
 course_title: "Uncertainty Quantification in R"
 course_lesson: "2"

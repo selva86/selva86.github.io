@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.170.2"
 webr: true
 mathjax: true
-lesson_access: "pro"
+lesson_access: "free"
 course_id: "ds-experimentation"
 course_title: "Experimentation"
 course_lesson: "2"
