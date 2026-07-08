@@ -1,7 +1,7 @@
 ---
 title: "Anomaly Detection Lesson 7: Self-Supervised and Contrastive Learning"
-description: "Self-supervised and contrastive learning in R from scratch: pretext tasks, the InfoNCE loss, representation collapse, and why a spread, decorrelated map surfaces anomalies."
-keywords: "self-supervised learning, contrastive learning, InfoNCE, representation learning, pretext task, representation collapse, decorrelation, anomaly detection, R"
+description: "Learn representations without labels in R: pretext tasks, the contrastive pull-and-push idea, and why a decorrelated representation makes anomalies stand out."
+keywords: "self-supervised learning, contrastive learning, representation learning, SimCLR, InfoNCE, pretext task, Barlow Twins, decorrelation, anomaly detection, R"
 mathjax: true
 webr: true
 curriculum_id: "6.200.7"
@@ -14,7 +14,7 @@ course_landing: "R-Anomaly-Detection-Course.html"
 course_next: ""
 course_prev: "Kernel-PCA-Sparse-PCA-and-NMF.html"
 lesson_access: "pro"
-catalog_blurb: "How to learn a useful representation of your data without any labels."
+catalog_blurb: "Learn a useful representation from unlabeled data so odd points stand out."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
@@ -23,160 +23,63 @@ catalog_blurb: "How to learn a useful representation of your data without any la
 <div class="lesson-step-eyebrow">Lesson 7 of 7</div>
 <h2>Self-Supervised and Contrastive Learning</h2>
 
-<p>Nadia looks after a herbarium: 150 pressed iris flowers in a wooden drawer, each with four pencil measurements on its card, the length and width of a sepal and a petal. Decades ago the species tags fell off. She has no labels, yet she still wants two things. First, a tidy MAP of the drawer where similar flowers sit near each other. Second, an automatic flag for the odd specimen that does not belong with the rest.</p>
+<p>Aurora runs 50,000 home-security cameras. Every night, each camera turns its motion clip into a short numeric fingerprint: total <strong>motion</strong>, the number of moving <strong>blobs</strong> (people, pets, headlights, swaying branches), the <strong>active seconds</strong>, and the <strong>brightness</strong>. Last night one camera logged clip #201: motion 70, one moving blob, 23 seconds of activity, brightness 54. Was it a family member fetching a parcel, or an intruder? Nobody knows, because nobody has labeled which of the millions of nightly clips are break-ins. Hand-labeling them all is impossible.</p>
 
-<p>Both wishes are really one wish: a good REPRESENTATION of each flower, learned from the flowers alone. Building that representation with no labels is what self-supervised and contrastive learning are for, and it is the last tool this course adds to your anomaly-detection kit.</p>
-
-<p>The map below is exactly what she is after. We fed a computer only the four raw numbers, never the species, and asked for the two directions along which the flowers vary most. Three natural clumps fell out on their own. The colours were painted on afterwards, to check the structure it found, not to build it.</p>
+<p>Lesson 6 upgraded PCA three ways to reshape the coordinates you score a point against. But every method so far, PCA included, is still hand-built: <strong>you</strong> pick the transform. This finale asks the machine to <em>learn</em> the representation itself, straight from the unlabeled clips, using a trick with a wonderful name: <strong>contrastive learning</strong>. Two slightly different views of the same clip should end up close together; two different clips should end up far apart. From that one rule, and no labels at all, a representation emerges in which a genuine intruder finally stands out.</p>
 
 <p>By the end of this lesson you will be able to:</p>
 
 <ul>
 
-<li>Describe a self-supervised pretext task and say where its "label" secretly comes from</li>
+<li>Say why anomaly detection is so often label-free, and what a "representation" is and why a good one matters</li>
 
-<li>Read the contrastive objective: pull two views of the same item together, push different items apart</li>
+<li>Describe a <strong>pretext task</strong>: how hiding part of the data and predicting it turns unlabeled data into a learning signal</li>
 
-<li>Explain representation collapse, and why a spread, decorrelated map is the thing that makes anomalies visible</li>
+<li>Explain the <strong>contrastive</strong> idea, positive pairs pulled together and negatives pushed apart, and read the InfoNCE loss</li>
 
-<li>Score an anomaly by its distance in a learned representation, and see why a collapsed one is useless for it</li>
+<li>Explain <strong>representational collapse</strong>, and why a good representation must be well-spread and decorrelated</li>
+
+<li>Show, in a few lines of base R, that a decorrelated representation makes a relationship-breaking anomaly stand out</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can run R and read base R (matrices, <code>scale</code>, <code>lm</code>, indexing), and you have done <a href="What-is-an-Anomaly.html">Lesson 1: What Is an Anomaly?</a> (distance and density scores, the base-rate trap) and <a href="Kernel-PCA-Sparse-PCA-and-NMF.html">Lesson 6: Kernel PCA, Sparse PCA and NMF</a> (a representation is a new set of coordinates for each item). No deep-learning background is needed; contrastive learning is built from scratch here.</p>
-<div class="lesson-widget" data-widget-type="pca-projection" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p><strong>Prerequisites:</strong> you can read base R (indexing, matrices, <code>scale</code>, <code>cov</code>, <code>lm</code>), and you have done <a href="Autoencoders-for-Anomaly-Detection.html">Lesson 4: Autoencoders</a> (scoring a point by how badly it rebuilds, and that a linear autoencoder is PCA), <a href="Kernel-PCA-Sparse-PCA-and-NMF.html">Lesson 6: Kernel PCA, Sparse PCA and NMF</a> (PCA, loadings, variance explained), and <a href="What-is-an-Anomaly.html">Lesson 1: What Is an Anomaly?</a> (the base-rate trap). No deep-learning background is needed; every idea is built here from scratch.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Unlabeled clips","sub":"thousands of night clips, none tagged normal or intruder"},{"title":"Make two views","sub":"jitter each clip into two versions of the same event"},{"title":"Pull and push","sub":"pull the two views of one clip together, push different clips apart"},{"title":"A useful map","sub":"a spread, decorrelated representation where the odd clip stands out"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">The goal</div>
-<h2>A representation is a better set of coordinates</h2>
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>No labels, and single features lie</h2>
 
-<p>A representation is just a new set of numbers for each flower, chosen so that DISTANCE means something: two flowers close together should be alike, two far apart should be different. Once distance is trustworthy, every tool from this course, a density score, a nearest-neighbour count, a boundary, works on top of it.</p>
+<p>Start with what makes this hard. A <strong>representation</strong> is just a re-description of each clip as a list of numbers, chosen so that distance between two lists means "how different are these two clips." The raw fingerprint is one representation, and a poor one, as you are about to see. We have no labels, so we cannot train a classifier of normal-versus-intruder. We can only learn from the <em>shape</em> of the data itself.</p>
 
-<p>The four raw measurements are already coordinates, so why not use them? Because they are redundant. Let us build Nadia's table and look at how the four numbers relate. Each lesson runs in a fresh R session, so we build the data first; press Run.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">X &lt;- scale(as.matrix(iris[, 1:4]))            # standardize: each measurement to mean 0, sd 1
-colnames(X) &lt;- c(&quot;sep_len&quot;, &quot;sep_wid&quot;, &quot;pet_len&quot;, &quot;pet_wid&quot;)
-round(cor(X), 2)                              # how much do the four measurements overlap?
-#&gt;         sep_len sep_wid pet_len pet_wid
-#&gt; sep_len    1.00   -0.12    0.87    0.82
-#&gt; sep_wid   -0.12    1.00   -0.43   -0.37
-#&gt; pet_len    0.87   -0.43    1.00    0.96
-#&gt; pet_wid    0.82   -0.37    0.96    1.00</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Petal length and petal width move almost in lockstep (correlation 0.96), and both track sepal length too. Three of the four axes are largely saying the same thing. A representation like that wastes its dimensions: it spends three coordinates describing one underlying "how big is this flower" direction, and distances along it double-count. The heatmap makes the redundancy plain.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Redundant, correlated features are not wrong, just inefficient: they crowd the flowers along one direction and leave other directions empty. The goal for the rest of the lesson is a representation that SPREADS the flowers out and lets each axis carry its own information. We will reach it without ever touching a label.</div></div>
-<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["sep_len","sep_wid","pet_len","pet_wid"],"matrix":[[1,-0.12,0.87,0.82],[-0.12,1,-0.43,-0.37],[0.87,-0.43,1,0.96],[0.82,-0.37,0.96,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">Learning without labels</div>
-<h2>Invent a label out of the data itself</h2>
-
-<p>Here is the trick that makes label-free learning possible. If you have no labels, MANUFACTURE a prediction task out of the data you already have, then solve it. Hide part of each example and train a model to fill the blank back in. The answer key is the piece you hid, so the "labels" are free. A made-up task like this is called a PRETEXT task, and learning from it is SELF-SUPERVISED learning.</p>
-
-<p>Concretely: hide one measurement of a flower, say its petal length, and predict it from the other three. Formally we minimise the squared error of the reconstruction,</p>
-
-<p>\( \min_{f}\; \sum_{i=1}^{N} \big(x_{ij} - f(x_{i,-j})\big)^2 \)</p>
-
-<p>where \(x_{ij}\) is the hidden measurement \(j\) of flower \(i\), \(x_{i,-j}\) is that flower's other three measurements, and \(f\) is the model we fit. Nothing here needs a species label; the target \(x_{ij}\) is part of the flower's own record. A plain linear model is enough to show it works.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">dat     &lt;- as.data.frame(X)
-pretext &lt;- lm(pet_len ~ sep_len + sep_wid + pet_wid, data = dat)   # predict the hidden measurement
-round(summary(pretext)$r.squared, 3)          # how much of it can the other three explain?
-#&gt; [1] 0.968</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The other three measurements explain 96.8% of petal length. To solve its made-up fill-in-the-blank task, the model had to learn the real relationships between a flower's parts, genuine structure, extracted with zero labels. That learned structure is the seed of a representation. Real self-supervised systems use the same move on far richer data: hide a patch of an image, a word in a sentence, the next second of audio, and predict it back.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Self-supervision turns "I have no labels" into "I have unlimited labels." Every example secretly contains its own target, because you get to choose which part to hide.</div></div>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Where did the label come from?</h2>
-
-<p>In the pretext task above, a model predicted each flower's petal length from its other three measurements and scored 0.968. It used no species tags at all. What played the role of the "label" the model trained against?</p>
-<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step4" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The species (setosa, versicolor, virginica), read in quietly behind the scenes</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The petal-length column itself, which we hid and then asked the model to reconstruct</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing; with no labels there is no target, so the model must have clustered instead</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The target was a piece of the data we chose to hide. The answer key is free because it is part of every flower's own record, which is what makes the task self-supervised.</div><div class="lesson-qfb lesson-qfb-no">There is very much a target: petal length. A regression must have something to predict. The move is to carve that target out of the data itself rather than take it from an external label.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="5" data-step-type="widget">
-<div class="lesson-step-eyebrow">The contrastive idea</div>
-<h2>Pull the same item together, push others apart</h2>
-
-<p>Predicting a hidden column is one way to learn without labels. Contrastive learning is another, and it is the one behind most modern self-supervised systems. The idea is simple and comes in four moves.</p>
-
-<p>Take one flower. Make two slightly different VIEWS of it, for example by re-measuring with a shaky ruler so each number wobbles by a hair. Both views are still the same flower, so a good representation should place them close together. That pair is called a POSITIVE pair. Every other flower in the drawer is a NEGATIVE: its views should land somewhere else. Learning means adjusting the representation until positives are close and negatives are far.</p>
-
-<p>To turn "close" and "far" into a number we can optimise, we need a similarity. The cosine similarity of two embedding vectors \(a\) and \(b\) is</p>
-
-<p>\( \text{sim}(a,b) = \dfrac{a \cdot b}{\lVert a \rVert \, \lVert b \rVert} \)</p>
-
-<p>which is \(+1\) when they point the same way and \(0\) when they are unrelated. The contrastive loss, called InfoNCE, then says: for each anchor view \(z_i\), its matching view \(z_i^{+}\) should be more similar than every other flower \(z_j\).</p>
-
-<p>\( \mathcal{L} = -\dfrac{1}{N}\sum_{i=1}^{N} \log \dfrac{\exp\!\big(\text{sim}(z_i, z_i^{+})/\tau\big)}{\sum_{j=1}^{N}\exp\!\big(\text{sim}(z_i, z_j)/\tau\big)} \)</p>
-
-<p>Read it as a softmax: the fraction is the probability the model assigns to picking the true partner \(z_i^{+}\) out of the whole drawer. Here \(N\) is the number of flowers and \(\tau\) (the temperature) is a small positive number that sharpens the contrast. Minimising \(\mathcal{L}\) drives that probability toward 1, which is exactly "positives close, negatives far." Next we compute it for real.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Augment","sub":"make two views of each item that keep its identity (jitter, crop, mask)"},{"title":"Embed","sub":"map every view into the representation with the same encoder"},{"title":"Pull together","sub":"the two views of one item form a positive pair, drawn close"},{"title":"Push apart","sub":"views of different items are negatives, driven apart"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<div class="lesson-step-eyebrow">The trap</div>
-<h2>The lazy shortcut: collapse</h2>
-
-<p>There is a cheap way to make every positive pair perfectly similar: map EVERY flower to the same point. Then any two views, positives and negatives alike, sit on top of each other, and the encoder has done no real work. This failure has a name, representation COLLAPSE, and it is the central danger of contrastive learning.</p>
-
-<p>Let us measure it. We build two views of every flower with a shaky ruler, then compute the InfoNCE loss for two encoders: one that keeps the flowers spread across all four axes, and one that collapses them onto a single point.</p>
+<p>Let us build Aurora's clips and plant one intruder, then check whether any single feature gives it away. Normal clips share a simple habit: a busier night means more motion, more moving blobs, and longer activity, all rising together. The intruder (clip #201) has busy motion and long activity but only <strong>one</strong> moving blob, a lone figure where a busy clip would show many small blobs.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">set.seed(1)
-augment &lt;- function(M) M + matrix(rnorm(length(M), 0, 0.35), nrow(M))  # a shaky re-measure
-V1 &lt;- augment(X)                              # view 1 of every flower
-V2 &lt;- augment(X)                              # view 2 of every flower
+n &lt;- 200
+a &lt;- runif(n, 0, 1)                                  # latent &quot;how busy&quot; level of each clip
+motion     &lt;- round(20 + 60*a + rnorm(n, 0, 3), 1)   # busier clip -&gt; more total motion
+blobs      &lt;- round( 1 +  8*a + rnorm(n, 0, 0.5))    # busier clip -&gt; more moving blobs
+active_sec &lt;- round( 4 + 22*a + rnorm(n, 0, 1.5), 1) # busier clip -&gt; longer active time
+brightness &lt;- round(55 + rnorm(n, 0, 6), 1)          # ambient light, unrelated to how busy it is
+clips &lt;- data.frame(motion, blobs, active_sec, brightness)
+clips &lt;- rbind(clips, data.frame(motion = 70, blobs = 1, active_sec = 23, brightness = 54))
+kind  &lt;- c(rep(&quot;normal&quot;, n), &quot;INTRUDER&quot;)             # kept only to CHECK our work, never to train
+tail(clips, 2)
+#&gt;     motion blobs active_sec brightness
+#&gt; 200   66.1     7       20.8       51.8
+#&gt; 201   70.0     1       23.0       54.0
 
-cosim &lt;- function(A, B) {                     # cosine similarity, every row of A vs every row of B
-  A &lt;- A / sqrt(rowSums(A^2)); B &lt;- B / sqrt(rowSums(B^2))
-  A %*% t(B)
-}
-infonce &lt;- function(emb) {                    # the InfoNCE loss for an encoder `emb`
-  z1 &lt;- emb(V1); z2 &lt;- emb(V2)
-  S  &lt;- cosim(z1, z2) / 0.2                    # 0.2 is the temperature
-  -mean(diag(S) - log(rowSums(exp(S))))        # matching pair up top, everyone else in the sum
-}
-spread   &lt;- function(v) v                      # keep the flowers spread out
-collapse &lt;- function(v) v * 0 + 1              # crush every flower to the same point
-round(c(spread = infonce(spread), collapse = infonce(collapse)), 2)
-#&gt;   spread collapse
-#&gt;     3.82     5.01</div>
+# how extreme is the intruder on each single feature? (z-score against the normal clips)
+nm &lt;- kind == &quot;normal&quot;
+z  &lt;- sapply(names(clips), function(v)
+        (clips[nrow(clips), v] - mean(clips[nm, v])) / sd(clips[nm, v]))
+round(z, 2)
+#&gt;     motion      blobs active_sec brightness
+#&gt;       1.16      -1.85       1.26      -0.16</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -186,45 +89,26 @@ round(c(spread = infonce(spread), collapse = infonce(collapse)), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The spread encoder scores 3.82; the collapsed one scores 5.01, and that number is no coincidence. When every embedding is identical, the softmax cannot tell the true partner from any of the \(N\) flowers, so it gives each a probability of \(1/N\) and the loss is exactly \(\log N = \log 150 = 5.01\), the worst value possible. Collapse is not a good solution that happens to fail; it is the single highest-loss point, and the whole job of the negatives in the denominator is to steer the encoder away from it.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Collapse is why you cannot learn a contrastive representation from positives alone. Pulling matching views together, with nothing pushing different items apart, has a trivial winner: send everything to one dot. The negatives are what keep the representation SPREAD.</div></div>
+<p>Look at those z-scores: 1.16, -1.85, 1.26, -0.16. Not one of them is past 2 standard deviations. Every single-feature rule, an amount fence, an IQR whisker, a per-column z-score, waves this clip through as unremarkable. Yet busy motion with a single blob is not how a normal night looks. The tell is in the <em>relationship between</em> the features, exactly the kind of anomaly Lesson 4 caught with reconstruction error. Here we will catch it a different way: by learning a representation in which that broken relationship becomes a long distance.</p>
 </section>
 
-<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
-<div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Why is collapse the worst case, not the best?</h2>
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Self-supervision</div>
+<h2>Pretext tasks: invent a label from the data</h2>
 
-<p>Collapsing every flower to one point makes each positive pair perfectly similar, cosine 1. A learner might think that is ideal for a loss that wants positives close. Yet the collapsed encoder scored the WORST possible InfoNCE loss, log 150. Why?</p>
-<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step7" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because the loss compares the positive against all the negatives; if everything is equally similar, the true partner cannot win, so its softmax probability is only 1/N</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because cosine similarity is undefined when all the vectors are identical</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because a temperature of 0.2 is too small and destabilises the loss</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. InfoNCE rewards the positive being MORE similar than the negatives, not just similar. Collapse makes positives and negatives equally similar, so the model can never single out the true partner, and the loss bottoms out at log N.</div><div class="lesson-qfb lesson-qfb-no">The temperature only scales the sharpness; the collapsed loss is log N at any temperature. The failure is structural: identical embeddings carry no information to separate positives from negatives.</div></div>
-</section>
-</section>
+<p>If we have no labels, we manufacture one. That is the whole trick behind <strong>self-supervised learning</strong>: take a <strong>pretext task</strong>, an artificial puzzle whose answer is already hidden inside the data, and make the model solve it. The answer is free, so no human has to label anything, and to solve the puzzle the model is forced to learn the structure of normal data.</p>
 
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<div class="lesson-step-eyebrow">The property that matters</div>
-<h2>A spread, decorrelated map</h2>
-
-<p>So a useful representation must do two things at once: keep the two views of one flower CLOSE (invariance), and keep different flowers SPREAD APART (no collapse). When a representation is well spread, something nice happens to its axes: they DECORRELATE. Each dimension ends up carrying its own slice of information instead of echoing the others, so the map uses its full space.</p>
-
-<p>We do not need a neural network to see this. The principal components of the flowers, the directions of most spread from Lesson 6, give a quick label-free representation with exactly that property. Watch what happens to the correlations.</p>
+<p>The simplest pretext task for a table of numbers: <strong>hide one column and predict it from the others.</strong> If a model can guess a clip's active seconds from its motion, blobs and brightness, then it has discovered how the features relate. Let us measure how well that works, using an ordinary linear model as the "solver" and \(R^2\) (the fraction of variance it explains, where 1 is perfect and 0 is useless) as the score.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">Z &lt;- prcomp(X)$x                              # a spread representation: the flowers on their principal axes
-round(cor(Z), 2)                              # are the new axes redundant like the raw ones were?
-#&gt;     PC1 PC2 PC3 PC4
-#&gt; PC1   1   0   0   0
-#&gt; PC2   0   1   0   0
-#&gt; PC3   0   0   1   0
-#&gt; PC4   0   0   0   1
-round(apply(Z, 2, var), 2)                    # and how much spread does each axis carry?
-#&gt; PC1  PC2  PC3  PC4
-#&gt; 2.92 0.91 0.15 0.02</div>
+    <div class="webr-editor" data-language="r">Xdf  &lt;- as.data.frame(scale(clips))                      # standardize each feature (mean 0, sd 1)
+fit  &lt;- lm(active_sec ~ motion + blobs + brightness, data = Xdf[nm, ])   # learn on normal clips
+pred &lt;- predict(fit, Xdf)                                # predict the hidden column for every clip
+r2   &lt;- 1 - var(Xdf$active_sec - pred) / var(Xdf$active_sec)
+round(r2, 2)
+#&gt; [1] 0.91</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -234,63 +118,277 @@ round(apply(Z, 2, var), 2)                    # and how much spread does each ax
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Every off-diagonal correlation is 0: the axes are perfectly decorrelated, the exact opposite of the raw measurements where petal length and width sat at 0.96. Compare the heatmap below with the one from earlier, all the colour has drained out of the off-diagonal cells. And the variances line up in order, most spread on PC1, less on each next axis, so distance in this map is honest and efficient.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Contrastive learning chases this same target on data far too complex for principal components: a representation that is spread and decorrelated, so that "far apart in the map" reliably means "genuinely different." PCA lets us SEE the property cheaply; contrastive learning LEARNS it when the structure is non-linear.</div></div>
-<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["PC1","PC2","PC3","PC4"],"matrix":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>An \(R^2\) of 0.91 means the hidden column was 91% predictable from the others: normal clips carry a strong, learnable pattern, and no labels were needed to find it. A model good at this pretext task has, as a side effect, built an internal sense of "what a normal clip looks like." That side effect is the representation we are after. Masked-feature prediction is the tabular cousin of the pretext tasks that power modern systems: fill in a blanked-out word, or un-rotate a photo. Solving the puzzle is never the goal; the <em>representation</em> you build along the way is.</p>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">The big idea</div>
+<h2>The contrastive idea</h2>
+
+<p>Contrastive learning is a sharper pretext task, and the one that reliably builds the best representations. It rests on a single, intuitive rule about <strong>views</strong>. A <strong>view</strong> of a clip is a lightly altered copy of it: nudge each number a little, dim the brightness, briefly drop a feature. It is obviously still the same event, just seen through a slightly different filter. So:</p>
+
+<ul>
+
+<li>Two views of the <strong>same</strong> clip form a <strong>positive pair</strong>. They should land <em>close together</em> in the representation.</li>
+
+<li>Any <strong>other</strong> clip in the batch is a <strong>negative</strong>. It should land <em>far apart</em>.</li>
+
+</ul>
+
+<p>That is the entire objective: <strong>pull positives together, push negatives apart.</strong> No labels anywhere, the only "supervision" is the free fact that two views came from the same source clip. Train on that rule across thousands of clips and the representation self-organizes: similar clips cluster, the space spreads out to use every direction, and a clip that resembles nothing else, our intruder, ends up stranded far from the crowd.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Anchor","sub":"pick one clip as the anchor"},{"title":"Two views","sub":"augment it twice: the positive pair, one event seen two ways"},{"title":"Negatives","sub":"every other clip in the batch is a negative"},{"title":"Pull and push","sub":"pull the anchor and its positive together, push the negatives away"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The formal picture</div>
+<h2>The contrastive loss, precisely</h2>
+
+<p>Now the exact machinery. An <strong>encoder</strong> \(f\) maps a clip \(x\) to an embedding \(z = f(x)\), which we <strong>L2-normalize</strong> so it has length 1 (\(\lVert z \rVert = 1\)). For unit vectors, the <strong>cosine similarity</strong> is just their dot product, \(\operatorname{sim}(z_a, z_b) = z_a^\top z_b\): it runs from \(+1\) (same direction) down to \(-1\) (opposite). Take an anchor \(a\), its positive \(p\) (the other view of the same clip), and \(m\) negatives \(n_1, \dots, n_m\). The <strong>InfoNCE</strong> loss for the anchor is</p>
+
+<p>\( \ell = -\log \dfrac{\exp\!\big(\operatorname{sim}(z_a, z_p)/\tau\big)}{\exp\!\big(\operatorname{sim}(z_a, z_p)/\tau\big) + \sum_{k=1}^{m}\exp\!\big(\operatorname{sim}(z_a, z_{n_k})/\tau\big)} \)</p>
+
+<p>Read it as a softmax: the numerator is the anchor's agreement with its positive, the denominator adds in its agreement with every negative, and \(\tau > 0\) (the <strong>temperature</strong>) sharpens the contrast. Making \(\ell\) small means making the positive similarity large <em>relative to</em> the negatives, which is exactly "pull the positive close, push the negatives away."</p>
+
+<p>Let us watch the two halves of that rule on real numbers. We do not have a trained encoder yet, so we use the standardized fingerprint itself as a stand-in embedding, just to see the arithmetic of the loss.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X &lt;- scale(clips)                                    # our stand-in embedding: the standardized clip
+augment &lt;- function(x, sd = 0.15) x + rnorm(length(x), 0, sd)   # a &quot;view&quot;: jitter each feature a little
+set.seed(42)
+v1 &lt;- augment(X[7, ]); v2 &lt;- augment(X[7, ])         # two views of the SAME clip (#7): a positive pair
+vn &lt;- augment(X[150, ])                              # a view of a DIFFERENT clip: a negative
+round(rbind(view1 = v1, view2 = v2), 2)
+#&gt;       motion blobs active_sec brightness
+#&gt; view1   1.89  1.64       1.26      -1.30
+#&gt; view2   1.75  1.71       1.43      -1.41
+
+unit    &lt;- function(z) z / sqrt(sum(z^2))            # L2-normalize: rescale to length 1
+cos_pos &lt;- sum(unit(v1) * unit(v2))                  # same clip     -&gt; should be high
+cos_neg &lt;- sum(unit(v1) * unit(vn))                  # different clip -&gt; should be lower
+round(c(positive_pair = cos_pos, negative_pair = cos_neg), 3)
+#&gt; positive_pair negative_pair
+#&gt;         0.997         0.727</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The positive pair agrees at 0.997, the negative at 0.727: the rule already separates them. Now assemble the full InfoNCE loss for this anchor with one positive and three negatives.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tau    &lt;- 0.2                                        # temperature: smaller = sharper contrast
+others &lt;- rbind(v2, vn, augment(X[42, ]), augment(X[99, ]))   # row 1 = positive, rows 2 to 4 = negatives
+sims   &lt;- apply(others, 1, function(o) sum(unit(v1) * unit(o)) / tau)
+loss   &lt;- -log(exp(sims[1]) / sum(exp(sims)))        # positive share of the softmax
+round(unname(loss), 3)
+#&gt; [1] 0.773</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A loss of 0.773. Training an encoder means adjusting \(f\) to drive that number down across millions of anchors, which nudges every positive pair closer and every negative farther, one gradient step at a time.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What is contrastive learning actually doing?</h2>
+
+<p>Aurora's night clips have no labels at all. Which statement correctly describes what a contrastive model does with them?</p>
+<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It needs each clip tagged normal or intruder first, then it learns to separate the two labeled groups</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It pulls the two augmented views of one clip together and pushes different clips apart, so similar clips end up grouped without any labels</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The negatives in each batch are the anomalies, so the loss is really flagging intruders while it trains</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The positive pair (two views of one clip) is pulled together; every other clip is a negative and pushed apart. The supervision is manufactured from the data itself, which is what "self-supervised" means.</div><div class="lesson-qfb lesson-qfb-no">No: a "negative" just means "a different clip", almost always another normal clip. Negatives are the contrast that keeps every clip from collapsing to one point, not anomalies. Flagging happens later, using the learned representation.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The trap</div>
+<h2>Collapse: the easy way to cheat</h2>
+
+<p>There is a lazy way for the encoder to make every positive pair close: <strong>map every clip to the same point.</strong> Then all embeddings are identical, every positive similarity is a perfect 1, and the "pull together" half of the loss is trivially satisfied. This is <strong>representational collapse</strong>, and a collapsed representation is worthless: if every clip sits on top of every other, no clip can ever be an outlier. This is why the negatives matter. They punish collapse.</p>
+
+<p>Put \(z_a = z_p = z_{n_k} = c\) into the InfoNCE loss. Every similarity equals \(1\), so every exponential equals \(e^{1/\tau}\), and</p>
+
+<p>\( \ell = -\log \dfrac{e^{1/\tau}}{(1+m)\, e^{1/\tau}} = \log(1+m) \)</p>
+
+<p>which is the <em>largest</em> value the loss can take, not the smallest. Collapse is the worst solution, not a shortcut: the denominator's negatives make sure of it. But InfoNCE guards against only the crudest collapse. A subtler failure remains, where the representation does not collapse to a point but wastes itself by making its features redundant. Look at the correlation between our four raw features across the clips.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cor(X), 2)
+#&gt;            motion blobs active_sec brightness
+#&gt; motion       1.00  0.93       0.95       0.02
+#&gt; blobs        0.93  1.00       0.91       0.02
+#&gt; active_sec   0.95  0.91       1.00       0.00
+#&gt; brightness   0.02  0.02       0.00       1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Motion, blobs and active seconds are near-duplicates of one another (correlations around 0.93). The raw representation <em>looks</em> four-dimensional but really carries only about two independent directions. Three of its axes are saying the same thing three times, and that redundancy is what will let the intruder hide.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Spread out and decorrelate</h2>
+
+<p>A good representation needs two properties, and researchers have names for both. <strong>Alignment</strong>: positive pairs land close (the "pull together" we already have). <strong>Uniformity</strong>: the embeddings spread out to fill the space instead of clumping, which is the same as saying the representation's features should be <strong>decorrelated</strong>, each axis carrying its own, non-redundant information. Methods such as <strong>Barlow Twins</strong> and <strong>VICReg</strong> make this explicit: they drive the cross-correlation matrix \(C\) of the two views' embeddings toward the identity,</p>
+
+<p>\( \mathcal{L} = \sum_i (1 - C_{ii})^2 \;+\; \lambda \sum_{i \neq j} C_{ij}^2 \)</p>
+
+<p>pushing the diagonal to 1 (each feature agrees with itself across the two views, alignment) and the off-diagonal to 0 (different features stop copying each other, decorrelation). We cannot train a deep network in the browser, but we can do the exact linear version and see decorrelation happen: <strong>whitening</strong>. Whitening rotates and rescales the data so that its covariance becomes the identity matrix, every direction equal spread, zero correlation left over.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">S  &lt;- cov(X)                                         # covariance of the raw representation
+E  &lt;- eigen(S)                                       # its principal directions and spreads
+Wz &lt;- E$vectors %*% diag(1 / sqrt(E$values)) %*% t(E$vectors)   # the ZCA whitening matrix
+Z  &lt;- X %*% Wz                                        # the DECORRELATED representation
+round(cor(Z), 2)
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    1    0    0    0
+#&gt; [2,]    0    1    0    0
+#&gt; [3,]    0    0    1    0
+#&gt; [4,]    0    0    0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The correlation matrix of the new representation <code>Z</code> is the identity: the redundancy is gone, and all four directions now carry independent information.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Contrastive learning wants alignment (positives close) AND uniformity (a spread, decorrelated representation). Alignment alone allows collapse. It is the second property, decorrelation, that makes distance in the representation meaningful, and that is precisely what surfaces an anomaly.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Why this catches the intruder</h2>
+
+<p>Now the reward, and the reason this whole course cares about representations. Score every clip by how far it sits from the centre of the normal clips, and compare two rulers: plain distance in the raw standardized space, versus distance in the decorrelated space. Distance in the whitened space has a classic name, the <strong>Mahalanobis distance</strong>,</p>
+
+<p>\( d_M(x)^2 = (x - \mu)^\top \Sigma^{-1} (x - \mu) \)</p>
+
+<p>where \(\mu\) and \(\Sigma\) are the mean and covariance of the normal clips. Dividing by \(\Sigma\) is exactly the whitening from the last step, so Mahalanobis distance <em>is</em> Euclidean distance measured in the decorrelated representation.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctr   &lt;- colMeans(X[nm, ])                           # centre of the normal clips
+d_raw &lt;- sqrt(rowSums(sweep(X, 2, ctr)^2))           # plain distance in the raw representation
+d_dec &lt;- mahalanobis(X, ctr, cov(X[nm, ]))           # distance in the DECORRELATED representation
+cat(&quot;intruder rank by raw distance:         &quot;, rank(-d_raw)[nrow(clips)], &quot;of&quot;, nrow(clips), &quot;\n&quot;)
+cat(&quot;intruder rank by decorrelated distance:&quot;, rank(-d_dec)[nrow(clips)], &quot;of&quot;, nrow(clips), &quot;\n&quot;)
+#&gt; intruder rank by raw distance:          44 of 201
+#&gt; intruder rank by decorrelated distance: 1 of 201
+o &lt;- order(-d_dec)[1:3]
+data.frame(rank = 1:3, kind = kind[o], decorrelated_dist = round(d_dec[o], 1))
+#&gt;   rank     kind decorrelated_dist
+#&gt; 1    1 INTRUDER             104.9
+#&gt; 2    2   normal              12.2
+#&gt; 3    3   normal              11.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In the raw representation the intruder is buried at rank 44 of 201, lost in the crowd, because plain distance lets the three redundant "busy-ness" features drown out the one direction that matters. In the decorrelated representation it leaps to rank 1, and not by a whisker: its distance is 104.9 against about 12 for the next clip. Decorrelating the space stretched the thin "busy motion, few blobs" direction that normal clips barely use, and the intruder, which lives exactly there, shot to the top. The picture below shows the same idea: in a spread representation, items separate into groups and a point belonging to none sits alone.</p>
+<div class="lesson-widget" data-widget-type="pca-projection" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Flag the odd flower</h2>
+<h2>Rank the clips in the decorrelated space</h2>
 
-<p>Now the payoff, and the reason this lesson closes the course. In a spread, decorrelated representation, an anomaly is simply a flower that lands far from the crowd. Nadia suspects one pressed specimen has impossible proportions: long, narrow sepals with short but unusually broad petals, a shape no real iris in her drawer shows. We add it as row 151 and score every flower by its distance from the centre of the map. Euclidean distance squares each coordinate, sums, and takes the square root, so fill in the exponent.</p>
-<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step9" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="\^\s*2"><textarea class="lesson-tryit-input" spellcheck="false">odd  &lt;- c(sep_len = 3.0, sep_wid = -3.4, pet_len = -1.6, pet_wid = 3.1)  # the suspicious specimen
-Zall &lt;- predict(prcomp(X), rbind(X, odd))     # project all 150 flowers plus the odd one onto the spread axes
-dist &lt;- sqrt(rowSums(Zall^____))              # each flower's Euclidean distance from the centre
-which.max(dist)                               # which row is the most anomalous?</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is Euclidean distance, and row 151, the odd flower, tops the ranking. In a spread map, does not fit becomes simply far away.</span><span class="lesson-tryit-fb lesson-tryit-no">Euclidean distance squares each coordinate before summing: raise Zall to the power 2.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">odd  &lt;- c(sep_len = 3.0, sep_wid = -3.4, pet_len = -1.6, pet_wid = 3.1)
-Zall &lt;- predict(prcomp(X), rbind(X, odd))
-dist &lt;- sqrt(rowSums(Zall^2))
-which.max(dist)                               # row 151 = the odd flower
-#&gt; odd
-#&gt; 151
-round(c(odd = unname(dist[151]), worst_real = max(dist[1:150])), 2)
-#&gt;        odd worst_real
-#&gt;       9.56       7.24</code></pre></details></div>
+<p>Put it together. Score every clip by its distance from the normal centre, but measured in the decorrelated representation. <code>mahalanobis(points, center, cov)</code> returns exactly that: the squared distance after whitening by a covariance. Fill the blank with the covariance that decorrelates the space, the covariance of the <strong>normal</strong> clips, so the intruder rises to the top.</p>
+<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mahalanobis\(X, ctr, cov"><textarea class="lesson-tryit-input" spellcheck="false">ctr   &lt;- colMeans(X[nm, ])                 # centre of the normal clips
+d_dec &lt;- mahalanobis(X, ctr, ____)         # distance in the DECORRELATED space
+kind[order(-d_dec)[1]]                      # the single most anomalous clip</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. cov(X[nm, ]) is the covariance of the normal clips, and dividing distance by it (whitening) puts every direction on equal footing. The intruder, sitting along a direction the normal clips barely use, jumps to the top with a decorrelated distance of 104.9 versus about 12 for the next clip; in the raw space it was only 44th.</span><span class="lesson-tryit-fb lesson-tryit-no">The third argument is the covariance that defines the SHAPE of normal, and it must come from the normal clips: cov(X[nm, ]). That is what whitens the space so a clip breaking the normal relationship stands out, because mahalanobis divides the distance by this covariance.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">ctr   &lt;- colMeans(X[nm, ])
+d_dec &lt;- mahalanobis(X, ctr, cov(X[nm, ]))
+kind[order(-d_dec)[1]]
+#&gt; [1] &quot;INTRUDER&quot;</code></pre></details></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="concept">
-<div class="lesson-step-eyebrow">When it breaks</div>
-<h2>The honest edges</h2>
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why did the decorrelated distance win?</h2>
 
-<p>Self-supervised representations are powerful, but not magic, and three limits matter especially for anomaly work.</p>
+<p>Raw distance ranked the intruder 44th of 201; the decorrelated (Mahalanobis) distance ranked it 1st, at 104.9 versus about 12 for the next clip. Which statement best explains why?</p>
+<section class="exercise" data-exercise-id="Self-Supervised-and-Contrastive-Learning-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because the intruder clip has the largest, most extreme feature values, so it is far from everything by any ruler</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because raw distance already ranked it near the top, and decorrelating only reshuffled a few ties</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because whitening rescales the correlated directions to equal footing, so a clip that breaks the motion-blobs-activity relationship lands far out along a direction normal clips barely use</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Motion, blobs and active seconds are highly correlated for normal clips, so the normal cloud is razor-thin in the "busy motion, few blobs" direction. Whitening stretches that thin direction, and the intruder, which lives exactly there, shoots to a Mahalanobis distance of 104.9.</div><div class="lesson-qfb lesson-qfb-no">No: raw distance put it at 44th, deep in the normal crowd. Decorrelation did not fine-tune the order, it moved the intruder from 44th all the way to 1st.</div></div>
+</section>
+</section>
 
-<p><strong>The augmentation has to preserve identity.</strong> Contrastive learning only works if your two views are genuinely the same item seen differently. A shaky ruler is safe. But an augmentation that changes what the flower IS, say scrambling its measurements, teaches the encoder to treat different things as the same, and the representation stops meaning anything. Choosing augmentations is the real craft, and it is domain-specific: a harmless view of a photo is nothing like a harmless view of a fraud record.</p>
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know the limits</div>
+<h2>When it breaks, and the real thing</h2>
 
-<p><strong>Collapse can return by the back door.</strong> We prevented it with negatives, but real systems fight it in other ways too. Some methods (such as BYOL) drop negatives entirely and lean on architectural tricks to stay spread; they can still collapse if those tricks are misconfigured. Always check that your learned representation is actually spread, not quietly piling up.</p>
+<p>The linear whitening you built is the honest, runnable core of the idea, but be clear about its limits, and about what a full contrastive system adds.</p>
 
-<p><strong>A representation is not a detector.</strong> As in Lesson 1, a distance score still needs a threshold, and at a low anomaly rate a loose threshold is mostly false alarms. Judge the flags by precision and recall on whatever labelled examples you can find, not by the score alone.</p>
+<ul>
 
-<p>Our whole demo stayed in base R with a linear representation so every line runs here in your browser. Production self-supervised learning trains a neural-network encoder to minimise the very InfoNCE loss you computed. That needs a deep-learning framework and a GPU, so it runs on your own machine, not in this page:</p>
+<li><strong>Clean-ish normal data.</strong> Like every method in this course, it learns "normal" from the training clips. Salt them with undetected intruders and the covariance widens to include that pattern, and the flag goes quiet. Curate the training set.</li>
 
-<pre><code class="language-r"># Real contrastive learning (SimCLR-style), run locally with torch.
-# The loss is the InfoNCE you computed by hand; the encoder is a neural net.
+<li><strong>Augmentations must preserve identity.</strong> A "view" has to be a clip that is still recognizably the same event. Jitter and small dropout are safe; an augmentation that erases the very signal you care about would teach the encoder to ignore it.</li>
+
+<li><strong>Whitening is linear.</strong> It can only decorrelate along straight axes. Real clip fingerprints often lie on a curved manifold, and that is where a genuine contrastive <strong>neural</strong> encoder earns its keep: same pull-and-push rule, but a nonlinear \(f\) that can bend the representation.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A real contrastive encoder (SimCLR, MoCo) trains a neural network with a deep-learning toolkit, which does not run in the browser. Here it is for reference only, to run locally. Notice it is the same rule you just learned, an encoder, augmented views, and the InfoNCE loss, only nonlinear:</div></div>
+
+<pre><code class="language-r"># A real contrastive encoder (torch): a NONLINEAR representation, not just linear whitening.
+# torch needs a native backend, so run this locally, not in the browser.
 library(torch)
-encoder &lt;- nn_sequential(nn_linear(4, 32), nn_relu(), nn_linear(32, 8))
-info_nce &lt;- function(z1, z2, tau = 0.2) {
-  z1 &lt;- nnf_normalize(z1, dim = 2); z2 &lt;- nnf_normalize(z2, dim = 2)
-  logits &lt;- torch_mm(z1, z2$t()) / tau
-  labels &lt;- torch_arange(1, z1$size(1), dtype = torch_long())
-  nnf_cross_entropy(logits, labels)            # exactly the log-softmax of the matching pair
+encoder &lt;- nn_sequential(nn_linear(4, 16), nn_relu(), nn_linear(16, 8))   # f: clip -&gt; 8-d embedding
+augment &lt;- function(x) x + torch_randn_like(x) * 0.15                     # a random view
+info_nce &lt;- function(z, tau = 0.2) {                                      # z: 2N x d, rows i and i+N paired
+  z   &lt;- nnf_normalize(z, dim = 2)                                        # L2-normalize each embedding
+  sim &lt;- torch_mm(z, z$t()) / tau                                         # all pairwise cosine similarities
+  nnf_cross_entropy(sim, target_indices)                                  # positives vs the rest (softmax)
 }
-# ... augment each batch into two views, embed, step the optimiser on info_nce ...</code></pre>
-
-<p>The principle is identical to what you built; only the encoder and the scale change.</p>
+opt &lt;- optim_adam(encoder$parameters, lr = 1e-3)
+for (step in 1:2000) {                                                    # train on NORMAL clips only
+  batch &lt;- normal_clips[sample(nrow(normal_clips), 256), ]
+  z &lt;- encoder(torch_cat(list(augment(batch), augment(batch))))
+  loss &lt;- info_nce(z); opt$zero_grad(); loss$backward(); opt$step()
+}</code></pre>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="13" data-step-type="concept">
 <div class="lesson-step-eyebrow">Go deeper</div>
 <h2>References</h2>
 
@@ -298,25 +396,25 @@ info_nce &lt;- function(z1, z2, tau = 0.2) {
 
 <ul>
 
-<li><a href="https://arxiv.org/abs/2002.05709">Chen et al. (2020), A Simple Framework for Contrastive Learning of Visual Representations (SimCLR)</a> - the paper that made contrastive learning simple, and showed how much the choice of augmentation matters.</li>
+<li><a href="https://arxiv.org/abs/2002.05709">Chen, Kornblith, Norouzi and Hinton (2020), A Simple Framework for Contrastive Learning (SimCLR)</a> - the paper that made the augment-and-contrast recipe and the InfoNCE (NT-Xent) loss a standard, with careful ablations of which augmentations matter.</li>
 
-<li><a href="https://arxiv.org/abs/1807.03748">van den Oord et al. (2018), Representation Learning with Contrastive Predictive Coding</a> - where the InfoNCE loss you computed comes from.</li>
+<li><a href="https://arxiv.org/abs/1807.03748">van den Oord, Li and Vinyals (2018), Representation Learning with Contrastive Predictive Coding</a> - where the InfoNCE loss you used comes from, framed as maximizing mutual information.</li>
 
-<li><a href="https://arxiv.org/abs/2006.07733">Grill et al. (2020), Bootstrap Your Own Latent (BYOL)</a> - a self-supervised method that avoids collapse WITHOUT negatives, the back door from the limits step.</li>
+<li><a href="https://arxiv.org/abs/2103.03230">Zbontar, Jing, Misra, LeCun and Deny (2021), Barlow Twins: Self-Supervised Learning via Redundancy Reduction</a> - the decorrelation objective this lesson leaned on: drive the cross-correlation matrix toward the identity, no negatives needed.</li>
 
-<li><a href="https://arxiv.org/abs/2005.02359">Bergman and Hoshen (2020), Classification-Based Anomaly Detection for General Data (GOAD)</a> - self-supervised anomaly detection for tabular, non-image data, exactly this course's setting.</li>
+<li><a href="https://arxiv.org/abs/2005.10242">Wang and Isola (2020), Understanding Contrastive Learning through Alignment and Uniformity</a> - the theory behind the two properties we kept returning to, alignment and uniformity (spread), on the unit sphere.</li>
 
-<li><a href="https://hastie.su.domains/ElemStatLearn/">Hastie, Tibshirani and Friedman, The Elements of Statistical Learning, ch. 14 (free PDF)</a> - principal components and unsupervised representation, the classical grounding.</li>
+<li><a href="https://arxiv.org/abs/2007.08176">Tack, Mo, Jeong and Shin (2020), CSI: Novelty Detection via Contrastive Learning</a> - contrastive representations used directly for anomaly and novelty detection, the exact bridge from this lesson to this course.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="complete">
+<section class="lesson-step" data-step="14" data-step-type="complete">
 <h2>Lesson 7 complete, and the course with it</h2>
 
-<p>You closed the loop. When there are no labels, you MANUFACTURE a task from the data: hide a part and predict it (self-supervised), or make two views of each item and pull them together while pushing other items apart (contrastive). You read the InfoNCE loss, watched a collapsed representation score the worst possible log N, and saw why the negatives exist, to keep the map spread. Then you cashed it in: in a spread, decorrelated representation, the odd flower simply sat far from the crowd, distance 9.56 against 7.24, and an unlabelled hunch became a number you can threshold.</p>
+<p>You just closed the loop that this whole course has been building toward. When there are no labels, you do not give up, you <strong>manufacture</strong> a learning signal from the data itself. A pretext task (hide a feature, predict it) already extracts real structure; contrastive learning sharpens it into a single rule, pull two views of one clip together and push different clips apart, and from that rule, with no labels, a representation self-organizes. You saw why it must avoid <strong>collapse</strong> and instead be well-spread and <strong>decorrelated</strong> (alignment plus uniformity, the target that Barlow Twins and VICReg optimize directly), and then you cashed the payoff in a few lines of base R: a decorrelated representation, via whitening and Mahalanobis distance, lifted a relationship-breaking intruder from rank 44 to rank 1, a clip that every single-feature rule had waved through.</p>
 
-<p>That is the last tool in your anomaly kit. Across seven lessons you have gone from what an anomaly even is, through isolation forests, local density, autoencoders, time and the decomposition that tames it, the linear and non-linear ways to compress data, and finally to learning the representation itself without a single label. You now have a detector for almost any shape of "does not belong." Take them to your own data, and go find what does not fit.</p>
+<p>Step back and look at the seven detectors you now command. Isolation forests fence off a point with random cuts; the Local Outlier Factor compares a point's density to its neighbours'; one-class SVMs and autoencoders learn the shape of normal and flag whatever falls off it; time-series methods strip out rhythm before judging a point; kernel PCA, sparse PCA and NMF reshape the space you score against; and now self-supervised, contrastive learning lets the machine <em>learn</em> that space from unlabeled data. Every one of them, in the end, answers the same question in its own way: how surprising is this point, given everything normal? You can now pick the right tool for the data in front of you, build it in R, and, remembering Lesson 1, judge it honestly by precision and recall rather than accuracy. That is anomaly detection, from the ground up.</p>
 </section>
 
 {% endraw %}
