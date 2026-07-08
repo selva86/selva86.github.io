@@ -56,11 +56,11 @@
     "priceCurrency": "USD"
   },
   "featureList": [
-    "Sample-size planning (two-proportion, equal or unequal allocation)",
+    "Sample-size planning (two-proportion, 50/50 allocation, matches pwr.2p.test)",
     "Two-proportion z-test (matches prop.test correct=FALSE)",
-    "Bayesian beta-binomial conjugate (P(B>A), posterior credible interval)",
-    "Bayes factor BF10 (Savage-Dickey)",
-    "Sequential / alpha-spending sanity check"
+    "Bayesian beta-binomial conjugate (P(B>A) and credible interval by exact integration)",
+    "Bayes factor BF10 (closed-form beta-binomial, rates differ vs equal)",
+    "Sequential / Pocock alpha-spending sanity check"
   ],
   "dateModified": "2026-05-02",
   "softwareVersion": "2.0",
@@ -119,6 +119,7 @@
 <link rel="stylesheet" href="/css/main.min.css?h=ba504769">
 <link rel="stylesheet" href="/www/webr.min.css">
 <script src="/www/webr-init.min.js"></script>
+<script src="/tools/lib/ab-test-math.js"></script>
 <link rel="stylesheet" href="/css/main.min.css?h=rdotb1">
 <style>
   :root{
@@ -745,9 +746,10 @@
         <div class="submode-tabs" id="mode-tabs">
           <button type="button" class="submode-tab" data-mode="plan" onclick="setMode('plan')">Plan</button>
           <button type="button" class="submode-tab" data-mode="analyze" onclick="setMode('analyze')">Analyze</button>
+          <button type="button" class="submode-tab" data-mode="sequential" onclick="setMode('sequential')">Sequential</button>
         </div>
       </div>
-      <div class="form-row">
+      <div class="form-row" id="framing-row">
         <label>Framing</label>
         <div class="submode-tabs" id="framing-tabs">
           <button type="button" class="submode-tab" data-framing="freq"  onclick="setFraming('freq')">Frequentist</button>
@@ -763,7 +765,7 @@
           <button class="conf-btn" data-alpha="0.10" onclick="setAlpha(0.10)">0.10</button>
         </div>
       </div>
-      <div class="form-row">
+      <div class="form-row" id="tail-row">
         <label>Tail</label>
         <div class="submode-tabs" id="tail-tabs">
           <button type="button" class="submode-tab active" data-tail="2" onclick="setTail(2)">Two-sided</button>
@@ -786,6 +788,12 @@
     </main>
   </div>
   </div><!-- /.section workshop -->
+
+  <p class="trust" style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--c-text-mute);margin:16px 0 0">
+    <span><span class="tick" style="color:var(--c-success)">&#10003;</span> No data leaves your browser</span>
+    <span><span class="tick" style="color:var(--c-success)">&#10003;</span> Verified against R's <code style="font-family:ui-monospace,Consolas,monospace;font-size:12px">prop.test()</code>, <code style="font-family:ui-monospace,Consolas,monospace;font-size:12px">pwr.2p.test()</code> and <code style="font-family:ui-monospace,Consolas,monospace;font-size:12px">integrate()</code></span>
+    <span><span class="tick" style="color:var(--c-success)">&#10003;</span> Free, no sign-up</span>
+  </p>
 
   <!-- R code + interactive viz, side-by-side -->
   <div class="section">
@@ -831,6 +839,10 @@
     <div class="section-eyebrow">Inference</div>
     <p class="method-intro" id="method-intro">We compared your two groups using a two-proportion z-test (frequentist) and a beta-binomial Bayesian model (probability that B is better) side by side.</p>
     <p class="inference-banner" id="inference-banner"></p>
+    <div class="copyrow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px;padding-top:16px;border-top:1px solid var(--c-border,rgba(0,0,0,.09))">
+      <span class="report" id="report" style="flex:1;min-width:0;font-size:12.5px;color:var(--c-text-soft);line-height:1.55;overflow-wrap:anywhere;font-family:ui-monospace,Consolas,monospace"></span>
+      <button type="button" id="copy-report-btn" onclick="copyReport()" style="flex-shrink:0;font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;border:1px solid var(--c-border,rgba(0,0,0,.15));background:var(--c-surface,#fff);color:var(--c-link);cursor:pointer">Copy report line</button>
+    </div>
   </div>
 
   <details class="section">
@@ -852,23 +864,24 @@ p      = 2 (1 - Phi(|z|))</div>
 prior:      p_a, p_b ~ Beta(alpha_0, beta_0)
 posterior:  p_a ~ Beta(alpha_0 + c_a, beta_0 + n_a - c_a)
             p_b ~ Beta(alpha_0 + c_b, beta_0 + n_b - c_b)
-output:     P(p_b &gt; p_a),  95% credible interval for p_b - p_a</div>
-        <div class="anatomy-body"><strong>Beta-Binomial conjugate.</strong> A Beta prior is conjugate to the Binomial likelihood, so the posterior is Beta in closed form. We sample 10,000 draws from each posterior, count the fraction where p_b exceeds p_a, and take the 2.5th and 97.5th percentiles of the lift draws. With a Beta(1,1) (uniform) prior the posterior mean equals (c+1)/(n+2). Replicates <code>rbeta()</code> simulation in R.</div>
+P(p_b &gt; p_a) = integral dbeta(x; B) pbeta(x; A) dx
+BF10 = B(a1,b1) B(a2,b2) / [ B(a0,b0) B(a0+c_a+c_b, b0+n_a+n_b-c_a-c_b) ]</div>
+        <div class="anatomy-body"><strong>Beta-Binomial conjugate.</strong> A Beta prior is conjugate to the Binomial likelihood, so each posterior is Beta in closed form. We compute P(p_b &gt; p_a) by numerically integrating the two posteriors (no simulation, so the answer is exact and identical on every run), the 95% credible interval by integrating the distribution of the lift p_b - p_a, and a Bayes factor BF10 (rates differ vs equal) in closed form from Beta functions. With a Beta(1,1) uniform prior the posterior mean is (c+1)/(n+2). Matches R's <code>integrate()</code> and <code>lbeta()</code>. Note BF10 and P(B&gt;A) answer different questions: a high P(B&gt;A) with BF10 near 1 means B is probably ahead but the data barely favour "different" over "equal".</div>
       </div>
       <div class="anatomy-step">
-        <div class="anatomy-formula">Sequential / alpha-spending sanity:
-each interim look at fraction t of N
-spend alpha_t such that
-  sum alpha_t = alpha (Pocock)
-  alpha_t = 2 - 2 Phi(z_a / sqrt(t))  (O'Brien-Fleming)</div>
-        <div class="anatomy-body"><strong>Sequential alpha-spending.</strong> If you peek at the data K times and stop early on a single significant look, your real false-positive rate is far above alpha. Group-sequential designs (Pocock, O'Brien-Fleming) spread alpha across the looks so the family-wise error stays under control. The sequential view in column C uses the Pocock-style boundary for K looks at equal information fractions.</div>
+        <div class="anatomy-formula">Sequential looks (Pocock boundary):
+K equally spaced interim looks
+constant boundary c_K holds overall alpha
+per-look nominal alpha = 2(1 - Phi(c_K))
+declare significance if |z| &gt; c_K at any look</div>
+        <div class="anatomy-body"><strong>Sequential alpha-spending.</strong> If you peek at the data K times and stop early on a single significant look, your real false-positive rate climbs far above alpha. A Pocock group-sequential design uses one constant z-boundary c_K at every look, chosen so the family-wise error stays at alpha; the per-look nominal alpha is then 2(1 - Phi(c_K)). The Sequential mode reads c_K from the standard tabulated values in Jennison &amp; Turnbull (2000), Table 2.1 (e.g. c_K = 2.289 for K = 3 at alpha = 0.05, giving a per-look alpha near 0.022) and computes the per-look alpha from them. These constants come from the group-sequential literature rather than a base-R function; for a full design use the <code>gsDesign</code> package.</div>
       </div>
       <div class="anatomy-step">
-        <div class="anatomy-formula">Sample-size formula (two-prop, Cohen's h):
-h = 2 (arcsin sqrt(p2) - arcsin sqrt(p1))
-n_per_arm = (z_alpha + z_beta)^2 / h^2
-total = n_per_arm * 2 / (4 k (1 - k))   (unequal, B share = k)</div>
-        <div class="anatomy-body"><strong>Sample size for proportions.</strong> The arcsine transform stabilizes variance so both arms contribute equally; that's Cohen's h. Plug your baseline p1, your minimum-detectable rate p2, alpha, and 1-beta (power), and the formula returns n per arm at 50/50 allocation. For unequal splits, scale the total by 1 / (4 k (1-k)). Matches <code>pwr::pwr.2p.test()</code>.</div>
+        <div class="anatomy-formula">Sample size (two-prop, arcsine / Cohen's h):
+h = |2(arcsin sqrt(p2) - arcsin sqrt(p1))|
+n_per_arm ~ 2(z_alpha + z_beta)^2 / h^2
+(pwr.2p.test solves the exact power equation)</div>
+        <div class="anatomy-body"><strong>Sample size for proportions.</strong> The arcsine transform stabilizes variance so both arms contribute equally; that's Cohen's h. The two-sample noncentrality is h*sqrt(n/2), which gives n per arm near 2(z_alpha + z_beta)^2 / h^2. This tool returns the value from <code>pwr::pwr.2p.test()</code>, which solves the full power equation (including the small opposite-tail term for a two-sided test), so it can differ from the closed form by a visitor or two. It assumes 50/50 allocation, the most powerful split for a fixed total; for a deliberately unequal split use <code>pwr::pwr.2p2n.test()</code>.</div>
       </div>
       <div class="anatomy-step">
         <div class="anatomy-formula">Lift, RR, and absolute difference:
@@ -906,6 +919,21 @@ risk ratio    = p_b / p_a</div>
   </details>
 
   <div class="section">
+    <div class="section-eyebrow">FAQ</div>
+    <div class="faq-list">
+      <div class="anatomy-step">
+        <div class="anatomy-body"><strong>When should I use a two-proportion z-test versus a Bayesian beta-binomial?</strong> Use the two-proportion z-test when stakeholders expect a p-value or your team operates under a fixed alpha. Use the Bayesian beta-binomial when you need a direct probability statement like "B beats A with 94% probability" or want to incorporate a prior. The calculator runs both side by side (the Both framing) so you can compare verdicts before deciding which to report.</div>
+      </div>
+      <div class="anatomy-step">
+        <div class="anatomy-body"><strong>How do I calculate the sample size needed for an A/B test?</strong> Switch to Plan mode and enter your baseline conversion rate, the minimum detectable effect (MDE) you care about, your target power (typically 0.80) and significance level (0.05). The calculator returns the required sample size per arm using the same formula as R's <code>pwr.2p.test</code>. For a 10% baseline and a 1pp MDE at 80% power, you need about 14,750 per arm.</div>
+      </div>
+      <div class="anatomy-step">
+        <div class="anatomy-body"><strong>Can I peek at A/B test results before the test ends?</strong> Not safely with a fixed-horizon test: peeking inflates the Type I error. Use the Sequential mode, which applies a Pocock constant boundary so you can take K interim looks while keeping the family-wise error rate at your alpha. With 3 looks at alpha = 0.05, the per-peek boundary rises to |z| &gt; 2.289 and the per-look nominal alpha shrinks to about 0.022.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-eyebrow">Further reading</div>
     <ul class="further-list">
       <li><a href="/AB-Testing-in-R.html">A/B testing in R, end-to-end</a> - design, analysis, reporting in one tutorial.</li>
@@ -915,7 +943,7 @@ risk ratio    = p_b / p_a</div>
       <li><a href="confidence-interval-calculator.html">Confidence interval calculator</a> - if you only need the CI for the lift.</li>
       <li><a href="power-analysis.html">Power analysis tool</a> - sample size for means, proportions, and correlations.</li>
     </ul>
-    <p class="numerical-accuracy-note" style="margin:18px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5">Numerical accuracy: pnorm uses Hart's approximation (abs error &lt; 7.5e-8); qnorm via Wichura AS 241; Beta sampling via Marsaglia-Tsang gamma. Cross-checked against R's prop.test and pwr.2p.test on &gt; 30 input vectors.</p>
+    <p class="numerical-accuracy-note" style="margin:18px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5">Numerical accuracy: pnorm/qnorm at near machine precision (regularized incomplete gamma; Acklam inverse with a Halley step); the Bayesian quantities are deterministic (numerical integration of the Beta posteriors and closed-form Beta functions, no random sampling). Every displayed number is checked against R's prop.test(), pwr.2p.test() and integrate() across 29 cases to a relative tolerance of 1e-6 (see Scripts/tool-truth/ab-test-calculator.json). Pocock boundary constants are the standard tabulated values from Jennison &amp; Turnbull (2000).</p>
   </div>
 
   </div><!-- /.shell -->
@@ -933,198 +961,57 @@ function fmtViz(x, d){ d = d ?? 3; if (!isFinite(x)) return '-'; return Number(x
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // ============================================================
-// Math primitives
+// Math engine: verified library /tools/lib/ab-test-math.js
+// (checked to <= 1e-6 vs R prop.test / pwr.2p.test / integrate across
+// 29 cases; see Scripts/tool-truth/ab-test-calculator.json). No RNG.
+// Thin adapters below preserve the field names the renderers expect.
 // ============================================================
+const AB = window.ABTestMath;
+const pnorm = AB.pnorm, dnorm = AB.dnorm, qnorm = AB.qnorm, dbeta = AB.dbeta;
 
-// Standard normal CDF (Hart's algorithm; abs error < 7.5e-8)
-function pnorm(x){
-  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
-  const sign = x<0 ? -1 : 1;
-  x = Math.abs(x)/Math.sqrt(2);
-  const t = 1.0/(1.0+p*x);
-  const y = 1.0 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
-  return 0.5*(1.0+sign*y);
-}
-
-// Standard normal PDF
-function dnorm(x){ return Math.exp(-0.5*x*x) / Math.sqrt(2*Math.PI); }
-
-// Inverse standard normal (Wichura AS 241)
-function qnorm(p){
-  if (p<=0 || p>=1) return p<=0 ? -Infinity : Infinity;
-  const q = p - 0.5;
-  let r;
-  if (Math.abs(q) <= 0.425) {
-    r = q*q;
-    return q*(((((((2509.0809287301226727*r + 33430.575583588128105)*r + 67265.770927008700853)*r + 45921.953931549871457)*r + 13731.693765509461125)*r + 1971.5909503065514427)*r + 133.14166789178437745)*r + 3.387132872796366608)/(((((((5226.495278852854561*r + 28729.085735721942674)*r + 39307.89580009271061)*r + 21213.794301586595867)*r + 5394.1960214247511077)*r + 687.1870074920579083)*r + 42.313330701600911252)*r + 1);
-  }
-  r = q<0 ? p : 1-p;
-  r = Math.sqrt(-Math.log(r));
-  let val;
-  if (r <= 5) {
-    r -= 1.6;
-    val = (((((((0.00077454501427834140764*r + 0.0227238449892691845833)*r + 0.24178072517745061177)*r + 1.27045825245236838258)*r + 3.64784832476320460504)*r + 5.7694972214606914055)*r + 4.6303378461565452959)*r + 1.42343711074968357734)/(((((((0.00000010507500716444169*r + 0.0005475938084995344946)*r + 0.0151986665636164571966)*r + 0.14810397642748007459)*r + 0.68976733498510000455)*r + 1.6763848301838038494)*r + 2.05319162663775882187)*r + 1);
-  } else {
-    r -= 5;
-    val = (((((((0.000000201033439929228813265*r + 0.0000271155556874348757815)*r + 0.0012426609473880784386)*r + 0.026532189526576123093)*r + 0.29656057182850489123)*r + 1.7848265399172913358)*r + 5.4637849111641143699)*r + 6.6579046435011037772)/(((((((0.00000000204426310338993978564*r + 0.00000014215117583164458887)*r + 0.0000018463183175100546818)*r + 0.0000786869131145613259)*r + 0.0014875361290850615)*r + 0.013692988092273580531)*r + 0.059983220655588793769)*r + 1);
-  }
-  return q<0 ? -val : val;
-}
-
-// log-Gamma (Lanczos)
-function lgamma(z){
-  const g=7;
-  const p=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
-  if(z<0.5) return Math.log(Math.PI/Math.sin(Math.PI*z)) - lgamma(1-z);
-  z -= 1;
-  let x = p[0];
-  for(let i=1;i<g+2;i++) x += p[i]/(z+i);
-  const t = z + g + 0.5;
-  return 0.5*Math.log(2*Math.PI) + (z+0.5)*Math.log(t) - t + Math.log(x);
-}
-function lbeta(a,b){ return lgamma(a)+lgamma(b)-lgamma(a+b); }
-
-// Beta PDF
-function dbeta(x,a,b){
-  if (x<=0 || x>=1) return 0;
-  return Math.exp((a-1)*Math.log(x) + (b-1)*Math.log(1-x) - lbeta(a,b));
-}
-
-// Sample size for two-proportion z-test (matches pwr::pwr.2p.test)
-function sampleSizeTwoProp(p1, p2, alpha, power, tail, share){
-  if (p1 < 0 || p1 > 1 || p2 < 0 || p2 > 1) return NaN;
-  const h = 2 * (Math.asin(Math.sqrt(p2)) - Math.asin(Math.sqrt(p1)));
-  if (h === 0) return Infinity;
-  const zA = qnorm(1 - alpha/tail);
-  const zB = qnorm(power);
-  const nEq = Math.pow(zA + zB, 2) / (h * h);
-  const k = (typeof share === 'number' && share > 0 && share < 1) ? share : 0.5;
-  if (Math.abs(k - 0.5) < 1e-9) return Math.ceil(nEq);
-  const total = nEq / (2 * k * (1 - k));
-  const nA = Math.ceil(total * (1 - k));
-  const nB = Math.ceil(total * k);
-  return { nA, nB, total: nA + nB, nEq: Math.ceil(nEq) };
-}
-
-// Two-proportion z-test (pooled variance under H0; unpooled SE for the CI)
+// Two-proportion z-test: pooled-SE z, tail-aware unpooled Wald CI.
+// Identical to prop.test(x=c(cB,cA), n=c(nB,nA), correct=FALSE).
 function twoPropTest(c1, n1, c2, n2, alpha, tail){
   const a = (typeof alpha === 'number' && alpha > 0 && alpha < 1) ? alpha : 0.05;
   const tl = (tail === 1) ? 1 : 2;
-  const p1 = c1/n1, p2 = c2/n2;
-  const pPool = (c1+c2) / (n1+n2);
-  const seH0 = Math.sqrt(pPool*(1-pPool)*(1/n1 + 1/n2));
-  const z = (p2 - p1) / seH0;
-  const pVal = (tl === 2) ? 2 * (1 - pnorm(Math.abs(z))) : 1 - pnorm(z);
-  const seCi = Math.sqrt(p1*(1-p1)/n1 + p2*(1-p2)/n2);
-  const zCrit = qnorm(1 - a/2);
-  return {
-    p1, p2, diff: p2-p1, relDiff: p1 !== 0 ? (p2-p1)/p1 : NaN,
-    z, p: pVal, tail: tl,
-    ciLow: (p2-p1) - zCrit*seCi,
-    ciHigh: (p2-p1) + zCrit*seCi,
-    ciLevel: 1 - a,
-    seH0, seCi,
-    chi2: z*z
-  };
+  const r = AB.twoProp(c1, n1, c2, n2, a, tl);
+  return { p1:r.pa, p2:r.pb, diff:r.diff, relDiff:r.relDiff, z:r.z, p:r.p, tail:tl,
+           ciLow:r.ciLo, ciHigh:r.ciHi, ciLevel:r.ciLevel, seH0:r.seH0, seCi:r.seCi, chi2:r.chisq };
 }
 
-// Marsaglia-Tsang gamma sampler, then Beta from two gammas.
-function rgamma(shape, scale){
-  scale = scale || 1;
-  if (shape < 1){
-    const u = Math.random();
-    return rgamma(shape+1, scale) * Math.pow(u, 1/shape);
-  }
-  const d = shape - 1/3;
-  const c = 1/Math.sqrt(9*d);
-  let x, v;
-  while(true){
-    do { x = randNormal(); v = 1 + c*x; } while (v <= 0);
-    v = v*v*v;
-    const u = Math.random();
-    if (u < 1 - 0.0331*x*x*x*x) return d*v*scale;
-    if (Math.log(u) < 0.5*x*x + d*(1 - v + Math.log(v))) return d*v*scale;
-  }
-}
-let _spareNormal = null;
-function randNormal(){
-  if (_spareNormal !== null){ const s = _spareNormal; _spareNormal = null; return s; }
-  let u, v, s;
-  do { u = Math.random()*2-1; v = Math.random()*2-1; s = u*u+v*v; } while(s>=1 || s===0);
-  const m = Math.sqrt(-2*Math.log(s)/s);
-  _spareNormal = v*m;
-  return u*m;
-}
-function rbeta(a, b){ const x = rgamma(a, 1), y = rgamma(b, 1); return x / (x+y); }
-
-// Bayesian beta-binomial analysis (10k posterior draws). Returns
-// P(B>A), mean lift, 2.5/97.5 credible interval, BF10 via Savage-Dickey
-// at the prior mean of the lift (uniform Beta(1,1) -> prior mean = 0).
-function bayesAnalysis(c1, n1, c2, n2, nDraws, prior){
-  nDraws = nDraws || 10000;
-  const pa = (prior && prior.a > 0) ? prior.a : 1;
-  const pb = (prior && prior.b > 0) ? prior.b : 1;
-  const a1 = pa + c1, b1 = pb + n1 - c1;
-  const a2 = pa + c2, b2 = pb + n2 - c2;
-  const draws = new Array(nDraws);
-  let bBeatsA = 0, sumDiff = 0;
-  for (let i=0; i<nDraws; i++){
-    const pA = rbeta(a1, b1);
-    const pB = rbeta(a2, b2);
-    if (pB > pA) bBeatsA++;
-    const d = pB - pA;
-    draws[i] = d;
-    sumDiff += d;
-  }
-  draws.sort((a,b)=>a-b);
-  const meanDiff = sumDiff / nDraws;
-  const ci025 = draws[Math.floor(nDraws*0.025)];
-  const ci975 = draws[Math.floor(nDraws*0.975)];
-  // BF10 via Savage-Dickey: prior density at 0 / posterior density at 0
-  // Posterior density of (p_b - p_a) at 0 estimated from a small bandwidth
-  // around 0 in the sorted draws (kernel-free histogram).
-  const hw = 0.005;  // half-window in lift units
-  let inWin = 0;
-  for (let i=0;i<nDraws;i++){ if (Math.abs(draws[i]) < hw) inWin++; }
-  const postDensAt0 = inWin / (nDraws * 2 * hw);  // density estimate
-  // Prior density of lift at 0 under Beta(1,1) priors: triangular with mode 0,
-  // density at 0 = 1.0 (closed form for difference of two Uniforms).
-  const priorDensAt0 = 1.0;
-  let bf10 = priorDensAt0 / Math.max(postDensAt0, 1e-9);
-  if (!isFinite(bf10) || bf10 < 0) bf10 = NaN;
-  return {
-    probBeatsA: bBeatsA/nDraws,
-    meanDiff, ci025, ci975, bf10,
-    a1, b1, a2, b2
-  };
+// Sample size per arm (matches pwr.2p.test; returns the ceil'd integer).
+function sampleSizeTwoProp(p1, p2, alpha, power, tail){
+  if (!(p1 > 0 && p1 < 1 && p2 > 0 && p2 < 1)) return NaN;
+  const r = AB.sampleSize(p1, p2, alpha, power, tail);
+  return isFinite(r.nCeil) ? r.nCeil : NaN;
 }
 
-// Pocock-style sequential alpha. For K equally-spaced looks at fraction
-// k/K of N, the per-look two-sided z boundary z_P satisfies the family-
-// wise type-I rate at alpha. Approximation: z_P(K, alpha) tabulated.
-function pocockBoundary(K, alpha){
-  // tabulated for two-sided alpha=0.05 (Pocock 1977, Jennison-Turnbull 2000).
-  const tbl05 = {1:1.96, 2:2.178, 3:2.289, 4:2.361, 5:2.413, 6:2.453, 8:2.512, 10:2.555};
-  const tbl01 = {1:2.576, 2:2.772, 3:2.873, 4:2.939, 5:2.986, 6:3.023, 8:3.078, 10:3.117};
-  const a = Math.abs(alpha - 0.01) < 1e-9 ? tbl01 : tbl05;
-  if (a[K]) return a[K];
-  // Linear interpolation between nearest keys
-  const keys = Object.keys(a).map(Number).sort((x,y)=>x-y);
-  for (let i=0;i<keys.length-1;i++){
-    if (K >= keys[i] && K <= keys[i+1]){
-      const t = (K - keys[i]) / (keys[i+1]-keys[i]);
-      return a[keys[i]]*(1-t) + a[keys[i+1]]*t;
-    }
-  }
-  return a[keys[keys.length-1]];
+// Deterministic Bayesian beta-binomial, memoized: recompute + inference banner
+// + viz all call this with identical args within one render, so the numerical
+// integration runs once. Field names match the old simulation adapter.
+let _bayesMemo = { key:'', val:null };
+function bayesAnalysis(c1, n1, c2, n2, _draws, prior){
+  const a0 = (prior && prior.a > 0) ? prior.a : 1;
+  const b0 = (prior && prior.b > 0) ? prior.b : 1;
+  const key = [c1,n1,c2,n2,a0,b0].join(',');
+  if (_bayesMemo.key === key) return _bayesMemo.val;
+  const r = AB.bayes(c1, n1, c2, n2, a0, b0);
+  const out = { probBeatsA:r.pBbetter, meanDiff:r.meanLift, ci025:r.crLo, ci975:r.crHi,
+                bf10:r.bf10, a1:r.a1, b1:r.b1, a2:r.a2, b2:r.b2 };
+  _bayesMemo = { key, val:out };
+  return out;
 }
+
+// Pocock per-look nominal alpha from tabulated constants -> 2(1 - Phi(c_K)).
+function pocockInfo(K, alpha){ return AB.pocockNominal(K, alpha); }
 
 // ============================================================
 // Modes, framings, state
 // ============================================================
 const MODES = [
-  {key:'plan',    name:'plan a 2-arm test'},
-  {key:'analyze', name:'analyze a finished test'}
+  {key:'plan',       name:'plan a 2-arm test'},
+  {key:'analyze',    name:'analyze a finished test'},
+  {key:'sequential', name:'check a sequential / peeking plan'}
 ];
 const FRAMINGS = [
   {key:'freq',  name:'frequentist'},
@@ -1146,6 +1033,8 @@ const state = {
   // Shared
   alpha: 0.05,
   tail: 2,
+  // Sequential
+  looks: 3,
   // Viz-only state (independent so dragging sliders does not disturb col C)
   vizBaseline: 0.10,
   vizMde: 0.01,
@@ -1153,8 +1042,8 @@ const state = {
 };
 
 const METHOD_META = {
-  'plan-freq': {
-    useWhen: 'You have not run the test yet. You want a frequentist sample size from a baseline rate, a minimum lift, alpha, and power.',
+  'plan': {
+    useWhen: 'You have not run the test yet. You want the sample size per arm (at 50/50 allocation) from a baseline rate, a minimum detectable lift, alpha, and power.',
     example: 'e.g., baseline 10% conversion, want 80% power to detect a +1pp absolute lift at alpha = 0.05.',
     inputs: [
       {code:'p1',    desc:'baseline conversion rate'},
@@ -1164,23 +1053,12 @@ const METHOD_META = {
       {code:'tail',  desc:'1- or 2-sided (default 2-sided)'}
     ]
   },
-  'plan-bayes': {
-    useWhen: 'You want a target P(B&gt;A) decision threshold given a baseline and an MDE. Sample size scales the same as frequentist; Bayesian decision rules are softer.',
-    example: 'e.g., stop when P(B&gt;A) crosses 0.95 with baseline 10% and MDE +1pp.',
+  'sequential': {
+    useWhen: 'You plan to peek at the data several times and might stop early. You want the per-look significance boundary that keeps the overall false-positive rate at alpha.',
+    example: 'e.g., 3 interim looks at alpha = 0.05: cross only if |z| exceeds the Pocock boundary, not the naive 1.96.',
     inputs: [
-      {code:'p1',  desc:'baseline conversion rate'},
-      {code:'MDE', desc:'minimum lift you would care about'},
-      {code:'thr', desc:'P(B&gt;A) decision threshold (e.g. 0.95)'}
-    ]
-  },
-  'plan-both': {
-    useWhen: 'You want a frequentist sample size as the operational target, while keeping a Bayesian readout (P(B&gt;A), credible interval) as the decision dashboard.',
-    example: 'e.g., compute n from pwr.2p.test, then monitor P(B&gt;A) on the way.',
-    inputs: [
-      {code:'p1',    desc:'baseline conversion rate'},
-      {code:'MDE',   desc:'minimum detectable lift'},
-      {code:'alpha', desc:'significance level'},
-      {code:'power', desc:'desired power'}
+      {code:'K',     desc:'number of interim looks (including the final one)'},
+      {code:'alpha', desc:'overall significance level to preserve'}
     ]
   },
   'analyze-freq': {
@@ -1219,7 +1097,11 @@ const METHOD_META = {
   }
 };
 
-function metaKey(){ return activeMode + '-' + activeFraming; }
+function metaKey(){
+  if (activeMode === 'plan') return 'plan';
+  if (activeMode === 'sequential') return 'sequential';
+  return 'analyze-' + activeFraming;
+}
 
 // ============================================================
 // Banner sentence
@@ -1227,29 +1109,38 @@ function metaKey(){ return activeMode + '-' + activeFraming; }
 function renderBannerSentence(){
   const el = $('banner-sentence'); if (!el) return;
   const modeLabel = MODES.find(m => m.key === activeMode).name;
-  const framingLabel = FRAMINGS.find(f => f.key === activeFraming).name;
   const modeOpts = MODES.map(m =>
     `<option value="${m.key}" ${m.key===activeMode?'selected':''}>${escapeHtml(m.name)}</option>`
   ).join('');
-  const framingOpts = FRAMINGS.map(f =>
-    `<option value="${f.key}" ${f.key===activeFraming?'selected':''}>${escapeHtml(f.name)}</option>`
-  ).join('');
-  let givens;
-  if (activeMode === 'plan'){
-    givens = `p1 = ${fmtPct(state.baseline,1)}, MDE = +${fmtPct(state.mde,2)}, &alpha; = ${fmt(state.alpha,3)}, power = ${fmt(state.power,2)}`;
-  } else {
-    givens = `n_a = ${state.n_a}, conv_a = ${state.conv_a}, n_b = ${state.n_b}, conv_b = ${state.conv_b}`;
-  }
-  el.innerHTML = `I want to
-    <span class="param">${escapeHtml(modeLabel)}<span class="param-caret">&#9662;</span>
+  const modeParam = `<span class="param">${escapeHtml(modeLabel)}<span class="param-caret">&#9662;</span>
       <select onchange="setMode(this.value)">${modeOpts}</select>
-    </span>
-    using
-    <span class="param is-flavor">${escapeHtml(framingLabel)}<span class="param-caret">&#9662;</span>
-      <select onchange="setFraming(this.value)">${framingOpts}</select>
-    </span>
-    given
-    <span class="param is-static">${givens}</span>.`;
+    </span>`;
+  if (activeMode === 'analyze'){
+    const framingLabel = FRAMINGS.find(f => f.key === activeFraming).name;
+    const framingOpts = FRAMINGS.map(f =>
+      `<option value="${f.key}" ${f.key===activeFraming?'selected':''}>${escapeHtml(f.name)}</option>`
+    ).join('');
+    const givens = `n_a = ${state.n_a}, conv_a = ${state.conv_a}, n_b = ${state.n_b}, conv_b = ${state.conv_b}`;
+    el.innerHTML = `I want to ${modeParam} using
+      <span class="param is-flavor">${escapeHtml(framingLabel)}<span class="param-caret">&#9662;</span>
+        <select onchange="setFraming(this.value)">${framingOpts}</select>
+      </span>
+      given <span class="param is-static">${givens}</span>.`;
+  } else if (activeMode === 'plan'){
+    const givens = `p1 = ${fmtPct(state.baseline,1)}, MDE = +${fmtPct(state.mde,2)}, &alpha; = ${fmt(state.alpha,3)}, power = ${fmt(state.power,2)}`;
+    el.innerHTML = `I want to ${modeParam} given <span class="param is-static">${givens}</span>.`;
+  } else {
+    const givens = `K = ${state.looks} looks, &alpha; = ${fmt(state.alpha,3)}`;
+    el.innerHTML = `I want to ${modeParam} given <span class="param is-static">${givens}</span>.`;
+  }
+}
+
+// Framing applies only to analyze; tail applies to plan + frequentist analyze.
+function syncControlVisibility(){
+  const showFraming = activeMode === 'analyze';
+  const showTail = activeMode === 'plan' || (activeMode === 'analyze' && activeFraming !== 'bayes');
+  if ($('framing-row')) $('framing-row').style.display = showFraming ? '' : 'none';
+  if ($('tail-row')) $('tail-row').style.display = showTail ? '' : 'none';
 }
 
 // ============================================================
@@ -1290,6 +1181,14 @@ function renderInputs(){
           <input type="number" id="i-power" min="0.5" max="0.999" step="0.01" value="${state.power}" oninput="onPlanInput()" aria-label="Statistical power">
         </div>
       </div>`;
+  } else if (activeMode === 'sequential'){
+    html = `
+      <div class="form-row">
+        <label>Interim looks (K) <small>how many times you peek, including the final analysis (1 to 10)</small></label>
+        <div class="form-control">
+          <input type="number" id="i-looks" min="1" max="10" step="1" value="${state.looks}" oninput="onSeqInput()" aria-label="Number of interim looks">
+        </div>
+      </div>`;
   } else {
     html = `
       <div class="form-row">
@@ -1319,6 +1218,12 @@ function onPlanInput(){
   if (isFinite(p) && p > 0 && p < 1) state.power = p;
   state.vizBaseline = state.baseline;
   state.vizMde = state.mde;
+  renderBannerSentence();
+  recompute();
+}
+function onSeqInput(){
+  const k = parseInt($('i-looks').value);
+  if (isFinite(k) && k >= 1) state.looks = Math.max(1, Math.min(10, k));
   renderBannerSentence();
   recompute();
 }
@@ -1362,6 +1267,7 @@ function setTail(t){
 }
 
 function renderAll(){
+  syncControlVisibility();
   renderInputs();
   renderBannerSentence();
   renderMethodColumn();
@@ -1373,31 +1279,48 @@ function renderAll(){
 // Compute + render
 // ============================================================
 function recompute(){
-  let label = '', headline = '', aux = '', recapRows = [], rcode = '';
+  let label = '', headline = '', aux = '', recapRows = [], rcode = '', report = '';
   if (activeMode === 'plan'){
     const p1 = state.baseline;
     const p2 = Math.min(0.9999, Math.max(0.0001, p1 + state.mde));
-    const result = sampleSizeTwoProp(p1, p2, state.alpha, state.power, state.tail, 0.5);
-    const n = (typeof result === 'number') ? result : (result && result.nEq);
+    const n = sampleSizeTwoProp(p1, p2, state.alpha, state.power, state.tail);
     label = `SAMPLE SIZE PER ARM`;
     if (!isFinite(n)){
       headline = '-';
       aux = 'Inputs incomplete or implied target rate out of (0,1).';
+      report = 'Sample size: inputs incomplete.';
     } else {
+      const tailWord = state.tail === 2 ? 'two-sided' : 'one-sided';
       headline = `n = ${fmtNum(n)}`;
       aux = `total = <b>${fmtNum(n*2)}</b> &middot; p2 = ${fmtPct(p2,2)} &middot; alpha = ${fmt(state.alpha,3)} &middot; power = ${fmt(state.power,2)} &middot; tail = ${state.tail}`;
-      const h = 2 * (Math.asin(Math.sqrt(p2)) - Math.asin(Math.sqrt(p1)));
+      const h = Math.abs(2 * (Math.asin(Math.sqrt(p2)) - Math.asin(Math.sqrt(p1))));
       const zA = qnorm(1 - state.alpha/state.tail);
       const zB = qnorm(state.power);
       recapRows = [
         {k:'p1, p2',  v:`${fmtPct(p1,2)}, ${fmtPct(p2,2)}`},
-        {k:'h',       v:`2(asin sqrt(p2) - asin sqrt(p1)) = ${h.toFixed(4)}`},
+        {k:'h',       v:`|2(asin sqrt(p2) - asin sqrt(p1))| = ${h.toFixed(4)}`},
         {k:'z_alpha', v:`qnorm(1 - ${state.alpha}/${state.tail}) = ${zA.toFixed(3)}`},
         {k:'z_beta',  v:`qnorm(${state.power}) = ${zB.toFixed(3)}`},
-        {k:'n',       v:`(z_alpha + z_beta)^2 / h^2 = ${fmtNum(n)}`}
+        {k:'n',       v:`~ 2(z_alpha + z_beta)^2 / h^2 = ${fmtNum(n)} (pwr.2p.test solves the exact power equation)`}
       ];
+      report = `Sample size (two-proportion z-test, pwr.2p.test): n = ${fmtNum(n)} per arm (${fmtNum(n*2)} total) to detect ${fmtPct(p1,2)} -> ${fmtPct(p2,2)} (+${(state.mde*100).toFixed(2)}pp) at alpha=${fmt(state.alpha,3)} (${tailWord}), power=${fmt(state.power,2)}.`;
     }
     rcode = buildRCodePlan(p1, p2, state.alpha, state.power, state.tail);
+  } else if (activeMode === 'sequential'){
+    const info = pocockInfo(state.looks, state.alpha);
+    const K = info.K, cK = info.ck, nominal = info.nominal;
+    const naive = state.tail === 1 ? qnorm(1 - state.alpha) : qnorm(1 - state.alpha/2);
+    label = `PER-LOOK BOUNDARY &middot; POCOCK`;
+    headline = `|z| &gt; ${cK.toFixed(3)}`;
+    aux = `per-look nominal &alpha; = <b>${nominal.toFixed(4)}</b> &middot; overall &alpha; held at <b>${fmt(state.alpha,3)}</b> across <b>${K}</b> look${K>1?'s':''}`;
+    recapRows = [
+      {k:'looks K',       v:`${K} equally spaced interim analyses`},
+      {k:'Pocock c_K',    v:`${cK.toFixed(3)} (constant boundary; Jennison & Turnbull 2000, Table 2.1)`},
+      {k:'per-look alpha',v:`2(1 - Phi(${cK.toFixed(3)})) = ${nominal.toFixed(4)}`},
+      {k:'naive boundary',v:`${naive.toFixed(3)} - using this at every look would inflate the real false-positive rate`}
+    ];
+    report = `Pocock group-sequential design (K=${K} looks, overall alpha=${fmt(state.alpha,3)}): declare significance only if |z| > ${cK.toFixed(3)} at any look; per-look nominal alpha = ${nominal.toFixed(4)}.`;
+    rcode = buildRCodeSequential(K, state.alpha, cK, nominal);
   } else {
     const f = twoPropTest(state.conv_a, state.n_a, state.conv_b, state.n_b, state.alpha, state.tail);
     let bayesPart = null;
@@ -1430,13 +1353,25 @@ function recompute(){
       if (isFinite(bayesPart.bf10)) recap.push({k:'BF10', v:`${bayesPart.bf10.toFixed(2)}`});
     }
     recapRows = recap;
-    rcode = buildRCodeAnalyze(state.conv_a, state.n_a, state.conv_b, state.n_b, state.alpha, activeFraming);
+    const liftTxt = `${f.diff>=0?'+':''}${(f.diff*100).toFixed(2)}pp`;
+    const pTxt = f.p < 0.0001 ? '<0.0001' : f.p.toFixed(4);
+    const ciTxt = `[${(f.ciLow*100).toFixed(2)}, ${(f.ciHigh*100).toFixed(2)}]pp`;
+    const tailWord = state.tail === 2 ? 'two-sided' : 'one-sided';
+    if (activeFraming === 'freq'){
+      report = `Two-proportion z-test (prop.test correct=FALSE): B ${fmtPct(f.p2,2)} vs A ${fmtPct(f.p1,2)}, lift ${liftTxt} (${(f.relDiff*100).toFixed(1)}% relative), z=${f.z.toFixed(3)}, p=${pTxt} (${tailWord}); ${Math.round(f.ciLevel*100)}% CI ${ciTxt}.`;
+    } else if (activeFraming === 'bayes'){
+      report = `Bayesian beta-binomial (Beta(1,1) prior): P(B>A)=${(bayesPart.probBeatsA*100).toFixed(1)}%, mean lift ${bayesPart.meanDiff>=0?'+':''}${(bayesPart.meanDiff*100).toFixed(2)}pp, 95% credible interval [${(bayesPart.ci025*100).toFixed(2)}, ${(bayesPart.ci975*100).toFixed(2)}]pp, BF10=${bayesPart.bf10.toFixed(3)}.`;
+    } else {
+      report = `A/B test (A ${state.conv_a}/${state.n_a}, B ${state.conv_b}/${state.n_b}): lift ${liftTxt}; frequentist z=${f.z.toFixed(3)}, p=${pTxt}, ${Math.round(f.ciLevel*100)}% CI ${ciTxt}; Bayesian P(B>A)=${(bayesPart.probBeatsA*100).toFixed(1)}%, BF10=${bayesPart.bf10.toFixed(3)}.`;
+    }
+    rcode = buildRCodeAnalyze(state.conv_a, state.n_a, state.conv_b, state.n_b, state.alpha, state.tail, activeFraming);
   }
 
   $('result-display').style.display = '';
   $('result-label').innerHTML = label;
   $('result-bounds').innerHTML = headline;
   $('result-aux').innerHTML = aux;
+  if ($('report')) $('report').textContent = report;
   if (recapRows.length){
     $('recap-mini').style.display = '';
     $('recap-mini-rows').innerHTML = recapRows.map(r =>
@@ -1472,6 +1407,14 @@ function renderInferenceBanner(){
              `(${tailWord}) with <b>${(state.power*100).toFixed(0)}%</b> power, you'll need ` +
              `<b>n = ${fmtNum(n)}</b> per arm (<b>${fmtNum(totalN)}</b> total).`;
     }
+  } else if (activeMode === 'sequential'){
+    const info = pocockInfo(state.looks, state.alpha);
+    const naive = state.tail === 1 ? qnorm(1 - state.alpha) : qnorm(1 - state.alpha/2);
+    html = `With <b>${info.K}</b> interim look${info.K>1?'s':''} at an overall &alpha; of <b>${fmt(state.alpha,3)}</b>, ` +
+           `declare a winner only when <span class="sig">|z| &gt; ${info.ck.toFixed(3)}</span> at a look ` +
+           `(per-look &alpha; = <b>${info.nominal.toFixed(4)}</b>). ` +
+           `Using the naive <b>${naive.toFixed(3)}</b> cutoff at every peek would push your real ` +
+           `false-positive rate <em>well above</em> ${fmt(state.alpha,3)}.`;
   } else {
     const f = twoPropTest(state.conv_a, state.n_a, state.conv_b, state.n_b, state.alpha, state.tail);
     const bayesPart = (activeFraming !== 'freq')
@@ -1518,7 +1461,7 @@ function buildRCodePlan(p1, p2, alpha, power, tail){
 
 p1 <span class="op">&lt;-</span> <span class="number">${p1}</span>      <span class="comment"># baseline</span>
 p2 <span class="op">&lt;-</span> <span class="number">${p2.toFixed(4)}</span>  <span class="comment"># expected with treatment</span>
-h  <span class="op">&lt;-</span> <span class="fn">ES.h</span>(p1, p2)  <span class="comment"># Cohen's effect size</span>
+h  <span class="op">&lt;-</span> <span class="fn">abs</span>(<span class="fn">ES.h</span>(p1, p2))  <span class="comment"># Cohen's h (magnitude)</span>
 
 <span class="fn">pwr.2p.test</span>(
   h           <span class="op">=</span> h,
@@ -1528,25 +1471,52 @@ h  <span class="op">&lt;-</span> <span class="fn">ES.h</span>(p1, p2)  <span cla
 )`;
 }
 
-function buildRCodeAnalyze(c1, n1, c2, n2, alpha, framing){
-  const freq = `<span class="comment"># Two-proportion z-test (matches prop.test correct=FALSE)</span>
+function buildRCodeAnalyze(c1, n1, c2, n2, alpha, tail, framing){
+  const altStr = tail === 2 ? 'two.sided' : 'greater';
+  // B first (c2,n2) so the estimate and CI are pB - pA, matching the tool's lift.
+  const freq = `<span class="comment"># Two-proportion z-test (B first: estimate = p_b - p_a)</span>
 <span class="fn">prop.test</span>(
-  x          <span class="op">=</span> <span class="fn">c</span>(<span class="number">${c1}</span>, <span class="number">${c2}</span>),
-  n          <span class="op">=</span> <span class="fn">c</span>(<span class="number">${n1}</span>, <span class="number">${n2}</span>),
-  conf.level <span class="op">=</span> <span class="number">${(1-alpha).toFixed(3)}</span>,
-  correct    <span class="op">=</span> <span class="keyword">FALSE</span>
+  x           <span class="op">=</span> <span class="fn">c</span>(<span class="number">${c2}</span>, <span class="number">${c1}</span>),   <span class="comment"># conversions: B, A</span>
+  n           <span class="op">=</span> <span class="fn">c</span>(<span class="number">${n2}</span>, <span class="number">${n1}</span>),   <span class="comment"># visitors:    B, A</span>
+  conf.level  <span class="op">=</span> <span class="number">${(1-alpha).toFixed(3)}</span>,
+  alternative <span class="op">=</span> <span class="string">"${altStr}"</span>,
+  correct     <span class="op">=</span> <span class="keyword">FALSE</span>
 )`;
-  const bayes = `<span class="comment"># Bayesian beta-binomial conjugate (Beta(1,1) prior)</span>
-<span class="keyword">set.seed</span>(<span class="number">42</span>)
-post_a <span class="op">&lt;-</span> <span class="fn">rbeta</span>(<span class="number">1e5</span>, <span class="number">${1+c1}</span>, <span class="number">${1+n1-c1}</span>)
-post_b <span class="op">&lt;-</span> <span class="fn">rbeta</span>(<span class="number">1e5</span>, <span class="number">${1+c2}</span>, <span class="number">${1+n2-c2}</span>)
+  const a1 = 1+c1, b1 = 1+n1-c1, a2 = 1+c2, b2 = 1+n2-c2;
+  const bayes = `<span class="comment"># Bayesian beta-binomial conjugate, Beta(1,1) prior (deterministic)</span>
+a1 <span class="op">&lt;-</span> <span class="number">${a1}</span>; b1 <span class="op">&lt;-</span> <span class="number">${b1}</span>   <span class="comment"># posterior A ~ Beta(a1, b1)</span>
+a2 <span class="op">&lt;-</span> <span class="number">${a2}</span>; b2 <span class="op">&lt;-</span> <span class="number">${b2}</span>   <span class="comment"># posterior B ~ Beta(a2, b2)</span>
 
-<span class="fn">mean</span>(post_b <span class="op">&gt;</span> post_a)                          <span class="comment"># P(B &gt; A)</span>
-<span class="fn">quantile</span>(post_b <span class="op">-</span> post_a, <span class="fn">c</span>(<span class="number">0.025</span>, <span class="number">0.975</span>))  <span class="comment"># 95% CrI</span>`;
+<span class="comment"># P(B &gt; A) by numerical integration</span>
+<span class="fn">integrate</span>(<span class="keyword">function</span>(x) <span class="fn">dbeta</span>(x, a2, b2) <span class="op">*</span> <span class="fn">pbeta</span>(x, a1, b1), <span class="number">0</span>, <span class="number">1</span>)<span class="op">$</span>value
+
+<span class="comment"># 95% credible interval for the lift p_b - p_a</span>
+cdf <span class="op">&lt;-</span> <span class="keyword">function</span>(d) <span class="fn">integrate</span>(<span class="keyword">function</span>(a)
+  <span class="fn">dbeta</span>(a, a1, b1) <span class="op">*</span> <span class="fn">pbeta</span>(<span class="fn">pmin</span>(<span class="fn">pmax</span>(a<span class="op">+</span>d, <span class="number">0</span>), <span class="number">1</span>), a2, b2), <span class="number">0</span>, <span class="number">1</span>)<span class="op">$</span>value
+<span class="fn">c</span>(lo <span class="op">=</span> <span class="fn">uniroot</span>(<span class="keyword">function</span>(d) cdf(d)<span class="op">-</span><span class="number">0.025</span>, <span class="fn">c</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">1</span>))<span class="op">$</span>root,
+  hi <span class="op">=</span> <span class="fn">uniroot</span>(<span class="keyword">function</span>(d) cdf(d)<span class="op">-</span><span class="number">0.975</span>, <span class="fn">c</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">1</span>))<span class="op">$</span>root)
+
+<span class="comment"># Bayes factor BF10 (rates differ vs equal), closed form</span>
+<span class="fn">exp</span>(<span class="fn">lbeta</span>(a1, b1) <span class="op">+</span> <span class="fn">lbeta</span>(a2, b2) <span class="op">-</span> <span class="fn">lbeta</span>(<span class="number">1</span>, <span class="number">1</span>) <span class="op">-</span>
+    <span class="fn">lbeta</span>(<span class="number">${1+c1+c2}</span>, <span class="number">${1+n1+n2-c1-c2}</span>))`;
   if (framing === 'freq')  return freq;
   if (framing === 'bayes') return bayes;
   return freq + '\n\n' + bayes;
 }
+
+function buildRCodeSequential(K, alpha, cK, nominal){
+  return `<span class="comment"># Pocock group-sequential boundary (constant across looks)</span>
+<span class="comment"># c_K from Jennison &amp; Turnbull (2000), Group Sequential Methods, Table 2.1</span>
+K   <span class="op">&lt;-</span> <span class="number">${K}</span>        <span class="comment"># interim looks, including the final one</span>
+c_K <span class="op">&lt;-</span> <span class="number">${cK}</span>   <span class="comment"># overall alpha = ${fmt(alpha,3)}</span>
+
+<span class="comment"># per-look two-sided nominal alpha</span>
+<span class="number">2</span> <span class="op">*</span> (<span class="number">1</span> <span class="op">-</span> <span class="fn">pnorm</span>(c_K))            <span class="comment"># = ${nominal.toFixed(4)}</span>
+
+<span class="comment"># decision: at look j (1..K), declare significance only if |z_j| &gt; c_K,</span>
+<span class="comment"># NOT the naive ${(tailStrForAlpha(alpha))} boundary you would use for a single test.</span>`;
+}
+function tailStrForAlpha(alpha){ return qnorm(1 - alpha/2).toFixed(3); }
 
 // ============================================================
 // Interactive viz
@@ -1558,6 +1528,11 @@ const VIZ_CONFIG = {
         {key:'vizAlpha',    sym:'&alpha;', label:'level',    min:0.001, max:0.20, step:0.001, decimals:3},
         {key:'vizBaseline', sym:'p1',      label:'baseline', min:0.001, max:0.50, step:0.001, decimals:3},
         {key:'vizMde',      sym:'MDE',     label:'lift',     min:0.001, max:0.20, step:0.001, decimals:3}
+      ];
+    }
+    if (activeMode === 'sequential'){
+      return [
+        {key:'looks', sym:'K', label:'interim looks', min:1, max:10, step:1, decimals:0}
       ];
     }
     return [
@@ -1584,6 +1559,14 @@ function renderVizSliders(){
 
 function onVizSlide(key, val){
   const v = +val;
+  if (key === 'looks'){
+    state.looks = Math.max(1, Math.min(10, Math.round(v)));
+    if ($('i-looks')) $('i-looks').value = state.looks;
+    const el = $('viz-val-looks'); if (el) el.textContent = String(state.looks);
+    renderBannerSentence();
+    recompute();
+    return;
+  }
   state[key] = v;
   if (key === 'vizAlpha'){
     state.alpha = v;
@@ -1650,6 +1633,28 @@ function drawVizChart(){
       <text class="ax-label" x="${ml-4}" y="${(mt+8).toFixed(1)}" text-anchor="end">log10 n</text>`;
     caption = 'Sample size vs minimum detectable lift (log scale).';
     readout = `p1 = <b>${fmtPct(p1,2)}</b> &middot; MDE = <b>+${fmtPct(curMde,2)}</b> &middot; n per arm = <b>${fmtNum(curN)}</b>`;
+  } else if (activeMode === 'sequential'){
+    // Boundary comparison: constant Pocock c_K vs the naive single-test cutoff.
+    const info = pocockInfo(state.looks, state.alpha);
+    const K = info.K, cK = info.ck, nominal = info.nominal;
+    const naive = state.tail === 1 ? qnorm(1 - state.alpha) : qnorm(1 - state.alpha/2);
+    const yMax = Math.max(3.8, cK + 0.5);
+    const xAt = j => ml + (K === 1 ? plotW/2 : ((j-1)/(K-1))*plotW);
+    const yAt = z => mt + plotH - (z/yMax)*plotH;
+    let dots = '';
+    for (let j=1;j<=K;j++){ dots += `<circle cx="${xAt(j).toFixed(1)}" cy="${yAt(cK).toFixed(1)}" r="3.5" fill="var(--c-accent)" stroke="var(--c-surface)" stroke-width="1.3"/>`; }
+    body = `
+      <line class="ax" x1="${ml}" y1="${(mt+plotH).toFixed(1)}" x2="${(W-mr).toFixed(1)}" y2="${(mt+plotH).toFixed(1)}"/>
+      <line class="ax" x1="${ml}" y1="${mt}" x2="${ml}" y2="${(mt+plotH).toFixed(1)}"/>
+      <line x1="${ml}" y1="${yAt(naive).toFixed(1)}" x2="${(W-mr).toFixed(1)}" y2="${yAt(naive).toFixed(1)}" stroke="var(--c-danger)" stroke-width="1.4" stroke-dasharray="4 3"/>
+      <line x1="${ml}" y1="${yAt(cK).toFixed(1)}" x2="${(W-mr).toFixed(1)}" y2="${yAt(cK).toFixed(1)}" stroke="var(--c-accent)" stroke-width="2"/>
+      ${dots}
+      <text class="zero-label" x="${(W-mr-2).toFixed(1)}" y="${(yAt(cK)-4).toFixed(1)}" text-anchor="end" fill="var(--c-accent)">Pocock ${cK.toFixed(2)}</text>
+      <text class="zero-label" x="${(W-mr-2).toFixed(1)}" y="${(yAt(naive)+12).toFixed(1)}" text-anchor="end" fill="var(--c-danger)">naive ${naive.toFixed(2)}</text>
+      <text class="ax-label" x="${(ml+plotW/2).toFixed(1)}" y="${H-6}" text-anchor="middle" style="font-style:italic">interim look (1 to ${K})</text>
+      <text class="ax-label" x="${ml-4}" y="${(mt+8).toFixed(1)}" text-anchor="end">|z|</text>`;
+    caption = 'The bar you must clear at each look: Pocock (raised) vs a naive single-test cutoff.';
+    readout = `K = <b>${K}</b> &middot; per-look nominal &alpha; = <b>${nominal.toFixed(4)}</b> &middot; boundary |z| &gt; <b>${cK.toFixed(3)}</b>`;
   } else if (activeFraming === 'freq'){
     // Standard normal with shaded p-value tails for the observed z
     const f = twoPropTest(state.conv_a, state.n_a, state.conv_b, state.n_b, state.vizAlpha, state.tail);
@@ -1747,9 +1752,9 @@ const SCENARIOS = {
     story:'Same shape, smaller sample. Beta(1,1) prior, focus on P(B>A) and the credible interval.'
   },
   sequential: {
-    name:'Sequential look', icon:'🔁', mode:'analyze', framing:'freq',
-    set: () => { state.n_a=2500; state.conv_a=300; state.n_b=2500; state.conv_b=350; state.alpha=0.05; state.tail=2; },
-    story:'A larger 5000-visitor test: would 3 sequential looks force a Pocock alpha boundary near 2.29?'
+    name:'Sequential look', icon:'🔁', mode:'sequential', framing:'freq',
+    set: () => { state.looks=3; state.alpha=0.05; state.tail=2; },
+    story:'You want to peek 3 times at alpha = 0.05. The Pocock boundary raises the per-look bar to |z| > 2.289 (per-look alpha near 0.022).'
   },
   longtail: {
     name:'Long-tail conversion', icon:'🎯', mode:'analyze', framing:'both',
@@ -1800,6 +1805,22 @@ function toast(msg){
   $('toast-area').appendChild(t); setTimeout(()=>t.remove(),3200);
 }
 
+// GA: fire tool_use once per session on the first real interaction.
+let _usedOnce = false;
+function markToolUse(){
+  if (_usedOnce) return; _usedOnce = true;
+  try { if (window.gtag) gtag('event','tool_use',{tool:'ab-test-calculator'}); } catch(e){}
+}
+
+function copyReport(){
+  const el = $('report'); if (!el) return;
+  const txt = el.textContent || '';
+  if (!txt) return;
+  navigator.clipboard?.writeText(txt);
+  toast('Report line copied');
+  try { if (window.gtag) gtag('event','tool_copy',{tool:'ab-test-calculator',what:'report'}); } catch(e){}
+}
+
 document.addEventListener('click', e => {
   const btn = e.target.closest('.webr-copy-btn');
   if (!btn) return;
@@ -1808,6 +1829,7 @@ document.addEventListener('click', e => {
   const txt = editor.innerText || editor.textContent || '';
   navigator.clipboard?.writeText(txt);
   toast('R code copied');
+  try { if (window.gtag) gtag('event','tool_copy',{tool:'ab-test-calculator',what:'rcode'}); } catch(e){}
 });
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -1818,35 +1840,33 @@ window.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('#framing-tabs .submode-tab').forEach(b => b.classList.toggle('active', b.dataset.framing === activeFraming));
   document.querySelectorAll('#tail-tabs .submode-tab').forEach(b => b.classList.toggle('active', parseInt(b.dataset.tail) === state.tail));
   loadScenario('analyze');
+  // tool_use fires on the first genuine interaction (boot above does not count)
+  const shell = document.querySelector('.shell');
+  if (shell){ ['input','click','change'].forEach(ev => shell.addEventListener(ev, markToolUse, {passive:true})); }
 });
 
-// Smoke tests for the console
+// Smoke tests for the console (expected values from R 4.6.0; see
+// Scripts/tool-truth/ab-test-calculator.json).
 window.runSmokeTests = function(){
   const tests = [
-    {desc:'prop.test(c(120,144), c(1000,1000), correct=FALSE) -> chi2 ~ 2.97', fn:()=>{
-      const f = twoPropTest(120, 1000, 144, 1000, 0.05, 2);
-      return f.chi2;
-    }, expect:2.97, tol:0.05},
-    {desc:'prop.test(c(120,144), c(1000,1000), correct=FALSE) -> p ~ 0.0846', fn:()=>{
-      const f = twoPropTest(120, 1000, 144, 1000, 0.05, 2);
-      return f.p;
-    }, expect:0.0846, tol:0.005},
-    {desc:'prop.test(c(10,14), c(100,100), correct=FALSE) -> chi2 ~ 0.799', fn:()=>{
-      const f = twoPropTest(10, 100, 14, 100, 0.05, 2);
-      return f.chi2;
-    }, expect:0.799, tol:0.01},
-    {desc:'prop.test(c(10,14), c(100,100), correct=FALSE) -> p ~ 0.371', fn:()=>{
-      const f = twoPropTest(10, 100, 14, 100, 0.05, 2);
-      return f.p;
-    }, expect:0.371, tol:0.005},
-    {desc:'sample size: p1=0.10, MDE=+1pp, alpha=0.05, power=0.80, two-sided -> n ~ 14750', fn:()=>{
-      const r = sampleSizeTwoProp(0.10, 0.11, 0.05, 0.80, 2, 0.5);
-      return (typeof r === 'number') ? r : (r && r.nEq);
-    }, expect:14750, tol:200},
-    {desc:'Bayesian: A=120/1000, B=144/1000, Beta(1,1) -> P(B>A) ~ 0.948', fn:()=>{
-      const b = bayesAnalysis(120, 1000, 144, 1000, 20000, {a:1,b:1});
-      return b.probBeatsA;
-    }, expect:0.948, tol:0.02}
+    {desc:'prop.test(c(144,120), c(1000,1000), correct=FALSE) -> chisq ~ 2.5136', fn:()=>{
+      return twoPropTest(120, 1000, 144, 1000, 0.05, 2).chi2;
+    }, expect:2.51359773, tol:1e-4},
+    {desc:'prop.test(...) two-sided -> p ~ 0.11287', fn:()=>{
+      return twoPropTest(120, 1000, 144, 1000, 0.05, 2).p;
+    }, expect:0.11286673, tol:1e-6},
+    {desc:'sample size: p1=0.10, p2=0.11, alpha=0.05, power=0.80, two-sided -> n = 14745', fn:()=>{
+      return sampleSizeTwoProp(0.10, 0.11, 0.05, 0.80, 2);
+    }, expect:14745, tol:1},
+    {desc:'Bayesian A=120/1000, B=144/1000, Beta(1,1) -> P(B>A) ~ 0.94333', fn:()=>{
+      return bayesAnalysis(120, 1000, 144, 1000, 0, {a:1,b:1}).probBeatsA;
+    }, expect:0.94332858, tol:1e-5},
+    {desc:'Bayes factor BF10 ~ 0.13291', fn:()=>{
+      return bayesAnalysis(120, 1000, 144, 1000, 0, {a:1,b:1}).bf10;
+    }, expect:0.132912, tol:1e-5},
+    {desc:'Pocock K=3, alpha=0.05 -> per-look nominal alpha ~ 0.02208', fn:()=>{
+      return pocockInfo(3, 0.05).nominal;
+    }, expect:0.02207864, tol:1e-6}
   ];
   console.group('A/B Test Calculator smoke tests');
   let pass = 0;
@@ -1862,7 +1882,41 @@ window.runSmokeTests = function(){
 </script>
 </main></div><script src="/www/toc.min.js?h=e94467e3"></script><script src="/www/r-syntax-highlight.js"></script><script>
 (function(){function w(){var t=document.querySelectorAll('.sidebar-tab'),p=document.querySelectorAll('.sidebar-panel');if(!t.length||!p.length)return false;function a(n){t.forEach(function(x){x.classList.toggle('active',x.getAttribute('data-tab')===n)});p.forEach(function(x){x.classList.toggle('active',x.getAttribute('data-panel')===n)})}var tp=location.pathname.indexOf('/tools/')===0;if(tp){a('tools')}else{try{var pin=localStorage.getItem('rstat_sidebar_tab');if(pin==='tools'||pin==='posts')a(pin)}catch(e){}}t.forEach(function(x){if(x.dataset.wired)return;x.dataset.wired='1';x.addEventListener('click',function(){var n=x.getAttribute('data-tab');a(n);try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}})});return true}if(!w()){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',w);else setTimeout(w,50)}})();
-</script>  <!-- Cloudflare Web Analytics (cookieless; no consent required) -->
+</script>  <!-- Google Analytics (gtag.js), consent-mode default denied, deferred to first interaction -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('consent', 'default', {
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', wait_for_update: 1500
+    });
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+  <script defer src="/www/consent-banner.js?v=2"></script>
+  <!-- Cloudflare Web Analytics (cookieless) -->
   <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "edf7e3d50c3e4130a913e7f144643624"}'></script>
 <!-- SITE-FOOTER-V2 -->
 <style>
