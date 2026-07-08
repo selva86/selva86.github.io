@@ -454,6 +454,80 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 12c1.5 0 2-2 3.5-2S7 12 8 12s2-8 3.5-8S13 12 14.5 12"/>'
         '<line x1="8" y1="2" x2="8" y2="14" stroke-dasharray="2 2"/></svg>',
+    't-test-calculator.html':   # two overlapping group curves
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 12c1.5 0 2-6 3.5-6S7 12 8.5 12"/>'
+        '<path d="M6 12c1.5 0 2-6 3.5-6s2 6 3.5 6"/>'
+        '<path d="M2 12.5h12"/></svg>',
+    'chi-square-calculator.html':   # crossing chi strokes
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M4 3c4 3.5 4 6.5 8 10"/>'
+        '<path d="M12 3c-4 3.5-4 6.5-8 10"/></svg>',
+    'bootstrap-ci-calculator.html':   # resampling loop
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M13 8a5 5 0 1 1-1.4-3.5"/>'
+        '<path d="M13 2.5V5h-2.5"/></svg>',
+    'survival-power-calculator.html':   # survival step curve
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 3.5h3.5V7H9v3.5h3.5V13H14"/></svg>',
+    'equivalence-noninferiority-calculator.html':   # margin bounds + interval
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M3 3.5v9M13 3.5v9"/>'
+        '<path d="M5.5 8h5"/>'
+        '<circle cx="8" cy="8" r="1.3" fill="currentColor" stroke="none"/></svg>',
+    'outlier-detection-calculator.html':   # cluster + flagged point
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="5" cy="10" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="7.5" cy="8.5" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="5.5" cy="12.5" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="12" cy="4" r="2.4"/></svg>',
+    'roc-auc-calculator.html':   # ROC curve above chance diagonal
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 13.5L13.5 2.5" stroke-dasharray="2 2"/>'
+        '<path d="M2.5 13.5C2.5 7 7 2.5 13.5 2.5"/></svg>',
+    'bayes-theorem-calculator.html':   # probability branch tree
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M3 8h4M7 8l4-4.5M7 8l4 4.5"/>'
+        '<circle cx="3" cy="8" r="1.2" fill="currentColor" stroke="none"/>'
+        '<circle cx="12" cy="3.5" r="1.2" fill="currentColor" stroke="none"/>'
+        '<circle cx="12" cy="12.5" r="1.2" fill="currentColor" stroke="none"/></svg>',
+    'bayes-factor-calculator.html':   # evidence balance
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M8 3v9.5M4 4.5h8"/>'
+        '<path d="M4 4.5L2.5 8h3zM12 4.5L10.5 8h3z"/>'
+        '<path d="M5.5 12.5h5"/></svg>',
+    'anova-output-interpreter.html':   # group means at different heights
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M3.5 13V7M8 13V3.5M12.5 13V9"/>'
+        '<path d="M2 13.5h12"/></svg>',
+    'vif-interpreter.html':   # collinear overlap
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="6" cy="8" r="3.6"/>'
+        '<circle cx="10" cy="8" r="3.6"/></svg>',
+    'diagnostic-plot-interpreter.html':   # magnifier over residuals
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="7" cy="7" r="4.5"/>'
+        '<path d="M10.4 10.4L14 14"/>'
+        '<path d="M4.8 8l1.4-1.6L7.6 8l1.5-2"/></svg>',
+    'nonparametric-test-picker.html':   # rank dots ascending
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="4" cy="11" r="1.2" fill="currentColor" stroke="none"/>'
+        '<circle cx="8" cy="7.5" r="1.2" fill="currentColor" stroke="none"/>'
+        '<circle cx="12" cy="4" r="1.2" fill="currentColor" stroke="none"/>'
+        '<path d="M3 13.5h10"/></svg>',
+    'ts-stationarity-calculator.html':   # series settling to level
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 8c1-3.5 2-3.5 3 0s2 3.5 3 0 1.8-2.2 2.8-1 2.2 1.6 3.2 1.4"/></svg>',
+    'dag-confounder-picker.html':   # three-node dag
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="8" cy="3.5" r="1.6"/>'
+        '<circle cx="3.5" cy="12" r="1.6"/>'
+        '<circle cx="12.5" cy="12" r="1.6"/>'
+        '<path d="M6.9 4.9L4.4 10.4M9.1 4.9l2.5 5.5M5.2 12h5.6"/></svg>',
+    'reprex-builder.html':   # code brackets
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M5.5 4L2.5 8l3 4"/>'
+        '<path d="M10.5 4l3 4-3 4"/></svg>',
 }
 
 
@@ -2496,16 +2570,37 @@ def patch_tool_pages(sections, asset_hrefs):
         'display:grid;grid-template-columns:260px 1fr;gap:32px;align-items:start}'
         '.tool-chrome-side{position:sticky;top:72px;max-height:calc(100vh - 100px);'
         'overflow-y:auto;padding-right:8px;font-family:-apple-system,BlinkMacSystemFont,sans-serif}'
-        '.tool-chrome-side #sidebar-nav{padding:0}'
+        # Kill the nested scroller: main.css gives #sidebar-nav its own
+        # sticky+max-height+overflow, which stacked a second scrollbar inside
+        # .tool-chrome-side. The wrapper is the only scroll container here.
+        '.tool-chrome-side #sidebar-nav{padding:0;position:static;max-height:none;overflow:visible}'
         '.tool-chrome-main{min-width:0}'
         '.sidebar-toggle{display:none}'
         '.sidebar-backdrop{display:none}'
+        # Collapse-to-icon-rail (desktop): body.tools-rail shrinks the sidebar
+        # column to an icon strip so the live tool gets the width. Toggled by
+        # the .rail-toggle button in the masthead; persisted in localStorage.
+        '.rail-toggle{display:inline-flex;align-items:center;justify-content:center;'
+        'width:38px;height:38px;background:transparent;border:none;border-radius:8px;'
+        'cursor:pointer;color:#57606a;margin-right:6px;padding:0}'
+        '.rail-toggle:hover{background:rgba(13,17,23,0.06)}'
+        '.rail-toggle svg{display:block}'
+        'body.tools-rail .tool-chrome{grid-template-columns:60px 1fr}'
+        'body.tools-rail .tool-chrome-side .continue-chip,'
+        'body.tools-rail .tool-chrome-side .sidebar-tabs,'
+        'body.tools-rail .tool-chrome-side .sidebar-panel[data-panel="posts"],'
+        'body.tools-rail .tool-chrome-side .sidebar-divider,'
+        'body.tools-rail .tool-chrome-side .tool-label{display:none!important}'
+        'body.tools-rail .tool-chrome-side .sidebar-panel[data-panel="tools"]{display:block!important}'
+        'body.tools-rail .sidebar-tools-list a{display:flex;justify-content:center;padding:9px 4px}'
+        'body.tools-rail .sidebar-tools-list .tool-icon svg{width:19px;height:19px}'
         '@media(max-width:880px){'
         '.tool-chrome{grid-template-columns:1fr;padding:16px}'
         '.tool-chrome-side{position:fixed;top:0;left:0;bottom:0;width:280px;max-height:100vh;'
         'background:#fff;z-index:1000;transform:translateX(-100%);transition:transform .22s ease;'
         'overflow-y:auto;padding:60px 14px 16px;box-shadow:2px 0 16px rgba(13,17,23,0.15);'
         'top:0;max-height:none}'
+        '.rail-toggle{display:none}'
         'body.sidebar-open .tool-chrome-side{transform:translateX(0)}'
         '.sidebar-backdrop{position:fixed;inset:0;background:rgba(13,17,23,0.42);'
         'z-index:999;opacity:0;pointer-events:none;transition:opacity .22s}'
@@ -2544,6 +2639,16 @@ def patch_tool_pages(sections, asset_hrefs):
         'onclick="(function(b){var d=document.querySelector(\'.tool-chrome-side\'),k=document.querySelector(\'.sidebar-backdrop\');'
         'if(d&&d.parentNode!==b)b.appendChild(d);if(k&&k.parentNode!==b)b.appendChild(k);'
         'b.classList.toggle(\'sidebar-open\')})(document.body)">' + hamburger_svg + '</button>'
+        # Desktop icon-rail toggle: collapse the tools sidebar to icons only.
+        '<button class="rail-toggle" type="button" aria-label="Collapse sidebar to icons" title="Collapse sidebar" '
+        'onclick="document.body.classList.toggle(\'tools-rail\');'
+        'try{localStorage.setItem(\'rsc-tools-rail\',document.body.classList.contains(\'tools-rail\')?\'1\':\'0\')}catch(e){}">'
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="3" y="4" width="18" height="16" rx="2"/>'
+        '<line x1="9" y1="4" x2="9" y2="20"/>'
+        '<polyline points="15 10 13 12 15 14"/></svg></button>'
+        '<script>try{if(localStorage.getItem(\'rsc-tools-rail\')===\'1\')document.body.classList.add(\'tools-rail\')}catch(e){}</script>'
         '<a class="masthead-wordmark" href="/">'
         '<span class="masthead-mark">R</span>'
         '<span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>'
