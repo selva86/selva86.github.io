@@ -1,13 +1,11 @@
 ---
 title: "Anomaly Detection Lesson 6: Kernel PCA, Sparse PCA and NMF"
-catalog_blurb: "Go beyond PCA for curved structure, readable components, and additive parts."
 description: "Beyond plain PCA in R: kernel PCA for non-linear structure, sparse PCA for readable loadings, and NMF for additive parts-based components, each built from scratch."
 keywords: "kernel PCA, sparse PCA, non-negative matrix factorization, NMF, dimensionality reduction, RBF kernel, eigen-decomposition, multiplicative updates, anomaly detection, R"
-post_type: "LESSON"
-curriculum_id: "6.200.6"
-webr: true
 mathjax: true
-lesson_access: "pro"
+webr: true
+curriculum_id: "6.200.6"
+post_type: "LESSON"
 course_id: "ds-anomaly"
 course_title: "Anomaly and Outlier Detection"
 course_lesson: "6"
@@ -15,13 +13,15 @@ course_total: "7"
 course_landing: "R-Anomaly-Detection-Course.html"
 course_next: "Self-Supervised-and-Contrastive-Learning.html"
 course_prev: "Time-Series-Anomaly-Detection.html"
+lesson_access: "pro"
+catalog_blurb: "Go beyond PCA for curved structure, readable components, and additive parts."
 ---
 
 === step === cover
 ::eyebrow Lesson 6 of 7
 ## Kernel PCA, Sparse PCA and NMF
 
-In Lesson 4 you scored an anomaly by how badly a model rebuilt it, and a linear autoencoder turned out to be plain old PCA: squeeze each customer down to a few numbers, rebuild them, and flag whoever rebuilds worst. It works, but the subspace PCA hands you is a blunt instrument. It only draws straight axes, it spreads every feature across every component, and it happily uses negative weights.
+Lesson 5 hunted anomalies inside a time series by first stripping out its daily and weekly rhythm, so that a quiet Tuesday could finally look quiet. Now we come back to the idea from Lesson 4: score a point by how badly a model rebuilds it. A linear autoencoder, you saw, is just plain old PCA: squeeze each customer down to a few numbers, rebuild them, and flag whoever rebuilds worst. It works, but the subspace PCA hands you is a blunt instrument. It only draws straight axes, it spreads every feature across every component, and it happily uses negative weights.
 
 Meet **Bean Box**, a coffee-subscription startup. It wants to understand its customers and flag the odd account, and this lesson upgrades PCA three ways to help it: bend the axes into curves (**kernel PCA**), force each component to name only a few features (**sparse PCA**), and rebuild data from additive parts that can never go negative (**NMF**).
 
@@ -140,7 +140,7 @@ round(tapply(kpc[, 1], group, mean), 3)
 ```
 
 [WARNING]
-Kernel PCA is powerful but not free. You must choose \(\sigma\) (too small and every point looks unique; too large and everything looks identical). The kernel matrix is \(N \times N\), so it grows with the square of the number of customers. And there is the **pre-image problem**: kernel PCA gives each point new coordinates but no easy way back to the original flavours, so using its reconstruction error as an anomaly score takes extra work. For catching a customer who sits off a curved manifold, though, nothing linear comes close.
+Kernel PCA is not free. You now choose \(\sigma\) (too small and every point looks unique, too large and the curve flattens back to plain PCA), the kernel matrix is \(N \times N\) so it grows with the square of your customers, and there is no simple way back from a kernel component to a real flavour profile (the "pre-image" problem). Reach for it when structure genuinely curves, not by default.
 
 === step === concept
 ::eyebrow Fix two
@@ -149,8 +149,6 @@ Kernel PCA is powerful but not free. You must choose \(\sigma\) (too small and e
 Back to the six flavour scores. Plain PCA's first component put a weight on all six: bitter 0.54, roast 0.54, body 0.54, but also acidity 0.22, fruity 0.27, sweet 0.09. Those last three are small, yet they are not zero, so strictly the component is "a bit of everything." When you have six features that is mildly annoying; when you have six hundred, a dense component is unreadable. You cannot point at it and say what it means.
 
 **Sparse PCA** fixes this by adding a penalty that pushes small loadings all the way to zero. Plain PCA maximises \(w^\top \Sigma w\) (the variance along \(w\), where \(\Sigma\) is the covariance matrix); sparse PCA maximises the same thing minus an **L1 penalty** \(\lambda \lVert w \rVert_1 = \lambda \sum_j |w_j|\), the sum of the absolute loadings. That penalty is what forces exact zeros: the same reason the lasso zeros out regression coefficients. The widget makes it concrete: as the penalty \(\lambda\) rises, lasso snaps weak coefficients to exactly zero one by one, while ridge only shrinks them.
-
-::widget coef-path {}
 
 A full sparse PCA jointly re-optimises the loadings under that penalty. To feel the mechanism without leaving base R, we approximate it by **soft-thresholding** the loadings PCA already gave us: shrink every loading toward zero by \(\lambda\), and any that reaches zero stays there, \(\tilde w_j = \operatorname{sign}(w_j)\,\max(|w_j| - \lambda,\, 0)\).
 
@@ -165,6 +163,8 @@ round(sp_load, 3)
 
 Now the component is honest and nameable: it is the dark-roast axis, bitter plus roast plus body, and nothing else. The three distracting weights are gone. You trade a sliver of explained variance (and the components are no longer perfectly at right angles) for something you can hand to the marketing team and they will understand.
 
+::widget coef-path {}
+
 === step === quiz
 ::eyebrow Check yourself
 ## What did sparse PCA buy?
@@ -173,8 +173,8 @@ Plain PCA's first component had loadings bitter 0.54, roast 0.54, body 0.54, aci
 
 ::quiz {"correct":1,"gate":true,"difficulty":"intermediate"}
 - The three small loadings add clutter without much signal, so zeroing them gives a component you can name (the dark-roast axis) while keeping almost all its meaning ::ok Exactly. Sparsity buys interpretability: a component defined by three flavours is something a human can act on, at the cost of a little explained variance and exact orthogonality.
-- The small loadings were a mistake; a correctly computed PCA would have set them to zero on its own ::no Dense loadings are not a bug. Plain PCA is doing exactly what it should, spreading weight across every feature. Sparse PCA changes the objective (it adds an L1 penalty), it does not fix an error.
-- Sparse PCA always explains more variance, so it is simply the better method ::no It is the other way around. Zeroing loadings can only lower or match the variance the component captures. You accept slightly less variance in exchange for a readable component.
+- The small loadings were a mistake; a correctly computed PCA would have set them to zero on its own ::no It is the other way around. Zeroing loadings can only lower or match the variance the component captures. You accept slightly less variance in exchange for a readable component, PCA did nothing wrong.
+- Sparse PCA always explains more variance, so it is simply the better method ::no The opposite: zeroing loadings can only lower or match the variance the component captures. You accept slightly less variance in exchange for a readable component.
 
 === step === concept
 ::eyebrow Fix three
@@ -253,10 +253,8 @@ round(mean(abs(V - fit$W %*% fit$H)), 2)   # how well two parts rebuild every cu
 #> [1] 0.2
 ```
 
-Read the two rows: part 1 is tea, cake and cookie; part 2 is espresso and croissant. Those are Bean Box's two real baskets, recovered from nothing but the count matrix, and the average rebuild is off by only 0.2 of a cup. Every customer is now a simple, non-negative blend of two nameable habits.
-
-[NOTE]
-NMF has honest edges too. The objective is not convex, so the answer depends on the random start (the seed), and different runs can land on different parts. You must choose \(k\), the number of parts, yourself. And the factorization is not unique. In practice you fit it a few times and keep the most stable, interpretable result.
+[WARNING]
+NMF has three honest limits worth knowing before you trust it. It is non-convex: the random start (`seed`) can land on a different answer, so run it a few times and keep the best reconstruction. It does not tell you \(k\): here we knew Bean Box mixed two baskets, but in the wild you choose \(k\) by how much the reconstruction error stops improving as you add parts. And the split is not unique: you can rescale one part up and its weights down and rebuild the exact same counts, so read the parts by their shape (which products dominate), not their raw sizes.
 
 === step === quiz
 ::eyebrow Check yourself
@@ -265,7 +263,7 @@ NMF has honest edges too. The objective is not convex, so the answer depends on 
 Bean Box hands you a customer-by-product matrix of monthly purchase **counts** and asks you to describe each customer as a blend of a few interpretable baskets, with weights the marketing team can read. Which method fits best?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- Kernel PCA, because purchase data has non-linear structure that only a kernel can capture ::no Kernel PCA can unfold curved structure, but it hands back abstract coordinates (with negative values) and no easy map to the products. It answers "is this customer off the manifold?", not "which baskets is this customer made of?"
+- Kernel PCA, because purchase data has non-linear structure that only a kernel can capture ::no A kernel bends axes into curves, but it does not make the components readable, and its coordinates are abstract, not baskets. Nothing here says the structure curves; the ask is for additive, nameable parts.
 - NMF, because non-negativity makes the parts add rather than cancel, giving additive, readable baskets ::ok Exactly. Counts are non-negative, so a non-negative factorization yields parts that are themselves baskets (all weights >= 0) and customers that are simple additive blends of them, precisely the interpretable story asked for.
 - Plain PCA, because its components are orthogonal and explain the most variance ::no PCA's components are dense and signed, so a "basket" could include negative espresso. Maximum variance and orthogonality are not what makes a decomposition into readable, additive baskets.
 
@@ -285,14 +283,14 @@ Every method here is still, at heart, the Lesson 4 move: compress each customer 
 In production you would reach for the battle-tested packages rather than the from-scratch versions above. They are not compiled for the in-browser R here, so run these locally:
 
 ```r-static
-library(kernlab)                              # kernel PCA
-kp <- kpca(~ ., data = flavor2, kernel = "rbfdot", kpar = list(sigma = 0.5), features = 2)
+# Run locally. Install once with install.packages(c("kernlab", "sparsepca", "NMF")).
 
-library(sparsepca)                            # sparse PCA (jointly optimised, not a post-hoc threshold)
-sp <- spca(as.matrix(flavor), k = 2, alpha = 1e-3)
+kp <- kernlab::kpca(~ ., data = flavor2, kernel = "rbfdot",     # kernel PCA
+                    kpar = list(sigma = 0.5), features = 2)
 
-library(NMF)                                  # non-negative matrix factorization
-nm <- nmf(V, rank = 2, method = "lee")        # the Lee-Seung multiplicative updates you just wrote
+sp <- sparsepca::spca(as.matrix(flavor), k = 2, alpha = 1e-3)   # sparse PCA, jointly optimised (not a post-hoc threshold)
+
+nm <- NMF::nmf(V, rank = 2, method = "lee")                     # NMF, the Lee-Seung multiplicative updates you just wrote
 ```
 
 === step === concept
