@@ -60,6 +60,10 @@ h1{font:800 clamp(30px,4.4vw,42px)/1.12 'Inter Tight',Inter,sans-serif;letter-sp
 .mode{font:600 14px Inter;padding:10px 16px;border-radius:999px;border:1px solid var(--line);color:var(--body);background:#fff;cursor:pointer;transition:all .15s var(--ease)}
 .mode.on{background:var(--acc-soft);border-color:transparent;color:var(--acc-dk)}
 .mode:hover:not(.on){border-color:var(--faint)}
+.scen{display:flex;gap:8px;margin:14px 0 0;flex-wrap:wrap;align-items:center}
+.scen .sl{font:500 12px Inter;color:var(--faint)}
+.chip{font:500 12.5px Inter;padding:7px 12px;border-radius:999px;border:1px dashed var(--line);color:var(--body);background:transparent;cursor:pointer}
+.chip:hover{border-color:var(--acc);color:var(--acc-dk);border-style:solid}
 .grid{display:grid;grid-template-columns:5fr 7fr;gap:26px;margin-top:20px;align-items:start}
 .grid > *{min-width:0}
 .f{min-width:0}
@@ -71,6 +75,8 @@ h1{font:800 clamp(30px,4.4vw,42px)/1.12 'Inter Tight',Inter,sans-serif;letter-sp
 .f label{display:block;font:500 12px/1 Inter;color:var(--faint);margin-bottom:6px}
 .f input{width:100%;min-width:0;font:500 22px/1 ui-monospace,'Cascadia Mono',Consolas,Menlo,monospace;font-variant-numeric:tabular-nums;color:var(--ink);padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;outline:none;transition:border .15s var(--ease)}
 .f input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(31,122,85,.12)}
+.f select{width:100%;min-width:0;font:500 16px/1.3 Inter,sans-serif;color:var(--ink);padding:14px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;outline:none}
+.f select:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(31,122,85,.12)}
 .hint{font:500 12.5px Inter;color:var(--faint);padding:0 22px 18px}
 .ierr{display:none;margin:0 22px 16px;padding:10px 14px;border-radius:10px;background:#fdf0ef;color:#a8322c;font:500 13.5px Inter}
 .ierr.show{display:block}
@@ -164,6 +170,15 @@ details.how[open] summary::after{content:'-'}
       <button class="mode"    data-mode="z"   role="tab">Z &rarr; percentile</button>
       <button class="mode"    data-mode="p"   role="tab">Percentile &rarr; Z</button>
       <button class="mode"    data-mode="between" role="tab">Between two values</button>
+      <button class="mode"    data-mode="beyond" role="tab">Beyond a Z (tails)</button>
+    </div>
+    <div class="scen" aria-label="Worked examples">
+      <span class="sl">Try:</span>
+      <button class="chip" data-scen="iq">IQ 130</button>
+      <button class="chip" data-scen="sat">SAT 1280</button>
+      <button class="chip" data-scen="zcrit">z for a 95% CI</button>
+      <button class="chip" data-scen="between">The 68% rule</button>
+      <button class="chip" data-scen="extreme">Outliers beyond 3 SD</button>
     </div>
   </section>
 
@@ -195,6 +210,16 @@ details.how[open] summary::after{content:'-'}
         </div>
         <div class="fields one" style="margin-top:12px">
           <div class="f"><label>Std. dev.</label><input id="bs" type="number" step="any" value="15"></div>
+        </div>
+      </div>
+      <div class="group" id="in-y" hidden>
+        <div class="fields two">
+          <div class="f"><label>Z-score</label><input id="yz" type="number" step="any" value="1.96"></div>
+          <div class="f"><label>Tail</label><select id="yt">
+            <option value="two" selected>Two-tailed (|Z| beyond)</option>
+            <option value="right">Right tail (above z)</option>
+            <option value="left">Left tail (below z)</option>
+          </select></div>
         </div>
       </div>
       <p class="hint" id="hint">IQ example preloaded: a score of 130 on a scale with mean 100 and SD 15.</p>
@@ -323,7 +348,7 @@ function calc(){
   }
   else if(mode==='z'){
     z=+$('zv').value;
-    if(!isFinite(z)) return err('Enter a z-score.');
+    if($('zv').value.trim()===''||!isFinite(z)) return err('Enter a z-score.');
     err(null);
     below=M.pnorm(z);
     setStats('z-score',fmt(z,2),'Percentile',pctFmt(below),'P(below)',fmt(below,4),'P(above)',fmt(1-below,4));
@@ -350,6 +375,26 @@ function calc(){
     $('h2c').innerHTML='Check: <code>pnorm('+fmt(z,4)+') = '+fmt(M.pnorm(z),4)+'</code>, back to the percentile';
     $('rcodepre').textContent='p <- '+p+'\nqnorm(p)              # z-score at that percentile\nqnorm(p, 100, 15)     # same percentile on an IQ scale';
     drawCurve([[-Infinity, z]], z);
+  }
+  else if(mode==='beyond'){
+    z=+$('yz').value;
+    var tail=$('yt').value;
+    if($('yz').value.trim()===''||!isFinite(z)) return err('Enter a z-score.');
+    err(null);
+    var pL=M.pnorm(z), pR=1-pL, pT=2*M.pnorm(-Math.abs(z));
+    var chosen = tail==='left'?pL : tail==='right'?pR : pT;
+    var tailName = tail==='left'?'below z':'above z';
+    if(tail==='two') tailName='beyond &plusmn;'+fmt(Math.abs(z),2);
+    setStats('z-score',fmt(z,2),'P(left tail)',fmt(pL,4),'P(right tail)',fmt(pR,4),'P(two-tailed)',fmt(pT,4));
+    $('vhead').textContent=pctFmt(chosen)+'% '+(tail==='two'?'in the tails':tail==='left'?'below':'above');
+    $('vsub').innerHTML='The share of the curve '+tailName+' when z = '+z+'.';
+    $('plain').innerHTML='About <b>'+pctFmt(chosen)+'%</b> of a normal population lies '+tailName+'. '+(tail==='two'&&Math.abs(z)>=3?'That is why values beyond 3 standard deviations are routinely flagged as potential outliers: fewer than 3 in 1,000 land there by chance.':tail==='two'?'This is the two-tailed p-value if '+z+' were a test statistic.':'All three tail probabilities are shown in the grid for comparison.');
+    $('report').textContent='z = '+z+', '+(tail==='two'?'two-tailed P(|Z| > '+fmt(Math.abs(z),2)+') = '+fmt(pT,4):tail==='left'?'P(Z < '+z+') = '+fmt(pL,4):'P(Z > '+z+') = '+fmt(pR,4))+'.';
+    $('h1c').innerHTML=(tail==='two'?'Two-tailed: <code>2 &times; pnorm(-|'+z+'|) = '+fmt(pT,4)+'</code>':tail==='left'?'Left tail: <code>pnorm('+z+') = '+fmt(pL,4)+'</code>':'Right tail: <code>1 - pnorm('+z+') = '+fmt(pR,4)+'</code>');
+    $('h2c').innerHTML='The three tails always relate: left + right = 1, and two-tailed doubles the smaller side.';
+    $('rcodepre').textContent='z <- '+z+'\npnorm(z)             # left tail, P(Z < z)\n1 - pnorm(z)         # right tail, P(Z > z)\n2 * pnorm(-abs(z))   # two-tailed, P(|Z| > |z|)';
+    var az=Math.abs(z);
+    drawCurve(tail==='left'?[[-Infinity,z]]:tail==='right'?[[z,Infinity]]:[[-Infinity,-az],[az,Infinity]], z);
   }
   else {
     var a=+$('ba').value, b=+$('bb').value, m2=+$('bm').value, s2=+$('bs').value;
@@ -413,18 +458,35 @@ function drawCurve(shadeRanges, marker){
 var HINTS={x:'IQ example preloaded: a score of 130 on a scale with mean 100 and SD 15.',
            z:'1.96 preloaded: the boundary of a 95% confidence interval.',
            p:'95 preloaded: find the z-score that cuts off the top 5%.',
-           between:'The middle band of an IQ scale: how many people score between 85 and 115?'};
+           between:'The middle band of an IQ scale: how many people score between 85 and 115?',
+           beyond:'Tail probabilities: the two-tailed p-value and the outlier question live here.'};
+var GROUP={x:'x',z:'z',p:'p',between:'b',beyond:'y'};
 function applyMode(){
-  ['x','z','p','b'].forEach(function(k){ $('in-'+k).hidden = true; });
-  $('in-'+(state.mode==='between'?'b':state.mode)).hidden = false;
+  ['x','z','p','b','y'].forEach(function(k){ $('in-'+k).hidden = true; });
+  $('in-'+GROUP[state.mode]).hidden = false;
+  document.querySelectorAll('.mode').forEach(function(o){ o.classList.toggle('on', o.dataset.mode===state.mode); });
   $('hint').textContent=HINTS[state.mode];
   calc();
 }
+var SCEN={
+  iq:      {mode:'x', set:{xv:130, xm:100, xs:15}, hint:'IQ 130 where IQ ~ Normal(100, 15). Where does it sit?'},
+  sat:     {mode:'x', set:{xv:1280, xm:1050, xs:200}, hint:'A 1280 SAT score in a distribution with mean 1050, SD 200.'},
+  zcrit:   {mode:'p', set:{pv:97.5}, hint:'The classic 1.96: invert the CDF at 97.5, the upper edge of the central 95%.'},
+  between: {mode:'between', set:{ba:-1, bb:1, bm:0, bs:1}, hint:'The 68% rule: how much of a normal lies within one SD of the mean?'},
+  extreme: {mode:'beyond', set:{yz:3, yt:'two'}, hint:'Three SDs out, both sides: the classic outlier cutoff.'}
+};
+document.querySelectorAll('.chip').forEach(function(btn){ btn.addEventListener('click',function(){
+  var sc=SCEN[btn.dataset.scen]; if(!sc)return;
+  state.mode=sc.mode;
+  Object.keys(sc.set).forEach(function(id){ var el=$(id); if(el) el.value=sc.set[id]; });
+  applyMode();
+  if(sc.hint) $('hint').textContent=sc.hint;
+});});
 document.querySelectorAll('.mode').forEach(function(btn){ btn.addEventListener('click',function(){
-  document.querySelectorAll('.mode').forEach(function(o){o.classList.remove('on');}); btn.classList.add('on');
   state.mode=btn.dataset.mode; applyMode();
 });});
 document.querySelectorAll('input').forEach(function(el){ el.addEventListener('input',calc); });
+$('yt').addEventListener('change',calc);
 $('copybtn').addEventListener('click',function(){
   navigator.clipboard.writeText($('report').textContent).then(function(){
     $('copybtn').textContent='Copied'; setTimeout(function(){$('copybtn').textContent='Copy result line';},1400);
