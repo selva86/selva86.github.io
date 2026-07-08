@@ -572,8 +572,8 @@
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Local-Outlier-Factor-and-One-Class-SVM.html",
-      "datePublished": "2026-07-04",
-      "dateModified": "2026-07-04",
+      "datePublished": "2026-07-08",
+      "dateModified": "2026-07-08",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -804,7 +804,7 @@
 <div class="lesson-step-eyebrow">Your turn</div>
 <h2>Compute LOF on Maya's card</h2>
 
-<p>Let us score Maya's real charges. First build the pieces from the formula: all pairwise distances, each point's \(k\) neighbours, its k-distance, the reachability distance, and its local density <code>lrd</code>. Run this to see how sparse the fraud is compared to its neighbours:</p>
+<p>Let us score Maya's real charges. First build the pieces from the formula: all pairwise distances, each point's \(k\) neighbours, its k-distance, the reachability distance, and its local density <code>lrd</code>. Run this to see how sparse the fraud is compared to its neighbours, then finish the last line by writing the LOF ratio itself:</p>
 <section class="exercise" data-exercise-id="Local-Outlier-Factor-and-One-Class-SVM-step5" data-grade-mode="self-check" data-difficulty="intermediate">
 <div class="lesson-tryit" data-check-regex="lrd\s*\(\s*i\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">k &lt;- 8                                   # judge each charge against its 8 nearest neighbours
 D &lt;- as.matrix(dist(Z))                  # all pairwise distances on the scaled features
@@ -813,16 +813,16 @@ kdist &lt;- function(i) D[i, knn(i)[k]]                 # k-distance: distance t
 rd    &lt;- function(i, o) max(D[i, o], kdist(o))       # reachability distance of i from neighbour o
 lrd   &lt;- function(i) 1 / mean(sapply(knn(i), function(o) rd(i, o)))   # local reachability density
 
-lrd(73)                                  # the fraud (row 73): its own density is low
+round(lrd(73), 2)                        # the fraud (row 73): its OWN density is low
 #&gt; [1] 0.97
-mean(sapply(knn(73), lrd))               # but its neighbours' density is high
-#&gt; [1] 8.7</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: LOF = mean(neighbours' lrd) / lrd(i). The fraud scores about 9, every legitimate charge sits near 1.</span><span class="lesson-tryit-fb lesson-tryit-no">Divide by the point's OWN density: lrd(i). The ratio is neighbours' density over the point's own density.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">lof &lt;- function(i) mean(sapply(knn(i), lrd)) / lrd(i)   # neighbours' density / my own
+round(mean(sapply(knn(73), lrd)), 2)     # but its neighbours' density is high
+#&gt; [1] 8.7</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: LOF = mean(neighbours lrd) / lrd(i). The fraud scores about 9, every legitimate charge sits near 1.</span><span class="lesson-tryit-fb lesson-tryit-no">Divide by the point's OWN density, lrd(i). The ratio is the neighbours density over the point's own density.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">lof &lt;- function(i) mean(sapply(knn(i), lrd)) / lrd(i)   # neighbours' density / my own
 card$lof &lt;- sapply(seq_len(nrow(card)), lof)
 aggregate(lof ~ kind, card, function(x) round(mean(x), 2))
 #&gt;        kind  lof
-#&gt; 1     FRAUD 8.98
-#&gt; 2 big legit 1.02
-#&gt; 3  everyday 1.17</code></pre></details></div>
+#&gt; 1 big legit 1.02
+#&gt; 2  everyday 1.17
+#&gt; 3     FRAUD 8.98</code></pre></details></div>
 </section>
 </section>
 
@@ -869,7 +869,7 @@ aggregate(lof ~ kind, card, function(x) round(mean(x), 2))
 
 <ul>
 
-<li><strong>nu</strong> \((\nu \in (0, 1])\): an upper bound on the fraction of training points allowed to fall outside the boundary, and a lower bound on the fraction that become support vectors. Set \(\nu = 0.05\) and you are telling the model "expect about 5% of my normal data to look like noise." Raise it to loosen how much slack you allow.</li>
+<li><strong>nu</strong> \((\nu \in (0, 1])\): an upper bound on the fraction of training points allowed to fall outside the boundary, and a lower bound on the fraction that become support vectors (the handful of training points that sit right on the boundary and pin down its shape). Set \(\nu = 0.05\) and you are telling the model "expect about 5% of my normal data to look like noise." Raise it to loosen how much slack you allow.</li>
 
 <li><strong>gamma</strong> \((\gamma)\): the width of the RBF kernel. Large \(\gamma\) makes a tight, wiggly boundary that hugs each point (and risks memorizing noise); small \(\gamma\) makes a smooth, loose boundary that can swallow real anomalies.</li>
 
@@ -889,16 +889,16 @@ train_normal &lt;- Z[card$kind != &quot;FRAUD&quot;, ]        # learn the shape 
 oc &lt;- svm(train_normal, type = &quot;____&quot;,           # one-class: wrap the normal region
           nu = 0.05, kernel = &quot;radial&quot;, gamma = 0.35)
 card$outside &lt;- !predict(oc, Z)                   # TRUE = falls OUTSIDE the learned boundary
-table(outside = card$outside, kind = card$kind)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the one-class mode. The fraud lands outside the boundary; about 5% of the normal charges do too, which is exactly what nu = 0.05 allows.</span><span class="lesson-tryit-fb lesson-tryit-no">The one-class type in e1071 is "one-classification" (hyphenated). It tells svm() to wrap a single class rather than separate two.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(e1071)
+table(outside = card$outside, kind = card$kind)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the one-class mode. The fraud lands outside the boundary; a few normal charges do too, which is exactly what nu = 0.05 allows.</span><span class="lesson-tryit-fb lesson-tryit-no">The one-class type in e1071 is one-classification (hyphenated). It tells svm() to wrap a single class rather than separate two.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(e1071)
 train_normal &lt;- Z[card$kind != &quot;FRAUD&quot;, ]
 oc &lt;- svm(train_normal, type = &quot;one-classification&quot;,
           nu = 0.05, kernel = &quot;radial&quot;, gamma = 0.35)
 card$outside &lt;- !predict(oc, Z)
 table(outside = card$outside, kind = card$kind)
 #&gt;        kind
-#&gt; outside FRAUD big legit everyday
-#&gt;   FALSE     0        11       58
-#&gt;   TRUE      1         1        2</code></pre></details></div>
+#&gt; outside big legit everyday FRAUD
+#&gt;   FALSE        11       58     0
+#&gt;   TRUE          1        2     1</code></pre></details></div>
 </section>
 </section>
 
@@ -912,7 +912,7 @@ table(outside = card$outside, kind = card$kind)
 <button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The isolation forest, because it is the fastest to score</span></button>
 <button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The one-class SVM, because it learns a boundary from the known-good data once and then judges any new point on its own as inside or outside</span></button>
 <button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">None; only a supervised classifier can score new transactions</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. That is novelty detection: fit once on trusted-normal data, then score each incoming point against the saved boundary in constant time. LOF and the isolation forest are computed relative to the dataset, so they fit a batch sweep better than streaming against a frozen reference.</div><div class="lesson-qfb lesson-qfb-no">All three are unsupervised and need no anomaly labels. The one-class SVM in particular is designed exactly for "train on normal, judge new points," which is what this team needs.</div></div>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. That is novelty detection: fit once on trusted-normal data, then score each incoming point against the saved boundary in constant time. LOF and the isolation forest are computed relative to the dataset, so they fit a batch sweep better than streaming against a frozen reference.</div><div class="lesson-qfb lesson-qfb-no">All three are unsupervised and need no anomaly labels. The one-class SVM in particular is designed exactly for train on normal, judge new points, which is what this team needs.</div></div>
 </section>
 </section>
 
@@ -938,7 +938,7 @@ table(outside = card$outside, kind = card$kind)
 <section class="lesson-step" data-step="12" data-step-type="complete">
 <h2>Lesson 3 complete</h2>
 
-<p>You now have two detectors that see what a global score cannot. <strong>LOF</strong> scores each point by how its local density compares to its neighbours', catching an outlier wedged against a dense cluster that distance-from-center ranked as ordinary. The <strong>one-class SVM</strong> learns a boundary around normal data once, then judges any new point as inside or out, the novelty-detection framing you want for scoring incoming data in real time. And you saw the honest cost of each: LOF's dependence on <code>k</code> and \(O(n^2)\) distances, the one-class SVM's sensitivity to <code>nu</code>, <code>gamma</code> and scaling.</p>
+<p>You now have two detectors that see what a global score cannot. <strong>LOF</strong> scores each point by how its local density compares to its neighbours', catching an outlier wedged against a dense cluster that distance-from-center ranked as ordinary. The <strong>one-class SVM</strong> learns a boundary around normal data once, then judges any new point as inside or out, the novelty-detection framing you want for scoring incoming data in real time. And you saw the honest cost of each: LOF's dependence on <code>k</code> and its \(O(n^2)\) distances, the one-class SVM's sensitivity to <code>nu</code>, <code>gamma</code> and scaling.</p>
 
 <p>Three detectors down: isolation (global), density (local), and boundary (novelty). Next, Lesson 4: <strong>Autoencoders for Anomaly Detection</strong>. Instead of distance, density or a boundary, you will score a point by how badly a compressed model rebuilds it, the reconstruction error, and see why for a linear model that turns out to be exactly PCA.</p>
 </section>
@@ -1036,7 +1036,11 @@ table(outside = card$outside, kind = card$kind)
       tex2jax: {
         inlineMath: [['$','$'], ['\\(','\\)']],
         displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
+        processEscapes: true,
+        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
+        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
+        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
+        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
       }
     });
   </script>
@@ -1050,9 +1054,9 @@ table(outside = card$outside, kind = card$kind)
 
   
   
-    <script src="www/lesson-widgets.bundle.min.js?h=9ce0a6ba"></script>
+    <script src="www/lesson-widgets.bundle.min.js?h=0915a1e1"></script>
   <script src="www/exercise-api.min.js?h=ef0c85df"></script>
-  <script src="www/lesson-mode.min.js?h=7923c824"></script>
+  <script src="www/lesson-mode.min.js?h=378afac5"></script>
   <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
        scripting doesn't compete with the critical path. Events fired before
        the loader lands get buffered on window.dataLayer and flushed once

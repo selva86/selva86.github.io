@@ -113,15 +113,15 @@ Read the LOF ratio like this. \( \text{LOF} \approx 1 \): \(A\) is as dense as i
 
 Here is LOF computed live on two clusters of different density plus one point stranded in a sparse pocket between them, exactly the shape of Maya's card. Each dot is coloured and sized by its LOF. Slide \(k\), the neighbourhood size, and watch the stranded point flare red (LOF well above 1) while the ordinary cluster points stay near 1. The panel also shows the from-scratch LOF in base R, the same few lines you will complete next.
 
-::widget lof-density {}
-
 Notice the stranded point is not the farthest from the overall center, it is simply much sparser than its immediate neighbours. That local comparison is the whole idea, and it is what the global distance in the previous step could not see.
+
+::widget lof-density {}
 
 === step === tryit
 ::eyebrow Your turn
 ## Compute LOF on Maya's card
 
-Let us score Maya's real charges. First build the pieces from the formula: all pairwise distances, each point's \(k\) neighbours, its k-distance, the reachability distance, and its local density `lrd`. Run this to see how sparse the fraud is compared to its neighbours:
+Let us score Maya's real charges. First build the pieces from the formula: all pairwise distances, each point's \(k\) neighbours, its k-distance, the reachability distance, and its local density `lrd`. Run this to see how sparse the fraud is compared to its neighbours, then finish the last line by writing the LOF ratio itself:
 
 ```r
 k <- 8                                   # judge each charge against its 8 nearest neighbours
@@ -131,36 +131,22 @@ kdist <- function(i) D[i, knn(i)[k]]                 # k-distance: distance to t
 rd    <- function(i, o) max(D[i, o], kdist(o))       # reachability distance of i from neighbour o
 lrd   <- function(i) 1 / mean(sapply(knn(i), function(o) rd(i, o)))   # local reachability density
 
-lrd(73)                                  # the fraud (row 73): its own density is low
+round(lrd(73), 2)                        # the fraud (row 73): its OWN density is low
 #> [1] 0.97
-mean(sapply(knn(73), lrd))               # but its neighbours' density is high
+round(mean(sapply(knn(73), lrd)), 2)     # but its neighbours' density is high
 #> [1] 8.7
 ```
-
-The fraud's own density is `0.97`; its neighbours (the tight everyday cluster) sit at `8.7`. Their ratio is the LOF. Assemble the ratio, then score every charge. Fill in the blank with the fraud's own density so the ratio is neighbours-over-self.
-
-```r
-# LOF = average density of my neighbours / my own density
-lof <- function(i) mean(sapply(knn(i), lrd)) / ____
-card$lof <- sapply(seq_len(nrow(card)), lof)
-aggregate(lof ~ kind, card, function(x) round(mean(x), 2))
-```
-::check {"regex":"lrd\\s*\\(\\s*i\\s*\\)","gate":true,"difficulty":"intermediate","ok":"Right: LOF = mean(neighbours' lrd) / lrd(i). The fraud scores about 9, every legitimate charge sits near 1.","no":"Divide by the point's OWN density: lrd(i). The ratio is neighbours' density over the point's own density."}
+::check {"regex":"lrd\\s*\\(\\s*i\\s*\\)","gate":true,"difficulty":"intermediate","ok":"Right: LOF = mean(neighbours lrd) / lrd(i). The fraud scores about 9, every legitimate charge sits near 1.","no":"Divide by the point's OWN density, lrd(i). The ratio is the neighbours density over the point's own density."}
 ::solution
 ```r
 lof <- function(i) mean(sapply(knn(i), lrd)) / lrd(i)   # neighbours' density / my own
 card$lof <- sapply(seq_len(nrow(card)), lof)
 aggregate(lof ~ kind, card, function(x) round(mean(x), 2))
 #>        kind  lof
-#> 1     FRAUD 8.98
-#> 2 big legit 1.02
-#> 3  everyday 1.17
+#> 1 big legit 1.02
+#> 2  everyday 1.17
+#> 3     FRAUD 8.98
 ```
-
-The fraud scores **8.98**, while both the everyday charges and the legitimate big purchases average near **1**, exactly the local outlier a global cutoff ranked 22nd.
-
-[WARNING]
-LOF has real limits. It hinges on `k`: too small and the score is noisy, too large and it smears across genuinely separate clusters. It computes all pairwise distances, so it is \(O(n^2)\) and slow on large data. And in very high dimensions distances concentrate (everything looks equally far), which blunts every density method. In production reach for a fast, tested implementation such as `dbscan::lof()` rather than hand-rolling; you built it here to see exactly what it does.
 
 === step === quiz
 ::eyebrow Check yourself
@@ -169,7 +155,7 @@ LOF has real limits. It hinges on `k`: too small and the score is noisy, too lar
 A global distance-from-center score ranked the fraud 22nd of 73, but its LOF was about 9, the highest on the card. Which statement best explains why LOF flags it and distance does not?
 
 ::quiz {"correct":2,"gate":true,"difficulty":"intermediate"}
-- LOF measures distance from the overall mean more accurately, so it simply found a point the global rule mis-ranked ::no LOF is not a better global distance. It never compares the point to the overall center at all; it compares the point's local density to its neighbours' local density. That is a different question, which is why it sees a different answer.
+- LOF measures distance from the overall mean more accurately, so it simply found a point the global rule mis-ranked
 - The fraud sits in a much sparser pocket than the dense everyday points right beside it, so its density-to-neighbour-density ratio is high, even though it is not far from the center ::ok Exactly. LOF is relative: a point wedged against a dense cluster but far sparser than it scores high, while a point in a genuinely sparse cluster scores near 1. Distance-from-center cannot make that local comparison.
 - The fraud has the largest amount and miles values, so any density method would rank it first ::no It does not. Maya's legitimate big purchases have far larger values, yet their LOF is near 1 because they are normal relative to their own sparse cluster. LOF ranks by local density contrast, not by raw magnitude.
 
@@ -183,9 +169,9 @@ The idea: train on normal data only, and learn a boundary that wraps it. Anythin
 
 The widget below shows the kernel trick on a two-class problem: no straight line can separate an inner group from a ring around it, but switch to an RBF kernel and the boundary bends into a closed curve that wraps the inner group exactly. Toggle the kernels and watch the training error fall to zero.
 
-::widget kernel-svm {}
-
 A one-class SVM uses this same closed-boundary machinery, with just one class. Instead of separating group A from group B, it separates your normal data from everything else (formally, from the origin in the kernel's feature space), drawing a boundary that hugs the shape of normal, however many clusters that shape has.
+
+::widget kernel-svm {}
 
 === step === concept
 ::eyebrow The two knobs
@@ -201,7 +187,7 @@ where \(K\) is the kernel, the \(\alpha_i\) are weights on the training points, 
 
 the two knobs are:
 
-- **nu** \((\nu \in (0, 1])\): an upper bound on the fraction of training points allowed to fall outside the boundary, and a lower bound on the fraction that become support vectors. Set \(\nu = 0.05\) and you are telling the model "expect about 5% of my normal data to look like noise." Raise it to loosen how much slack you allow.
+- **nu** \((\nu \in (0, 1])\): an upper bound on the fraction of training points allowed to fall outside the boundary, and a lower bound on the fraction that become support vectors (the handful of training points that sit right on the boundary and pin down its shape). Set \(\nu = 0.05\) and you are telling the model "expect about 5% of my normal data to look like noise." Raise it to loosen how much slack you allow.
 - **gamma** \((\gamma)\): the width of the RBF kernel. Large \(\gamma\) makes a tight, wiggly boundary that hugs each point (and risks memorizing noise); small \(\gamma\) makes a smooth, loose boundary that can swallow real anomalies.
 
 [WARNING]
@@ -221,7 +207,7 @@ oc <- svm(train_normal, type = "____",           # one-class: wrap the normal re
 card$outside <- !predict(oc, Z)                   # TRUE = falls OUTSIDE the learned boundary
 table(outside = card$outside, kind = card$kind)
 ```
-::check {"regex":"one-classification","gate":true,"difficulty":"intermediate","ok":"That is the one-class mode. The fraud lands outside the boundary; about 5% of the normal charges do too, which is exactly what nu = 0.05 allows.","no":"The one-class type in e1071 is \"one-classification\" (hyphenated). It tells svm() to wrap a single class rather than separate two."}
+::check {"regex":"one-classification","gate":true,"difficulty":"intermediate","ok":"That is the one-class mode. The fraud lands outside the boundary; a few normal charges do too, which is exactly what nu = 0.05 allows.","no":"The one-class type in e1071 is one-classification (hyphenated). It tells svm() to wrap a single class rather than separate two."}
 ::solution
 ```r
 library(e1071)
@@ -231,12 +217,10 @@ oc <- svm(train_normal, type = "one-classification",
 card$outside <- !predict(oc, Z)
 table(outside = card$outside, kind = card$kind)
 #>        kind
-#> outside FRAUD big legit everyday
-#>   FALSE     0        11       58
-#>   TRUE      1         1        2
+#> outside big legit everyday FRAUD
+#>   FALSE        11       58     0
+#>   TRUE          1        2     1
 ```
-
-The fraud (never in training) lands **outside** the boundary: caught. So do 3 of the 72 normal charges, which is not a bug, it is `nu = 0.05` doing its job (about 5% of 72 is roughly 3 or 4). Tighten `nu` and fewer normal points spill out but a borderline anomaly might sneak in; that trade is the tuning.
 
 === step === quiz
 ::eyebrow Check yourself
@@ -245,10 +229,10 @@ The fraud (never in training) lands **outside** the boundary: caught. So do 3 of
 You now have three unsupervised detectors: the isolation forest (Lesson 2, a fast global score), LOF (a local density ratio), and the one-class SVM (a learned boundary around normal). A payments team wants to score each **incoming** transaction in real time against a fixed set of known-good historical transactions, without recomputing over the whole dataset every time. Which detector fits best, and why?
 
 ::quiz {"correct":3,"gate":true,"difficulty":"intermediate"}
-- LOF, because it gives the most accurate anomaly score of the three ::no LOF has to place the new point among all the others and recompute neighbourhood densities every time; there is no reusable model to score a lone incoming point cheaply. It is excellent for locally-sparse outliers in a fixed batch, not for streaming against a frozen reference set.
-- The isolation forest, because it is the fastest to score ::no Fast, yes, and great for a one-off unsupervised sweep of a batch, but the standard isolation forest is built from the dataset you score; it is not framed as "learn normal once, then judge new points." That novelty-detection framing is the one-class SVM's.
+- LOF, because it gives the most accurate anomaly score of the three
+- The isolation forest, because it is the fastest to score
 - The one-class SVM, because it learns a boundary from the known-good data once and then judges any new point on its own as inside or outside ::ok Exactly. That is novelty detection: fit once on trusted-normal data, then score each incoming point against the saved boundary in constant time. LOF and the isolation forest are computed relative to the dataset, so they fit a batch sweep better than streaming against a frozen reference.
-- None; only a supervised classifier can score new transactions ::no All three are unsupervised and need no anomaly labels. The one-class SVM in particular is designed exactly for "train on normal, judge new points," which is what this team needs.
+- None; only a supervised classifier can score new transactions ::no All three are unsupervised and need no anomaly labels. The one-class SVM in particular is designed exactly for train on normal, judge new points, which is what this team needs.
 
 === step === concept
 ::eyebrow Go deeper
@@ -264,6 +248,6 @@ A few authoritative places to take this further:
 === step === complete
 ## Lesson 3 complete
 
-You now have two detectors that see what a global score cannot. **LOF** scores each point by how its local density compares to its neighbours', catching an outlier wedged against a dense cluster that distance-from-center ranked as ordinary. The **one-class SVM** learns a boundary around normal data once, then judges any new point as inside or out, the novelty-detection framing you want for scoring incoming data in real time. And you saw the honest cost of each: LOF's dependence on `k` and \(O(n^2)\) distances, the one-class SVM's sensitivity to `nu`, `gamma` and scaling.
+You now have two detectors that see what a global score cannot. **LOF** scores each point by how its local density compares to its neighbours', catching an outlier wedged against a dense cluster that distance-from-center ranked as ordinary. The **one-class SVM** learns a boundary around normal data once, then judges any new point as inside or out, the novelty-detection framing you want for scoring incoming data in real time. And you saw the honest cost of each: LOF's dependence on `k` and its \(O(n^2)\) distances, the one-class SVM's sensitivity to `nu`, `gamma` and scaling.
 
 Three detectors down: isolation (global), density (local), and boundary (novelty). Next, Lesson 4: **Autoencoders for Anomaly Detection**. Instead of distance, density or a boundary, you will score a point by how badly a compressed model rebuilds it, the reconstruction error, and see why for a linear model that turns out to be exactly PCA.
