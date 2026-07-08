@@ -2662,6 +2662,12 @@ def patch_tool_pages(sections, asset_hrefs):
         with open(path, encoding='utf-8') as f:
             html = f.read()
 
+        # Tool Farm v2 pages are fully self-contained (own masthead, styles,
+        # footer, analytics) - marked with data-tool-v2 on <body>. Skip ALL
+        # chrome injection or they end up with two mastheads + the sidebar.
+        if 'data-tool-v2' in html:
+            continue
+
         # Already-patched tools: refresh the cache-bust hashes AND refresh
         # the sidebar block so newly-registered tools appear without a
         # full chrome re-injection. Skip the rest of the (idempotent)
