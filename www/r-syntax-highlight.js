@@ -48,11 +48,15 @@
       return '<span class="fn">' + name + '</span>';
     });
 
-    // Restore comments and strings (use the sentinel chars in the regex)
-    text = text.replace(new RegExp(T_COM + '(\\d+)' + T_END, 'g'), function(m, idx){
+    // Restore comments and strings (use the sentinel chars in the regex).
+    // The number pass above can wrap the digit index in a <span class="number">
+    // (the index sits between two private-use sentinels, so \b matches it), which
+    // would otherwise break the restore and leak the sentinels as box glyphs.
+    // Tolerate that optional wrapper so the restore always fires.
+    text = text.replace(new RegExp(T_COM + '(?:<span class="number">)?(\\d+)(?:</span>)?' + T_END, 'g'), function(m, idx){
       return '<span class="comment">' + escapeHtml(comments[+idx]) + '</span>';
     });
-    text = text.replace(new RegExp(T_STR + '(\\d+)' + T_END, 'g'), function(m, idx){
+    text = text.replace(new RegExp(T_STR + '(?:<span class="number">)?(\\d+)(?:</span>)?' + T_END, 'g'), function(m, idx){
       return '<span class="string">' + escapeHtml(strings[+idx]) + '</span>';
     });
 
