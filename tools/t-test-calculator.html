@@ -156,6 +156,13 @@ details.how[open] summary::after{content:'-'}
 .ft .in{max-width:1120px;margin:0 auto;padding:30px 24px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;font-size:13.5px}
 .ft a{color:#e8ecf4;text-decoration:none;font-weight:500}
 .ft .sp{margin-left:auto;color:#8fa0bb}
+.iwant{font:600 20px/1.45 'Inter Tight',Inter,sans-serif;letter-spacing:-.01em;color:var(--ink);margin:20px 0 0}
+.iwant .psel{position:relative;display:inline-flex;align-items:baseline;color:var(--acc-dk);background:var(--acc-soft);border-radius:10px;padding:2px 9px;cursor:pointer}
+.iwant .psel::after{content:'BE';font-size:13px;margin-left:7px;color:var(--acc)}
+.iwant select{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.infline{margin:16px 26px 0;padding:14px 0 0;border-top:1px solid var(--line2);font:500 15.5px/1.6 Inter;color:var(--ink)}
+.infline .ik{font:700 10.5px/1 Inter;letter-spacing:.13em;text-transform:uppercase;color:var(--acc);display:block;margin-bottom:5px}
+.infline b{color:var(--acc-dk)}
 @media(max-width:880px){
   .grid{grid-template-columns:1fr}
   .stats{grid-template-columns:repeat(3,1fr)}
@@ -179,12 +186,13 @@ details.how[open] summary::after{content:'-'}
     <span class="crumb"><a href="/">Home</a> / <a href="/tools/">Tools</a> / t-Test Calculator</span>
     <span class="eyebrow">Statistics calculator</span>
     <h1>t-Test Calculator</h1>
-    <p class="dek">Compare means and get the verdict in plain English, with the full working shown. <b>Everything runs in your browser</b>, your data never leaves this page.</p>
+    <p class="dek">A t-test asks a simple question: do two groups (or one group versus a known value) have meaningfully different averages, or could the gap be random chance? Drop in raw data or just the means and SDs to get a clear verdict, the effect size (Cohen's d) and a confidence interval. <b>Everything runs in your browser.</b></p>
     <div class="modes" role="tablist" aria-label="Test type">
       <button class="mode on" data-mode="two"    role="tab">Two-sample (Welch)</button>
       <button class="mode"    data-mode="one"    role="tab">One-sample</button>
       <button class="mode"    data-mode="paired" role="tab">Paired</button>
     </div>
+    <p class="iwant" id="iwant"></p>
   </section>
 
   <div class="grid">
@@ -259,6 +267,7 @@ details.how[open] summary::after{content:'-'}
         <div class="st"><div class="k">Cohen's d</div><div class="v" id="od">-</div></div>
       </div>
       <p class="plain" id="plain"></p>
+      <p class="infline" id="infline"></p>
       <div class="copyrow">
         <span class="report" id="report"></span>
         <button class="copy" id="copybtn">Copy report line</button>
@@ -434,6 +443,12 @@ function calc(){
       : hiG+' averaged '+fmt(Math.abs(est),2)+' more than '+loG+' per '+noun+', but a gap this size is compatible with chance (p = '+r.p.toFixed(3)+'). If a real difference exists, this sample is too small to confirm it.';
   }
   $('vhead').textContent=head; $('vsub').textContent=sub; $('plain').innerHTML=plain;
+  var infWhat = state.mode==='one' ? 'the true mean differs from '+fmt(+$('mu').value,2)
+    : state.mode==='paired' ? 'the paired means genuinely differ'
+    : 'the two group means genuinely differ';
+  $('infline').innerHTML='<span class="ik">Inference</span>'+(sig
+    ? 'Since p = '+(r.p<0.001?'&lt; 0.001':r.p.toFixed(3))+' is below &alpha; = '+state.alpha+', <b>reject the null hypothesis</b>: conclude that '+infWhat+'. The '+Math.round(conf*100)+'% CI ['+fmt(r.ci[0],2)+', '+fmt(r.ci[1],2)+'] excludes 0, which says the same thing.'
+    : 'Since p = '+r.p.toFixed(3)+' is not below &alpha; = '+state.alpha+', <b>do not reject the null hypothesis</b>: the data do not establish that '+infWhat+'. The '+Math.round(conf*100)+'% CI ['+fmt(r.ci[0],2)+', '+fmt(r.ci[1],2)+'] includes 0, consistent with no difference.');
 
   var testName=state.mode==='two'?"Welch's t":(state.mode==='paired'?'Paired t':'One-sample t');
   $('report').textContent=testName+'('+fmt(r.df,1)+') = '+fmt(r.t,2)+', p '+(r.p<0.001?'< .001':'= '+r.p.toFixed(3))+', d = '+fmt(r.d,2)+', '+Math.round(conf*100)+'% CI ['+fmt(r.ci[0],2)+', '+fmt(r.ci[1],2)+'].';
@@ -496,7 +511,16 @@ function drawCurve(t, df){
     '<text x="'+X(0)+'" y="'+(base+22)+'" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#888e97">0</text>';
 }
 
+var IWANT={two:'compare the means of two independent groups',one:'test one mean against a known value',paired:'compare paired before-and-after measurements'};
+function renderIwant(){
+  var el=document.getElementById('iwant'); if(!el)return;
+  var opts=Object.keys(IWANT).map(function(k){return '<option value="'+k+'"'+(state.mode===k?' selected':'')+'>'+IWANT[k]+'</option>';}).join('');
+  el.innerHTML='I want to <span class="psel">'+IWANT[state.mode]+'<select aria-label="What do you want to do?">'+opts+'</select></span>.';
+  el.querySelector('select').addEventListener('change',function(){ state.mode=this.value; applyMode(); });
+}
 function applyMode(){
+  renderIwant();
+  document.querySelectorAll('.mode').forEach(function(o){o.classList.toggle('on',o.dataset.mode===state.mode);});
   var m=state.mode;
   $('grpmu').hidden = m!=='one';
   $('grp2').hidden  = m==='one';
