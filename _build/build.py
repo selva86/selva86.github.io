@@ -730,13 +730,16 @@ def render_sidebar_html(sections, current_slug):
                 # short label "Quiz" (not the long per-section title).
                 parts.append(f'<li data-subkey="{cur_sub_key}" class="is-quiz">')
                 parts.append(
-                    f'<a href="{href}"{active_attr}>'
+                    f'<a href="{href}"{active_attr} title="{text}">'
                     f'<span class="quiz-marker" aria-hidden="true">{_QUIZ_ICON}</span>Quiz</a></li>'
                 )
             else:
                 parts.append(f'<li data-subkey="{cur_sub_key}">')
+                # title attr: when the sidebar collapses to the icon rail
+                # (body.tools-rail, Posts panel) the link text is hidden, so the
+                # title carries the post name as a hover tooltip on the dot.
                 parts.append(
-                    f'<a href="{href}"{active_attr}>'
+                    f'<a href="{href}"{active_attr} title="{text}">'
                     f'<span class="progress-dot"></span>{text}</a></li>'
                 )
         parts.append('</ul></li>')
@@ -2580,6 +2583,11 @@ def patch_tool_pages(sections, asset_hrefs):
         # .tool-chrome-side. The wrapper is the only scroll container here.
         '.tool-chrome-side #sidebar-nav{padding:0;position:static;max-height:none;overflow:visible}'
         '.tool-chrome-main{min-width:0}'
+        # Markup caret next to the "Exercises" nav item (glyph lives in the
+        # masthead markup, not a CSS content escape). practice-nav.js rotates
+        # it on open and hides it under 980px.
+        '.ex-caret{display:inline-block;margin-left:4px;font-size:.62em;line-height:1;'
+        'opacity:.6;transition:transform .2s}'
         '.sidebar-close{display:none}'
         '.rail-fold{display:flex;align-items:center;justify-content:flex-end;width:100%;'
         'background:transparent;border:none;cursor:pointer;color:#57606a;font:600 11.5px/1 -apple-system,BlinkMacSystemFont,sans-serif;'
@@ -2601,14 +2609,31 @@ def patch_tool_pages(sections, asset_hrefs):
         '.rail-toggle svg{display:block}'
         '@media(min-width:881px){'
         'body.tools-rail .tool-chrome{grid-template-columns:60px 1fr}'
+        # Chrome that never fits the 60px rail, whichever panel is active.
         'body.tools-rail .tool-chrome-side .continue-chip,'
         'body.tools-rail .tool-chrome-side .sidebar-tabs,'
-        'body.tools-rail .tool-chrome-side .sidebar-panel[data-panel="posts"],'
-        'body.tools-rail .tool-chrome-side .sidebar-divider,'
+        'body.tools-rail .tool-chrome-side .sidebar-subscribe,'
         'body.tools-rail .tool-chrome-side .tool-label{display:none!important}'
-        'body.tools-rail .tool-chrome-side .sidebar-panel[data-panel="tools"]{display:block!important}'
+        # Rail now RESPECTS the active tab (main.css .sidebar-panel.active
+        # governs which panel shows) instead of force-showing Tools. So the
+        # Collapse button is meaningful on the Posts panel too.
+        # --- TOOLS panel rail: centred tool icons (unchanged behaviour) ---
         'body.tools-rail .sidebar-tools-list a{display:flex;justify-content:center;padding:9px 4px}'
         'body.tools-rail .sidebar-tools-list .tool-icon svg{width:19px;height:19px}'
+        # --- POSTS panel rail: keep ONLY the green progress-dot bullets ---
+        # Hide section headers, dividers and the section-end quiz rows (they
+        # have no progress-dot); force every section open so all dots show.
+        'body.tools-rail .sidebar-panel[data-panel="posts"] .sidebar-section-header,'
+        'body.tools-rail .sidebar-panel[data-panel="posts"] .sidebar-divider,'
+        'body.tools-rail .sidebar-panel[data-panel="posts"] li.is-quiz{display:none!important}'
+        'body.tools-rail .sidebar-panel[data-panel="posts"] .sidebar-section-items{display:block!important}'
+        # Collapse the link text to zero width; the dot keeps its fixed box and
+        # centres in the rail. The link stays clickable (title= tooltip shows
+        # the post name on hover).
+        'body.tools-rail .sidebar-panel[data-panel="posts"] .sidebar-section-items>li>a{'
+        'padding:5px 0;justify-content:center;font-size:0;line-height:0;border-left:none}'
+        'body.tools-rail .sidebar-panel[data-panel="posts"] .sidebar-section-items>li>a>.progress-dot{'
+        'visibility:visible;margin:0}'
         '}'
         '@media(max-width:880px){'
         '.tool-chrome{grid-template-columns:1fr;padding:16px}'
@@ -2663,14 +2688,21 @@ def patch_tool_pages(sections, asset_hrefs):
         '<span class="masthead-mark">R</span>'
         '<span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>'
         '</a>'
+        # Unified site nav (matches /roadmap/ and the tutorial template).
+        # The Exercises item carries a markup caret glyph; practice-nav.js
+        # upgrades it into the Practice mega-dropdown.
         '<nav class="masthead-nav">'
-        '<a class="masthead-nav-link" href="/">Home</a>'
-        '<a class="masthead-nav-link" href="/posts/">Compendium</a>'
+        '<a class="masthead-nav-link" href="/roadmap/">Roadmap</a>'
+        '<a class="masthead-nav-link" href="/tutorials/">Tutorials</a>'
+        '<a class="masthead-nav-link" href="/exercises/">Exercises '
+        '<span class="ex-caret" aria-hidden="true">&#9662;</span></a>'
+        '<a class="masthead-nav-link" href="/tools/">Tools</a>'
         '</nav>'
         '<div class="masthead-tools">'
         '<form onsubmit="window.open(\'https://google.com/search?q=\'+document.getElementById(\'tool-search\').value+\'%20site:r-statistics.co\');return false" class="masthead-search">'
         '<input type="text" id="tool-search" placeholder="Search…" aria-label="Search r-statistics.co">'
         '</form>'
+        '<a class="masthead-cta" href="/pricing.html">Get certified</a>'
         '</div>'
         '</div></header>'
     )
@@ -2714,6 +2746,15 @@ def patch_tool_pages(sections, asset_hrefs):
                 f'<script src="/{toc_js_href}"></script>',
                 f'<script src="/{toc_js_href}"></script><script src="/www/r-syntax-highlight.js"></script>',
                 1
+            )
+        # Inject the Exercises mega-dropdown script (upgrades the /exercises/
+        # nav link) if not already present. Bump the ?v when practice-nav
+        # changes so existing tools re-fetch it.
+        if 'practice-nav.js' not in new_html:
+            new_html = re.sub(
+                r'</body>',
+                '<script defer src="/www/practice-nav.js?v=7"></script></body>',
+                new_html, count=1, flags=re.IGNORECASE,
             )
         # Refresh the chrome layout CSS so mobile-drawer rules land on tools
         # that were built before the drawer existed. Replace ALL occurrences
@@ -2849,6 +2890,8 @@ def patch_tool_pages(sections, asset_hrefs):
             f'{inline_tab_handler}'
             f'<script src="/{toc_js_href}"></script>'
             f'<script src="/www/r-syntax-highlight.js"></script>'
+            # Exercises mega-dropdown (upgrades the /exercises/ nav link).
+            f'<script defer src="/www/practice-nav.js?v=7"></script>'
         )
         # Add the shared site footer once (skip if already present, e.g. the
         # tools landing page already gets it from gen_tools_landing).
