@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.9.5"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-unsupervised"
 course_title: "Unsupervised Learning in R"
 course_lesson: "5"

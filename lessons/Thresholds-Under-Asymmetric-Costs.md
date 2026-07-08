@@ -13,7 +13,7 @@ course_total: "6"
 course_landing: "R-Imbalanced-Classification-Course.html"
 course_next: "ROC-PR-Lift-and-Gains-Curves.html"
 course_prev: "Class-Imbalance-and-Resampling.html"
-lesson_access: "free"
+lesson_access: "pro"
 catalog_blurb: "Set the cutoff by what each error costs, not a default 0.5."
 ---
 

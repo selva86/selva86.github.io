@@ -5,7 +5,7 @@ keywords: "R quiz, model evaluation, cross-validation, nested CV, hyperparameter
 post_type: "LESSON"
 curriculum_id: "6.70.8"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-evaluation-tuning"
 course_title: "Model Evaluation and Tuning in R"
 course_lesson: "8"

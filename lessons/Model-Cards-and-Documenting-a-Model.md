@@ -6,7 +6,7 @@ keywords: "model card, model cards for model reporting, documenting machine lear
 post_type: "LESSON"
 curriculum_id: "6.110.6"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-interpretability"
 course_title: "Model Interpretability in R"
 course_lesson: "6"

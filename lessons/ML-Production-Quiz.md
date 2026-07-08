@@ -5,7 +5,7 @@ keywords: "R quiz, machine learning production, targets, model versioning, vetiv
 post_type: "LESSON"
 curriculum_id: "6.120.7"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-production"
 course_title: "Machine Learning in Production"
 course_lesson: "7"

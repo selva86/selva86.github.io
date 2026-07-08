@@ -5,7 +5,7 @@ keywords: "R quiz, imbalanced classification, class imbalance, resampling, thres
 post_type: "LESSON"
 curriculum_id: "6.80.7"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-imbalanced-classification"
 course_title: "Imbalanced Classification in R"
 course_lesson: "7"

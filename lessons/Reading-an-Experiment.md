@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.10.4"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-causal"
 course_title: "Causal Inference in R"
 course_lesson: "4"

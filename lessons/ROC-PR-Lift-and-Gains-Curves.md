@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.80.4"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-imbalanced-classification"
 course_title: "Imbalanced Classification in R"
 course_lesson: "4"

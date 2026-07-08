@@ -5,7 +5,7 @@ keywords: "R quiz, causal inference, correlation causation, potential outcomes, 
 post_type: "LESSON"
 curriculum_id: "6.10.6"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-causal"
 course_title: "Causal Inference in R"
 course_lesson: "6"

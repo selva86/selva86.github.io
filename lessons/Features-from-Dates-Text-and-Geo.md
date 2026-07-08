@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.60.5"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-feature-engineering"
 course_title: "Feature Engineering in R"
 course_lesson: "5"

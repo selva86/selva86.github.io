@@ -5,7 +5,7 @@ keywords: "R quiz, model interpretability, global local explanations, permutatio
 post_type: "LESSON"
 curriculum_id: "6.110.7"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-interpretability"
 course_title: "Model Interpretability in R"
 course_lesson: "7"

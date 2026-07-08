@@ -5,7 +5,7 @@ keywords: "R quiz, feature engineering, one-hot encoding, target encoding, leaka
 post_type: "LESSON"
 curriculum_id: "6.60.8"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-feature-engineering"
 course_title: "Feature Engineering in R"
 course_lesson: "8"

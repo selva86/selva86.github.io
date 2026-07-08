@@ -6,7 +6,7 @@ keywords: "plumber R, REST API in R, serve a model in R, model deployment, plumb
 post_type: "LESSON"
 curriculum_id: "6.120.3"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 track: "scientist"
 course_id: "ds-production"
 course_title: "Machine Learning in Production"
