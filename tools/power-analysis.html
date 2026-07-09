@@ -110,6 +110,7 @@
 <link rel="stylesheet" href="/css/main.min.css?h=ba504769">
 <link rel="stylesheet" href="/www/webr.min.css">
 <script src="/www/webr-init.min.js"></script>
+<script src="/tools/lib/power-math.js"></script>
 <link rel="stylesheet" href="/css/main.min.css?h=rdotb1">
 <style>
   :root{
@@ -802,6 +803,12 @@
     <p class="inference-banner" id="inference-banner"></p>
   </div>
 
+  <p class="trust" style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--c-text-mute);margin:16px 0 0">
+    <span><span class="tick" style="color:var(--c-success)">&#10003;</span> No data leaves your browser</span>
+    <span><span class="tick" style="color:var(--c-success)">&#10003;</span> Verified against R's <code style="font-family:ui-monospace,Consolas,monospace;font-size:12px">pwr.t.test()</code>, <code style="font-family:ui-monospace,Consolas,monospace;font-size:12px">pwr.anova.test()</code>, <code style="font-family:ui-monospace,Consolas,monospace;font-size:12px">pwr.r.test()</code> and friends</span>
+    <span><span class="tick" style="color:var(--c-success)">&#10003;</span> Free, no sign-up</span>
+  </p>
+
   <details class="section">
     <summary>
       <span class="summary-eyebrow">Read more</span>
@@ -813,30 +820,29 @@
         <div class="anatomy-formula">power = P( T &gt; t_crit | H1 )
 T ~ noncentral t( df, ncp )
 ncp = d &middot; sqrt( n1 &middot; n2 / (n1 + n2) )</div>
-        <div class="anatomy-body"><strong>Noncentral t (one- and two-sample, paired, correlation).</strong> Under the alternative, the t-statistic follows a noncentral t with df from the design and a noncentrality parameter (ncp) that grows with sqrt(n) and the standardized effect. Power is the area of that noncentral distribution beyond the critical value of the central t. We use the Sankaran (1959) approximation, accurate to ~3 decimals for df &ge; 4 and faster than series methods.</div>
+        <div class="anatomy-body"><strong>Noncentral t (one- and two-sample, paired).</strong> Under the alternative, the t-statistic follows a noncentral t with df from the design and a noncentrality parameter (ncp) that grows with sqrt(n) and the standardized effect. Power is the area of that noncentral distribution beyond the critical value of the central t. We evaluate that tail exactly with the AS 243 series (Lenth, 1989) - the routine behind R's <code>pt(t, df, ncp)</code> - so one- and two-sided power match <code>pwr.t.test()</code> to machine precision.</div>
       </div>
 
       <div class="anatomy-step">
         <div class="anatomy-formula">power = P( F &gt; F_crit | H1 )
 F ~ noncentral F( df1, df2, ncp )
-ncp_anova = f&sup2; &middot; k &middot; n     (one-way ANOVA)
-ncp_reg   = f&sup2; &middot; (u + v + 1)  (regression)</div>
-        <div class="anatomy-body"><strong>Noncentral F (ANOVA, regression).</strong> The omnibus F under H1 is noncentral F. The Patnaik / Poisson-mixture series we use sums central F CDFs weighted by Poisson(ncp/2) probabilities; convergence is fast around the peak. df1 is the numerator (k-1 for ANOVA, u predictors of interest for regression), df2 is the denominator (k(n-1) or n-u-1).</div>
+ncp = f&sup2; &middot; k &middot; n     (one-way ANOVA)</div>
+        <div class="anatomy-body"><strong>Noncentral F (one-way ANOVA).</strong> The omnibus F under H1 is noncentral F. We sum central F CDFs weighted by Poisson(ncp/2) probabilities - the exact Poisson-mixture representation - starting at the peak weight so it converges in a handful of terms. df1 = k-1 (numerator), df2 = k(n-1) (denominator). Matches <code>pwr.anova.test()</code>.</div>
       </div>
 
       <div class="anatomy-step">
         <div class="anatomy-formula">h = 2 &middot; ( arcsin sqrt(p2) - arcsin sqrt(p1) )
-ncp_z = |h| &middot; sqrt(n)            (two-prop, equal n per arm)
+ncp_z = |h| &middot; sqrt(n/2)          (two-prop, n per arm)
 ncp_z = |h| &middot; sqrt(n)            (one-prop)
 power = 1 - &Phi;( z_crit - ncp_z )</div>
         <div class="anatomy-body"><strong>Normal approximation for proportions.</strong> Cohen's h is the variance-stabilising arcsine transform applied to each proportion, then differenced. After the transform, the test statistic is approximately normal with unit variance, so power becomes a tail probability of a shifted standard normal. Matches <code>pwr.2p.test</code> and <code>pwr.p.test</code>. Falls apart when expected counts are tiny; switch to an exact test there.</div>
       </div>
 
       <div class="anatomy-step">
-        <div class="anatomy-formula">z_r = 0.5 &middot; ln( (1+r) / (1-r) )   (Fisher z)
-SE = 1 / sqrt(n - 3)
-ncp via t = r &middot; sqrt(df) / sqrt(1 - r&sup2;)</div>
-        <div class="anatomy-body"><strong>Correlation power.</strong> The Fisher z transform is the textbook route, but for the actual test (H0: rho = 0) the t-statistic <code>r &middot; sqrt(n-2) / sqrt(1-r&sup2;)</code> is more accurate, and its noncentral-t distribution gives the closed-form power. We use that direct formulation; results match <code>pwr.r.test</code> to 3+ decimals.</div>
+        <div class="anatomy-formula">z_r  = atanh(r) + r / ( 2(n-1) )   (bias-corrected Fisher z)
+z_rc = atanh( r_crit )
+power = &Phi;( (z_r - z_rc) &middot; sqrt(n - 3) )</div>
+        <div class="anatomy-body"><strong>Correlation power (Fisher z).</strong> We follow the exact route <code>pwr.r.test()</code> uses: apply the variance-stabilising Fisher z transform to the target r (with the small <code>r / (2(n-1))</code> bias correction), transform the critical correlation the same way, and read power off a standard normal whose SE is <code>1 / sqrt(n-3)</code>. This is more faithful than a plain noncentral-t and matches <code>pwr.r.test()</code> to machine precision.</div>
       </div>
 
       <div class="anatomy-step">
@@ -881,7 +887,7 @@ power = 1 - F_chi( x_crit | df, ncp_chi )</div>
       <li><a href="/tools/effect-size-converter.html">Effect Size Converter</a> - turn between d, r, OR, eta-squared.</li>
       <li><a href="/Type-I-and-Type-II-Errors-in-R.html">Type I and Type II errors</a> for the alpha / beta / power triangle.</li>
     </ul>
-    <p class="numerical-accuracy-note" style="margin:18px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5">Numerical methods: noncentral t via Sankaran (1959); noncentral F and chi-square via Poisson-weighted CDF series; proportions via Cohen's h and the standard normal approximation. Verified against the R <code>pwr</code> package to ~3 decimal places.</p>
+    <p class="numerical-accuracy-note" style="margin:18px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5">Numerical methods: exact noncentral t via the AS 243 series (the routine behind R's <code>pt</code>); noncentral F and chi-square via the exact Poisson-mixture CDF series; correlation via the Fisher-z route of <code>pwr.r.test</code>; proportions via Cohen's h and the arcsine normal approximation. Verified against R 4.6.0's <code>pwr</code> package to better than 1e-6.</p>
   </div>
 
   </div><!-- /.shell -->
@@ -898,302 +904,24 @@ function fmtN(n){ if (!isFinite(n)) return '-'; return Number(Math.round(n)).toL
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // ============================================================
-// Math primitives
+// Math engine: verified library /tools/lib/power-math.js
+// R-verified against R 4.6.0 `pwr` (Scripts/tool-truth/power-analysis.json).
+// The page keeps calling the same names; they now delegate to PowerMath, which
+// replaces the old inline math and fixes it: two-proportion ncp = h*sqrt(n/2)
+// (was h*sqrt(n)), correlation via pwr.r.test's Fisher-z, and exact one-sided
+// noncentral t (AS 243). solveN returns the smallest integer n whose power >=
+// target - the ceil of PowerMath's exact fractional root (kept in __lastExactN).
 // ============================================================
-function lgamma(z){
-  const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
-  if (z < 0.5) return Math.log(Math.PI/Math.sin(Math.PI*z)) - lgamma(1-z);
-  z -= 1; let x = c[0];
-  for (let i=1; i<9; i++) x += c[i]/(z+i);
-  const t = z + 7.5;
-  return 0.5*Math.log(2*Math.PI) + (z+0.5)*Math.log(t) - t + Math.log(x);
-}
-function pnorm(x){
-  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
-  const sign = x<0 ? -1 : 1; x = Math.abs(x)/Math.sqrt(2);
-  const t = 1.0/(1.0+p*x);
-  const y = 1.0 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
-  return 0.5*(1.0+sign*y);
-}
-function qnorm(p){
-  if (p<=0 || p>=1) return p<=0 ? -Infinity : Infinity;
-  const q = p - 0.5; let r;
-  if (Math.abs(q) <= 0.425){
-    r = q*q;
-    return q*(((((((2509.0809287301226727*r + 33430.575583588128105)*r + 67265.770927008700853)*r + 45921.953931549871457)*r + 13731.693765509461125)*r + 1971.5909503065514427)*r + 133.14166789178437745)*r + 3.387132872796366608)/(((((((5226.495278852854561*r + 28729.085735721942674)*r + 39307.89580009271061)*r + 21213.794301586595867)*r + 5394.1960214247511077)*r + 687.1870074920579083)*r + 42.313330701600911252)*r + 1);
-  }
-  r = q<0 ? p : 1-p; r = Math.sqrt(-Math.log(r));
-  let val;
-  if (r <= 5){ r -= 1.6; val = (((((((0.00077454501427834140764*r + 0.0227238449892691845833)*r + 0.24178072517745061177)*r + 1.27045825245236838258)*r + 3.64784832476320460504)*r + 5.7694972214606914055)*r + 4.6303378461565452959)*r + 1.42343711074968357734)/(((((((0.00000010507500716444169*r + 0.0005475938084995344946)*r + 0.0151986665636164571966)*r + 0.14810397642748007459)*r + 0.68976733498510000455)*r + 1.6763848301838038494)*r + 2.05319162663775882187)*r + 1);
-  } else { r -= 5; val = (((((((0.000000201033439929228813265*r + 0.0000271155556874348757815)*r + 0.0012426609473880784386)*r + 0.026532189526576123093)*r + 0.29656057182850489123)*r + 1.7848265399172913358)*r + 5.4637849111641143699)*r + 6.6579046435011037772)/(((((((0.00000000204426310338993978564*r + 0.00000014215117583164458887)*r + 0.0000018463183175100546818)*r + 0.0000786869131145613259)*r + 0.0014875361290850615)*r + 0.013692988092273580531)*r + 0.059983220655588793769)*r + 1);
-  }
-  return q<0 ? -val : val;
-}
-function ibeta(a, b, x){
-  if (x === 0) return 0;
-  if (x === 1) return 1;
-  const lbeta = lgamma(a+b) - lgamma(a) - lgamma(b);
-  const front = Math.exp(Math.log(x)*a + Math.log(1-x)*b + lbeta);
-  if (x < (a+1)/(a+b+2)) return front * betacf(a, b, x) / a;
-  return 1 - front * betacf(b, a, 1-x) / b;
-}
-function betacf(a, b, x){
-  const fpmin = 1e-30;
-  let qab = a+b, qap = a+1, qam = a-1;
-  let c = 1, d = 1 - qab*x/qap;
-  if (Math.abs(d) < fpmin) d = fpmin;
-  d = 1/d; let h = d;
-  for (let m = 1; m <= 200; m++){
-    const m2 = 2*m;
-    let aa = m*(b-m)*x/((qam+m2)*(a+m2));
-    d = 1 + aa*d; if (Math.abs(d) < fpmin) d = fpmin;
-    c = 1 + aa/c; if (Math.abs(c) < fpmin) c = fpmin;
-    d = 1/d; h *= d*c;
-    aa = -(a+m)*(qab+m)*x/((a+m2)*(qap+m2));
-    d = 1 + aa*d; if (Math.abs(d) < fpmin) d = fpmin;
-    c = 1 + aa/c; if (Math.abs(c) < fpmin) c = fpmin;
-    d = 1/d;
-    const del = d*c; h *= del;
-    if (Math.abs(del - 1) < 3e-7) break;
-  }
-  return h;
-}
-function pgamma(a, x){
-  if (x <= 0) return 0;
-  if (x < a + 1) return gser(a, x);
-  return 1 - gcf(a, x);
-}
-function gser(a, x){
-  let sum = 1/a, ap = a, del = sum;
-  for (let n = 1; n <= 200; n++){
-    ap += 1; del *= x/ap; sum += del;
-    if (Math.abs(del) < Math.abs(sum)*1e-10) break;
-  }
-  return sum * Math.exp(-x + a*Math.log(x) - lgamma(a));
-}
-function gcf(a, x){
-  const fpmin = 1e-30;
-  let b = x + 1 - a, c = 1/fpmin, d = 1/b, h = d;
-  for (let i = 1; i <= 200; i++){
-    const an = -i*(i-a);
-    b += 2; d = an*d + b;
-    if (Math.abs(d) < fpmin) d = fpmin;
-    c = b + an/c;
-    if (Math.abs(c) < fpmin) c = fpmin;
-    d = 1/d;
-    const del = d*c; h *= del;
-    if (Math.abs(del - 1) < 1e-10) break;
-  }
-  return h * Math.exp(-x + a*Math.log(x) - lgamma(a));
-}
-function pf(F, df1, df2){
-  if (F <= 0) return 0;
-  return ibeta(df1/2, df2/2, df1*F/(df1*F + df2));
-}
-function pf_nc(F, df1, df2, ncp){
-  if (ncp === 0) return pf(F, df1, df2);
-  if (F <= 0) return 0;
-  const lambda = ncp / 2;
-  // Noncentral F CDF: sum_j Pois(j;lambda) * I_x(df1/2+j, df2/2)
-  // where x = df1*F / (df1*F + df2) is fixed across the series.
-  const x = df1*F / (df1*F + df2);
-  let sum = 0;
-  const peak = Math.floor(lambda);
-  let prevWeight = Math.exp(-lambda + peak*Math.log(lambda) - lgamma(peak+1));
-  for (let j = peak; j < peak + 200; j++){
-    const w = j === peak ? prevWeight : prevWeight * lambda / j;
-    prevWeight = w;
-    if (w < 1e-14 && j > peak) break;
-    sum += w * ibeta(df1/2 + j, df2/2, x);
-  }
-  let bWeight = Math.exp(-lambda + peak*Math.log(lambda) - lgamma(peak+1));
-  for (let j = peak - 1; j >= 0; j--){
-    bWeight = bWeight * (j+1) / lambda;
-    if (bWeight < 1e-14) break;
-    sum += bWeight * ibeta(df1/2 + j, df2/2, x);
-  }
-  return Math.min(1, Math.max(0, sum));
-}
-function pchisq(x, df){ return pgamma(df/2, x/2); }
-function pchisq_nc(x, df, ncp){
-  if (ncp === 0) return pchisq(x, df);
-  const lambda = ncp / 2;
-  let sum = 0;
-  const peak = Math.floor(lambda);
-  let prevWeight = Math.exp(-lambda + peak*Math.log(lambda) - lgamma(peak+1));
-  for (let j = peak; j < peak + 200; j++){
-    const w = j === peak ? prevWeight : prevWeight * lambda / j;
-    prevWeight = w;
-    if (w < 1e-12 && j > peak) break;
-    sum += w * pchisq(x, df + 2*j);
-  }
-  let bWeight = Math.exp(-lambda + peak*Math.log(lambda) - lgamma(peak+1));
-  for (let j = peak - 1; j >= 0; j--){
-    bWeight = bWeight * (j+1) / lambda;
-    if (bWeight < 1e-12) break;
-    sum += bWeight * pchisq(x, df + 2*j);
-  }
-  return Math.min(1, Math.max(0, sum));
-}
-function qf(p, df1, df2){
-  let lo = 1e-6, hi = 1e6;
-  for (let i = 0; i < 80; i++){
-    const mid = (lo + hi) / 2;
-    if (pf(mid, df1, df2) < p) lo = mid; else hi = mid;
-    if ((hi - lo) / Math.max(1, hi) < 1e-7) break;
-  }
-  return (lo + hi) / 2;
-}
-function qchisq(p, df){
-  let lo = 1e-6, hi = 1e6;
-  for (let i = 0; i < 80; i++){
-    const mid = (lo + hi) / 2;
-    if (pchisq(mid, df) < p) lo = mid; else hi = mid;
-    if ((hi - lo) / Math.max(1, hi) < 1e-7) break;
-  }
-  return (lo + hi) / 2;
-}
-function pt_nc(t, df, ncp){
-  const z = (t*(1 - 1/(4*df)) - ncp) / Math.sqrt(1 + t*t/(2*df));
-  return pnorm(z);
-}
-
-// ============================================================
-// Power functions per design
-// ============================================================
-function powerTwoSampleT(d, n, alpha, tail, ratio){
-  if (n < 2 || d === 0) return alpha;
-  const k = (typeof ratio === 'number' && ratio > 0) ? ratio : 1;
-  const n2 = n * k;
-  const df = n + n2 - 2;
-  const ncp = Math.abs(d) * Math.sqrt(n * k / (1 + k));
-  if (tail === 1) {
-    const tCrit = Math.sqrt(qf(1 - 2*alpha, 1, df));
-    return 1 - pt_nc(tCrit, df, ncp);
-  }
-  const fCrit = qf(1 - alpha, 1, df);
-  return 1 - pf_nc(fCrit, 1, df, ncp*ncp);
-}
-function powerOneSampleT(d, n, alpha, tail){
-  if (n < 2 || d === 0) return alpha;
-  const df = n - 1;
-  const ncp = Math.abs(d) * Math.sqrt(n);
-  if (tail === 1){
-    const tCrit = Math.sqrt(qf(1 - 2*alpha, 1, df));
-    return 1 - pt_nc(tCrit, df, ncp);
-  }
-  const fCrit = qf(1 - alpha, 1, df);
-  return 1 - pf_nc(fCrit, 1, df, ncp*ncp);
-}
-function powerPaired(d, n, alpha, tail, rPaired){
-  // d is the original between-condition d on raw scale; convert to d_z using r
-  const r = (typeof rPaired === 'number') ? rPaired : 0.5;
-  const denom = Math.sqrt(2 * (1 - r));
-  const dz = denom > 0 ? d / denom : d;
-  return powerOneSampleT(dz, n, alpha, tail);
-}
-function powerAnova(f, k, n, alpha){
-  if (k < 2 || n < 2 || f === 0) return alpha;
-  const df1 = k - 1, df2 = k*n - k;
-  const ncp = f*f * k * n;
-  const fCrit = qf(1 - alpha, df1, df2);
-  return 1 - pf_nc(fCrit, df1, df2, ncp);
-}
-function powerCorr(r, n, alpha, tail){
-  if (n < 4 || r === 0) return alpha;
-  const df = n - 2;
-  const ncp = Math.abs(r) * Math.sqrt(n) / Math.sqrt(1 - r*r);
-  if (tail === 1) {
-    const tCrit = Math.sqrt(qf(1 - 2*alpha, 1, df));
-    return 1 - pt_nc(tCrit, df, ncp);
-  }
-  const fCrit = qf(1 - alpha, 1, df);
-  return 1 - pf_nc(fCrit, 1, df, ncp*ncp);
-}
-function powerChisq(w, n, df, alpha){
-  if (n < 2 || w === 0 || df < 1) return alpha;
-  const ncp = w*w * n;
-  const xCrit = qchisq(1 - alpha, df);
-  return 1 - pchisq_nc(xCrit, df, ncp);
-}
-function powerTwoProp(h, n, alpha, tail){
-  if (n < 2 || h === 0) return alpha;
-  // n is per-arm. ncp = h * sqrt(n_per_arm) matches pwr.2p.test (Cohen 1988 6.2.2 with n_h = n_per_arm for equal allocation).
-  const ncp = Math.abs(h) * Math.sqrt(n);
-  if (tail === 1) return 1 - pnorm(qnorm(1 - alpha) - ncp);
-  const zCrit = qnorm(1 - alpha/2);
-  return 1 - pnorm(zCrit - ncp) + pnorm(-zCrit - ncp);
-}
-function powerOneProp(h, n, alpha, tail){
-  if (n < 2 || h === 0) return alpha;
-  const ncp = Math.abs(h) * Math.sqrt(n);
-  if (tail === 1) return 1 - pnorm(qnorm(1 - alpha) - ncp);
-  const zCrit = qnorm(1 - alpha/2);
-  return 1 - pnorm(zCrit - ncp) + pnorm(-zCrit - ncp);
-}
-
-// ============================================================
-// Dispatcher
-// ============================================================
-function powerFn(design, params){
-  const tail = params.tail || 2;
-  switch(design){
-    case 'oneT':       return powerOneSampleT(params.effect, params.n, params.alpha, tail);
-    case 'twoT':       return powerTwoSampleT(params.effect, params.n, params.alpha, tail, params.ratio);
-    case 'paired':     return powerPaired(params.effect, params.n, params.alpha, tail, params.rPaired);
-    case 'oneProp':    return powerOneProp(params.effect, params.n, params.alpha, tail);
-    case 'twoProp':    return powerTwoProp(params.effect, params.n, params.alpha, tail);
-    case 'anova':      return powerAnova(params.effect, params.k, params.n, params.alpha);
-    case 'correlation':return powerCorr(params.effect, params.n, params.alpha, tail);
-    case 'chisq':      return powerChisq(params.effect, params.n, params.df, params.alpha);
-  }
-  return NaN;
-}
-
+const PM = window.PowerMath;
+const cohenH = PM.cohenH;
+const powerFn = PM.power;
+const solveEffect = PM.solveEffect;
+const solveAlpha = PM.solveAlpha;
+let __lastExactN = Infinity;
 function solveN(design, params, target){
-  let lo = 2, hi = 4;
-  let pHi = powerFn(design, {...params, n:hi});
-  while (pHi < target && hi < 1e7){
-    hi *= 2;
-    pHi = powerFn(design, {...params, n:hi});
-  }
-  if (pHi < target) return Infinity;
-  while (hi - lo > 1){
-    const mid = Math.floor((lo + hi) / 2);
-    const p = powerFn(design, {...params, n:mid});
-    if (p < target) lo = mid; else hi = mid;
-  }
-  return hi;
-}
-function solveEffect(design, params, target){
-  let lo = 1e-5, hi = 5;
-  while (powerFn(design, {...params, effect:hi}) < target && hi < 100){ hi *= 2; }
-  if (powerFn(design, {...params, effect:hi}) < target) return Infinity;
-  for (let i = 0; i < 60; i++){
-    const mid = (lo + hi) / 2;
-    const p = powerFn(design, {...params, effect:mid});
-    if (p < target) lo = mid; else hi = mid;
-    if (hi - lo < 1e-5) break;
-  }
-  return (lo + hi) / 2;
-}
-function solveAlpha(design, params, target){
-  // For target power, find alpha that achieves it. Bisection on alpha in (1e-6, 0.5).
-  let lo = 1e-6, hi = 0.5;
-  for (let i = 0; i < 60; i++){
-    const mid = (lo + hi) / 2;
-    const p = powerFn(design, {...params, alpha:mid});
-    if (p < target) lo = mid; else hi = mid;
-    if (hi - lo < 1e-7) break;
-  }
-  return (lo + hi) / 2;
-}
-
-// ============================================================
-// Cohen's h helper for proportions
-// ============================================================
-function cohenH(p1, p2){
-  return 2 * (Math.asin(Math.sqrt(p1)) - Math.asin(Math.sqrt(p2)));
+  const nf = PM.solveN(design, params, target);
+  __lastExactN = nf;
+  return isFinite(nf) ? Math.ceil(nf - 1e-9) : Infinity;
 }
 
 // ============================================================
@@ -1459,7 +1187,7 @@ function recompute(){
       n = N;
       primaryLabel = (d === 'twoT' || d === 'twoProp' || d === 'anova') ? 'n PER GROUP' : (d === 'paired' ? 'PAIRS' : 'SAMPLE SIZE n');
       primaryDisplay = isFinite(N) ? `n = ${fmtN(N)}` : 'n = ∞';
-      auxFormula = isFinite(N) ? `smallest integer where power ≥ ${fmt(power,2)}` : 'target unreachable for these parameters';
+      auxFormula = isFinite(N) ? `smallest integer where power ≥ ${fmt(power,2)} (exact ${fmt(__lastExactN,1)}, rounded up)` : 'target unreachable for these parameters';
     } else if (solveFor === 'power'){
       const p = powerFn(d, baseParams);
       solvedValue = p;
@@ -1863,15 +1591,25 @@ function copyCode(){
   if (!txt) return;
   navigator.clipboard.writeText(txt);
   toast('R code copied');
+  try { if (window.gtag) gtag('event','tool_copy',{tool:'power-analysis',what:'rcode'}); } catch(e){}
 }
 function toast(msg){
   const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
   $('toast-area').appendChild(t); setTimeout(()=>t.remove(),3200);
 }
 
+// GA: fire tool_use once per session on the first genuine interaction.
+let _usedOnce = false;
+function markToolUse(){
+  if (_usedOnce) return; _usedOnce = true;
+  try { if (window.gtag) gtag('event','tool_use',{tool:'power-analysis'}); } catch(e){}
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   if (localStorage.getItem('rstat_dark') === '1') document.documentElement.classList.add('dark');
   loadScenario('ttest');
+  const shell = document.querySelector('.shell');
+  if (shell){ ['input','click','change'].forEach(ev => shell.addEventListener(ev, markToolUse, {passive:true})); }
 });
 
 window.runSmokeTests = function(){
@@ -1901,7 +1639,41 @@ window.runSmokeTests = function(){
 </script>
 </main></div><script src="/www/toc.min.js?h=e94467e3"></script><script src="/www/r-syntax-highlight.js"></script><script>
 (function(){function w(){var t=document.querySelectorAll('.sidebar-tab'),p=document.querySelectorAll('.sidebar-panel');if(!t.length||!p.length)return false;function a(n){t.forEach(function(x){x.classList.toggle('active',x.getAttribute('data-tab')===n)});p.forEach(function(x){x.classList.toggle('active',x.getAttribute('data-panel')===n)})}var tp=location.pathname.indexOf('/tools/')===0;if(tp){a('tools')}else{try{var pin=localStorage.getItem('rstat_sidebar_tab');if(pin==='tools'||pin==='posts')a(pin)}catch(e){}}t.forEach(function(x){if(x.dataset.wired)return;x.dataset.wired='1';x.addEventListener('click',function(){var n=x.getAttribute('data-tab');a(n);try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}})});return true}if(!w()){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',w);else setTimeout(w,50)}})();
-</script>  <!-- Cloudflare Web Analytics (cookieless; no consent required) -->
+</script>  <!-- Google Analytics (gtag.js), consent-mode default denied, deferred to first interaction -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('consent', 'default', {
+      ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+      analytics_storage: 'denied', wait_for_update: 1500
+    });
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+  <script defer src="/www/consent-banner.js?v=2"></script>
+  <!-- Cloudflare Web Analytics (cookieless; no consent required) -->
   <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "edf7e3d50c3e4130a913e7f144643624"}'></script>
 <!-- SITE-FOOTER-V2 -->
 <style>
