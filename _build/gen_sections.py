@@ -30,7 +30,8 @@ FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n'
          '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
          '<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700'
          '&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500'
-         '&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">')
+         '&family=IBM+Plex+Mono:wght@400;500'
+         '&family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">')
 
 # Set html.js (gates reveal) + html.dark from saved theme, before paint (no FOUC).
 FOUC = ("<script>(function(){var c='js';try{if(localStorage.getItem('theme')==='dark')"
@@ -68,37 +69,44 @@ def _esc(s):
 
 
 def render_masthead(active):
+    """Canonical sitewide navbar (owner rule 2026-07-12): the exact /roadmap/
+    .nav design via www/site-nav.css (.sitenav). Mobile drawer + active-link
+    marking come from www/site-nav.js ([data-snav-burger])."""
     links = []
     for label, href, key in NAV:
+        if key == 'certification':
+            continue  # canonical navbar carries the 4 roadmap links only
         cls = ' class="on"' if key == active else ''
-        links.append(f'      <a href="{href}"{cls}>{label}</a>')
+        caret = ' <span class="ex-caret" aria-hidden="true">&#9662;</span>' if key == 'exercises' else ''
+        links.append(f'      <a href="{href}"{cls}>{label}{caret}</a>')
     nav = '\n'.join(links)
-    return f'''<header class="masthead">
-  <div class="wrap">
-    <a class="wordmark" href="/"><span class="mark">R</span>r-statistics<span class="co">.co</span></a>
-    <nav class="nav" id="navmenu">
+    burger_svg = ('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                  'stroke-width="2" stroke-linecap="round" aria-hidden="true">'
+                  '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/>'
+                  '<line x1="3" y1="18" x2="21" y2="18"/></svg>')
+    return f'''<nav class="sitenav" aria-label="Site">
+  <div class="snav-wrap">
+    <button data-snav-burger class="snav-burger" type="button" aria-label="Menu">{burger_svg}</button>
+    <a class="snav-brand" href="/"><span class="brand-mark">R</span><span>r&#8209;statistics<span class="co">.co</span></span></a>
+    <div class="snav-links">
 {nav}
-      <div class="nav-cta">
-        <a class="btn-pro" href="/pricing.html"><svg class="ic"><use href="#i-spark"/></svg> Get certified</a>
-        <span class="auth-anon"><a class="masthead-auth-link" href="/signin.html">Sign in</a></span>
-      </div>
-    </nav>
-    <div class="mh-right">
-      <a class="btn-pro mh-pro" href="/pricing.html"><svg class="ic"><use href="#i-spark"/></svg> Get certified</a>
-      <button class="iconbtn" id="darkBtn" onclick="toggleDark()" aria-label="Toggle dark mode" type="button">&#9789;</button>
-      <span class="auth-anon mh-signin"><a class="masthead-auth-link" href="/signin.html">Sign in</a></span>
+    </div>
+    <div class="snav-right">
+      <a class="snav-btn" href="/pricing.html">Get certified <span class="a">&rarr;</span></a>
+      <span class="auth-anon"><a href="/signin.html" class="masthead-auth-link">Sign in</a></span>
       <span class="auth-user"></span>
-      <button class="iconbtn mh-burger" id="burgerBtn" onclick="toggleNav()" aria-label="Open menu" aria-expanded="false" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
     </div>
   </div>
-</header>'''
+</nav>'''
 
 
 def render_scripts(page_js=None):
     parts = [ANALYTICS,
-             '  <script defer src="/www/auth-hydrate.js?v=10"></script>',
+             '  <script defer src="/www/auth-hydrate.js?v=11"></script>',
              '  <script defer src="/www/sections-v3.js?v=2"></script>',
-             '  <script defer src="/www/signin-nudge.js?v=10"></script>']
+             '  <script defer src="/www/site-nav.js?v=1"></script>',
+             '  <script defer src="/www/practice-nav.js?v=8"></script>',
+             '  <script defer src="/www/signin-nudge.js?v=16"></script>']
     for src in (page_js or []):
         parts.append(f'  <script defer src="{src}"></script>')
     return '\n'.join(parts)
@@ -139,6 +147,8 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 {FOUC}
 {FONTS}
 <link rel="stylesheet" href="/www/sections-v3.css?v=3">
+<link rel="stylesheet" href="/www/site-nav.css?v=1">
+<style>html,body{{overflow-x:clip;max-width:100vw}}</style>
 <style>
 {page_css}
 </style>
@@ -153,6 +163,12 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 </html>
 '''
     footer = open(os.path.join(REPO_ROOT, '_build', 'site_footer.html'), encoding='utf-8').read()
+    footer = footer.replace(
+        '<span>&copy; 2016-2026 r-statistics.co</span>',
+        '<span>&copy; 2016-2026 r-statistics.co</span>\n    '
+        '<button id="darkBtn" onclick="toggleDark()" type="button" aria-label="Toggle dark mode" title="Toggle dark mode" '
+        'style="background:none;border:1px solid rgba(255,255,255,.18);border-radius:6px;width:28px;height:28px;'
+        'color:#aeb9d4;cursor:pointer;font-size:13px;line-height:1">&#9789;</button>', 1)
     page = head.replace('</body>', footer + '</body>', 1)
     out = os.path.join(REPO_ROOT, *out_relpath.split('/'))
     os.makedirs(os.path.dirname(out), exist_ok=True)
