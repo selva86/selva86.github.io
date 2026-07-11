@@ -112,7 +112,7 @@ window.XN_HUBS=[
   }
 
   function init(){
-    var link = document.querySelector('.masthead-nav-link[href="/exercises/"]') || document.querySelector('.nav a[href="/exercises/"]');
+    var link = document.querySelector('.sitenav .snav-links a[href="/exercises/"]') || document.querySelector('.masthead-nav-link[href="/exercises/"]') || document.querySelector('.nav a[href="/exercises/"]');
     if (!link || link.closest('.xn-wrap')) return;
 
     if (!document.querySelector('link[data-xn-css]')){

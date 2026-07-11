@@ -473,21 +473,26 @@
   }
   window.addEventListener('scroll', onScroll, { passive: true });
 
-  // 2-opened-lessons trigger: a reader who has already opened >=2 lessons is
-  // clearly engaged (and about to lose that progress) - nudge right away instead
-  // of waiting for the scroll/time engagement trigger. show() still self-guards
-  // against signed-in users and a prior dismissal.
+  // Centered-modal trigger, retuned 2026-07-12 (owner: it fired the moment a
+  // visitor clicked ANY link once 2 lifetime pages were visited - GA engagement
+  // dropped). New rule: only from the 3rd page of THIS SESSION onwards, and only
+  // after a 10s dwell so it never lands the instant a page paints. Lifetime
+  // >=2 opened pages still required (proves there is progress worth saving).
+  // Once per session; dismissal still backs off 30 days (DISMISS_KEY gate at top).
   (function () {
     try {
+      var pv = 0;
+      try {
+        pv = parseInt(sessionStorage.getItem('rs-nudge-pv') || '0', 10) + 1;
+        sessionStorage.setItem('rs-nudge-pv', String(pv));
+      } catch (_) {}
       var v = JSON.parse(localStorage.getItem('rstat_visited') || '{}');
       var s = JSON.parse(localStorage.getItem('rstat_started') || '{}');
       var n = Object.keys(v).length;
       for (var k in s) { if (!v[k]) n++; }
-      // >=2 lessons opened -> a prominent centered modal, but only once per
-      // session (so it does not reappear on every page nav; dismissal = 30 days).
-      if (n >= 2 && !sessionStorage.getItem('rs-nudge-center-seen')) {
+      if (pv >= 3 && n >= 2 && !sessionStorage.getItem('rs-nudge-center-seen')) {
         try { sessionStorage.setItem('rs-nudge-center-seen', '1'); } catch (_) {}
-        show(true);
+        setTimeout(function () { show(true); }, 10000);
       }
     } catch (e) {}
   })();

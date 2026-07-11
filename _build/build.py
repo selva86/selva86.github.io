@@ -2597,7 +2597,7 @@ def patch_tool_pages(sections, asset_hrefs):
         'body.tools-rail .rail-fold{justify-content:center;padding:2px 0 10px}'
         'body.tools-rail .rail-fold .rf-a{display:none}'
         'body.tools-rail .rail-fold .rf-b{display:inline}'
-        '.sidebar-toggle{display:none}'
+        '.sitenav .snav-burger.sidebar-toggle{display:none}'
         '.sidebar-backdrop{display:none}'
         # Collapse-to-icon-rail (desktop): body.tools-rail shrinks the sidebar
         # column to an icon strip so the live tool gets the width. Toggled by
@@ -2647,11 +2647,11 @@ def patch_tool_pages(sections, asset_hrefs):
         '.sidebar-backdrop{position:fixed;inset:0;background:rgba(13,17,23,0.42);'
         'z-index:999;opacity:0;pointer-events:none;transition:opacity .22s}'
         'body.sidebar-open .sidebar-backdrop{display:block;opacity:1;pointer-events:auto}'
-        '.sidebar-toggle{display:inline-flex;align-items:center;justify-content:center;'
-        'width:40px;height:40px;background:transparent;border:none;cursor:pointer;'
-        'color:#0d1117;padding:0;margin-right:8px;border-radius:6px}'
-        '.sidebar-toggle:hover{background:rgba(13,17,23,0.06)}'
-        '.sidebar-toggle svg{display:block}'
+        '.sitenav .snav-burger.sidebar-toggle{display:inline-flex;align-items:center;justify-content:center;'
+        'width:38px;height:38px;background:none;border:1px solid #e7e5dd;cursor:pointer;'
+        'color:#14161b;padding:0;border-radius:10px}'
+        '.sitenav .snav-burger.sidebar-toggle:hover{background:#f0eee7}'
+        '.sitenav .snav-burger.sidebar-toggle svg{display:block}'
         '.sidebar-close{position:absolute;top:14px;right:14px;width:36px;height:36px;'
         'border-radius:50%;background:transparent;border:none;cursor:pointer;'
         'color:#0d1117;font-size:22px;line-height:1;padding:0;display:inline-flex;'
@@ -2670,41 +2670,42 @@ def patch_tool_pages(sections, asset_hrefs):
         '<line x1="3" y1="18" x2="21" y2="18"/>'
         '</svg>'
     )
+    # Canonical sitewide navbar (owner rule 2026-07-12): exact /roadmap/ .nav
+    # design via www/site-nav.css (.sitenav). Kept inside <header
+    # class="site-masthead"> so the refresh path's site_masthead_re keeps
+    # matching pages injected under the old markup; the header tag itself is
+    # unstyled (all styling lives on .sitenav).
     masthead_html = (
         '<header class="site-masthead">'
-        '<div class="site-masthead-inner">'
+        '<nav class="sitenav" aria-label="Site">'
+        '<div class="snav-wrap">'
         # Toggle handler: also relocates the drawer + backdrop to direct body
         # children on first open so any ancestor transform/filter (which
         # creates a containing block and breaks position:fixed) can't trap
         # the drawer inside .tool-chrome.
-        '<button class="sidebar-toggle" type="button" aria-label="Open sidebar" '
+        '<button class="snav-burger sidebar-toggle" type="button" aria-label="Open sidebar" '
         'onclick="(function(b){var d=document.querySelector(\'.tool-chrome-side\'),k=document.querySelector(\'.sidebar-backdrop\');'
         'if(d&&d.parentNode!==b)b.appendChild(d);if(k&&k.parentNode!==b)b.appendChild(k);'
         'b.classList.toggle(\'sidebar-open\')})(document.body)">' + hamburger_svg + '</button>'
-        # Desktop icon-rail toggle: collapse the tools sidebar to icons only.
-        ''
+        # Desktop icon-rail state restore (collapse survives reloads).
         '<script>try{if(localStorage.getItem(\'rsc-tools-rail\')===\'1\')document.body.classList.add(\'tools-rail\')}catch(e){}</script>'
-        '<a class="masthead-wordmark" href="/">'
-        '<span class="masthead-mark">R</span>'
-        '<span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>'
-        '</a>'
-        # Unified site nav (matches /roadmap/ and the tutorial template).
+        '<a class="snav-brand" href="/"><span class="brand-mark">R</span>'
+        '<span>r&#8209;statistics<span class="co">.co</span></span></a>'
         # The Exercises item carries a markup caret glyph; practice-nav.js
         # upgrades it into the Practice mega-dropdown.
-        '<nav class="masthead-nav">'
-        '<a class="masthead-nav-link" href="/roadmap/">Roadmap</a>'
-        '<a class="masthead-nav-link" href="/tutorials/">Tutorials</a>'
-        '<a class="masthead-nav-link" href="/exercises/">Exercises '
+        '<div class="snav-links">'
+        '<a href="/roadmap/">Roadmap</a>'
+        '<a href="/tutorials/">Tutorials</a>'
+        '<a href="/exercises/">Exercises '
         '<span class="ex-caret" aria-hidden="true">&#9662;</span></a>'
-        '<a class="masthead-nav-link" href="/tools/">Tools</a>'
-        '</nav>'
-        '<div class="masthead-tools">'
-        '<form onsubmit="window.open(\'https://google.com/search?q=\'+document.getElementById(\'tool-search\').value+\'%20site:r-statistics.co\');return false" class="masthead-search">'
-        '<input type="text" id="tool-search" placeholder="Search…" aria-label="Search r-statistics.co">'
-        '</form>'
-        '<a class="masthead-cta" href="/pricing.html">Get certified</a>'
+        '<a href="/tools/" class="on">Tools</a>'
         '</div>'
-        '</div></header>'
+        '<div class="snav-right">'
+        '<a class="snav-btn" href="/pricing.html">Get certified <span class="a">&rarr;</span></a>'
+        '<span class="auth-anon"><a href="/signin.html" class="masthead-auth-link">Sign in</a></span>'
+        '<span class="auth-user"></span>'
+        '</div>'
+        '</div></nav></header>'
     )
 
     masthead_re = re.compile(
@@ -2750,10 +2751,26 @@ def patch_tool_pages(sections, asset_hrefs):
         # Inject the Exercises mega-dropdown script (upgrades the /exercises/
         # nav link) if not already present. Bump the ?v when practice-nav
         # changes so existing tools re-fetch it.
+        # Keep the practice-nav version current on already-injected tools.
+        new_html = re.sub(r'practice-nav\.js\?v=\d+', 'practice-nav.js?v=8', new_html)
         if 'practice-nav.js' not in new_html:
             new_html = re.sub(
                 r'</body>',
-                '<script defer src="/www/practice-nav.js?v=7"></script></body>',
+                '<script defer src="/www/practice-nav.js?v=8"></script></body>',
+                new_html, count=1, flags=re.IGNORECASE,
+            )
+        # Canonical navbar CSS + auth hydration for tools injected before the
+        # sitenav era (the masthead block itself is re-substituted below).
+        if 'site-nav.css' not in new_html:
+            new_html = re.sub(
+                r'</head>',
+                '<link rel="stylesheet" href="/www/site-nav.css?v=1"></head>',
+                new_html, count=1, flags=re.IGNORECASE,
+            )
+        if 'auth-hydrate.js' not in new_html:
+            new_html = re.sub(
+                r'</body>',
+                '<script defer src="/www/auth-hydrate.js?v=11"></script></body>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         # Refresh the chrome layout CSS so mobile-drawer rules land on tools
@@ -2844,7 +2861,7 @@ def patch_tool_pages(sections, asset_hrefs):
         m = first_style_re.search(html)
         if m:
             html = html[:m.start()] + f'<link rel="stylesheet" href="/{main_css_href}">\n' + html[m.start():]
-        html = head_close_re.sub(layout_css + '\n</head>', html, count=1)
+        html = head_close_re.sub(layout_css + '<link rel="stylesheet" href="/www/site-nav.css?v=1">\n</head>', html, count=1)
 
         # 2. Strip the tool's bespoke masthead.
         html = masthead_re.sub('', html, count=1)
@@ -2891,7 +2908,9 @@ def patch_tool_pages(sections, asset_hrefs):
             f'<script src="/{toc_js_href}"></script>'
             f'<script src="/www/r-syntax-highlight.js"></script>'
             # Exercises mega-dropdown (upgrades the /exercises/ nav link).
-            f'<script defer src="/www/practice-nav.js?v=7"></script>'
+            f'<script defer src="/www/practice-nav.js?v=8"></script>'
+            # Auth state (body.state-anon/.state-pro) + avatar dropdown.
+            f'<script defer src="/www/auth-hydrate.js?v=11"></script>'
         )
         # Add the shared site footer once (skip if already present, e.g. the
         # tools landing page already gets it from gen_tools_landing).
