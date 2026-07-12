@@ -62,8 +62,8 @@
     "Jarque-Bera (skew + kurtosis)",
     "Q-Q plot diagnostic"
   ],
-  "dateModified": "2026-05-02",
-  "softwareVersion": "2.0",
+  "dateModified": "2026-07-13",
+  "softwareVersion": "2.1",
   "keywords": ["normality test", "Shapiro-Wilk", "Kolmogorov-Smirnov", "Anderson-Darling", "Q-Q plot", "skewness", "kurtosis"],
   "educationalLevel": "intermediate",
   "audience": {"@type": "EducationalAudience", "educationalRole": "data scientist"}
@@ -946,7 +946,7 @@ sample order stats vs. &Phi;&#8315;&sup1;((i &minus; 0.5)/n)
       <li>The Shapiro-Wilk test, intuitively - why it has such good small-n power.</li>
       <li><a href="confidence-interval-calculator.html">Confidence Interval Calculator</a> - the next step once you've checked normality.</li>
     </ul>
-    <p class="numerical-accuracy-note" style="margin:18px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5">Numerical accuracy: &Phi;(z) accurate to ~7.5 &times; 10&#8315;&#8312; (Hart's algorithm); Shapiro-Wilk via Royston AS R94; Anderson-Darling via Stephens (1986); Lilliefors p via Dallal-Wilkinson (1986).</p>
+    <p class="numerical-accuracy-note" style="margin:18px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5">Numerical accuracy: every statistic and p-value is verified against R 4.6.0 to better than 1 part in a million. Shapiro-Wilk matches <code>stats::shapiro.test</code> (Royston AS R94), Anderson-Darling matches <code>nortest::ad.test</code>, Lilliefors matches <code>nortest::lillie.test</code> (Dallal-Wilkinson with the Molin-Abdi p-value), and Jarque-Bera matches <code>tseries::jarque.bera.test</code>.</p>
   </div>
 
   </div><!-- /.shell -->
@@ -955,6 +955,8 @@ sample order stats vs. &Phi;&#8315;&sup1;((i &minus; 0.5)/n)
 
 <div class="toast-area" id="toast-area"></div>
 
+<script src="/tools/lib/normal-math.js"></script>
+<script src="/tools/lib/normality-math.js"></script>
 <script>
 function $(id){ return document.getElementById(id); }
 function fmt(x, d){ d = d ?? 4; if (!isFinite(x)) return '-'; return Number(x).toFixed(d).replace(/\.?0+$/,''); }
@@ -963,234 +965,30 @@ function fmtViz(x, d){ d = d ?? 3; if (!isFinite(x)) return '-'; return Number(x
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // ============================================================
-// Distributions
+// Distributions + tests: delegated to the R-verified libraries
+// tools/lib/normal-math.js + tools/lib/normality-math.js
+// (verified vs R 4.6.0 - see Scripts/tool-truth/normality-test-picker.json).
 // ============================================================
-function pnorm(z){
-  if (z < -38) return 0;
-  if (z > 38) return 1;
-  const t = 1/(1 + 0.2316419 * Math.abs(z));
-  const d = 0.3989422804014327 * Math.exp(-z*z/2);
-  let p = d * t * (0.319381530 + t*(-0.356563782 + t*(1.781477937 + t*(-1.821255978 + t*1.330274429))));
-  return z > 0 ? 1 - p : p;
-}
+const NMATH = window.NormalityMath;
+function pnorm(z){ return NMATH.pnorm(z); }
+function qnorm(p){ return NMATH.qnorm(p); }
 function dnorm(z){ return 0.3989422804014327 * Math.exp(-z*z/2); }
-function qnorm(p){
-  if (p <= 0) return -Infinity;
-  if (p >= 1) return Infinity;
-  const q = p - 0.5;
-  let r;
-  if (Math.abs(q) <= 0.425){
-    r = q*q;
-    return q * (((((((2509.0809287301226727*r + 33430.57558358813)*r + 67265.7709270087)*r + 45921.95393154987)*r + 13731.69376550946)*r + 1971.5909503065514)*r + 133.14166789178437)*r + 3.387132872796366) /
-               (((((((5226.495278852854561*r + 28729.085735721942)*r + 39307.89580009271)*r + 21213.794301586596)*r + 5394.196021424751)*r + 687.1870074920579)*r + 42.31333070160091)*r + 1);
-  }
-  r = q < 0 ? p : 1-p;
-  r = Math.sqrt(-Math.log(r));
-  let val;
-  if (r <= 5){
-    r -= 1.6;
-    val = (((((((0.000774545014278341407640*r + 0.0227238449892691845833)*r + 0.241780725177450611770)*r + 1.27045825245236838258)*r + 3.64784832476320460504)*r + 5.76949722146069140550)*r + 4.63033784615654529590)*r + 1.42343711074968357734) /
-          (((((((1.05075007164441684324e-9*r + 0.000547593808499534494600)*r + 0.0151986665636164571966)*r + 0.148103976427480074590)*r + 0.689767334985100004550)*r + 1.67638483018380384940)*r + 2.05319162663775882187)*r + 1);
-  } else {
-    r -= 5;
-    val = (((((((2.01033439929228813265e-7*r + 0.0000271155556874348757815)*r + 0.00124266094738807843860)*r + 0.0265321895265761230930)*r + 0.296560571828504891230)*r + 1.78482653991729133580)*r + 5.46378491116411436990)*r + 6.65790464350110377720) /
-          (((((((2.04426310338993978564e-15*r + 1.4215117583164458887e-7)*r + 1.8463183175100546818e-5)*r + 0.000786869131145613259100)*r + 0.0148753612908506148525)*r + 0.136929880922735805310)*r + 0.599832206555887937690)*r + 1);
-  }
-  return q < 0 ? -val : val;
-}
-function logGamma(z){
-  if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
-  const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313,
-             -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
-  z -= 1;
-  let x = c[0];
-  for (let i = 1; i < 9; i++) x += c[i] / (z + i);
-  const t = z + 7.5;
-  return 0.5*Math.log(2*Math.PI) + (z+0.5)*Math.log(t) - t + Math.log(x);
-}
-function gammaSeries(a, x){
-  if (x <= 0) return 0;
-  let term = 1/a, sum = term;
-  for (let n = 1; n < 200; n++){ term *= x/(a+n); sum += term; if (Math.abs(term) < Math.abs(sum)*1e-13) break; }
-  return sum * Math.exp(-x + a*Math.log(x) - logGamma(a));
-}
-function gammaCF(a, x){
-  let b = x+1-a, c = 1e30, d = 1/b, h = d;
-  for (let i = 1; i < 200; i++){
-    const an = -i*(i-a);
-    b += 2;
-    d = an*d + b; if (Math.abs(d) < 1e-30) d = 1e-30;
-    c = b + an/c; if (Math.abs(c) < 1e-30) c = 1e-30;
-    d = 1/d;
-    const del = d*c;
-    h *= del;
-    if (Math.abs(del-1) < 1e-13) break;
-  }
-  return h * Math.exp(-x + a*Math.log(x) - logGamma(a));
-}
-function chiSqUpper(x, df){
-  if (x <= 0) return 1;
-  const a = df/2, xx = x/2;
-  if (xx < a + 1) return 1 - gammaSeries(a, xx);
-  return gammaCF(a, xx);
-}
+function chiSqUpper(x, df){ return NMATH.chiSqUpper(x, df); }
 
 // ============================================================
 // Parse pasted data
 // ============================================================
-function parseData(text){
-  if (!text) return [];
-  let cleaned = text;
-  let prev;
-  do {
-    prev = cleaned;
-    cleaned = cleaned.replace(/(\d),(\d{3})(?=\D|$)/g, '$1$2');
-  } while (cleaned !== prev);
-  const tokens = cleaned.split(/[\s,;]+/).filter(t => t.length > 0);
-  const out = [];
-  for (const t of tokens){
-    const v = parseFloat(t);
-    if (isFinite(v)) out.push(v);
-  }
-  return out;
-}
+function parseData(text){ return NMATH.parseData(text); }
 
 // ============================================================
 // Test math (reused)
 // ============================================================
-function shapiroWilk(x){
-  const n = x.length;
-  if (n < 3 || n > 5000) return null;
-  const sorted = [...x].sort((a,b)=>a-b);
-  const mean = sorted.reduce((a,b)=>a+b,0)/n;
-  const ss = sorted.reduce((s,v)=>s + (v-mean)*(v-mean), 0);
-  if (ss === 0) return null;
-  const m = new Array(n);
-  for (let i = 0; i < n; i++){ m[i] = qnorm(((i+1) - 3/8)/(n + 1/4)); }
-  const m2 = m.reduce((s,v)=>s+v*v, 0);
-  const sqrtM2 = Math.sqrt(m2);
-  let a = new Array(n);
-  if (n === 3){
-    a[0] = -Math.SQRT1_2; a[1] = 0; a[2] = Math.SQRT1_2;
-  } else {
-    const cn = m[n-1] / sqrtM2;
-    const cnm1 = m[n-2] / sqrtM2;
-    const an = -2.706056*Math.pow(cn,5) + 4.434685*Math.pow(cn,4) - 2.071190*Math.pow(cn,3) - 0.147981*cn*cn + 0.221157*cn + cn;
-    let anm1, phi;
-    if (n === 4){
-      const cd = Math.sqrt(2*m2 - 2*m[n-1]*m[n-1]) / Math.sqrt(1 - 2*an*an);
-      anm1 = m[n-2]/cd;
-      a[n-1] = an; a[n-2] = anm1; a[1] = -anm1; a[0] = -an;
-    } else {
-      anm1 = -3.582633*Math.pow(cnm1,5) + 5.682633*Math.pow(cnm1,4) - 1.752460*Math.pow(cnm1,3) - 0.293762*cnm1*cnm1 + 0.042981*cnm1 + cnm1;
-      phi = (m2 - 2*m[n-1]*m[n-1] - 2*m[n-2]*m[n-2]) / (1 - 2*an*an - 2*anm1*anm1);
-      const sqrtPhi = Math.sqrt(phi);
-      a[n-1] = an; a[n-2] = anm1; a[0] = -an; a[1] = -anm1;
-      for (let i = 2; i < n-2; i++){ a[i] = m[i] / sqrtPhi; }
-    }
-  }
-  let num = 0;
-  for (let i = 0; i < n; i++) num += a[i] * sorted[i];
-  num = num*num;
-  const W = num / ss;
-  let pval;
-  if (W >= 1) pval = 1;
-  else if (n < 4) pval = NaN;
-  else if (n <= 11){
-    const gamma = -2.273 + 0.459*n;
-    const mu = 0.5440 - 0.39978*n + 0.025054*n*n - 0.0006714*Math.pow(n,3);
-    const sigma = Math.exp(1.3822 - 0.77857*n + 0.062767*n*n - 0.0020322*Math.pow(n,3));
-    const arg = gamma - Math.log(1 - W);
-    if (arg <= 0) pval = 1;
-    else { const z = (Math.log(arg) - mu) / sigma; pval = 1 - pnorm(z); }
-  } else {
-    const lnN = Math.log(n);
-    const mu = 0.0038915*Math.pow(lnN,3) - 0.083751*lnN*lnN - 0.31082*lnN - 1.5861;
-    const sigma = Math.exp(0.0030302*lnN*lnN - 0.082676*lnN - 0.4803);
-    const z = (Math.log(1 - W) - mu) / sigma;
-    pval = 1 - pnorm(z);
-  }
-  return {W, p:pval};
-}
+function shapiroWilk(x){ return NMATH.shapiroWilk(x); }
+function andersonDarling(x){ return NMATH.andersonDarling(x); }
+function jarqueBera(x){ return NMATH.jarqueBera(x); }
+function lilliefors(x){ return NMATH.lilliefors(x); }
 
-function andersonDarling(x){
-  const n = x.length;
-  if (n < 5) return null;
-  const sorted = [...x].sort((a,b)=>a-b);
-  const mean = sorted.reduce((a,b)=>a+b,0)/n;
-  const var_ = sorted.reduce((s,v)=>s+(v-mean)*(v-mean), 0)/(n-1);
-  const sd = Math.sqrt(var_);
-  if (sd === 0) return null;
-  let A2 = 0;
-  for (let i = 0; i < n; i++){
-    const z1 = (sorted[i] - mean)/sd;
-    const z2 = (sorted[n-1-i] - mean)/sd;
-    const F1 = pnorm(z1), F2 = pnorm(z2);
-    if (F1 <= 0 || F2 >= 1) return {A2:Infinity, p:0};
-    A2 += (2*(i+1) - 1) * (Math.log(F1) + Math.log(1 - F2));
-  }
-  A2 = -n - A2/n;
-  const A2star = A2 * (1 + 0.75/n + 2.25/(n*n));
-  let p;
-  if (A2star < 0.2)      p = 1 - Math.exp(-13.436 + 101.14*A2star - 223.73*A2star*A2star);
-  else if (A2star < 0.34) p = 1 - Math.exp(-8.318 + 42.796*A2star - 59.938*A2star*A2star);
-  else if (A2star < 0.6)  p = Math.exp(0.9177 - 4.279*A2star - 1.38*A2star*A2star);
-  else                    p = Math.exp(1.2937 - 5.709*A2star + 0.0186*A2star*A2star);
-  p = Math.max(0, Math.min(1, p));
-  return {A2:A2star, p};
-}
-
-function jarqueBera(x){
-  const n = x.length;
-  if (n < 4) return null;
-  const mean = x.reduce((a,b)=>a+b,0)/n;
-  let m2 = 0, m3 = 0, m4 = 0;
-  for (const v of x){ const d = v - mean; m2 += d*d; m3 += d*d*d; m4 += d*d*d*d; }
-  m2 /= n; m3 /= n; m4 /= n;
-  if (m2 === 0) return null;
-  const skew = m3 / Math.pow(m2, 1.5);
-  const kurt = m4 / (m2*m2);
-  const JB = (n/6) * (skew*skew + Math.pow(kurt - 3, 2)/4);
-  const p = chiSqUpper(JB, 2);
-  return {JB, skew, exKurt:kurt-3, p};
-}
-
-function lilliefors(x){
-  const n = x.length;
-  if (n < 4) return null;
-  const sorted = [...x].sort((a,b)=>a-b);
-  const mean = sorted.reduce((a,b)=>a+b,0)/n;
-  const var_ = sorted.reduce((s,v)=>s+(v-mean)*(v-mean), 0)/(n-1);
-  const sd = Math.sqrt(var_);
-  if (sd === 0) return null;
-  let D = 0;
-  for (let i = 0; i < n; i++){
-    const z = (sorted[i] - mean)/sd;
-    const F = pnorm(z);
-    const Fn1 = (i+1)/n, Fn0 = i/n;
-    D = Math.max(D, Math.abs(Fn1 - F), Math.abs(F - Fn0));
-  }
-  const Kd = D * (Math.sqrt(n) - 0.01 + 0.85/Math.sqrt(n));
-  let p;
-  if (Kd < 0.4) p = 1;
-  else if (Kd >= 1.5) p = 0;
-  else if (Kd >= 0.775) p = Math.exp(-7.01256*Kd*Kd + 2.78019*Kd - 1.74724);
-  else                  p = Math.exp(-7.90107*Kd*Kd + 5.59533*Kd - 2.16762);
-  p = Math.max(0, Math.min(1, p));
-  return {D, p};
-}
-
-function summaryStats(x){
-  const n = x.length;
-  const mean = x.reduce((a,b)=>a+b,0)/n;
-  let m2=0,m3=0,m4=0;
-  for (const v of x){ const d=v-mean; m2+=d*d; m3+=d*d*d; m4+=d*d*d*d; }
-  m2/=n; m3/=n; m4/=n;
-  const sd = Math.sqrt(m2 * n/(n-1));
-  const skew = m2 > 0 ? m3 / Math.pow(m2,1.5) : 0;
-  const exKurt = m2 > 0 ? m4/(m2*m2) - 3 : 0;
-  return {n, mean, sd, skew, exKurt};
-}
+function summaryStats(x){ return NMATH.summaryStats(x); }
 
 // ============================================================
 // Tests metadata + state
@@ -1405,7 +1203,7 @@ function recompute(){
     $('result-bounds').innerHTML = `<span>p = ${p < 1e-4 ? fmtSci(p) : fmt(p,4)}</span><span class="ci-sep">&rarr;</span><span style="font-size:0.7em;color:${reject?'var(--c-danger)':'var(--c-success)'}">${reject?'reject':'do not reject'} at &alpha; = ${alpha}</span>`;
     let auxBits = [`n = <b>${n}</b>`];
     if (activeTest === 'sw')      auxBits.push(`W = <b>${fmt(res.W,5)}</b>`);
-    else if (activeTest === 'ad') auxBits.push(`A&sup2;* = <b>${fmt(res.A2,4)}</b>`);
+    else if (activeTest === 'ad') auxBits.push(`A&sup2; = <b>${fmt(res.A2,4)}</b>`);
     else if (activeTest === 'lillie') auxBits.push(`D = <b>${fmt(res.D,5)}</b>`);
     else if (activeTest === 'jb') { auxBits.push(`JB = <b>${fmt(res.JB,4)}</b>`); auxBits.push(`skew = <b>${fmt(res.skew,3)}</b>`); auxBits.push(`ex.kurt = <b>${fmt(res.exKurt,3)}</b>`); }
     auxBits.push(`p = <b>${p < 1e-4 ? fmtSci(p) : fmt(p,5)}</b>`);
