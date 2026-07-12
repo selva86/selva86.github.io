@@ -58,7 +58,7 @@
   "featureList": [
     "Bootstrap CI for the mean / median / SD / IQR / quantile",
     "Custom statistic via user-supplied function",
-    "Percentile, basic, and BCa methods",
+    "Normal, percentile, basic, and BCa methods",
     "Bias and SE estimates",
     "Histogram of the bootstrap distribution",
     "Reproducible boot::boot() R code with seed"
@@ -100,7 +100,7 @@
       "name": "What is the difference between percentile, BCa, and basic bootstrap intervals?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Percentile uses the 2.5th and 97.5th quantiles of bootstrap replicates, simple but biased for skewed statistics. BCa (bias-corrected and accelerated) adjusts for both bias and skew and is the preferred default. Basic bootstrap reflects percentiles around the original estimate. The calculator shows all three so you can compare."
+        "text": "Percentile uses the 2.5th and 97.5th quantiles of bootstrap replicates, simple but biased for skewed statistics. BCa (bias-corrected and accelerated) adjusts for both bias and skew and is the preferred default. Basic (reverse percentile) reflects the percentiles around the original estimate. Normal uses the bootstrap standard error with a bias correction. The calculator shows all four side by side so you can compare, and they match R's boot.ci() exactly."
       }
     },
     {
@@ -108,7 +108,7 @@
       "name": "How many bootstrap resamples do I need?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "For confidence intervals, 2,000 resamples is the practical minimum and 10,000 is standard. For p-values via bootstrap hypothesis testing, use at least 10,000. The calculator runs 10,000 by default; results stabilize within ±0.5pp of the true bootstrap distribution."
+        "text": "For confidence intervals, 2,000 resamples is the practical minimum and 10,000 is standard. For BCa or p-values via bootstrap hypothesis testing, use at least 5,000. The calculator runs 2,000 by default and lets you raise B up to 50,000; because it reproduces R's random-number generator exactly, the same seed and B give the same interval every time."
       }
     }
   ]
@@ -312,6 +312,18 @@
   .shell .ws-output .recap-mini-row{display:flex;gap:8px;align-items:baseline;font-family:'IBM Plex Mono',monospace;margin-bottom:3px}
   .shell .ws-output .recap-mini-row .key{color:var(--c-text-mute);min-width:54px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-family:'IBM Plex Sans',sans-serif;font-weight:600;flex-shrink:0}
   .shell .ws-output .recap-mini-row .val{color:var(--c-text);overflow-wrap:anywhere;word-break:break-word;min-width:0}
+
+  /* All-four-intervals comparison table */
+  .shell .ws-output .method-compare{margin:2px 0 18px}
+  .shell .ws-output .method-compare h5{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;color:var(--c-text-mute);margin:0 0 8px}
+  .shell .ws-output .mc-head,.shell .ws-output .mc-row{display:grid;grid-template-columns:1.3fr 1fr 1fr 0.9fr;gap:8px;align-items:baseline;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 6px;border-radius:5px}
+  .shell .ws-output .mc-head{font-family:'IBM Plex Sans',sans-serif;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--c-text-mute)}
+  .shell .ws-output .mc-row .mc-name{font-family:'IBM Plex Sans',sans-serif;font-weight:600;color:var(--c-text-soft)}
+  .shell .ws-output .mc-row.active{background:var(--c-accent-wash,rgba(37,99,120,0.09))}
+  .shell .ws-output .mc-row.active .mc-name{color:var(--c-accent-deep)}
+  .shell .ws-output .mc-val,.shell .ws-output .mc-width{color:var(--c-text);text-align:right;overflow-wrap:anywhere}
+  .shell .ws-output .mc-width{color:var(--c-text-mute)}
+  .shell .ws-output .mc-tag{font-family:'IBM Plex Sans',sans-serif;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--c-accent-deep);background:rgba(37,99,120,0.12);padding:1px 5px;border-radius:99px;vertical-align:middle}
 
   /* Suppress the global "Input"/"Analyse" pseudo-element tab strip from
      main.css - the workshop now uses its own A/B/C column headers, so
@@ -786,7 +798,7 @@
   <div class="breadcrumb"><a href="/">Home</a> <span style="margin:0 6px">&rsaquo;</span> <a href="/tools/">Tools</a> <span style="margin:0 6px">&rsaquo;</span> Bootstrap CI Calculator</div>
 
   <h1 class="tool-title">Bootstrap CI Calculator</h1>
-  <p class="tool-lead">Bootstrapping resamples your data thousands of times to build a confidence interval for any statistic, even ones with no closed-form formula (medians, ratios, custom functions). Paste your numbers, pick a statistic, and get percentile, basic, or BCa intervals across all three methods.</p>
+  <p class="tool-lead">Bootstrapping resamples your data thousands of times to build a confidence interval for any statistic, even ones with no closed-form formula (medians, ratios, custom functions). Paste your numbers, pick a statistic, and get normal, percentile, basic, and BCa intervals side by side, each matching R's boot package exactly.</p>
 
   <details class="primer-dropdown">
     <summary>
@@ -868,7 +880,7 @@
           <li><code>x</code> raw data, one value per line</li>
           <li><code>&theta;</code> statistic to bootstrap</li>
           <li><code>B</code> resample count (default 2000)</li>
-          <li><code>method</code> percentile / basic / BCa</li>
+          <li><code>method</code> normal / percentile / basic / BCa</li>
           <li><code>1-&alpha;</code> confidence level</li>
           <li><code>seed</code> for reproducibility</li>
         </ul>
@@ -899,7 +911,7 @@
       </div>
       <div class="form-row" id="custom-fn-row" style="display:none">
         <label>Custom function <small>JS expression of x[]; must return a single number</small></label>
-        <input type="text" id="custom-fn" value="x.reduce((a,b)= aria-label="Custom statistic function">a+b,0)/x.length" oninput="recompute()">
+        <input type="text" id="custom-fn" value="x.reduce(function(a,b){return a+b},0)/x.length" oninput="recompute()" aria-label="Custom statistic function">
       </div>
       <div class="form-row">
         <label>Resample count B</label>
@@ -910,6 +922,7 @@
       <div class="form-row">
         <label>CI method</label>
         <div class="conf-picker" id="method-picker">
+          <button class="conf-btn" data-method="norm" onclick="setMethod('norm')">Normal</button>
           <button class="conf-btn" data-method="perc" onclick="setMethod('perc')">Percentile</button>
           <button class="conf-btn" data-method="basic" onclick="setMethod('basic')">Basic</button>
           <button class="conf-btn active" data-method="bca" onclick="setMethod('bca')">BCa</button>
@@ -941,6 +954,12 @@
       </div>
 
       <div id="callouts-area"></div>
+
+      <div class="method-compare" id="method-compare">
+        <h5>All four intervals</h5>
+        <div class="mc-head"><span class="mc-name">method</span><span class="mc-val">lower</span><span class="mc-val">upper</span><span class="mc-width">width</span></div>
+        <div class="method-compare-rows" id="method-compare-rows"></div>
+      </div>
 
       <div class="recap-mini" id="recap-mini">
         <h5>Recap</h5>
@@ -1006,12 +1025,17 @@
         <div class="anatomy-formula">x* = sample(x, n, replace=TRUE)
 &theta;* = stat(x*)
 repeat B times</div>
-        <div class="anatomy-body"><strong>Resampling.</strong> Draw n observations from the original sample with replacement, compute the statistic on the resample, store it. After B repetitions you have the bootstrap distribution &theta;*&#8321;, &theta;*&#8322;, &hellip;, &theta;*&#7488;. The seeded Mulberry32 RNG makes results reproducible across reloads.</div>
+        <div class="anatomy-body"><strong>Resampling.</strong> Draw n observations from the original sample with replacement, compute the statistic on the resample, store it. After B repetitions you have the bootstrap distribution &theta;*&#8321;, &theta;*&#8322;, &hellip;, &theta;*&#7488;. This tool reproduces R's Mersenne-Twister and its resampling exactly, so the same seed draws the identical resamples that <code>set.seed(seed); boot()</code> would, and every interval matches <code>boot.ci()</code>.</div>
+      </div>
+
+      <div class="anatomy-step">
+        <div class="anatomy-formula">CI_norm = (&theta;&#770; &minus; bias) &plusmn; z_(1&minus;&alpha;/2) &middot; SE*</div>
+        <div class="anatomy-body"><strong>Normal.</strong> Treat the bootstrap distribution as approximately Gaussian: recenter the estimate by subtracting the bias, then go out z standard errors, where SE* is the SD of the bootstrap replicates. Fast and tight when &theta;* is symmetric, but wrong when it is skewed.</div>
       </div>
 
       <div class="anatomy-step">
         <div class="anatomy-formula">CI_perc = (&theta;*_(&alpha;/2 &middot; B), &theta;*_((1-&alpha;/2) &middot; B))</div>
-        <div class="anatomy-body"><strong>Percentile.</strong> Sort the bootstrap distribution; read off the &alpha;/2 and 1&minus;&alpha;/2 quantiles. Simple, but ignores any bias in the bootstrap distribution.</div>
+        <div class="anatomy-body"><strong>Percentile.</strong> Sort the bootstrap distribution; read off the &alpha;/2 and 1&minus;&alpha;/2 quantiles (with boot's normal-scale interpolation between order statistics). Simple, but ignores any bias in the bootstrap distribution.</div>
       </div>
 
       <div class="anatomy-step">
@@ -1024,7 +1048,7 @@ repeat B times</div>
 a = &Sigma;(&#7717; &minus; &theta;_(&minus;i))&sup3; / [6 (&Sigma;(&#7717; &minus; &theta;_(&minus;i))&sup2;)^(3/2)]
 &alpha;_lo = &Phi;(z&#8320; + (z&#8320; + z_(&alpha;/2)) / (1 &minus; a(z&#8320; + z_(&alpha;/2))))
 &alpha;_hi = &Phi;(z&#8320; + (z&#8320; + z_(1&minus;&alpha;/2)) / (1 &minus; a(z&#8320; + z_(1&minus;&alpha;/2))))</div>
-        <div class="anatomy-body"><strong>BCa (Efron 1987).</strong> z&#8320; is the bias correction; it shifts the percentiles to account for the bootstrap mean differing from the point estimate. The acceleration <em>a</em> comes from the jackknife: leave one observation out, recompute the statistic, and look at the third-versus-second moment of those n leave-one-out estimates. BCa is second-order accurate and almost always preferable to percentile when the bootstrap distribution is skewed.</div>
+        <div class="anatomy-body"><strong>BCa (Efron 1987).</strong> z&#8320; is the bias correction; it shifts the percentiles to account for the bootstrap mean differing from the point estimate. The acceleration <em>a</em> is the third-versus-second moment of the empirical influence values L&#7522;. To match <code>boot.ci()</code> this tool uses boot's default: the regression estimate of influence (regress the replicates on how often each observation appears) when B &ge; n, and the leave-one-out jackknife when B &lt; n. BCa is second-order accurate and almost always preferable to percentile when the bootstrap distribution is skewed.</div>
       </div>
 
       <div class="anatomy-step">
@@ -1070,53 +1094,30 @@ SE = sd(&theta;*)</div>
       <li><a href="/tools/t-test-calculator.html">t-Test Calculator</a> &ndash; for the parametric mean-difference workflow.</li>
       <li><a href="/tools/effect-size-converter.html">Effect-size converter</a> &ndash; turn any of d, r, OR, CLES, NNT into the others.</li>
     </ul>
-    <p class="numerical-accuracy-note" style="margin:18px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5">Math: seeded Mulberry32 RNG; percentile and basic CIs from the sorted resample distribution; BCa via the Efron (1987) bias correction plus jackknife acceleration, &alpha;-adjusted with Wichura AS 241 inverse normal.</p>
+    <p class="numerical-accuracy-note" style="margin:18px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5">Math: R's Mersenne-Twister and R_unif_index resampling, reproduced exactly; normal, basic, and percentile CIs use boot's norm.inter interpolation; BCa uses the Efron (1987) bias correction with the regression estimate of empirical influence when B &ge; n and the jackknife when B &lt; n, matching boot::boot.ci(). Verified against R 4.6.0 to 1e-8 across every method (see Scripts/tool-truth).</p>
   </div>
 
   </div>
 
 </div>
 
+<script src="/tools/lib/bootstrap-math.js"></script>
 <script>
 function $(id){ return document.getElementById(id); }
 function fmt(x, d){ d = d == null ? 4 : d; if (!isFinite(x)) return '-'; var s = Number(x).toFixed(d); return s.replace(/\.?0+$/,''); }
 function fmtViz(x, d){ d = d == null ? 3 : d; if (!isFinite(x)) return '-'; var s = Number(x).toFixed(d); return s.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''); }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
 
-// Mulberry32 RNG - seeded, fast, uniform
-function mulberry32(seed){
-  var s = seed >>> 0;
-  return function(){
-    s = (s + 0x6D2B79F5) >>> 0;
-    var t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// Standard normal inverse via Wichura AS 241 (lifted from canonical CI tool)
-function qnorm(p){
-  if (p<=0 || p>=1) return p<=0 ? -Infinity : Infinity;
-  var q = p - 0.5; var r;
-  if (Math.abs(q) <= 0.425){
-    r = q*q;
-    return q*(((((((2509.0809287301226727*r + 33430.575583588128105)*r + 67265.770927008700853)*r + 45921.953931549871457)*r + 13731.693765509461125)*r + 1971.5909503065514427)*r + 133.14166789178437745)*r + 3.387132872796366608)/(((((((5226.495278852854561*r + 28729.085735721942674)*r + 39307.89580009271061)*r + 21213.794301586595867)*r + 5394.1960214247511077)*r + 687.1870074920579083)*r + 42.313330701600911252)*r + 1);
-  }
-  r = q<0 ? p : 1-p; r = Math.sqrt(-Math.log(r));
-  var val;
-  if (r <= 5){ r -= 1.6; val = (((((((0.00077454501427834140764*r + 0.0227238449892691845833)*r + 0.24178072517745061177)*r + 1.27045825245236838258)*r + 3.64784832476320460504)*r + 5.7694972214606914055)*r + 4.6303378461565452959)*r + 1.42343711074968357734)/(((((((0.00000010507500716444169*r + 0.0005475938084995344946)*r + 0.0151986665636164571966)*r + 0.14810397642748007459)*r + 0.68976733498510000455)*r + 1.6763848301838038494)*r + 2.05319162663775882187)*r + 1);
-  } else { r -= 5; val = (((((((0.000000201033439929228813265*r + 0.0000271155556874348757815)*r + 0.0012426609473880784386)*r + 0.026532189526576123093)*r + 0.29656057182850489123)*r + 1.7848265399172913358)*r + 5.4637849111641143699)*r + 6.6579046435011037772)/(((((((0.00000000204426310338993978564*r + 0.00000014215117583164458887)*r + 0.0000018463183175100546818)*r + 0.0000786869131145613259)*r + 0.0014875361290850615)*r + 0.013692988092273580531)*r + 0.059983220655588793769)*r + 1);
-  }
-  return q<0 ? -val : val;
-}
-function pnorm(x){
-  var a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
-  var sign = x<0 ? -1 : 1; x = Math.abs(x)/Math.sqrt(2);
-  var t = 1.0/(1.0+p*x);
-  var y = 1.0 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
-  return 0.5*(1.0+sign*y);
-}
+// ============================================================
+// Bootstrap math - delegated to the R-verified lib
+// tools/lib/bootstrap-math.js. It reproduces R's Mersenne-Twister and
+// R_unif_index() sampler exactly, so set.seed(seed); boot(...) in R yields
+// the identical resamples, and the percentile / basic / normal / BCa
+// intervals match boot::boot.ci() (BCa uses the regression influence when
+// R >= n, jackknife when R < n, matching empinf()'s default). Verified in
+// Scripts/tool-truth against R 4.6.0 to <= 1e-8.
+// ============================================================
+var BM = window.BootMath;
 
 function parseColumn(text){
   if (!text) return [];
@@ -1131,145 +1132,41 @@ function parseColumn(text){
   return out;
 }
 
-// Statistic helpers - all on plain JS arrays
-function vMean(x){ var s=0; for (var i=0;i<x.length;i++) s += x[i]; return s/x.length; }
-function vVar(x){ var m=vMean(x); var s=0; for (var i=0;i<x.length;i++){ var d=x[i]-m; s += d*d; } return s/(x.length-1); }
-function vSD(x){ return Math.sqrt(vVar(x)); }
-function vQuantile(sorted, p){
-  // type-7 (R default), assumes sorted ascending
-  var n = sorted.length;
-  if (n === 0) return NaN;
-  if (n === 1) return sorted[0];
-  var h = (n - 1) * p;
-  var lo = Math.floor(h), hi = Math.ceil(h);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (h - lo) * (sorted[hi] - sorted[lo]);
-}
-function vMedian(x){ var s = x.slice().sort(function(a,b){return a-b;}); return vQuantile(s, 0.5); }
-function vIQR(x){ var s = x.slice().sort(function(a,b){return a-b;}); return vQuantile(s, 0.75) - vQuantile(s, 0.25); }
-function vP90(x){ var s = x.slice().sort(function(a,b){return a-b;}); return vQuantile(s, 0.90); }
-
-// Build the chosen statistic function
+// Build the chosen statistic function. Built-ins delegate to the R-verified
+// lib (mean uses R's corrected two-pass; median/IQR/p90 use R quantile type 7).
 function buildStatFn(kind){
-  if (kind === 'mean') return vMean;
-  if (kind === 'median') return vMedian;
-  if (kind === 'sd') return vSD;
-  if (kind === 'iqr') return vIQR;
-  if (kind === 'p90') return vP90;
+  if (BM.STAT[kind]) return BM.STAT[kind];
   if (kind === 'custom'){
     var src = ($('custom-fn').value || '').trim();
     if (!src) return null;
     try {
       var fn = new Function('x', 'return (' + src + ');');
-      // sanity: try calling with a 3-element array
-      var t = fn([1,2,3]);
+      var t = fn([1,2,3]);           // sanity: finite number on a test array
       if (typeof t !== 'number' || !isFinite(t)) return null;
       return fn;
     } catch (e){ return null; }
   }
-  return vMean;
+  return BM.STAT.mean;
 }
 
-// Bootstrap engine
-function bootstrap(x, B, statFn, seed){
-  var n = x.length;
-  var rng = mulberry32(seed);
-  var theta = new Float64Array(B);
-  var sample = new Array(n);
-  for (var b=0; b<B; b++){
-    for (var i=0; i<n; i++){
-      var idx = (rng() * n) | 0;
-      if (idx >= n) idx = n - 1;
-      sample[i] = x[idx];
-    }
-    theta[b] = statFn(sample);
+var METHOD_LABEL = { norm:'Normal', basic:'Basic', perc:'Percentile', bca:'BCa' };
+
+// Run the R-verified bootstrap and shape the selected method into the
+// { lo, hi, label, sorted } object the renderers expect. `res` also carries
+// all four intervals (res.ci) for the comparison table.
+function computeBoot(x, statFn, method, conf, B, seed){
+  var res = BM.bootstrap(x, statFn, { R: B, seed: seed, conf: conf });
+  var key = method;
+  var label = METHOD_LABEL[key];
+  var pair = res.ci[key];
+  if (key === 'bca' && !res.bcaOk){          // degenerate distribution: fall back to percentile
+    pair = res.ci.perc;
+    label = 'BCa (fallback)';
   }
-  return theta;
-}
-
-// Sorted-array quantile
-function sortedQuantile(sorted, p){
-  // discrete quantile compatible with R boot::boot.ci percentile defn
-  var n = sorted.length;
-  var pos = p * (n + 1) - 1;
-  if (pos <= 0) return sorted[0];
-  if (pos >= n - 1) return sorted[n - 1];
-  var lo = Math.floor(pos), hi = Math.ceil(pos);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (pos - lo) * (sorted[hi] - sorted[lo]);
-}
-
-// Jackknife for BCa acceleration
-function jackknife(x, statFn){
-  var n = x.length;
-  var out = new Float64Array(n);
-  var sub = new Array(n - 1);
-  for (var i=0; i<n; i++){
-    var k = 0;
-    for (var j=0; j<n; j++){
-      if (j === i) continue;
-      sub[k++] = x[j];
-    }
-    out[i] = statFn(sub);
-  }
-  return out;
-}
-
-function bcaAcceleration(jack){
-  var n = jack.length;
-  var m = 0;
-  for (var i=0;i<n;i++) m += jack[i];
-  m /= n;
-  var num = 0, den = 0;
-  for (var i=0;i<n;i++){
-    var d = m - jack[i];
-    num += d*d*d;
-    den += d*d;
-  }
-  if (den === 0) return 0;
-  return num / (6 * Math.pow(den, 1.5));
-}
-
-function bootstrapCI(theta, theta_hat, alpha, method, x, statFn){
-  var sorted = Array.from(theta).sort(function(a,b){return a-b;});
-  var B = sorted.length;
-  var loP = alpha/2, hiP = 1 - alpha/2;
-  var lo, hi, label;
-  if (method === 'perc'){
-    lo = sortedQuantile(sorted, loP);
-    hi = sortedQuantile(sorted, hiP);
-    label = 'Percentile';
-  } else if (method === 'basic'){
-    var qlo = sortedQuantile(sorted, loP);
-    var qhi = sortedQuantile(sorted, hiP);
-    lo = 2*theta_hat - qhi;
-    hi = 2*theta_hat - qlo;
-    label = 'Basic';
-  } else { // bca
-    // bias correction z0
-    var below = 0;
-    for (var i=0;i<B;i++) if (sorted[i] < theta_hat) below++;
-    var prop = below / B;
-    if (prop <= 0) prop = 0.5/B;
-    if (prop >= 1) prop = 1 - 0.5/B;
-    var z0 = qnorm(prop);
-    var jack = jackknife(x, statFn);
-    var a = bcaAcceleration(jack);
-    var zL = qnorm(loP), zH = qnorm(hiP);
-    var aL = pnorm(z0 + (z0 + zL) / (1 - a*(z0 + zL)));
-    var aH = pnorm(z0 + (z0 + zH) / (1 - a*(z0 + zH)));
-    if (!isFinite(aL) || !isFinite(aH) || aL <= 0 || aH >= 1 || aL >= aH){
-      // fallback to percentile if BCa breaks (e.g. degenerate distribution)
-      lo = sortedQuantile(sorted, loP);
-      hi = sortedQuantile(sorted, hiP);
-      label = 'BCa (fallback)';
-    } else {
-      lo = sortedQuantile(sorted, aL);
-      hi = sortedQuantile(sorted, aH);
-      label = 'BCa';
-    }
-  }
-  return { lo: lo, hi: hi, label: label, sorted: sorted };
+  return {
+    res: res,
+    ci: { lo: pair[0], hi: pair[1], label: label, sorted: res.sorted, method: key }
+  };
 }
 
 // =============================================
@@ -1278,7 +1175,7 @@ function bootstrapCI(theta, theta_hat, alpha, method, x, statFn){
 var state = {
   data: '',
   stat: 'mean',
-  customFn: 'x.reduce((a,b)=>a+b,0)/x.length',
+  customFn: 'x.reduce(function(a,b){return a+b},0)/x.length',
   B: 2000,
   method: 'bca',
   conf: 0.95,
@@ -1351,7 +1248,7 @@ function onVizSlide(key, val){
 // =============================================
 function renderBannerSentence(){
   var statLabel = ({mean:'mean', median:'median', sd:'standard deviation', iqr:'IQR', p90:'90th percentile', custom:'custom statistic'})[state.stat];
-  var methodLabel = ({perc:'Percentile', basic:'Basic', bca:'BCa'})[state.method];
+  var methodLabel = ({norm:'Normal', perc:'Percentile', basic:'Basic', bca:'BCa'})[state.method];
   var bs = $('banner-sentence');
   if (!bs) return;
   bs.innerHTML =
@@ -1409,18 +1306,13 @@ function recompute(){
   }
 
   var t0 = performance.now();
-  var theta = bootstrap(x, state.B, statFn, state.seed);
-  var ci = bootstrapCI(theta, theta_hat, alpha, state.method, x, statFn);
+  var out = computeBoot(x, statFn, state.method, state.conf, state.B, state.seed);
+  var res = out.res, ci = out.ci;
   var elapsed = performance.now() - t0;
-
-  // bias and SE
-  var sumT = 0;
-  for (var i=0;i<theta.length;i++) sumT += theta[i];
-  var meanT = sumT / theta.length;
-  var bias = meanT - theta_hat;
-  var ssq = 0;
-  for (var i=0;i<theta.length;i++){ var d = theta[i] - meanT; ssq += d*d; }
-  var seBoot = Math.sqrt(ssq / (theta.length - 1));
+  var theta = res.t;              // Float64Array of B replicates
+  theta_hat = res.t0;             // R's corrected two-pass for the mean
+  var bias = res.bias;            // mean(theta*) - theta_hat
+  var seBoot = res.sdStar;        // sd(theta*)
 
   $('result-label').textContent = ci.label + ' CI (' + Math.round(state.conf*100) + '%)';
   $('result-bounds').innerHTML =
@@ -1439,6 +1331,9 @@ function recompute(){
   if (state.method === 'bca' && state.B < 1000){
     callouts.innerHTML += '<div class="callout"><span class="callout-icon">&#9888;</span><div>BCa needs B &ge; 1000 for stable acceleration; consider raising B.</div></div>';
   }
+  if (ci.label === 'BCa (fallback)'){
+    callouts.innerHTML += '<div class="callout danger"><span class="callout-icon">&#9888;</span><div>BCa is undefined for this distribution (bias correction or acceleration is not finite); showing the percentile interval instead.</div></div>';
+  }
   // detect (near-)constant data
   var allSame = true;
   for (var i=1;i<x.length;i++){ if (x[i] !== x[0]){ allSame = false; break; } }
@@ -1446,18 +1341,40 @@ function recompute(){
     callouts.innerHTML += '<div class="callout danger"><span class="callout-icon">&#9888;</span><div>All values are identical; the bootstrap distribution is a point mass.</div></div>';
   }
 
-  lastResult = { x:x, theta_hat:theta_hat, theta:theta, ci:ci, bias:bias, se:seBoot, elapsed:elapsed, alpha:alpha };
+  lastResult = { x:x, theta_hat:theta_hat, theta:theta, ci:ci, res:res, bias:bias, se:seBoot, elapsed:elapsed, alpha:alpha };
   renderRecap(lastResult);
+  renderMethodTable(lastResult);
   drawViz(lastResult);
   refreshSliderValues();
   renderInferenceBanner();
+}
+
+// All four intervals side by side, active method highlighted, so the user
+// sees how much the method choice moves the bounds. Values are exactly what
+// boot.ci(type=c("norm","basic","perc","bca")) returns for these resamples.
+function renderMethodTable(r){
+  var el = $('method-compare-rows');
+  if (!el) return;
+  if (!r){ el.innerHTML = ''; return; }
+  var order = ['norm','basic','perc','bca'];
+  el.innerHTML = order.map(function(k){
+    var pair = r.res.ci[k];
+    var active = (k === r.ci.method);
+    var lo = pair[0], hi = pair[1];
+    var cells = (isFinite(lo) && isFinite(hi))
+      ? '<span class="mc-val">' + fmt(lo, 4) + '</span><span class="mc-val">' + fmt(hi, 4) + '</span><span class="mc-width">' + fmt(hi - lo, 4) + '</span>'
+      : '<span class="mc-val">&ndash;</span><span class="mc-val">&ndash;</span><span class="mc-width">&ndash;</span>';
+    return '<div class="mc-row' + (active ? ' active' : '') + '">' +
+      '<span class="mc-name">' + METHOD_LABEL[k] + (active ? ' <span class="mc-tag">shown</span>' : '') + '</span>' +
+      cells + '</div>';
+  }).join('');
 }
 
 function renderInferenceBanner(){
   var el = $('inference-banner');
   if (!el) return;
   var statName = ({mean:'mean', median:'median', sd:'standard deviation', iqr:'IQR', p90:'90th percentile', custom:'custom statistic'})[state.stat];
-  var methodLabel = ({perc:'percentile', basic:'basic', bca:'BCa'})[state.method];
+  var methodLabel = ({norm:'normal', perc:'percentile', basic:'basic', bca:'BCa'})[state.method];
   if (!lastResult){
     el.innerHTML = 'Paste at least two numeric values to see the bootstrap CI Inference.';
     return;
@@ -1582,7 +1499,7 @@ function renderRCode(x){
     p90: 'quantile(d, 0.90, names = FALSE)',
     custom: '# replace with your custom expression on d\n  mean(d)'
   })[state.stat];
-  var methodArg = ({perc:'"perc"', basic:'"basic"', bca:'"bca"'})[state.method];
+  var methodName = ({norm:'Normal', perc:'Percentile', basic:'Basic', bca:'BCa'})[state.method];
   var dataLine = 'my_vector <- c(' + x.slice(0, 200).map(function(v){ return fmtViz(v, 6); }).join(', ') + ')';
   if (x.length > 200) dataLine += '\n# (showing first 200 of ' + x.length + ')';
   var conf = state.conf;
@@ -1595,7 +1512,8 @@ function renderRCode(x){
     '}\n\n' +
     'set.seed(' + state.seed + ')\n' +
     'b <- boot(data = my_vector, statistic = stat_fn, R = ' + state.B + ')\n\n' +
-    'boot.ci(b, type = ' + methodArg + ', conf = ' + conf + ')\n' +
+    '# All four intervals (the tool shows ' + methodName + ' by default)\n' +
+    'boot.ci(b, type = c("norm", "basic", "perc", "bca"), conf = ' + conf + ')\n' +
     'b$t0                  # original statistic\n' +
     'mean(b$t) - b$t0      # bias estimate\n' +
     'sd(b$t)               # SE estimate\n';
@@ -1618,9 +1536,11 @@ function copyCode(){
 // =============================================
 // Scenarios
 // =============================================
-// Deterministic samplers (Mulberry32-driven) so the displayed data is
-// reproducible across reloads. Box-Muller uses two uniforms.
-function rng_seq(seed, n){ var r = mulberry32(seed); var out = []; for (var i=0;i<n;i++) out.push(r()); return out; }
+// Deterministic samplers for the demo scenario datasets (reproducible across
+// reloads). Reuses the lib's R RNG so no separate generator is needed; the
+// bootstrap itself is what must match R, and that runs through BM.bootstrap.
+// Box-Muller uses two uniforms.
+function rng_seq(seed, n){ var r = BM.RRNG(seed); var out = []; for (var i=0;i<n;i++) out.push(r.unif()); return out; }
 function rnormSeq(seed, n, mu, sigma){
   var u = rng_seq(seed, 2*n);
   var out = [];
