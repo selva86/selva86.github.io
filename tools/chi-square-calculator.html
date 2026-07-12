@@ -223,6 +223,9 @@
   .primer-dropdown-body p:last-child{margin-bottom:0}
   .primer-dropdown-body strong{color:var(--c-text);font-weight:600}
   html.dark .primer-dropdown-body{background:rgba(146,124,80,0.08);border-color:var(--c-accent-bright)}
+  /* On narrow screens let the closed primer pill wrap instead of clipping
+     its nowrap summary mid-word. */
+  @media(max-width:560px){.primer-dropdown,.primer-dropdown summary{white-space:normal;max-width:100%}}
 
   /* Banner sentence (dynamic) */
   .banner-sentence{font-family:'IBM Plex Serif',serif;font-size:21px;line-height:1.55;color:var(--c-text-soft);font-weight:400;letter-spacing:-0.005em;max-width:80ch;margin:0 0 12px}
@@ -829,9 +832,15 @@
   </details>
 
   <p class="banner-sentence" id="banner-sentence">I want a
-    <span class="param is-flavor" id="banner-flavor">test of independence<span class="param-caret">&#9662;</span></span>
+    <span class="param is-flavor" id="banner-flavor"><span id="banner-flavor-text">test of independence</span><span class="param-caret">&#9662;</span>
+      <select id="banner-flavor-select" onchange="setMode(this.value)" aria-label="Choose the chi-square test type">
+        <option value="independence">test of independence</option>
+        <option value="gof">goodness-of-fit test</option>
+        <option value="homogeneity">test of homogeneity</option>
+      </select>
+    </span>
     on
-    <span class="param" id="banner-table">2&times;3 vaccine table<span class="param-caret">&#9662;</span></span>
+    <span class="param is-static" id="banner-table"><span id="banner-table-text">your table</span></span>
     at &alpha; =
     <span class="param is-static" id="banner-alpha">0.05</span>.
   </p>
@@ -1071,6 +1080,21 @@ Cohen&rsquo;s w = sqrt(&chi;&sup2; / N)</div>
     </div>
   </details>
 
+  <details class="section">
+    <summary>
+      <span class="summary-eyebrow">FAQ</span>
+      <span class="summary-title">Frequently asked questions</span>
+    </summary>
+    <div class="details-body">
+      <p><strong>When should I use chi-square versus Fisher&rsquo;s exact test?</strong></p>
+      <p>Use chi-square when all expected cell counts are at least 5. Switch to Fisher&rsquo;s exact when any expected cell count drops below 5, the sample is small (n &lt; 30), or you have a 2&times;2 table where the asymptotic approximation is unreliable. Fisher&rsquo;s test is also the right choice for case-control studies with rare outcomes.</p>
+      <p style="margin-top:16px"><strong>How do I interpret Cramer&rsquo;s V from a chi-square test?</strong></p>
+      <p>Cramer&rsquo;s V measures the strength of association in a contingency table, from 0 (no association) to 1 (perfect). Rules of thumb: 0.1 is small, 0.3 medium, 0.5 large. Unlike the chi-square statistic itself, V does not grow with sample size, so it tells you whether a significant result is also practically meaningful.</p>
+      <p style="margin-top:16px"><strong>What does Yates&rsquo; continuity correction do?</strong></p>
+      <p>Yates&rsquo; correction subtracts 0.5 from each absolute deviation in a 2&times;2 table before squaring, compensating for treating discrete counts as continuous. It reduces the false-positive rate but is conservative for moderate samples. R&rsquo;s <code>chisq.test</code> applies it by default; set <code>correct = FALSE</code> to disable. Modern practice often prefers Fisher&rsquo;s exact for small samples.</p>
+    </div>
+  </details>
+
   <div class="section">
     <div class="section-eyebrow">Further reading</div>
     <ul class="further-list">
@@ -1089,6 +1113,8 @@ Cohen&rsquo;s w = sqrt(&chi;&sup2; / N)</div>
 
 <div class="toast-area" id="toast-area"></div>
 
+<script src="/tools/lib/normal-math.js"></script>
+<script src="/tools/lib/chisq-math.js"></script>
 <script>
 function $(id){ return document.getElementById(id); }
 function fmt(x, d){ d = d == null ? 4 : d; if (!isFinite(x)) return '-'; return Number(x).toFixed(d).replace(/\.?0+$/,''); }
@@ -1102,94 +1128,18 @@ function fmtP(p){
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // ============================================================
-// Math primitives (lifted from power-analysis.html)
+// Math primitives -> tools/lib/chisq-math.js (R-verified vs chisq.test()).
+// pchisq / qchisq and the incomplete-gamma helpers now live in the lib.
 // ============================================================
-function lgamma(z){
-  const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
-  if (z < 0.5) return Math.log(Math.PI/Math.sin(Math.PI*z)) - lgamma(1-z);
-  z -= 1; let x = c[0];
-  for (let i=1; i<9; i++) x += c[i]/(z+i);
-  const t = z + 7.5;
-  return 0.5*Math.log(2*Math.PI) + (z+0.5)*Math.log(t) - t + Math.log(x);
-}
-function pgamma(a, x){
-  if (x <= 0) return 0;
-  if (x < a + 1) return gser(a, x);
-  return 1 - gcf(a, x);
-}
-function gser(a, x){
-  let sum = 1/a, ap = a, del = sum;
-  for (let n = 1; n <= 200; n++){
-    ap += 1; del *= x/ap; sum += del;
-    if (Math.abs(del) < Math.abs(sum)*1e-12) break;
-  }
-  return sum * Math.exp(-x + a*Math.log(x) - lgamma(a));
-}
-function gcf(a, x){
-  const fpmin = 1e-30;
-  let b = x + 1 - a, c = 1/fpmin, d = 1/b, h = d;
-  for (let i = 1; i <= 200; i++){
-    const an = -i*(i-a);
-    b += 2; d = an*d + b;
-    if (Math.abs(d) < fpmin) d = fpmin;
-    c = b + an/c;
-    if (Math.abs(c) < fpmin) c = fpmin;
-    d = 1/d;
-    const del = d*c; h *= del;
-    if (Math.abs(del - 1) < 1e-12) break;
-  }
-  return h * Math.exp(-x + a*Math.log(x) - lgamma(a));
-}
-function pchisq(x, df){
-  if (x <= 0 || df <= 0) return 0;
-  return pgamma(df/2, x/2);
-}
-function qchisq(p, df){
-  // Wilson-Hilferty starting guess, then bisection refinement.
-  if (p <= 0) return 0;
-  if (p >= 1) return Infinity;
-  // Wilson-Hilferty initial
-  const z = qnorm_approx(p);
-  let est = df * Math.pow(1 - 2/(9*df) + z * Math.sqrt(2/(9*df)), 3);
-  if (!isFinite(est) || est <= 0) est = df;
-  // Bisection refinement
-  let lo = 1e-8, hi = Math.max(est * 2, df * 5, 100);
-  // Expand hi if needed
-  while (pchisq(hi, df) < p && hi < 1e10) hi *= 2;
-  for (let i = 0; i < 100; i++){
-    const mid = 0.5*(lo + hi);
-    const cdf = pchisq(mid, df);
-    if (cdf < p) lo = mid; else hi = mid;
-    if ((hi - lo) / Math.max(1, hi) < 1e-10) break;
-  }
-  return 0.5*(lo + hi);
-}
-function qnorm_approx(p){
-  // Beasley-Springer-Moro coarse approximation - sufficient for the
-  // Wilson-Hilferty seed, the bisection takes us the rest of the way.
-  if (p <= 0) return -Infinity;
-  if (p >= 1) return Infinity;
-  const a = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2, 1.383577518672690e2, -3.066479806614716e1, 2.506628277459239];
-  const b = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2, 6.680131188771972e1, -1.328068155288572e1];
-  const c = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
-  const d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996, 3.754408661907416];
-  const plow = 0.02425, phigh = 1 - plow;
-  let q, r;
-  if (p < plow){
-    q = Math.sqrt(-2*Math.log(p));
-    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
-  }
-  if (p > phigh){
-    q = Math.sqrt(-2*Math.log(1-p));
-    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
-  }
-  q = p - 0.5; r = q*q;
-  return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
-}
+const pchisq = (x, df) => window.ChisqMath.pchisq(x, df);
 
 // ============================================================
 // Parsing
 // ============================================================
+// A token is a value only if it is a real number. Header rows (all labels)
+// yield no numbers and are dropped; leading row-label columns (e.g. "Vaccine")
+// are non-numeric tokens and are skipped, so labelled tables parse correctly.
+const NUM_RE = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 function parseTable(text){
   if (!text) return null;
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
@@ -1199,14 +1149,10 @@ function parseTable(text){
     // Split on tabs, commas, semicolons, or runs of spaces
     const tokens = line.split(/[\t,;]+|\s+/).map(t => t.trim()).filter(t => t.length > 0);
     const nums = [];
-    let allNumeric = true;
     for (const tok of tokens){
-      const v = Number(tok.replace(/[^\d\-.eE]/g, ''));
-      if (!isFinite(v)){ allNumeric = false; break; }
-      nums.push(v);
+      if (NUM_RE.test(tok)) nums.push(Number(tok));   // keep numbers, drop labels
     }
-    if (!allNumeric) continue;  // skip header rows
-    if (nums.length === 0) continue;
+    if (nums.length === 0) continue;                   // pure header / label row
     rows.push(nums);
   }
   if (rows.length === 0) return null;
@@ -1226,123 +1172,15 @@ function parseRow(text){
 // ============================================================
 // Chi-square computation
 // ============================================================
+// Delegated to the R-verified lib. Return shapes are identical to the old
+// inline math, so render/viz/emit code is unchanged. The lib fixes Cramer's V
+// to use the UNCORRECTED statistic (matches R / rcompanion::cramerV) and adds
+// Pearson residuals + minExpected.
 function chiIndependence(tbl, yates){
-  const R = tbl.length, C = tbl[0].length;
-  const rowTot = tbl.map(r => r.reduce((a,b) => a+b, 0));
-  const colTot = [];
-  for (let j = 0; j < C; j++){
-    let s = 0;
-    for (let i = 0; i < R; i++) s += tbl[i][j];
-    colTot.push(s);
-  }
-  const N = rowTot.reduce((a,b) => a+b, 0);
-  if (N === 0) return { error: 'Empty table' };
-  if (rowTot.some(t => t === 0)) return { error: 'Empty row' };
-  if (colTot.some(t => t === 0)) return { error: 'Empty column' };
-
-  const expected = [];
-  let chi = 0;
-  for (let i = 0; i < R; i++){
-    expected.push([]);
-    for (let j = 0; j < C; j++){
-      const e = rowTot[i] * colTot[j] / N;
-      expected[i].push(e);
-      const o = tbl[i][j];
-      let dev = Math.abs(o - e);
-      if (yates && R === 2 && C === 2) dev = Math.max(0, dev - 0.5);
-      chi += (dev * dev) / e;
-    }
-  }
-  const df = (R - 1) * (C - 1);
-  const p = 1 - pchisq(chi, df);
-
-  // Standardized residuals: (O - E) / sqrt(E*(1 - row%)*(1 - col%))
-  const stdres = [];
-  for (let i = 0; i < R; i++){
-    stdres.push([]);
-    for (let j = 0; j < C; j++){
-      const e = expected[i][j];
-      const rowPct = rowTot[i] / N;
-      const colPct = colTot[j] / N;
-      const se = Math.sqrt(e * (1 - rowPct) * (1 - colPct));
-      stdres[i].push(se > 0 ? (tbl[i][j] - e) / se : 0);
-    }
-  }
-
-  // Cramer's V
-  const cramerV = Math.sqrt(chi / (N * Math.min(R - 1, C - 1)));
-
-  // Cell-level chi contribution
-  const contrib = [];
-  for (let i = 0; i < R; i++){
-    contrib.push([]);
-    for (let j = 0; j < C; j++){
-      const e = expected[i][j];
-      const o = tbl[i][j];
-      let dev = Math.abs(o - e);
-      if (yates && R === 2 && C === 2) dev = Math.max(0, dev - 0.5);
-      contrib[i].push((dev * dev) / e);
-    }
-  }
-
-  return { chi, df, p, expected, stdres, contrib, cramerV, N, rowTot, colTot, R, C, yates: yates && R===2 && C===2 };
+  return window.ChisqMath.independence(tbl, yates);
 }
-
 function chiGoF(observed, expected){
-  const k = observed.length;
-  if (k === 0) return { error: 'No observed counts' };
-  const N = observed.reduce((a,b) => a+b, 0);
-  if (N === 0) return { error: 'Total count is zero' };
-
-  let exp;
-  if (!expected || expected.length === 0){
-    // Uniform
-    exp = new Array(k).fill(N / k);
-  } else if (expected.length !== k){
-    return { error: 'Expected length ('+expected.length+') does not match observed ('+k+')' };
-  } else {
-    // Detect proportions vs counts: if sum is close to 1 (and not equal to N), treat as proportions
-    const sumExp = expected.reduce((a,b) => a+b, 0);
-    if (Math.abs(sumExp - 1) < 1e-6 || (sumExp < 1.01 && Math.abs(sumExp - N) > 1)){
-      exp = expected.map(p => p * N);
-    } else {
-      // If sum equals N, use as is; otherwise rescale to N
-      if (Math.abs(sumExp - N) < 1e-6){
-        exp = expected.slice();
-      } else {
-        // Rescale to total N (treat as relative weights)
-        exp = expected.map(v => v * N / sumExp);
-      }
-    }
-  }
-
-  if (exp.some(e => e <= 0)) return { error: 'Expected counts must be positive' };
-
-  let chi = 0;
-  for (let i = 0; i < k; i++){
-    chi += Math.pow(observed[i] - exp[i], 2) / exp[i];
-  }
-  const df = k - 1;
-  const p = 1 - pchisq(chi, df);
-
-  // Standardized residuals (Pearson/sqrt(1 - p)) - for GoF the simple
-  // Pearson residual is (O - E)/sqrt(E); std-res uses (1 - p_i):
-  const stdres = [];
-  for (let i = 0; i < k; i++){
-    const pi = exp[i] / N;
-    const se = Math.sqrt(exp[i] * (1 - pi));
-    stdres.push(se > 0 ? (observed[i] - exp[i]) / se : 0);
-  }
-
-  // Cohen's w
-  const cohenW = Math.sqrt(chi / N);
-
-  const contrib = [];
-  for (let i = 0; i < k; i++){
-    contrib.push(Math.pow(observed[i] - exp[i], 2) / exp[i]);
-  }
-
-  return { chi, df, p, expected: exp, stdres, contrib, cohenW, N, k };
+  return window.ChisqMath.goodnessOfFit(observed, expected);
 }
 
 // ============================================================
@@ -1373,7 +1211,7 @@ const SCENARIOS = {
   dietary: {
     icon: '&#129396;',
     title: '2&times;3 dietary',
-    story: 'Two groups, three dietary outcomes (A / B / C). The benchmark example: chi-sq = 17.15, V = 0.26.',
+    story: 'Two groups, three dietary outcomes (A / B / C). Chi-square = 7.41 on df = 2, p = 0.025, Cramer\'s V = 0.15.',
     mode: 'independence',
     table: '\tA\tB\tC\nGroup1\t50\t30\t20\nGroup2\t80\t100\t50',
     yates: false
@@ -1469,6 +1307,11 @@ function loadScenario(name){
   $('gof-expected').value = sc.expected || '';
   state.yates = !!sc.yates;
   $('yates-toggle').checked = state.yates;
+  // Sync state from the freshly loaded fields. recompute()/updateRCode read
+  // state.rawExpected, so without this the preset's expected counts are ignored
+  // and GoF falls back to uniform (the proportions preset was silently wrong).
+  state.rawTable = $('paste-box').value;
+  state.rawExpected = $('gof-expected').value;
   recompute();
 }
 
@@ -1734,18 +1577,17 @@ function updateBanner(){
     gof: 'goodness-of-fit test',
     homogeneity: 'test of homogeneity'
   };
-  $('banner-flavor').innerHTML = flavorMap[state.mode] + '<span class="param-caret">&#9662;</span>';
+  const ft = $('banner-flavor-text'); if (ft) ft.textContent = flavorMap[state.mode];
+  const fs = $('banner-flavor-select'); if (fs) fs.value = state.mode;
   const t = parseTable($('paste-box').value);
-  let label = '-';
+  let label = 'your table';
   if (state.mode === 'gof'){
     const obs = parseRow($('paste-box').value);
-    label = obs ? ('1&times;' + obs.length + ' observed') : 'observed counts';
+    label = obs ? ('1×' + obs.length + ' observed') : 'observed counts';
   } else if (t){
-    label = t.length + '&times;' + t[0].length + ' table';
-  } else {
-    label = 'your table';
+    label = t.length + '×' + t[0].length + ' table';
   }
-  $('banner-table').innerHTML = label + '<span class="param-caret">&#9662;</span>';
+  const bt = $('banner-table-text'); if (bt) bt.textContent = label;
   $('banner-alpha').textContent = state.alpha;
 }
 
