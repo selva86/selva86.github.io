@@ -250,3 +250,8 @@ When you change a rule here:
 1. Update the corresponding check in `pseo_quality_check.py`
 2. Run the check against all published PSEO posts; fix violations
 3. Note the change in `git log` with prefix `pseo-formatting:`
+
+
+## AI-tells (owner list, never emit)
+- Stat-triplet flex copy: "N hubs, M problems, graded the moment you press Check" - a comma-chained stat parade with a punchy flourish clause. One plain sentence instead.
+- JetBrains Mono font (wiped sitewide 2026-07-13). Em-dash (long-standing). Eyebrow kicker labels above headings.
