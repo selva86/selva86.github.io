@@ -92,6 +92,7 @@ def render_masthead(active):
 {nav}
     </div>
     <div class="snav-right">
+      <form class="snav-search" role="search" aria-label="Search r-statistics.co" onsubmit="var q=(this.q.value||'').trim();if(q)window.open('https://www.google.com/search?q='+encodeURIComponent(q+' site:r-statistics.co'));return false"><svg class="snav-sicon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg><input type="search" name="q" placeholder="Search" aria-label="Search r-statistics.co"></form><button class="snav-sbtn" data-snav-search type="button" aria-label="Search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></button>
       <a class="snav-btn" href="/pricing.html">Get certified <span class="a">&rarr;</span></a>
       <span class="auth-anon"><a href="/signin.html" class="masthead-auth-link">Sign in</a></span>
       <span class="auth-user"></span>
@@ -104,8 +105,8 @@ def render_scripts(page_js=None):
     parts = [ANALYTICS,
              '  <script defer src="/www/auth-hydrate.js?v=11"></script>',
              '  <script defer src="/www/sections-v3.js?v=2"></script>',
-             '  <script defer src="/www/site-nav.js?v=1"></script>',
-             '  <script defer src="/www/practice-nav.js?v=8"></script>',
+             '  <script defer src="/www/site-nav.js?v=2"></script>',
+             '  <script defer src="/www/practice-nav.js?v=9"></script>',
              '  <script defer src="/www/signin-nudge.js?v=16"></script>']
     for src in (page_js or []):
         parts.append(f'  <script defer src="{src}"></script>')
@@ -147,7 +148,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 {FOUC}
 {FONTS}
 <link rel="stylesheet" href="/www/sections-v3.css?v=3">
-<link rel="stylesheet" href="/www/site-nav.css?v=1">
+<link rel="stylesheet" href="/www/site-nav.css?v=2">
 <style>html,body{{overflow-x:clip;max-width:100vw}}</style>
 <style>
 {page_css}

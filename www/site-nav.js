@@ -24,6 +24,34 @@
     });
     if (best && !best.classList.contains('on')) best.classList.add('on');
 
+    // Mobile search: the magnifier icon toggles a slide-down row.
+    var sbtn = nav.querySelector('[data-snav-search]');
+    if (sbtn) {
+      var spanel = null;
+      sbtn.addEventListener('click', function () {
+        if (!spanel) {
+          spanel = document.createElement('div');
+          spanel.className = 'snav-spanel';
+          spanel.innerHTML =
+            '<form role="search" aria-label="Search r-statistics.co">' +
+            '<svg class="snav-sicon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>' +
+            '<input type="search" name="q" placeholder="Search r-statistics.co" aria-label="Search r-statistics.co">' +
+            '</form>';
+          spanel.querySelector('form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var q = (this.q.value || '').trim();
+            if (q) window.open('https://www.google.com/search?q=' + encodeURIComponent(q + ' site:r-statistics.co'));
+          });
+          nav.appendChild(spanel);
+        }
+        var on = spanel.classList.toggle('open');
+        sbtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+        if (on) spanel.querySelector('input').focus();
+      });
+      sbtn.setAttribute('aria-haspopup', 'true');
+      sbtn.setAttribute('aria-expanded', 'false');
+    }
+
     // Generic drawer, only for [data-snav-burger] buttons.
     var burger = nav.querySelector('[data-snav-burger]');
     if (!burger) return;

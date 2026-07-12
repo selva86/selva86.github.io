@@ -73,11 +73,11 @@ window.XN_HUBS=[
     '<div class="xn-top xn-anon" data-xn-strip>'+
       '<div class="xn-pl"><svg class="xn-ic" style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 4 14 11 14 10 22 19 9 12 9 13 2"/></svg></div>'+
       '<div class="xn-pt"><b class="xn-h">Practice R by solving real problems</b>'+
-        '<span class="xn-s">'+TOTAL+' hubs, '+'2,904 problems, graded the moment you press Check</span></div>'+
+        '<span class="xn-s">Short problems you solve in the browser, with instant feedback.</span></div>'+
       '<a class="xn-btn" href="/R-Basics-Exercises.html">Start with R Basics '+ARR+'</a>'+
     '</div>'+
     '<div class="xn-body2"><div class="xn-rail" role="tablist">'+railHTML()+'</div><div class="xn-pane" id="xn-pane"></div></div>'+
-    '<div class="xn-foot"><span class="xn-tot"><b>'+TOTAL+'</b> hubs &middot; <b>2,904</b> problems &middot; free to attempt</span>'+
+    '<div class="xn-foot"><span class="xn-tot">Free to attempt &middot; sign in to save your progress</span>'+
       '<span class="xn-fl"><a href="/exercises/">Browse the full library '+ARR+'</a></span></div>';
   }
 
@@ -95,7 +95,7 @@ window.XN_HUBS=[
         '<div class="xn-spanel" hidden>'+groups+'</div></div>';
     }).join('');
     return '<div class="xn-sheet-hd"><span class="xn-sheet-t">Practice</span><button class="xn-sheet-x" aria-label="Close">&times;</button></div>'+
-      '<div class="xn-sheet-strip">'+TOTAL+' hubs &middot; 2,904 problems &middot; graded the moment you press Check</div>'+
+      '<div class="xn-sheet-strip">Short problems with instant feedback. Free to attempt.</div>'+
       '<div class="xn-sheet-body">'+cats+
         '<div class="xn-scatw"><a class="xn-scat xn-scat-q" href="/certifications"><span class="xn-cg">'+svg('MEDAL')+'</span><span class="xn-scn">Mastery Quizzes</span><span class="xn-cc">11</span>'+ARR+'</a></div>'+
       '</div>'+
@@ -116,7 +116,7 @@ window.XN_HUBS=[
     if (!link || link.closest('.xn-wrap')) return;
 
     if (!document.querySelector('link[data-xn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=7';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=8';
       l.setAttribute('data-xn-css', ''); document.head.appendChild(l);
     }
 

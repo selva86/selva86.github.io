@@ -498,7 +498,7 @@ def convert(md_text, slug='post'):
                     '.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}'
                     '.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}'
                     '.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}'
-                    '.code{font:13px \'JetBrains Mono\',Consolas,monospace;fill:#1e293b}'
+                    '.code{font:13px Consolas,Menlo,monospace;fill:#1e293b}'
                     '.branch{stroke:#0284c7;stroke-width:1.5;fill:none}'
                     '.arrow-fill{fill:#0284c7}'
                     '</style>',

@@ -67,7 +67,7 @@ function page(o){
 '<meta name="robots" content="noindex, nofollow">\n'+
 '<link rel="icon" type="image/png" href="/screenshots/iconb-64.png">\n'+
 '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'+
-'<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">\n'+
+'<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet">\n'+
 '<link rel="stylesheet" href="/www/dashboard.css?v=1">\n<link rel="stylesheet" href="/www/account.css?v=1">\n'+
 '<script>'+GA+'</script>\n<style>'+AUTHCSS+'</style>\n</head>\n'+
 '<body data-acct="'+o.acct+'">\n<div class="prog" id="prog"></div>\n'+SPRITE+'\n'+NAV+'\n'+
