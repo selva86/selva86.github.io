@@ -430,6 +430,12 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M1.5 13c2 0 3-1 4-3s1.5-6 2.5-6 1.5 6 2.5 6 2-1 3.5-1"/>'
         '<path d="M1.5 13.5h13"/><path d="M11 13.2c1-.1 1.8-.6 2.6-1.1V13.2z" fill="currentColor" stroke="none"/></svg>',
+    'descriptive-statistics-calculator.html':   # histogram bars
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="2" y="9" width="2.6" height="4"/>'
+        '<rect x="5.2" y="6" width="2.6" height="7"/>'
+        '<rect x="8.4" y="3.5" width="2.6" height="9.5"/>'
+        '<rect x="11.6" y="7.5" width="2.6" height="5.5"/></svg>',
     'confusion-matrix-interpreter.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="2.5" width="4.5" height="4.5"/>'
@@ -557,6 +563,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'ab-test-calculator.html',                  'text': 'A/B Test Calculator'},
     {'group': 'Calculators', 'slug': 't-test-calculator.html',                   'text': 't-Test Calculator'},
     {'group': 'Calculators', 'slug': 'p-value-calculator.html',                  'text': 'p-value Calculator'},
+    {'group': 'Calculators', 'slug': 'descriptive-statistics-calculator.html',   'text': 'Descriptive Statistics'},
     {'group': 'Calculators', 'slug': 'chi-square-calculator.html',               'text': 'Chi-Square Test'},
     {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html',      'text': 'Confidence Interval'},
     {'group': 'Calculators', 'slug': 'bootstrap-ci-calculator.html',             'text': 'Bootstrap CI'},
