@@ -116,7 +116,7 @@ window.XN_HUBS=[
     if (!link || link.closest('.xn-wrap')) return;
 
     if (!document.querySelector('link[data-xn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=8';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=9';
       l.setAttribute('data-xn-css', ''); document.head.appendChild(l);
     }
 

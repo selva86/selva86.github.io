@@ -667,9 +667,16 @@ def render_sidebar_html(sections, current_slug):
     )
     fold_onclick=("var r=document.body.classList.toggle('tools-rail');"
                   "try{localStorage.setItem('rsc-tools-rail',r?'1':'0')}catch(e){}")
-    parts.append(f'<button class="rail-fold" type="button" title="Collapse sidebar to icons" '
-                 f'aria-label="Collapse sidebar to icons" onclick="{fold_onclick}">'
-                 f'<span class="rf-a">&#171; Collapse</span><span class="rf-b">&#187;</span></button>')
+    # Icon-only fold control (owner rule 2026-07-13: no "Collapse" text).
+    # rf-a = panel-left-close (shown expanded), rf-b = panel-left-open (rail).
+    _svg = ('<svg class="{cls}" width="17" height="17" viewBox="0 0 24 24" fill="none" '
+            'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+            '<rect x="3" y="4" width="18" height="16" rx="2.5"/><line x1="9.5" y1="4" x2="9.5" y2="20"/>'
+            '{chev}</svg>')
+    fold_icons = (_svg.format(cls='rf-a', chev='<path d="m16.5 9.5-2.5 2.5 2.5 2.5"/>')
+                  + _svg.format(cls='rf-b', chev='<path d="m14 9.5 2.5 2.5-2.5 2.5"/>'))
+    parts.append(f'<button class="rail-fold" type="button" title="Toggle sidebar" '
+                 f'aria-label="Toggle sidebar" onclick="{fold_onclick}">{fold_icons}</button>')
     parts.append('<div class="sidebar-tabs" role="tablist">')
     parts.append(f'<button class="{posts_tab_class}" data-tab="posts" type="button" role="tab" onclick="{onclick}">Posts</button>')
     parts.append(f'<button class="{tools_tab_class}" data-tab="tools" type="button" role="tab" onclick="{onclick}">Tools</button>')
@@ -2635,6 +2642,45 @@ def patch_tool_pages(sections, asset_hrefs):
         'body.tools-rail .sidebar-panel[data-panel="posts"] .sidebar-section-items>li>a>.progress-dot{'
         'visibility:visible;margin:0}'
         '}'
+        # Unified FAQ accordion (owner rule 2026-07-13): quiet card rows, ink
+        # summaries, geometric chevron (no content glyphs - hex-escape ban).
+        # Covers every FAQ container variant shipped so far.
+        '.tool-chrome-main section[class*="faq"] details,'
+        '.tool-chrome-main .faq-list details,'
+        '.tool-chrome-main .faq-h ~ details{'
+        'border:1px solid #e7e5dd;border-radius:10px;background:#fff;margin:0 0 8px;padding:0}'
+        '.tool-chrome-main section[class*="faq"] details summary,'
+        '.tool-chrome-main .faq-list details summary,'
+        '.tool-chrome-main .faq-h ~ details summary{'
+        'display:flex;align-items:center;justify-content:flex-start;gap:12px;'
+        'padding:13px 16px;cursor:pointer;list-style:none;text-align:left;'
+        'font-weight:600;font-size:14.5px;line-height:1.4;color:#14161b;background:none;border:none}'
+        '.tool-chrome-main section[class*="faq"] details summary::-webkit-details-marker,'
+        '.tool-chrome-main .faq-list details summary::-webkit-details-marker,'
+        '.tool-chrome-main .faq-h ~ details summary::-webkit-details-marker{display:none}'
+        '.tool-chrome-main section[class*="faq"] details summary::marker,'
+        '.tool-chrome-main .faq-list details summary::marker,'
+        '.tool-chrome-main .faq-h ~ details summary::marker{content:none}'
+        '.tool-chrome-main section[class*="faq"] details summary::before,'
+        '.tool-chrome-main .faq-list details summary::before,'
+        '.tool-chrome-main .faq-h ~ details summary::before{display:none}'
+        '.tool-chrome-main section[class*="faq"] details summary::after,'
+        '.tool-chrome-main .faq-list details summary::after,'
+        '.tool-chrome-main .faq-h ~ details summary::after{'
+        'content:"";flex:none;width:7px;height:7px;margin-left:auto;margin-right:2px;'
+        'border-right:1.8px solid #868b94;border-bottom:1.8px solid #868b94;'
+        'transform:rotate(45deg);transition:transform .15s}'
+        '.tool-chrome-main section[class*="faq"] details[open] summary::after,'
+        '.tool-chrome-main .faq-list details[open] summary::after,'
+        '.tool-chrome-main .faq-h ~ details[open] summary::after{transform:rotate(-135deg)}'
+        '.tool-chrome-main section[class*="faq"] details summary:hover,'
+        '.tool-chrome-main .faq-list details summary:hover,'
+        '.tool-chrome-main .faq-h ~ details summary:hover{background:#faf9f5;border-radius:10px}'
+        '.tool-chrome-main section[class*="faq"] details p,'
+        '.tool-chrome-main .faq-list details p,'
+        '.tool-chrome-main .faq-h ~ details p{'
+        'margin:0;padding:0 16px 14px;font-size:14px;line-height:1.65;color:#4b5058;'
+        'background:none;border:none}'
         '@media(max-width:880px){'
         '.tool-chrome{grid-template-columns:1fr;padding:16px}'
         '.tool-chrome-side{position:fixed;top:0;left:0;bottom:0;width:280px;max-height:100vh;'
@@ -2761,12 +2807,12 @@ def patch_tool_pages(sections, asset_hrefs):
         # nav link) if not already present. Bump the ?v when practice-nav
         # changes so existing tools re-fetch it.
         # Keep the practice-nav version current on already-injected tools.
-        new_html = re.sub(r'practice-nav\.js\?v=\d+', 'practice-nav.js?v=9', new_html)
+        new_html = re.sub(r'practice-nav\.js\?v=\d+', 'practice-nav.js?v=10', new_html)
         new_html = re.sub(r'site-nav\.css\?v=\d+', 'site-nav.css?v=2', new_html)
         if 'practice-nav.js' not in new_html:
             new_html = re.sub(
                 r'</body>',
-                '<script defer src="/www/practice-nav.js?v=9"></script></body>',
+                '<script defer src="/www/practice-nav.js?v=10"></script></body>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         # Canonical navbar CSS + auth hydration for tools injected before the
@@ -2918,7 +2964,7 @@ def patch_tool_pages(sections, asset_hrefs):
             f'<script src="/{toc_js_href}"></script>'
             f'<script src="/www/r-syntax-highlight.js"></script>'
             # Exercises mega-dropdown (upgrades the /exercises/ nav link).
-            f'<script defer src="/www/practice-nav.js?v=9"></script>'
+            f'<script defer src="/www/practice-nav.js?v=10"></script>'
             # Auth state (body.state-anon/.state-pro) + avatar dropdown.
             f'<script defer src="/www/auth-hydrate.js?v=11"></script>'
         )
