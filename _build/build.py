@@ -528,6 +528,14 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M5.5 4L2.5 8l3 4"/>'
         '<path d="M10.5 4l3 4-3 4"/></svg>',
+    't-table.html':   # table grid
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="2.5" y="3" width="11" height="10" rx="1"/>'
+        '<path d="M2.5 6.5h11M6 3v10"/></svg>',
+    'z-table.html':   # bell curve with critical line
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 12c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/>'
+        '<path d="M2 12.5h12"/><path d="M10.5 4v8" stroke-dasharray="2 2"/></svg>',
 }
 
 
@@ -549,6 +557,10 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'equivalence-noninferiority-calculator.html', 'text': 'Equivalence / NI'},
     {'group': 'Calculators', 'slug': 'outlier-detection-calculator.html',        'text': 'Outlier Detection'},
     {'group': 'Calculators', 'slug': 'roc-auc-calculator.html',                  'text': 'ROC / AUC'},
+
+    # Reference tables (critical values / distribution areas)
+    {'group': 'Reference tables', 'slug': 't-table.html',                        'text': 't Table'},
+    {'group': 'Reference tables', 'slug': 'z-table.html',                        'text': 'z Table'},
 
     # Bayesian
     {'group': 'Bayesian',    'slug': 'bayes-theorem-calculator.html',            'text': 'Bayes Theorem'},
