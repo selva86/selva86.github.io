@@ -31,6 +31,9 @@ Subscripting / indexing (15):
 - Error-incorrect-number-of-subscripts-on-matrix-in-R
 
 Object not found / lookup (15):
+- Error-object-of-type-closure-is-not-subsettable-in-R
+- Error-unexpected-symbol-in-R
+- Error-dollar-operator-is-invalid-for-atomic-vectors-in-R
 - Error-object-X-not-found-in-R
 - Error-could-not-find-function-X-in-R
 - Error-cannot-coerce-class-to-data-frame-in-R
