@@ -528,6 +528,12 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M5.5 4L2.5 8l3 4"/>'
         '<path d="M10.5 4l3 4-3 4"/></svg>',
+    'statistical-test-chooser.html':   # decision fork
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="8" cy="3" r="1.6"/>'
+        '<path d="M8 4.6v2.2M8 6.8L4.5 9.4M8 6.8l3.5 2.6"/>'
+        '<rect x="2.5" y="10" width="4" height="3.4" rx="1"/>'
+        '<rect x="9.5" y="10" width="4" height="3.4" rx="1"/></svg>',
     't-table.html':   # table grid
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="3" width="11" height="10" rx="1"/>'
@@ -575,6 +581,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Interpreters', 'slug': 'diagnostic-plot.html',                    'text': 'Diagnostic Plots'},
 
     # Pickers (which test should I use?)
+    {'group': 'Pickers',      'slug': 'statistical-test-chooser.html',        'text': 'Test Chooser'},
     {'group': 'Pickers',      'slug': 'normality-test-picker.html',              'text': 'Normality Test'},
     {'group': 'Pickers',      'slug': 'nonparametric.html',                      'text': 'Non-Parametric Test'},
     {'group': 'Pickers',      'slug': 'multiple-testing-correction.html',        'text': 'Multiple Testing'},

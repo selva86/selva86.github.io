@@ -235,6 +235,7 @@ def build_certification():
 # Tools index: (display name, monogram letter, tagline) aligned to gen_tools_landing.CATEGORIES order.
 _TOOLS_CAT_META = [
     ('Calculators', 'C', 'run a test, get a number'),
+    ('Reference Tables', 'T', 'printable critical-value tables'),
     ('Bayesian', 'B', 'update beliefs with evidence'),
     ('R Output Interpreters', 'R', 'paste output, get plain English'),
     ('Pickers &amp; Decision Tools', 'P', 'choose the right method'),
