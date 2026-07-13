@@ -300,8 +300,8 @@ def build_tools():
         {'@type': 'ListItem', 'position': 2, 'name': 'Tools', 'item': SITE + '/tools/'}]}
     render_page(
         'tools/index.html', SITE + '/tools/',
-        'Statistical Tools · r-statistics.co',
-        'Free in-browser statistical calculators and R output interpreters: t-test, A/B test, ANOVA, lm/glm interpreters, Bayes factor, power analysis, ROC/AUC, and more. Reproducible R code included.',
+        'Statistical Calculators & R Interpreters · r-statistics.co',
+        'Free in-browser statistical calculators and R output interpreters: t-test, chi-square, power analysis, lm and glm readers, ROC/AUC and more, verified against R.',
         body, page_css=css, sprite=sprite, active='tools',
         page_js=['/www/tools-page.js?v=1'], jsonld=[item_list, breadcrumb],
         keywords='statistical calculator, R output interpreter, t-test calculator, A/B test calculator, power analysis, lm summary interpreter, glm interpreter, ANOVA, Bayes factor, ROC AUC, confusion matrix, online statistics tools')
