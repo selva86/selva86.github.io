@@ -552,6 +552,14 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 12c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/>'
         '<path d="M2 12.5h12"/><path d="M10.5 4v8" stroke-dasharray="2 2"/></svg>',
+    'chi-square-table.html':   # right-skewed curve over a table baseline
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 12c1-5 2.5-7 4-7s3 5 8 6.5"/>'
+        '<path d="M2 12.5h12"/><path d="M10 5v7.5" stroke-dasharray="2 2"/></svg>',
+    'f-table.html':   # numerator/denominator grid
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="2.5" y="3" width="11" height="10" rx="1"/>'
+        '<path d="M2.5 6.5h11M6 3v10"/><path d="M8.5 9.5h3.5" stroke-width="2"/></svg>',
     'cronbachs-alpha-calculator.html':   # items converging to one score
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 4h5M2 8h5M2 12h5"/>'
@@ -585,6 +593,8 @@ COMPENDIUM_TOOLS = [
     # Reference tables (critical values / distribution areas)
     {'group': 'Reference tables', 'slug': 't-table.html',                        'text': 't Table'},
     {'group': 'Reference tables', 'slug': 'z-table.html',                        'text': 'z Table'},
+    {'group': 'Reference tables', 'slug': 'chi-square-table.html',               'text': 'Chi-Square Table'},
+    {'group': 'Reference tables', 'slug': 'f-table.html',                        'text': 'F Distribution Table'},
 
     # Bayesian
     {'group': 'Bayesian',    'slug': 'bayes-theorem-calculator.html',            'text': 'Bayes Theorem'},
