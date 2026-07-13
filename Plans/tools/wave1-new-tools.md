@@ -45,3 +45,34 @@ The strategic hub tool: wizard -> the right test -> our calculator/tutorial.
 
 ## Wave 2 (approved shortlist, not yet queued)
 `r-error-decoder` (validate with 10 PSEO error pages first), `odds-ratio-calculator` (2x2 epi suite: OR/RR/NNT/attributable risk, epitools truth), `correlation-calculator` (data-parse.js reuse), `chi-square-table` + `f-table` (dist-tables lib reuse), `sample-size-calculator` (hold: strong SERP incumbents - long-tail plan first), `ggplot2-theme-builder` (HAND-BUILD, design-led showpiece, not a worker tool).
+
+## Wave 2 MINIMUM specs (owner-approved 2026-07-14; scope non-negotiable, same bar as wave 1)
+
+## W2.1 `chi-square-table` + `f-table` - Critical Value Tables (ONE worker run, reuses dist-tables-math.js)
+
+- Reuse `tools/lib/dist-tables-math.js` (qchisq/pchisq, qf/pf already R-verified to 1e-12). Extend ONLY if a primitive is missing; keep the existing harness green.
+- `chi-square-table.html`: full printable chi-square table SERVER-RENDERED (df 1-100 incl. steps, alpha .995/.99/.975/.95/.90/.10/.05/.025/.01/.005 both tails where sensible), interactive lookup (df + alpha highlights cell), shaded chi-square curve synced to selection, reverse mode (statistic + df -> p), copyable `qchisq()` R code, common-use chips (goodness-of-fit, independence 2x2, variance CI).
+- `f-table.html`: printable F tables per alpha (.05/.025/.01) SERVER-RENDERED with df1 columns x df2 rows (standard textbook layout), alpha switcher, interactive lookup + reverse mode (F + df1 + df2 -> p), `qf()` code, ANOVA-use chips.
+- Truth: R grid >=500 cases incl. fractional df, extreme df, tail edges. Harness `Scripts/tool-truth/test-chi-square-table-math.js` gates both pages.
+- Both pages: tables crawlable static HTML; JS enhances. Register in build.py (icons: chi-square curve grid / F grid), gen_tools_landing CATEGORIES ('Reference Tables') + C3META dials.
+
+## W2.2 `correlation-calculator` - Correlation Calculator
+
+- Input: paste two columns (or multi-column with picker) via `tools/lib/data-parse.js` (extend upstream if needed, keep its unit tests green). Pairwise NA handling stated on-page.
+- Methods: Pearson, Spearman, Kendall tau-b. For each: coefficient, CI (Fisher z for Pearson; bootstrap or z-approx for rank methods, method stated), t/z statistic, p-value one/two-tailed, n used.
+- Visuals: scatter with fit line (Pearson) and rank-scatter toggle; live verdict line ("r = .62, 95% CI [.41, .77]: a strong positive linear association"); strength bands taught on-page with the "correlation is not causation and r misses curves" caveat + Anscombe note.
+- APA report line, R code `cor.test(x, y, method=...)` per method. Scenario chips (height/weight style pairs, a curved trap pair showing r near 0).
+- Truth: vs R `cor.test` on >=60 cases: ties (Kendall/Spearman with ties -> exact vs normal approx noted), n=3 minimum, perfect +/-1, near-zero, NA patterns, outlier pair. Gate <=1e-6 (match R's tie handling exactly or state the approximation on-page).
+
+## W2.3 `odds-ratio-calculator` - 2x2 Epidemiology Suite
+
+- Input: 2x2 counts (exposed/unexposed x outcome/no-outcome) with editable labels; scenario chips (cohort, case-control, RCT).
+- Output: OR (Wald + Fisher exact CI), RR (Wald CI), risk difference + NNT/NNH (CI), attributable risk % + population attributable fraction, chi-square/Fisher p (auto-pick with rule stated), verdict line naming the RIGHT measure for the study design (case-control -> OR only, with the why taught on-page).
+- Zero-cell handling: Haldane-Anscombe 0.5 correction, applied transparently with a note.
+- Visuals: paired risk bars + CI interval plot. APA/journal report line, R code (`epitools::oddsratio`, `riskratio`) that reproduces the numbers.
+- Truth: vs R `epitools` + `fisher.test` on >=80 tables: balanced, rare outcome, zero cells, huge counts, protective effects (OR<1). Gate <=1e-6.
+
+## Wave 2 gate task (after W2.3): `r-error-decoder` PSEO validation
+
+Before any decoder tool is built: publish 10 PSEO pages targeting exact R error strings (e.g. "object of type closure is not subsettable", "could not find function", "unexpected symbol", "non-numeric argument to binary operator", "cannot open the connection", "subscript out of bounds", "argument is of length zero", "$ operator is invalid for atomic vectors", "missing value where TRUE/FALSE needed", "unused argument"). Measure GSC impressions/clicks ~3 weeks. Tool builds only if the query class converts.
+
