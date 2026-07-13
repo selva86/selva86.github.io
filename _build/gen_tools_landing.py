@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','odds-ratio-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -167,6 +167,9 @@ C3META = {
  'correlation-calculator': ('Correlation', 'r',
   'Paste two columns for Pearson r, Spearman rho or Kendall tau-b with a CI, p-value and a live scatter plot.',
   '<path class="s" d="M8 5 V38 H41"/><path class="a" d="M10 35 L38 9" fill="none"/><circle class="af" cx="13" cy="31" r="2.2"/><circle class="af" cx="18" cy="29" r="2.2"/><circle class="af" cx="22" cy="23" r="2.2"/><circle class="af" cx="27" cy="21" r="2.2"/><circle class="af" cx="31" cy="15" r="2.2"/><circle class="af" cx="36" cy="12" r="2.2"/>'),
+ 'odds-ratio-calculator': ('Odds Ratio', 'OR',
+  'Enter a 2x2 table for the odds ratio, risk ratio, NNT and attributable risk, each with a confidence interval and the right p-value.',
+  '<path class="s" d="M6 38 H40"/><rect class="af" x="9" y="15" width="9" height="23" rx="1"/><rect class="af" style="opacity:.5" x="22" y="26" width="9" height="12" rx="1"/><rect class="a" x="30" y="5" width="10" height="10" rx="1.5" fill="none"/><path class="a" d="M35 5 V15 M30 10 H40" fill="none"/>'),
 }
 
 # (accent, one-sentence intro) per category, aligned by CATEGORIES order.
