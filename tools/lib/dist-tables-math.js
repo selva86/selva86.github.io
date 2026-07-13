@@ -131,11 +131,81 @@
     return invCDF(function (x) { return pf(x, d1, d2); }, p, 0);
   }
 
+  // ====================================================================
+  //  Correlation r  ->  t transform (R's cor.test / lm t for Pearson r):
+  //  t = r * sqrt((n - 2) / (1 - r^2)), tested on df = n - 2.
+  // ====================================================================
+  function rToT(r, n) {
+    var df = n - 2;
+    return r * Math.sqrt(df / (1 - r * r));
+  }
+
+  // ====================================================================
+  //  p-values from a test statistic. Composes the CDFs above so the page,
+  //  the node harness and R share ONE code path. Tail argument varies by
+  //  distribution and is documented per function. Every deep tail is taken
+  //  from the accurate (non-cancelling) side so p underflow stays exact:
+  //  right-t via symmetry, upper chi-square via gammq Q, upper F via the
+  //  beta-symmetry identity.
+  // ====================================================================
+  function pvT(t, df, tail) {                 // 'two' | 'right' | 'left'
+    if (tail === 'right') return pt(-t, df);  // P(T>=t) = P(T<=-t), accurate deep tail
+    if (tail === 'left')  return pt(t, df);   // P(T<=t)
+    return ptTwo(t, df);                       // P(|T|>=|t|)
+  }
+  function pvZ(z, tail) {                      // 'two' | 'right' | 'left'
+    if (tail === 'right') return N.pnorm(-z);
+    if (tail === 'left')  return N.pnorm(z);
+    return 2 * N.pnorm(-Math.abs(z));
+  }
+  function pvChisq(x, df, tail) {              // 'upper'/'right' | 'lower'/'left'
+    if (x <= 0) return (tail === 'lower' || tail === 'left') ? 0 : 1;
+    if (tail === 'lower' || tail === 'left') return pchisq(x, df);
+    return N.gammq(df / 2, x / 2);             // upper tail Q(df/2, x/2)
+  }
+  function pvF(x, d1, d2, tail) {              // 'upper'/'right' | 'lower'/'left'
+    if (x <= 0) return (tail === 'lower' || tail === 'left') ? 0 : 1;
+    if (tail === 'lower' || tail === 'left') return pf(x, d1, d2);
+    var y = d1 * x;                            // upper tail via I_x(a,b)=1-I_{1-x}(b,a)
+    return ibeta(d2 / 2, d1 / 2, d2 / (y + d2));
+  }
+  function pvR(r, n, tail) {                   // Pearson r; tail as pvT
+    return pvT(rToT(r, n), n - 2, tail);
+  }
+
+  // ---- critical values from alpha (inverse mode) ---------------------
+  // Returns the (positive) cutoff a statistic must beat. Two-tailed t/z/r
+  // report the positive edge; the negative edge is its mirror.
+  function critT(alpha, df, tail) {
+    if (tail === 'right') return qt(1 - alpha, df);
+    if (tail === 'left')  return qt(alpha, df);
+    return qt(1 - alpha / 2, df);
+  }
+  function critZ(alpha, tail) {
+    if (tail === 'right') return N.qnorm(1 - alpha);
+    if (tail === 'left')  return N.qnorm(alpha);
+    return N.qnorm(1 - alpha / 2);
+  }
+  function critChisq(alpha, df, tail) {
+    return (tail === 'lower' || tail === 'left') ? qchisq(alpha, df) : qchisq(1 - alpha, df);
+  }
+  function critF(alpha, d1, d2, tail) {
+    return (tail === 'lower' || tail === 'left') ? qf(alpha, d1, d2) : qf(1 - alpha, d1, d2);
+  }
+  function critR(alpha, n, tail) {            // critical Pearson r
+    var df = n - 2;
+    var tc = (tail === 'two') ? qt(1 - alpha / 2, df) : qt(1 - alpha, df);
+    return tc / Math.sqrt(df + tc * tc);
+  }
+
   return {
     invCDF: invCDF,
     pnorm: pnorm, qnorm: qnorm, dnorm: dnorm, zArea: zArea,
     pt: pt, dt: dt, ptTwo: ptTwo, qt: qt,
     pchisq: pchisq, dchisq: dchisq, qchisq: qchisq,
-    pf: pf, df_pdf: df_pdf, qf: qf
+    pf: pf, df_pdf: df_pdf, qf: qf,
+    rToT: rToT,
+    pvT: pvT, pvZ: pvZ, pvChisq: pvChisq, pvF: pvF, pvR: pvR,
+    critT: critT, critZ: critZ, critChisq: critChisq, critF: critF, critR: critR
   };
 }));

@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile']),
     ('Reference Tables', ['t-table','z-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -83,6 +83,9 @@ C3META = {
  'z-score-percentile': ('Z-Score &harr; Percentile', 'z',
   'Convert a z-score to a percentile and back, with the shaded curve to match.',
   '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C13 37 14 9 22 9 C30 9 31 37 39 37" fill="none"/><path class="af" d="M5 37 C13 37 14 9 22 9 C26 9 27.6 16 29 24 L29 37 Z" style="opacity:.18"/><path class="a" d="M29 37 V21" fill="none"/>'),
+ 'p-value-calculator': ('p-Value Calculator', 'p',
+  'Turn a t, z, chi-square, F, or r statistic into its p-value, or go the other way from alpha.',
+  '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C13 37 14 9 22 9 C30 9 31 37 39 37" fill="none"/><path class="af" d="M30 21.8 C31.6 26.6 33.4 33 35 35.4 C36.3 36.4 37.6 36.9 39 37 L39 37 H30 Z" style="opacity:.35"/><path class="a" d="M30 37 V18" fill="none" stroke-dasharray="2.5 2.5"/>'),
  't-table': ('t Table', 'qt',
   'Look up t critical values by df and alpha, or go backwards from t to p. Printable.',
   '<rect class="s" x="6" y="8" width="32" height="28" rx="2" fill="none"/><path class="s" d="M6 15 H38 M6 22 H38 M6 29 H38 M14 8 V36 M22 8 V36 M30 8 V36"/><rect class="af" x="22" y="22" width="8" height="7" style="opacity:.8"/>'),
