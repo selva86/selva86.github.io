@@ -336,6 +336,26 @@ _ATLAS_STARS = {
 }
 
 
+_ATLAS_PLATES = {
+ 'Learn R':
+  '<rect class="s" x="10" y="22" width="15" height="16" rx="3.5" fill="none"/><rect class="af" x="28" y="22" width="15" height="16" rx="3.5"/><rect class="s" x="46" y="22" width="15" height="16" rx="3.5" fill="none"/><rect class="s" x="64" y="22" width="15" height="16" rx="3.5" fill="none"/><rect class="s" x="82" y="22" width="8" height="16" rx="3" fill="none" stroke-dasharray="3 3"/><path class="a" d="M35.5 46 V58 L58 58 M54 54 L58 58 L54 62" fill="none"/><rect class="a" x="62" y="50" width="16" height="16" rx="3.5" fill="none"/><path class="s" d="M14 76 H86" stroke-dasharray="2.5 3.5"/>',
+ 'Data Wrangling':
+  '<rect class="s" x="6" y="18" width="34" height="52" rx="3" fill="none"/><path class="s" d="M6 28 H40 M6 40 H40 M6 52 H40 M17 18 V70 M28 18 V70"/><path class="sf" d="M18 42 h8 v8 h-8 Z M29 54 h8 v8 h-8 Z M7 54 h8 v8 h-8 Z"/><path class="a" d="M46 44 H58 M53.5 39.5 L58 44 L53.5 48.5" fill="none"/><rect class="a" x="64" y="26" width="30" height="38" rx="3" fill="none"/><path class="a" d="M64 36 H94 M64 50 H94 M79 26 V64" style="opacity:.55"/><rect class="af" x="64" y="26" width="30" height="10" rx="3" style="opacity:.25"/>',
+ 'Visualization':
+  '<rect class="s" x="8" y="10" width="38" height="34" rx="3" fill="none"/><rect class="af" x="14" y="28" width="7" height="12"/><rect class="af" x="24" y="20" width="7" height="20" style="opacity:.65"/><rect class="af" x="34" y="32" width="7" height="8" style="opacity:.4"/><rect class="s" x="54" y="10" width="38" height="34" rx="3" fill="none"/><path class="a" d="M60 38 L69 24 L77 30 L86 16" fill="none"/><circle class="af" cx="69" cy="24" r="2.4"/><circle class="af" cx="86" cy="16" r="2.4"/><rect class="s" x="8" y="52" width="38" height="34" rx="3" fill="none"/><circle class="af" cx="16" cy="76" r="2.6"/><circle class="af" cx="23" cy="68" r="2.6"/><circle class="af" cx="30" cy="72" r="2.6"/><circle class="af" cx="37" cy="62" r="2.6"/><path class="a" d="M13 80 L41 60" fill="none" style="opacity:.6"/><rect class="s" x="54" y="52" width="38" height="34" rx="3" fill="none"/><path class="af" d="M58 86 C64 66 70 60 73 60 C76 60 82 66 88 86 Z" style="opacity:.35"/>',
+ 'Statistics':
+  '<path class="s" d="M6 66 H94"/><path class="a" d="M9 66 C27 66 29 18 50 18 C71 18 73 66 91 66" fill="none"/><path class="af" d="M33 66 C36 48 42 38 50 38 C58 38 64 48 67 66 Z" style="opacity:.2"/><path class="a" d="M33 78 H67 M33 74 V82 M67 74 V82" fill="none"/><circle class="af" cx="50" cy="78" r="3"/><g class="s"><path d="M14 70 v4 M22 70 v4 M31 70 v4 M39 70 v4 M47 70 v4 M55 70 v4 M63 70 v4 M72 70 v4 M81 70 v4 M88 70 v4"/></g>',
+ 'Time Series':
+  '<path class="s" d="M8 20 H92" stroke-dasharray="2.5 3.5" style="opacity:.5"/><path class="a" d="M8 24 L19 14 L29 26 L40 12 L50 22 L60 10 L68 18" fill="none"/><path class="af" d="M68 18 L92 8 L92 28 Z" style="opacity:.18"/><path class="a" d="M68 18 L92 14" fill="none" stroke-dasharray="3 4"/><path class="a" d="M8 52 C36 44 64 44 92 38" fill="none" style="opacity:.6"/><path class="a" d="M8 80 Q13 72 18 80 T28 80 T38 80 T48 80 T58 80 T68 80 T78 80 T88 80" fill="none" style="opacity:.4"/>',
+ 'Advanced R':
+  '<rect class="s" x="8" y="12" width="84" height="76" rx="7" fill="none"/><rect class="a" x="20" y="24" width="60" height="52" rx="6" fill="none" style="opacity:.5"/><rect class="a" x="32" y="36" width="36" height="28" rx="5" fill="none"/><rect class="af" x="40" y="46" width="20" height="8" rx="4"/><path class="a" d="M60 50 H86 M82 46 L86 50 L82 54" fill="none" style="opacity:.7"/>',
+ 'Classic Tutorials':
+  '<rect class="s" x="22" y="26" width="46" height="58" rx="3" fill="none" transform="rotate(-5 45 55)"/><rect class="s" x="26" y="20" width="46" height="58" rx="3" fill="#fff" transform="rotate(2 49 49)"/><rect class="a" x="30" y="12" width="46" height="58" rx="3" fill="#fff"/><path class="a" d="M38 24 H68 M38 32 H68 M38 40 H58" style="opacity:.5"/><path class="af" d="M38 50 L45 58 L53 46 L60 60 L68 50 L68 62 H38 Z" style="opacity:.5"/><circle class="af" cx="68" cy="18" r="5" style="opacity:.85"/>',
+ 'Practice Exercises':
+  '<rect class="s" x="10" y="14" width="80" height="20" rx="5" fill="none"/><rect class="a" x="16" y="20" width="8" height="8" rx="2" fill="none"/><path class="a" d="M17.5 24 l2.4 2.6 L24.5 20.5" fill="none"/><path class="s" d="M32 24 H82"/><rect class="s" x="10" y="42" width="80" height="20" rx="5" fill="none"/><rect class="af" x="16" y="48" width="8" height="8" rx="2"/><path class="s" d="M32 52 H74"/><rect class="s" x="10" y="70" width="80" height="20" rx="5" fill="none" stroke-dasharray="3 3"/><rect class="s" x="16" y="76" width="8" height="8" rx="2" fill="none"/><path class="s" d="M32 80 H66"/>',
+}
+
+
 def _atlas_html():
     """Build the jump chips + atlas tiles from www/sidebar.json (the sidebar is
     the hand-curated SSOT, so the atlas stays current on every CI build)."""
@@ -347,7 +367,9 @@ def _atlas_html():
         anchor = 'atl-' + re.sub(r'[^a-z]', '', title.lower())
         items = sec.get('items', [])
         n_items = sum(1 for i in items if not i.get('divider'))
-        chips.append(f'<a class="jch-chip" href="#{anchor}" style="--acc:{acc}"><i></i>{_esc(title)}<b>{n_items}</b></a>')
+        if title != 'Practice Exercises':
+            chips.append(f'<a class="jch-chip" href="#{anchor}" data-spy="{anchor}" style="--acc:{acc}">'
+                         f'<span class="num">{len(chips)+1:02d}</span>{_esc(title)}<b>{n_items}</b></a>')
         # group by divider
         groups, cur = [], None
         for i in items:
@@ -379,7 +401,10 @@ def _atlas_html():
             name = _esc(g['name'] or title)
             subs.append(f'<details class="atl-sub"{openattr}><summary>{name}'
                         f'<span class="atl-c">{len(g["items"])}</span></summary><ul>{"".join(lis)}</ul></details>')
-        tiles.append(f'<section class="atl-tile" id="{anchor}" style="--acc:{acc}">'
+        plate = _ATLAS_PLATES.get(title, '')
+        plate_html = (f'<span class="atl-plate" aria-hidden="true"><svg viewBox="0 0 100 100">{plate}</svg></span>'
+                      if plate else '')
+        tiles.append(f'<section class="atl-tile" id="{anchor}" style="--acc:{acc}">{plate_html}'
                      f'<div class="atl-th"><i></i><h3>{_esc(title)}</h3><span class="atl-n">{n_items} tutorials</span></div>'
                      f'<p class="atl-blurb">{_ATLAS_BLURB.get(title, "")}</p>{"".join(subs)}</section>')
     return ''.join(chips), ''.join(tiles)
@@ -404,7 +429,7 @@ def build_tutorials():
         'R Tutorials · r-statistics.co',
         'Free, runnable R tutorials across nine learning paths: base R, data wrangling, visualization, statistics, time series, and machine learning. Every lesson runs live in the browser, and it has never been behind a paywall.',
         body, page_css=css, sprite=sprite, active='tutorials',
-        page_js=['/www/tutorials-page.js?v=1'], jsonld=[webpage, breadcrumb],
+        page_js=['/www/tutorials-page.js?v=2'], jsonld=[webpage, breadcrumb],
         keywords='R tutorials, learn R, R programming tutorial, tidyverse, ggplot2, dplyr, R statistics, data science in R, runnable R examples')
     print(f'  (tutorials: total={total:,})')
 
