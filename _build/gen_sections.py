@@ -148,7 +148,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 {FOUC}
 {FONTS}
 <link rel="stylesheet" href="/www/sections-v3.css?v=3">
-<link rel="stylesheet" href="/www/site-nav.css?v=2">
+<link rel="stylesheet" href="/www/site-nav.css?v=3">
 <style>html,body{{overflow-x:clip;max-width:100vw}}</style>
 <style>
 {page_css}
