@@ -252,16 +252,31 @@ def run_validator(slug: str, target_keyword: str, dry_run: bool) -> tuple[str, s
             f"validator crashed (exit {r.returncode}); stderr: {stderr_tail}")
 
 
+
+def _inline_skill_prompt(skill_name: str, args_str: str) -> str:
+    """CLI 2.1.207+: slash commands do not resolve in `claude -p`. Inline the
+    skill body and pass the input explicitly (same fix as the tools fleet)."""
+    skill_path = PROJECT_ROOT / ".claude" / "skills" / skill_name / "SKILL.md"
+    body = skill_path.read_text(encoding="utf-8")
+    if body.startswith("---"):
+        end = body.find("---", 3)
+        if end != -1:
+            body = body[end + 3:]
+    tail = "\n\n---\nINPUT: " + args_str + "\n"
+    tail += "You are running non-interactively; execute the skill instructions above with this INPUT now."
+    return body.strip() + tail
+
+
 def run_write_skill(claude: str, slug: str, regenerate: bool, dry_run: bool) -> int:
     """Spawn /write-pseo-v2 in a fresh Claude CLI subprocess."""
     args_str = slug
     if regenerate:
         args_str += " --regenerate"
-    prompt = f"/write-pseo-v2 {args_str}"
+    prompt = _inline_skill_prompt("write-pseo-v2", args_str)
     if dry_run:
-        log(f"  DRY-RUN write: claude -p \"{prompt}\"")
+        log(f"  DRY-RUN write: write-pseo-v2 {args_str}")
         return 0
-    log(f"  Spawning write: {prompt}")
+    log(f"  Spawning write: write-pseo-v2 {args_str} (inlined skill)")
     try:
         result = subprocess.run(
             [claude, "-p", prompt, "--dangerously-skip-permissions"],
@@ -295,11 +310,11 @@ def run_publish_skill(claude: str, slug: str, dry_run: bool,
     args_str = slug
     if skip_sync_registries:
         args_str += " --skip-sync-registries"
-    prompt = f"/publish-post {args_str}"
+    prompt = _inline_skill_prompt("publish-post", args_str)
     if dry_run:
-        log(f"  DRY-RUN publish: claude -p \"{prompt}\"")
+        log(f"  DRY-RUN publish: publish-post {args_str}")
         return 0
-    log(f"  Spawning publish: {prompt}")
+    log(f"  Spawning publish: publish-post {args_str} (inlined skill)")
     try:
         result = subprocess.run(
             [claude, "-p", prompt, "--dangerously-skip-permissions"],
