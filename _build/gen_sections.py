@@ -404,9 +404,11 @@ def _atlas_html():
         plate = _ATLAS_PLATES.get(title, '')
         plate_html = (f'<span class="atl-plate" aria-hidden="true"><svg viewBox="0 0 100 100">{plate}</svg></span>'
                       if plate else '')
-        tiles.append(f'<section class="atl-tile" id="{anchor}" style="--acc:{acc}">{plate_html}'
+        tiles.append(f'<section class="atl-tile" id="{anchor}" style="--acc:{acc}">'
+                     f'<div class="atl-head">{plate_html}'
                      f'<div class="atl-th"><i></i><h3>{_esc(title)}</h3><span class="atl-n">{n_items} tutorials</span></div>'
-                     f'<p class="atl-blurb">{_ATLAS_BLURB.get(title, "")}</p>{"".join(subs)}</section>')
+                     f'<p class="atl-blurb">{_ATLAS_BLURB.get(title, "")}</p></div>'
+                     f'<div class="atl-body">{"".join(subs)}</div></section>')
     return ''.join(chips), ''.join(tiles)
 
 
