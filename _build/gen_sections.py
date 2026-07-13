@@ -148,7 +148,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 {FOUC}
 {FONTS}
 <link rel="stylesheet" href="/www/sections-v3.css?v=3">
-<link rel="stylesheet" href="/www/site-nav.css?v=3">
+<link rel="stylesheet" href="/www/site-nav.css?v=4">
 <style>html,body{{overflow-x:clip;max-width:100vw}}</style>
 <style>
 {page_css}
@@ -232,40 +232,54 @@ def build_certification():
         keywords='R certification, R programming certificate, verifiable credential, data science certificate, tidyverse certification, machine learning R certificate, statistics certificate, open badges')
 
 
-# Tools index: (display name, monogram letter, tagline) aligned to gen_tools_landing.CATEGORIES order.
-_TOOLS_CAT_META = [
-    ('Calculators', 'C', 'run a test, get a number'),
-    ('Reference Tables', 'T', 'printable critical-value tables'),
-    ('Bayesian', 'B', 'update beliefs with evidence'),
-    ('R Output Interpreters', 'R', 'paste output, get plain English'),
-    ('Pickers &amp; Decision Tools', 'P', 'choose the right method'),
-    ('Study Design &amp; Power', 'S', 'plan before you collect data'),
-    ('Specialized', 'X', 'domain-specific tests'),
-]
+# Tools index bands render from gen_tools_landing.C3META / C3CATS (C3 design).
 
 
 def build_tools():
     css, sprite, body = load_fragment('tools')
-    from gen_tools_landing import collect_tools, CATEGORIES  # lazy: avoids import cycle
+    from gen_tools_landing import collect_tools, CATEGORIES, C3META, C3CATS
     tools = collect_tools()
-    blocks, total = [], 0
-    for (cat_name, slugs), (disp, letter, tagline) in zip(CATEGORIES, _TOOLS_CAT_META):
-        present = [s for s in slugs if s in tools]
+    GENERIC_DIAL = ('<path class="s" d="M7 5 V38 H40"/><circle class="af" cx="14" cy="28" r="2.4"/>'
+                    '<circle class="af" cx="22" cy="18" r="2.4"/><circle class="af" cx="31" cy="24" r="2.4"/>')
+    blocks, rail, total = [], [], 0
+    for cat_name, slugs in CATEGORIES:
+        present = [sl for sl in slugs if sl in tools]
+        if not present:
+            continue
         total += len(present)
+        acc, intro = C3CATS[cat_name]
+        key = re.sub(r'[^a-z]+', '-', cat_name.lower()).strip('-')
+        disp = cat_name.replace(' and ', ' &amp; ')
+        rail.append(f'<a href="#c3-{key}" style="--acc:{acc}"><span class="dot"></span>{disp}'
+                    f'<span class="n">{len(present)}</span></a>')
         cards = []
         for slug in present:
-            t = tools[slug]
-            title = t['title'].replace('<', '&lt;').replace('>', '&gt;')
-            desc = t['desc'].replace('<', '&lt;').replace('>', '&gt;')
+            meta = C3META.get(slug)
+            if meta:
+                name, badge, blurb, dial = meta
+            else:
+                print(f'  (tools index: WARNING no C3META for {slug}, generic card)')
+                t = tools[slug]
+                name = t['title'].split(':')[0].replace('<', '&lt;').replace('>', '&gt;')
+                badge = '&#183;'
+                blurb = (t['desc'].split('. ')[0] + '.') if t['desc'] else name + '.'
+                dial = GENERIC_DIAL
             cards.append(
-                f'      <a class="trow" href="/tools/{slug}.html">'
-                f'<span class="tname">{title} <span class="arr">&rarr;</span></span>'
-                f'<p class="tdesc">{desc}</p></a>')
+                f'      <a class="c3-card" href="/tools/{slug}.html">'
+                f'<span class="c3-dial" aria-hidden="true"><svg viewBox="0 0 44 44">{dial}</svg></span>'
+                f'<span><span class="c3-name">{name}<span class="go">&rarr;</span></span>'
+                f'<p class="c3-blurb">{blurb}</p></span>'
+                f'<span class="c3-badge">{badge}</span></a>')
+        n = len(present)
         blocks.append(
-            '  <div class="cat">\n'
-            f'    <div class="cathd"><span class="lm">{letter}</span><h3>{disp}</h3>'
-            f'<span class="cc">{len(present)} tools</span><span class="gtag">{tagline}</span></div>\n'
-            '    <div class="rows">\n' + '\n'.join(cards) + '\n    </div>\n  </div>')
+            f'<section class="c3-band" id="c3-{key}" style="--acc:{acc}">\n'
+            f'  <div class="c3-side">\n'
+            f'    <h2><span class="tick"></span>{disp}</h2>\n'
+            f'    <p>{intro}</p>\n'
+            f'    <span class="cnt">{n} tool{"s" if n != 1 else ""}</span>\n'
+            f'  </div>\n'
+            '  <div class="c3-cards">\n' + '\n'.join(cards) + '\n  </div>\n</section>')
+    body = body.replace('{{TOOL_RAIL}}', '\n'.join(rail))
     body = body.replace('{{TOOL_INDEX}}', '\n'.join(blocks))
 
     item_list = {'@context': 'https://schema.org', '@type': 'CollectionPage',
@@ -287,7 +301,7 @@ def build_tools():
     render_page(
         'tools/index.html', SITE + '/tools/',
         'Statistical Tools · r-statistics.co',
-        '27 free in-browser statistical calculators and R output interpreters: t-test, A/B test, ANOVA, lm/glm interpreters, Bayes factor, power analysis, ROC/AUC, and more. Reproducible R code included.',
+        'Free in-browser statistical calculators and R output interpreters: t-test, A/B test, ANOVA, lm/glm interpreters, Bayes factor, power analysis, ROC/AUC, and more. Reproducible R code included.',
         body, page_css=css, sprite=sprite, active='tools',
         page_js=['/www/tools-page.js?v=1'], jsonld=[item_list, breadcrumb],
         keywords='statistical calculator, R output interpreter, t-test calculator, A/B test calculator, power analysis, lm summary interpreter, glm interpreter, ANOVA, Bayes factor, ROC AUC, confusion matrix, online statistics tools')
