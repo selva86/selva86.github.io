@@ -11,7 +11,7 @@ inline SVG sprite, and per-page JS are passed in by each section builder.
 Run: `python _build/gen_sections.py` (builds every section page wired below).
 Imported by build_with_pagefind.py so it runs on every CF Pages build.
 """
-import os, json
+import os, json, re
 import html as htmllib
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -293,12 +293,91 @@ def build_tools():
     print(f'  (tools index: {total} tools across {len(CATEGORIES)} categories)')
 
 
+# Atlas config for the tutorials page (owner-approved assembly 2026-07-13:
+# start-here + classics on top, full topic atlas as the body, no side rail).
+_ATLAS_ACCENT = {'Learn R': '#2563a8', 'Data Wrangling': '#1f7a55', 'Statistics': '#a8322c',
+                 'Visualization': '#b5631a', 'Time Series': '#4b45b8', 'Advanced R': '#0e7490',
+                 'Classic Tutorials': '#9a7320', 'Practice Exercises': '#6d28d9'}
+_ATLAS_BLURB = {
+    'Learn R': 'The language itself: syntax, data types, functions, and the habits that make R feel natural.',
+    'Data Wrangling': 'Get data in, clean it up, and shape it with dplyr and tidyr, the daily toolkit of every analyst.',
+    'Statistics': 'From probability to regression, ANOVA, Bayesian methods and statistical theory, with runnable R at every step.',
+    'Visualization': 'ggplot2 from the grammar up: every chart type, plus the polish that makes figures publication-ready.',
+    'Time Series': 'Decompose, model and forecast time series with the classic r-statistics.co forecasting guides.',
+    'Advanced R': 'How R actually works: functional programming, OOP, environments, debugging and performance.',
+    'Classic Tutorials': 'The originals that put r-statistics.co on the map, read by millions of R users since 2016.',
+    'Practice Exercises': 'Auto-graded problems and timed mastery quizzes. Solve in the browser, earn the certificate.',
+}
+# Starred = the classics + per-path flagships (kept in sync with the classics band).
+_ATLAS_STARS = {
+    'Top50-Ggplot2-Visualizations-MasterList-R-Code.html', 'Linear-Regression.html',
+    'Logistic-Regression-With-R.html', 'Complete-Ggplot2-Tutorial-Part1-With-R-Code.html',
+    'Time-Series-Analysis-With-R.html', 'Statistical-Tests-in-R.html',
+    'R-Syntax-101.html', 'R-Data-Frames.html', 'R-Functions.html', 'R-vs-Python.html',
+    'dplyr-group-by-summarise.html', 'R-Joins.html', 'pivot_longer-pivot_wider-Reshape-Data-in-R.html',
+    'Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html', 'Hypothesis-Testing-in-R.html',
+    'Which-Statistical-Test-in-R.html', 'One-Way-ANOVA-in-R.html', 'ggplot2-Grammar-of-Graphics.html',
+    'Publication-Quality-Figures-in-R.html', 'Functional-Programming-in-R.html', 'OOP-in-R.html',
+}
+
+
+def _atlas_html():
+    """Build the jump chips + atlas tiles from www/sidebar.json (the sidebar is
+    the hand-curated SSOT, so the atlas stays current on every CI build)."""
+    sections = json.load(open(os.path.join(REPO_ROOT, 'www', 'sidebar.json'), encoding='utf-8'))
+    chips, tiles = [], []
+    for sec in sections:
+        title = sec['title']
+        acc = _ATLAS_ACCENT.get(title, '#2563a8')
+        anchor = 'atl-' + re.sub(r'[^a-z]', '', title.lower())
+        items = sec.get('items', [])
+        n_items = sum(1 for i in items if not i.get('divider'))
+        chips.append(f'<a class="jch-chip" href="#{anchor}" style="--acc:{acc}"><i></i>{_esc(title)}<b>{n_items}</b></a>')
+        # group by divider
+        groups, cur = [], None
+        for i in items:
+            if i.get('divider'):
+                cur = {'name': i['text'], 'items': []}
+                groups.append(cur)
+            else:
+                if cur is None:
+                    cur = {'name': '', 'items': []}
+                    groups.append(cur)
+                cur['items'].append(i)
+        subs = []
+        for gi, g in enumerate(groups):
+            if not g['items']:
+                continue
+            lis = []
+            for it in g['items']:
+                href = it['href']
+                label = _esc(it['text'])
+                pill = ''
+                if href.endswith('-quiz.html'):
+                    pill = '<span class="atl-pill atl-quiz">Quiz</span>'
+                elif label.endswith(' (Course)'):
+                    label = label[:-9]
+                    pill = '<span class="atl-pill atl-course">Interactive</span>'
+                star = '<span class="atl-star">&#9733;</span>' if href in _ATLAS_STARS else ''
+                lis.append(f'<li>{star}<a href="/{href}">{label}</a>{pill}</li>')
+            openattr = ' open' if gi == 0 else ''
+            name = _esc(g['name'] or title)
+            subs.append(f'<details class="atl-sub"{openattr}><summary>{name}'
+                        f'<span class="atl-c">{len(g["items"])}</span></summary><ul>{"".join(lis)}</ul></details>')
+        tiles.append(f'<section class="atl-tile" id="{anchor}" style="--acc:{acc}">'
+                     f'<div class="atl-th"><i></i><h3>{_esc(title)}</h3><span class="atl-n">{n_items} tutorials</span></div>'
+                     f'<p class="atl-blurb">{_ATLAS_BLURB.get(title, "")}</p>{"".join(subs)}</section>')
+    return ''.join(chips), ''.join(tiles)
+
+
 def build_tutorials():
     import glob
     css, sprite, body = load_fragment('tutorials')
     # Total published pages = one _posts/*.html fragment per built page (committed; curriculum-status.json is gitignored).
     total = len(glob.glob(os.path.join(REPO_ROOT, '_posts', '*.html')))
     body = body.replace('{{TOTAL}}', f'{total:,}')
+    chips, atlas = _atlas_html()
+    body = body.replace('{{CHIPS}}', chips).replace('{{ATLAS}}', atlas)
     webpage = {'@context': 'https://schema.org', '@type': 'CollectionPage',
                'name': 'R Tutorials, r-statistics.co', 'url': SITE + '/tutorials/',
                'description': 'Free, runnable R tutorials across nine learning paths.'}
