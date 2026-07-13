@@ -565,6 +565,14 @@ _TOOL_ICONS = {
         '<path d="M2 4h5M2 8h5M2 12h5"/>'
         '<path d="M7 4c3.5 0 3.5 4 6 4M7 12c3.5 0 3.5-4 6-4"/>'
         '<circle cx="13" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg>',
+    'correlation-calculator.html':   # scatter points rising along a fit line
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 2v11.5h11"/>'
+        '<path d="M4 12.5 13 4"/>'
+        '<circle cx="5" cy="10.5" r=".9" fill="currentColor" stroke="none"/>'
+        '<circle cx="7.5" cy="8.5" r=".9" fill="currentColor" stroke="none"/>'
+        '<circle cx="9.5" cy="7" r=".9" fill="currentColor" stroke="none"/>'
+        '<circle cx="11.5" cy="5" r=".9" fill="currentColor" stroke="none"/></svg>',
 }
 
 
@@ -589,6 +597,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'outlier-detection-calculator.html',        'text': 'Outlier Detection'},
     {'group': 'Calculators', 'slug': 'roc-auc-calculator.html',                  'text': 'ROC / AUC'},
     {'group': 'Calculators', 'slug': 'cronbachs-alpha-calculator.html',          'text': "Cronbach's Alpha"},
+    {'group': 'Calculators', 'slug': 'correlation-calculator.html',              'text': 'Correlation'},
 
     # Reference tables (critical values / distribution areas)
     {'group': 'Reference tables', 'slug': 't-table.html',                        'text': 't Table'},

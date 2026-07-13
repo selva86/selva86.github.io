@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -164,6 +164,9 @@ C3META = {
  'cronbachs-alpha-calculator': ("Cronbach's Alpha", '&alpha;',
   'Paste item responses for alpha, its confidence interval, and a per-item read on what to keep or drop.',
   '<path class="s" d="M6 37 H40"/><rect class="af" x="8" y="27" width="6" height="9" rx="1"/><rect class="af" x="8" y="18" width="9" height="7" rx="1"/><rect class="af" x="8" y="10" width="7" height="6" rx="1"/><path class="a" d="M23 35 A12 12 0 0 1 40 35" fill="none"/><path class="af" d="M23 35 A12 12 0 0 1 34.6 24.1 L31.5 35 Z" style="opacity:.5"/><path class="a" d="M31.5 35 L35 23" fill="none"/><circle class="af" cx="31.5" cy="35" r="2.2"/>'),
+ 'correlation-calculator': ('Correlation', 'r',
+  'Paste two columns for Pearson r, Spearman rho or Kendall tau-b with a CI, p-value and a live scatter plot.',
+  '<path class="s" d="M8 5 V38 H41"/><path class="a" d="M10 35 L38 9" fill="none"/><circle class="af" cx="13" cy="31" r="2.2"/><circle class="af" cx="18" cy="29" r="2.2"/><circle class="af" cx="22" cy="23" r="2.2"/><circle class="af" cx="27" cy="21" r="2.2"/><circle class="af" cx="31" cy="15" r="2.2"/><circle class="af" cx="36" cy="12" r="2.2"/>'),
 }
 
 # (accent, one-sentence intro) per category, aligned by CATEGORIES order.
