@@ -509,7 +509,7 @@ _TOOL_ICONS = {
         '<path d="M2.5 13.5V2.5M2.5 13.5H14"/>'
         '<path d="M4 11l3-2.5 3-1.5 3.5-3"/>'
         '<circle cx="11.5" cy="4" r="1.1" fill="currentColor" stroke="none"/></svg>',
-    'nonparametric-test-picker.html':   # rank dots ascending
+    'nonparametric.html':   # rank dots ascending
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<circle cx="4" cy="11" r="1.2" fill="currentColor" stroke="none"/>'
         '<circle cx="8" cy="7.5" r="1.2" fill="currentColor" stroke="none"/>'
@@ -564,7 +564,7 @@ COMPENDIUM_TOOLS = [
 
     # Pickers (which test should I use?)
     {'group': 'Pickers',      'slug': 'normality-test-picker.html',              'text': 'Normality Test'},
-    {'group': 'Pickers',      'slug': 'nonparametric-test-picker.html',          'text': 'Non-Parametric Test'},
+    {'group': 'Pickers',      'slug': 'nonparametric.html',                      'text': 'Non-Parametric Test'},
     {'group': 'Pickers',      'slug': 'multiple-testing-correction.html',        'text': 'Multiple Testing'},
 
     # Time series + utilities
