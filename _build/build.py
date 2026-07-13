@@ -573,6 +573,12 @@ _TOOL_ICONS = {
         '<circle cx="7.5" cy="8.5" r=".9" fill="currentColor" stroke="none"/>'
         '<circle cx="9.5" cy="7" r=".9" fill="currentColor" stroke="none"/>'
         '<circle cx="11.5" cy="5" r=".9" fill="currentColor" stroke="none"/></svg>',
+    'odds-ratio-calculator.html':   # 2x2 grid with the ad cross-product diagonal marked
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/>'
+        '<path d="M8 2.5v11M2.5 8h11"/>'
+        '<circle cx="5.25" cy="5.25" r="1.05" fill="currentColor" stroke="none"/>'
+        '<circle cx="10.75" cy="10.75" r="1.05" fill="currentColor" stroke="none"/></svg>',
 }
 
 
@@ -598,6 +604,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'roc-auc-calculator.html',                  'text': 'ROC / AUC'},
     {'group': 'Calculators', 'slug': 'cronbachs-alpha-calculator.html',          'text': "Cronbach's Alpha"},
     {'group': 'Calculators', 'slug': 'correlation-calculator.html',              'text': 'Correlation'},
+    {'group': 'Calculators', 'slug': 'odds-ratio-calculator.html',               'text': 'Odds Ratio &amp; RR'},
 
     # Reference tables (critical values / distribution areas)
     {'group': 'Reference tables', 'slug': 't-table.html',                        'text': 't Table'},
