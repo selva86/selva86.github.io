@@ -124,5 +124,38 @@ t('grouped multiline (flat, not table)', vals('1,234\n5,678'), [1234, 5678]);
 t('empty parse', DP.parse('').mode, 'empty');
 t('whitespace only', DP.parse('   \n  \n').mode, 'empty');
 
+// ---- parseMatrix (W1.5 Cronbach's alpha) ----
+{
+  const m = DP.parseMatrix('4 5 3\n2 1 4\n5 5 5');   // space-delimited grid
+  t('pm space mode', m.mode, 'matrix');
+  t('pm space dims', [m.nrow, m.ncol], [3, 3]);
+  t('pm space row0', m.matrix[0], [4, 5, 3]);
+  t('pm space row2', m.matrix[2], [5, 5, 5]);
+  t('pm space names', m.names, ['Item 1', 'Item 2', 'Item 3']);
+}
+{
+  const m = DP.parseMatrix('q1,q2,q3\n5,4,5\n3,3,2\n4,,4');  // csv + header + NA
+  t('pm csv mode', m.mode, 'matrix');
+  t('pm csv names', m.names, ['q1', 'q2', 'q3']);
+  t('pm csv header flag', m.header, true);
+  t('pm csv NA cell', m.matrix[2][1], null);
+  t('pm csv row1', m.matrix[1], [3, 3, 2]);
+}
+{
+  const m = DP.parseMatrix('5\t4\t3\n4\t4\t2\nNA\t3\t3'); // tab + NA token
+  t('pm tab dims', [m.nrow, m.ncol], [3, 3]);
+  t('pm tab NA', m.matrix[2][0], null);
+}
+{
+  const m = DP.parseMatrix('4 5\n2 1\n5');   // ragged last row padded
+  t('pm ragged mode', m.mode, 'matrix');
+  t('pm ragged pad', m.matrix[2], [5, null]);
+}
+{
+  const m = DP.parseMatrix('4\n5\n3\n2');   // single column -> vector, not a scale
+  t('pm single col vector', m.mode, 'vector');
+}
+t('pm empty', DP.parseMatrix('').mode, 'empty');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

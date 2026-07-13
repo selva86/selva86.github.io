@@ -218,13 +218,81 @@
     return best;
   }
 
+  /* Matrix entry point for the Cronbach's alpha calculator (W1.5): turn a
+     pasted item-response table (rows = respondents, cols = items) into a dense
+     matrix of Number|null, preserving row alignment and NA positions. Unlike
+     parse() - which folds space/newline lists into ONE flat vector - this reads
+     a whitespace-only grid as a real table, since a reliability analysis is
+     inherently multi-column. Delimited (tab/comma/semicolon) tables reuse
+     parse() so headers, quotes and currency handling come for free.
+     Returns:
+       { mode:'empty' }
+       { mode:'vector', nrow, ncol:1, values }          only one usable column
+       { mode:'matrix', nrow, ncol, names, matrix, header } where matrix[r][c]
+         is a Number or null (missing). Ragged rows are padded with null. */
+  function parseMatrix(text) {
+    var norm = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+    var lines = norm.split('\n').map(function (l) { return l.trim(); })
+      .filter(function (l) { return l.length; });
+    if (!lines.length) return { mode: 'empty', nrow: 0, ncol: 0, names: [], matrix: [] };
+
+    // 1. Real delimiter present -> reuse parse() (headers/quotes/currency).
+    var p = parse(text);
+    if (p.mode === 'columns' && p.ncol >= 2) {
+      var nrow = p.columns[0].raw.length, matrix = [], r, c, cell;
+      for (r = 0; r < nrow; r++) {
+        var row = [];
+        for (c = 0; c < p.ncol; c++) {
+          cell = p.columns[c].raw[r];
+          row.push(isMissing(cell) ? null : cleanNumber(cell));
+        }
+        matrix.push(row);
+      }
+      return { mode: 'matrix', nrow: nrow, ncol: p.ncol,
+               names: p.columns.map(function (col) { return col.name; }),
+               matrix: matrix, header: !!p.header };
+    }
+
+    // 2. Whitespace-only grid (space/tab/comma/semicolon runs).
+    var rows = lines.map(function (l) {
+      return l.split(/[\t,;\s]+/).filter(function (t) { return t.length; });
+    });
+    var modal = modeOf(rows.map(function (r2) { return r2.length; }));
+    if (modal >= 2 && rows.length >= 2) {
+      // Header row: first line entirely non-numeric, data below numeric.
+      var header = null, dataRows = rows;
+      var firstNum = rows[0].filter(isNumericCell).length;
+      var belowNum = 0, i, j;
+      for (i = 1; i < rows.length; i++) belowNum += rows[i].filter(isNumericCell).length;
+      if (firstNum === 0 && belowNum > 0) { header = rows[0]; dataRows = rows.slice(1); }
+      var mat = [], names = [];
+      for (j = 0; j < modal; j++)
+        names.push((header && header[j] && header[j].length) ? header[j] : ('Item ' + (j + 1)));
+      for (i = 0; i < dataRows.length; i++) {
+        var rr = [];
+        for (j = 0; j < modal; j++) {
+          var v = j < dataRows[i].length ? dataRows[i][j] : '';
+          rr.push(isMissing(v) ? null : cleanNumber(v));
+        }
+        mat.push(rr);
+      }
+      return { mode: 'matrix', nrow: mat.length, ncol: modal, names: names,
+               matrix: mat, header: !!header };
+    }
+
+    // 3. One usable column only -> not enough for a scale.
+    var v = numericVector(text);
+    return { mode: 'vector', nrow: v.n, ncol: 1, values: v.values, names: [v.name] };
+  }
+
   return {
-    version: '1.0.0',
+    version: '1.1.0',
     isMissing: isMissing,
     cleanNumber: cleanNumber,
     isNumericCell: isNumericCell,
     splitCells: splitCells,
     parse: parse,
+    parseMatrix: parseMatrix,
     numericVector: numericVector
   };
 }));

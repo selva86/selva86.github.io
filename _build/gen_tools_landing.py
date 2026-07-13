@@ -17,7 +17,7 @@ CATEGORIES = [
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
     ('Pickers and Decision Tools', ['statistical-test-chooser','normality-test-picker','nonparametric-test-picker','dag-confounder-picker']),
     ('Study Design and Power', ['power-analysis','survival-power-calculator','effect-size-converter','type-i-ii-error-visualizer']),
-    ('Specialized', ['ts-stationarity-calculator','outlier-detection-calculator','roc-auc-calculator','reprex-builder']),
+    ('Specialized', ['ts-stationarity-calculator','outlier-detection-calculator','roc-auc-calculator','cronbachs-alpha-calculator','reprex-builder']),
 ]
 
 
@@ -155,6 +155,9 @@ C3META = {
  'reprex-builder': ('Reprex Builder', '.md',
   'Turns your problem code into a minimal, runnable example people will actually answer.',
   '<rect class="s" x="10" y="5" width="24" height="34" rx="2.5" fill="none"/><path class="s" d="M14 12 H30 M14 26 H30 M14 33 H24"/><path class="a" d="M14 19 H30" fill="none" stroke-width="3"/>'),
+ 'cronbachs-alpha-calculator': ("Cronbach's Alpha", '&alpha;',
+  'Paste item responses for alpha, its confidence interval, and a per-item read on what to keep or drop.',
+  '<path class="s" d="M6 37 H40"/><rect class="af" x="8" y="27" width="6" height="9" rx="1"/><rect class="af" x="8" y="18" width="9" height="7" rx="1"/><rect class="af" x="8" y="10" width="7" height="6" rx="1"/><path class="a" d="M23 35 A12 12 0 0 1 40 35" fill="none"/><path class="af" d="M23 35 A12 12 0 0 1 34.6 24.1 L31.5 35 Z" style="opacity:.5"/><path class="a" d="M31.5 35 L35 23" fill="none"/><circle class="af" cx="31.5" cy="35" r="2.2"/>'),
 }
 
 # (accent, one-sentence intro) per category, aligned by CATEGORIES order.
