@@ -1,0 +1,440 @@
+---
+title: "Fix 'argument is of length zero' in R"
+description: "R's argument is of length zero error means if() got a NULL or empty condition. See the 4 causes, from typo'd columns to Shiny inputs, with working fixes."
+keywords: "argument is of length zero, argument is of length zero R, fix argument is of length zero, R error argument is of length zero, if argument is of length zero, argument is of length zero shiny, R if statement error"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "argument is of length zero|argument of length zero|length zero error|error in if argument is of length zero|zero-length condition"
+auto_link_case_sensitive: false
+fr_parent: "R-Common-Errors.html"
+---
+<!-- md2html:generated -->
+
+<h1>Fix 'argument is of length zero' in R</h1>
+
+<p class="lead">The error <code>argument is of length zero</code> means <code>if()</code> or <code>while()</code> received a condition that contains no value at all: a zero-length object such as <code>NULL</code>, <code>integer(0)</code>, or <code>logical(0)</code>. It usually traces back to a misspelled column name, a missing list element, or a filter that matched nothing.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="20" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>if (length(x) &gt; 0) mean(x)<span class="qa-cmt">            # guard a possibly-empty vector</span>
+if (!is.null(x) &amp;&amp; x &gt; 5) &quot;big&quot;<span class="qa-cmt">       # rule out NULL before comparing</span>
+if (isTRUE(x &gt; 5)) &quot;big&quot;<span class="qa-cmt">              # one call absorbs NULL, NA, empty</span>
+&quot;profit&quot; %in% names(df)<span class="qa-cmt">               # df$profit NULL? check the spelling</span>
+x &lt;- x %||% 0<span class="qa-cmt">                         # swap NULL for a default (R 4.4+)</span>
+if (NROW(res) &gt; 0) summary(res)<span class="qa-cmt">       # row guard for vectors and frames</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<h2>What this error means</h2>
+
+<p><strong><code>if()</code> needs exactly one <code>TRUE</code> or <code>FALSE</code>, and you handed it nothing.</strong> A zero-length object has no first element to test, so R stops instead of guessing. Despite the word "argument", the message is almost never about a function you wrote: the condition inside <code>if()</code> is technically the argument it refers to.</p>
+
+<p>The shortest way to trigger it is to test <code>NULL</code> directly:</p>
+
+<div class="webr-container" data-block-title="Reproduce the error in one line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reproduce the error in one line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">if (NULL) &quot;runs&quot;
+#&gt; Error in if (NULL) &quot;runs&quot; : argument is of length zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Real code rarely writes <code>NULL</code> by hand. Instead, an expression <em>evaluates</em> to something zero-length before it reaches <code>if()</code>. Comparisons keep the length of their inputs, so an empty input produces an empty result:</p>
+
+<div class="webr-container" data-block-title="Watch a comparison shrink to nothing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Watch a comparison shrink to nothing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- NULL
+length(x)
+#&gt; [1] 0
+
+x &gt; 5
+#&gt; logical(0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>logical(0)</code> is a logical vector with zero elements. When <code>if()</code> receives it, there is no value to branch on, and the error fires.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The error names the condition's length, not your data's contents.</strong> <code>if (x &gt; 5)</code> fails with "argument is of length zero" when <code>x</code> is empty or <code>NULL</code>, but with "missing value where TRUE/FALSE needed" when <code>x</code> is <code>NA</code>. The two errors point to different bugs, and the table below separates them.</div></div>
+
+<h2>The four causes and their fixes</h2>
+
+<p><strong>Almost every occurrence comes from one of four patterns.</strong> Each subsection reproduces the failure, then shows the repair.</p>
+
+<h3>1. A misspelled column or missing list element</h3>
+
+<p>The <code>$</code> operator returns <code>NULL</code> silently when the name does not exist. No warning, no error, just <code>NULL</code> flowing downstream until <code>if()</code> chokes on it:</p>
+
+<div class="webr-container" data-block-title="Typo in a column name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Typo in a column name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- data.frame(region = c(&quot;east&quot;, &quot;west&quot;), profit = c(1200, 800))
+
+if (sales$profitt[1] &gt; 1000) &quot;target met&quot;
+#&gt; Error in if (sales$profitt[1] &gt; 1000) &quot;target met&quot; : argument is of length zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to check the spelling against <code>names()</code> before trusting the column:</p>
+
+<div class="webr-container" data-block-title="Confirm the name then fix it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the name then fix it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">&quot;profitt&quot; %in% names(sales)
+#&gt; [1] FALSE
+
+if (sales$profit[1] &gt; 1000) &quot;target met&quot;
+#&gt; [1] &quot;target met&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>$</code> fails silently; <code>[[ ]]</code> fails loudly.</strong> <code>sales$profitt</code> returns <code>NULL</code> and defers the crash to whatever runs next. <code>sales[[&quot;profitt&quot;]]</code> raises an immediate "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">subscript out of bounds</a>" error at the true source. Prefer <code>[[ ]]</code> inside functions and pipelines where a typo should surface early.</div></div>
+
+<h3>2. A function that returned NULL</h3>
+
+<p>An <code>if()</code> without an <code>else</code> returns <code>NULL</code> invisibly when the condition is false. Code that compares that return value inherits the problem:</p>
+
+<div class="webr-container" data-block-title="A branch that returns NULL">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A branch that returns NULL</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grade &lt;- function(score) {
+  if (score &gt;= 50) &quot;pass&quot;
+}
+
+result &lt;- grade(35)
+if (result == &quot;pass&quot;) &quot;celebrate&quot;
+#&gt; Error in if (result == &quot;pass&quot;) &quot;celebrate&quot; : argument is of length zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Give every branch an explicit value so callers always receive something testable:</p>
+
+<div class="webr-container" data-block-title="Cover both branches explicitly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cover both branches explicitly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grade &lt;- function(score) {
+  if (score &gt;= 50) &quot;pass&quot; else &quot;fail&quot;
+}
+
+if (grade(35) == &quot;pass&quot;) &quot;celebrate&quot; else &quot;study more&quot;
+#&gt; [1] &quot;study more&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. A subset or which() that matched nothing</h3>
+
+<p><code>which()</code> returns <code>integer(0)</code> when no element satisfies the test. Indexing with an empty vector yields an empty vector, and the comparison collapses:</p>
+
+<div class="webr-container" data-block-title="An empty match feeds the condition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An empty match feeds the condition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">temps &lt;- c(21, 24, 19)
+i &lt;- which(temps &gt; 30)
+i
+#&gt; integer(0)
+
+if (temps[i] &gt; 25) &quot;heatwave&quot;
+#&gt; Error in if (temps[i] &gt; 25) &quot;heatwave&quot; : argument is of length zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Guard on the count of matches before using them:</p>
+
+<div class="webr-container" data-block-title="Guard on the match count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Guard on the match count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">if (length(i) &gt; 0 &amp;&amp; temps[i] &gt; 25) &quot;heatwave&quot; else &quot;normal range&quot;
+#&gt; [1] &quot;normal range&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&amp;&amp;</code> operator short-circuits: when <code>length(i) &gt; 0</code> is <code>FALSE</code>, R never evaluates the risky right-hand side.</p>
+
+<h3>4. Shiny inputs that are NULL at startup</h3>
+
+<p>Two of the top ten search results for this error are Shiny threads, because reactive inputs are <code>NULL</code> for a moment before the UI delivers a value. A plain list reproduces the mechanics:</p>
+
+<div class="webr-container" data-block-title="Simulate an unset Shiny input">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate an unset Shiny input</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">input &lt;- list(bins = NULL)
+
+if (input$bins &gt; 10) &quot;fine-grained&quot;
+#&gt; Error in if (input$bins &gt; 10) &quot;fine-grained&quot; : argument is of length zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside a real Shiny server, put <code>req(input$bins)</code> at the top of the reactive so it waits for the value. In plain R, the same defense is an explicit <code>NULL</code> check:</p>
+
+<div class="webr-container" data-block-title="Check NULL before comparing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check NULL before comparing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">if (!is.null(input$bins) &amp;&amp; input$bins &gt; 10) &quot;fine-grained&quot; else &quot;waiting for input&quot;
+#&gt; [1] &quot;waiting for input&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>What if() accepts: the full picture</h2>
+
+<p><strong>Zero-length is only one of several condition values that stop <code>if()</code>.</strong> Knowing which message maps to which input turns a cryptic error into a direct pointer at the bug:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Condition value</th>
+<th>What happens</th>
+<th>Error message</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TRUE</code> or <code>FALSE</code></td>
+<td>Branch runs normally</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>NULL</code>, <code>logical(0)</code>, <code>integer(0)</code></td>
+<td>Error</td>
+<td>argument is of length zero</td>
+</tr>
+<tr>
+<td><code>NA</code></td>
+<td>Error</td>
+<td>missing value where TRUE/FALSE needed</td>
+</tr>
+<tr>
+<td><code>c(TRUE, FALSE)</code> (length > 1)</td>
+<td>Error since R 4.2.0</td>
+<td>the condition has length > 1</td>
+</tr>
+<tr>
+<td><code>&quot;TRUE&quot;</code> or <code>&quot;T&quot;</code></td>
+<td>Coerced, branch runs</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>5</code> (nonzero number)</td>
+<td>Coerced to <code>TRUE</code>, runs</td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>NA</code> row is this error's closest sibling. An empty condition and a missing condition look similar in source code but fail differently:</p>
+
+<div class="webr-container" data-block-title="Compare the sibling NA error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the sibling NA error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">if (NA) &quot;runs&quot;
+#&gt; Error in if (NA) &quot;runs&quot; : missing value where TRUE/FALSE needed</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Zero-length means the value is absent from the object entirely. <code>NA</code> means a slot exists but holds an unknown. Fixing the first is about where the value got lost; fixing the second is about handling <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing data</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> <code>if None:</code> is legal in Python and simply takes the false branch. R refuses to guess, which is why the same lookup-miss pattern that runs quietly in Python raises an error in R. The strictness is deliberate: silent false branches hide bugs.</div></div>
+
+<h2>Write conditions that never break</h2>
+
+<p><strong>Three defensive patterns make a condition safe against <code>NULL</code>, empty vectors, and <code>NA</code> at once.</strong> Use them at the boundaries of your code, where values arrive from files, user input, or someone else's functions.</p>
+
+<p><code>isTRUE()</code> is the broadest guard. It returns <code>TRUE</code> only for a single <code>TRUE</code>, and <code>FALSE</code> for everything else, including all the values that would crash <code>if()</code>:</p>
+
+<div class="webr-container" data-block-title="isTRUE absorbs every bad condition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">isTRUE absorbs every bad condition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">isTRUE(NULL &gt; 5)
+#&gt; [1] FALSE
+
+isTRUE(NA &gt; 5)
+#&gt; [1] FALSE
+
+isTRUE(10 &gt; 5)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For replacing <code>NULL</code> with a fallback, base R 4.4.0 added the <code>%||%</code> operator (older versions can use <code>if (is.null(x)) default else x</code>, or the same operator from rlang):</p>
+
+<div class="webr-container" data-block-title="Default a NULL with the null coalescing operator">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default a NULL with the null coalescing operator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">config &lt;- list(retries = NULL)
+retries &lt;- config$retries %||% 3
+retries
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For "did I get any rows back" checks, <code>NROW()</code> works uniformly on vectors, data frames, and <code>NULL</code>, so one guard covers every return type:</p>
+
+<div class="webr-container" data-block-title="One row guard for any object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One row guard for any object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">NROW(NULL)
+#&gt; [1] 0
+
+NROW(data.frame(x = 1:3))
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Wrap conditions in <code>isTRUE()</code> whenever the input is not fully under your control.</strong> <code>if (isTRUE(x &gt; 5))</code> never throws, no matter what <code>x</code> turns out to be. The cost is that <code>NULL</code> and <code>NA</code> silently take the false branch, so reserve it for cases where "absent" and "no" should behave the same.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The list <code>ex_prices</code> holds two stock prices. Look up <code>&quot;google&quot;</code> safely: store the price in <code>ex_price</code> if the name exists, and <code>0</code> if the lookup returns NULL. Print <code>ex_price</code>.</p>
+<div class="webr-container" data-block-title="Your turn: a NULL-safe lookup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a NULL-safe lookup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prices &lt;- list(apple = 210, msft = 415)
+
+ex_price &lt;- # your code here
+
+ex_price
+#&gt; Expected: 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prices &lt;- list(apple = 210, msft = 415)
+
+ex_price &lt;- if (is.null(ex_prices$google)) 0 else ex_prices$google
+ex_price
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ex_prices$google</code> returns <code>NULL</code> because the name does not exist, and <code>is.null()</code> catches it before any comparison runs. In R, <code>if</code> is an expression, so its result assigns directly to <code>ex_price</code>.</p>
+
+</details>
+</section>
+
+<h2>FAQ</h2>
+
+<!-- faq: 4 llm-invented + 1 real PAA (SerpAPI 2026-07-14); refresh with real PAA later -->
+
+<p><strong>Why does R say "argument" when I am not calling a function?</strong></p>
+
+<p>Because <code>if</code> is a function under the hood. The parser rewrites <code>if (cond) x</code> into a call where the condition is the first argument, and the error message describes that argument. So "argument is of length zero" translates to "the expression inside <code>if()</code> evaluated to a zero-length object". The wording confuses almost everyone the first time.</p>
+
+<p><strong>Is this the same as "missing value where TRUE/FALSE needed"?</strong></p>
+
+<p>No, and the difference matters for debugging. "Argument is of length zero" means the condition has no elements at all, typically from <code>NULL</code> or an empty subset. "Missing value where TRUE/FALSE needed" means the condition has exactly one element and it is <code>NA</code>. The first sends you hunting for a lost value; the second for missing data in a value that arrived.</p>
+
+<p><strong>How do I find which line causes it in a long script?</strong></p>
+
+<p>Run <code>traceback()</code> immediately after the error to see the call stack, innermost call first. The top entries show the exact <code>if()</code> that failed. Then print the condition's ingredients with <code>length()</code> and <code>is.null()</code> right before that line. In RStudio, setting "Debug > On Error > Break in Code" drops you into the failing frame automatically.</p>
+
+<p><strong>Is this the same as "attempt to use zero-length variable name"?</strong></p>
+
+<p>No. That error comes from the parser, not from <code>if()</code>. It fires when code contains an empty name, most often a stray pair of backticks, an empty string in <code>assign(&quot;&quot;)</code>, or an imported data frame whose column header is blank. "Argument is of length zero" happens later, at evaluation, when a condition turns out to be empty. Fix the first by finding the empty name; fix the second with the guards above.</p>
+
+<p><strong>Can this error happen in a while loop?</strong></p>
+
+<p>Yes, <code>while()</code> applies the same rule as <code>if()</code>: its condition must evaluate to a single <code>TRUE</code> or <code>FALSE</code>. A loop like <code>while (x &gt; 0)</code> fails with "argument is of length zero" the moment <code>x</code> becomes <code>NULL</code> or empty, for example after a subset that removed every element. The fixes are identical: guard with <code>length()</code>, <code>is.null()</code>, or <code>isTRUE()</code>.</p>
+
+<h2>Related R errors</h2>
+
+<p>Start with the parent guide, <a href="R-Common-Errors.html">common R errors and how to read them</a>. The official <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Control.html">R control-flow documentation</a> specifies exactly what <code>if()</code> and <code>while()</code> accept. For the building blocks, see <a href="Control-Flow-in-R.html">control flow in R</a> for <code>if</code>, <code>else</code>, and <code>while</code> mechanics, <a href="R-Lists.html">R lists</a> for why <code>$</code> returns NULL on missing names, <a href="R-Subsetting.html">subsetting in R</a> for how empty indexes produce empty results, and <a href="R-Error-Object-Not-Found.html">object not found</a> for the error you get when the variable itself, not its value, is missing.</p>
+
