@@ -1,0 +1,409 @@
+---
+title: "Fix 'missing value where TRUE/FALSE needed' in R"
+description: "R's missing value where TRUE/FALSE needed error means if() received NA. See the 4 causes, from NA comparisons to any() without na.rm, with working fixes."
+keywords: "missing value where TRUE/FALSE needed, missing value where true false needed R, fix missing value where TRUE/FALSE needed, R error missing value where TRUE/FALSE needed, if NA error R, R if statement NA error, missing value error in if statement"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "missing value where TRUE/FALSE needed|missing value where true false needed|NA in an if condition|error in if missing value|NA condition error"
+auto_link_case_sensitive: false
+fr_parent: "R-Common-Errors.html"
+---
+<!-- md2html:generated -->
+
+<h1>Fix 'missing value where TRUE/FALSE needed' in R</h1>
+
+<p class="lead">The error <code>missing value where TRUE/FALSE needed</code> means <code>if()</code> or <code>while()</code> received <code>NA</code> as its condition: a value arrived, but R does not know whether it is true or false. It usually traces back to an <code>NA</code> hiding in your data, a comparison written as <code>x == NA</code>, or an <code>any()</code> call that swallowed a missing value.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>if (!is.na(x) &amp;&amp; x &gt; 5) &quot;big&quot;<span class="qa-cmt">          # rule out NA before comparing</span>
+if (isTRUE(x &gt; 5)) &quot;big&quot;<span class="qa-cmt">               # one call absorbs NA, NULL, empty</span>
+is.na(x)<span class="qa-cmt">                               # test for NA; x == NA never works</span>
+if (any(x &gt; 100, na.rm = TRUE)) &quot;hit&quot;<span class="qa-cmt">  # keep NA out of any() and all()</span>
+x[!is.na(x)]<span class="qa-cmt">                           # drop NAs before a loop</span>
+colSums(is.na(df))<span class="qa-cmt">                     # find the NAs you did not expect</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<h2>What this error means</h2>
+
+<p><strong><code>if()</code> needs a definite <code>TRUE</code> or <code>FALSE</code>, and you handed it a maybe.</strong> In R, <code>NA</code> marks a value that exists but is unknown: a survey answer left blank, a sensor that failed, a cell someone typed "n/a" into. R refuses to pick a branch based on an unknown, so it stops and reports exactly what it was missing.</p>
+
+<p>The shortest way to trigger it is to test <code>NA</code> directly:</p>
+
+<div class="webr-container" data-block-title="Reproduce the error in one line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reproduce the error in one line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">if (NA) &quot;runs&quot;
+#&gt; Error in if (NA) &quot;runs&quot; : missing value where TRUE/FALSE needed</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Real code rarely writes <code>NA</code> by hand. Instead, a comparison manufactures it. Any comparison involving <code>NA</code> returns <code>NA</code>, because if the input is unknown, the answer is unknown too:</p>
+
+<div class="webr-container" data-block-title="Watch a comparison turn into NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Watch a comparison turn into NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- NA
+x &gt; 5
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That <code>NA</code> then flows into <code>if()</code>, and the error fires at the condition rather than at the true source of the missing value. The debugging job is always the same: find where the <code>NA</code> entered.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The error names a missing condition, not a missing variable.</strong> <code>if (x &gt; 5)</code> fails with "<a class="auto-link" href="R-Error-Object-Not-Found.html" title="R Error: object 'x' not found — 7 Causes & Step-by-Step Fixes">object 'x' not found</a>" when <code>x</code> does not exist, with "argument is of length zero" when <code>x</code> is <code>NULL</code> or empty, and with "missing value where TRUE/FALSE needed" when <code>x</code> is <code>NA</code>. Three similar-looking failures, three different bugs.</div></div>
+
+<h2>The four causes and their fixes</h2>
+
+<p><strong>Almost every occurrence comes from one of four patterns.</strong> Each subsection reproduces the failure, then shows the repair.</p>
+
+<h3>1. An NA in the data reaches the comparison</h3>
+
+<p>The most direct route: a column contains a missing value, and a condition tests the row that holds it:</p>
+
+<div class="webr-container" data-block-title="A missing value meets a condition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A missing value meets a condition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- data.frame(region = c(&quot;east&quot;, &quot;west&quot;, &quot;north&quot;),
+                    profit = c(1200, NA, 950))
+
+if (sales$profit[2] &gt; 1000) &quot;target met&quot;
+#&gt; Error in if (sales$profit[2] &gt; 1000) &quot;target met&quot; : missing value where TRUE/FALSE needed</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Guard the comparison so <code>NA</code> takes a defined branch instead of crashing:</p>
+
+<div class="webr-container" data-block-title="Rule out NA before comparing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rule out NA before comparing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- sales$profit[2]
+if (!is.na(p) &amp;&amp; p &gt; 1000) &quot;target met&quot; else &quot;no data yet&quot;
+#&gt; [1] &quot;no data yet&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&amp;&amp;</code> operator short-circuits: when <code>!is.na(p)</code> is <code>FALSE</code>, R never evaluates the risky right-hand side.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Coercion manufactures NAs silently.</strong> <code>as.numeric(c(&quot;120&quot;, &quot;n/a&quot;))</code> returns <code>c(120, NA)</code> with only a warning, and warnings are easy to miss in a long script. The crash then happens much later, at the first <code>if()</code> the value reaches. When this error appears right after importing or converting data, suspect coercion first.</div></div>
+
+<h3>2. Testing for NA with == (it never works)</h3>
+
+<p>Many people hit this error while trying to handle <code>NA</code>, by writing the check the intuitive way:</p>
+
+<div class="webr-container" data-block-title="The == NA test that cannot work">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The == NA test that cannot work</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">score &lt;- NA
+score == NA
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>==</code> asks "are these two values equal?", and comparing anything with an unknown is unknown. Even <code>NA == NA</code> returns <code>NA</code>: two unknowns may or may not be equal. The only correct test is <code>is.na()</code>:</p>
+
+<div class="webr-container" data-block-title="Test for NA the right way">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test for NA the right way</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">if (is.na(score)) &quot;no score recorded&quot; else &quot;scored&quot;
+#&gt; [1] &quot;no score recorded&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. any() or all() swallowed an NA</h3>
+
+<p><code>any()</code> and <code>all()</code> look like safe wrappers, but they follow the same logic as comparisons. When no element settles the answer, a single <code>NA</code> makes the whole result <code>NA</code>:</p>
+
+<div class="webr-container" data-block-title="One NA poisons any()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One NA poisons any()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">temps &lt;- c(21, NA, 19)
+any(temps &gt; 30)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No temperature exceeds 30, but the missing one <em>might have</em>, so <code>any()</code> refuses to say <code>FALSE</code>. Both functions take <code>na.rm = TRUE</code> to drop missing values before deciding:</p>
+
+<div class="webr-container" data-block-title="Let any() ignore the NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let any() ignore the NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">if (any(temps &gt; 30, na.rm = TRUE)) &quot;heatwave&quot; else &quot;normal range&quot;
+#&gt; [1] &quot;normal range&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. A loop hits the NA row</h3>
+
+<p>This is the version that feels random: a loop runs fine for hundreds of iterations, then dies partway through. It worked until it met the missing value:</p>
+
+<div class="webr-container" data-block-title="A loop that dies mid-run">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A loop that dies mid-run</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">readings &lt;- c(98, 102, NA, 105)
+for (r in readings) {
+  if (r &gt; 100) print(r)
+}
+#&gt; [1] 102
+#&gt; Error in if (r &gt; 100) print(r) : missing value where TRUE/FALSE needed</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Note the <code>102</code> printed before the error: the first two iterations succeeded. Drop the missing values before looping, and the loop also reaches the <code>105</code> that sat beyond the crash point:</p>
+
+<div class="webr-container" data-block-title="Clean the vector before the loop">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clean the vector before the loop</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">for (r in readings[!is.na(readings)]) {
+  if (r &gt; 100) print(r)
+}
+#&gt; [1] 102
+#&gt; [1] 105</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Why comparisons return NA</h2>
+
+<p><strong>R treats <code>NA</code> as "unknown", and unknowns follow three-valued logic.</strong> An operation returns <code>NA</code> whenever the missing value could change the answer, and a definite result whenever it could not. That single rule explains every entry in this table:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NA &gt; 5</code></td>
+<td><code>NA</code></td>
+<td>Comparing with an unknown is unknown</td>
+</tr>
+<tr>
+<td><code>NA == NA</code></td>
+<td><code>NA</code></td>
+<td>Two unknowns may or may not be equal</td>
+</tr>
+<tr>
+<td><code>TRUE &amp; NA</code></td>
+<td><code>NA</code></td>
+<td>The outcome depends on the unknown</td>
+</tr>
+<tr>
+<td><code>FALSE &amp; NA</code></td>
+<td><code>FALSE</code></td>
+<td><code>FALSE</code> and anything is <code>FALSE</code></td>
+</tr>
+<tr>
+<td><code>any(c(FALSE, NA))</code></td>
+<td><code>NA</code></td>
+<td>The <code>NA</code> could have been the <code>TRUE</code></td>
+</tr>
+<tr>
+<td><code>all(c(TRUE, NA))</code></td>
+<td><code>NA</code></td>
+<td>The <code>NA</code> could have been the <code>FALSE</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The two <code>&amp;</code> rows are worth running yourself, because they show <code>NA</code> is not simply contagious. When the known part already settles the answer, R gives it:</p>
+
+<div class="webr-container" data-block-title="NA only spreads when it matters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA only spreads when it matters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">TRUE &amp; NA
+#&gt; [1] NA
+
+FALSE &amp; NA
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same reasoning makes <code>TRUE | NA</code> return <code>TRUE</code>: one confirmed <code>TRUE</code> settles an OR no matter what the unknown turns out to be. Conditions built from <code>&amp;&amp;</code> and comparisons inherit these rules, which is why the error can depend on which side of the condition R evaluates first.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python or SQL?</strong> Python happily branches on missing-ish values: <code>if float(&quot;nan&quot;):</code> runs the true branch because NaN is truthy. SQL sits closer to R: <code>NULL = NULL</code> is not true, which is why SQL has <code>IS NULL</code> and R has <code>is.na()</code>. R is the strictest of the three, refusing to branch on an unknown at all.</div></div>
+
+<h2>Find the NA that caused it</h2>
+
+<p><strong>Work backward from the failing condition: some ingredient in it is <code>NA</code>.</strong> First confirm the suspect, then locate it:</p>
+
+<div class="webr-container" data-block-title="Confirm and locate the NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm and locate the NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anyNA(sales$profit)
+#&gt; [1] TRUE
+
+which(is.na(sales$profit))
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a whole data frame, one line counts the missing values per column and points at the one you did not know about:</p>
+
+<div class="webr-container" data-block-title="Count NAs across every column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count NAs across every column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">colSums(is.na(sales))
+#&gt; region profit 
+#&gt;      0      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In a long script, run <code>traceback()</code> immediately after the error to see which call contained the failing <code>if()</code>, then apply the checks above to that condition's inputs.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Count your NAs right after import, not after the crash.</strong> A <code>colSums(is.na(df))</code> line at the top of a script costs nothing and turns this error from a mid-run surprise into a known quantity you handle on your own terms.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The vector <code>ex_scores</code> holds four test scores, one of them missing. Set <code>ex_top</code> to <code>TRUE</code> if any score is above 90, ignoring the missing value, and print it. The wrong approach returns <code>NA</code>; yours should return a definite answer.</p>
+<div class="webr-container" data-block-title="Your turn: an NA-proof any()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: an NA-proof any()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_scores &lt;- c(72, NA, 91, 58)
+
+ex_top &lt;- # your code here
+
+ex_top
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_scores &lt;- c(72, NA, 91, 58)
+
+ex_top &lt;- any(ex_scores &gt; 90, na.rm = TRUE)
+ex_top
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Without <code>na.rm = TRUE</code>, the comparison <code>ex_scores &gt; 90</code> contains an <code>NA</code>, and <code>any()</code> would return <code>TRUE</code> here only because 91 settles the answer; change 91 to 89 and it returns <code>NA</code> instead. <code>na.rm = TRUE</code> drops the missing value so the result is always a definite <code>TRUE</code> or <code>FALSE</code>.</p>
+
+</details>
+</section>
+
+<h2>FAQ</h2>
+
+<!-- faq: 5 llm-invented (SerpAPI PAA 2026-07-14 returned only generic missing-data questions, none error-specific); refresh with real PAA later -->
+
+<p><strong>Is this the same error as "argument is of length zero"?</strong></p>
+
+<p>No, and telling them apart speeds up debugging. "Missing value where TRUE/FALSE needed" means the condition has exactly one element and it is <code>NA</code>: a value arrived, but it is unknown. "Argument is of length zero" means the condition has no elements at all, typically from <code>NULL</code> or an empty subset. The first sends you hunting for <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing data</a>; the second for a value that was never there.</p>
+
+<p><strong>Why does <code>if (x == NA)</code> fail even when x really is NA?</strong></p>
+
+<p>Because <code>==</code> cannot confirm equality with an unknown. <code>x == NA</code> evaluates to <code>NA</code> for every possible <code>x</code>, including when <code>x</code> is itself <code>NA</code>, so the condition is never <code>TRUE</code> or <code>FALSE</code>. The test you want is <code>is.na(x)</code>, which returns a definite logical answer. This single substitution resolves a large share of real-world hits on this error.</p>
+
+<p><strong>How do I find which line or row triggers the error in a long script?</strong></p>
+
+<p>Run <code>traceback()</code> right after the error to see the call stack; the top entries show the <code>if()</code> that failed. Then inspect that condition's inputs with <code>anyNA()</code> and <code>which(is.na(x))</code> to get the offending positions. For data frames, <code>colSums(is.na(df))</code> gives a per-column missing count, and <code>df[!complete.cases(df), ]</code> shows the exact rows carrying the NAs.</p>
+
+<p><strong>Does <a class="auto-link" href="R-Control-Flow.html" title="R Control Flow: if/else, for, and while — Stop Avoiding Loops">ifelse()</a> throw this error too?</strong></p>
+
+<p>No. <code>ifelse()</code> is vectorized and handles missing conditions by returning <code>NA</code> in those positions instead of stopping. That tolerance cuts both ways: the NAs pass through silently and surface later in results, plots, or models. <code>if()</code> crashing early is loud but honest; after switching to <code>ifelse()</code> or dplyr's <code>if_else()</code>, check the output for NAs you did not plan for.</p>
+
+<p><strong>Can while() loops raise it?</strong></p>
+
+<p>Yes, <code>while()</code> applies the same rule: its condition must evaluate to a single <code>TRUE</code> or <code>FALSE</code> on every iteration. A loop like <code>while (total &lt; 100)</code> fails the moment <code>total</code> becomes <code>NA</code>, which commonly happens when arithmetic inside the loop touches a missing value, since <code>total + NA</code> is <code>NA</code>. Guard the update step with <code>is.na()</code> or clean the data the loop consumes.</p>
+
+<h2>Related R errors</h2>
+
+<p>Start with the parent guide, <a href="R-Common-Errors.html">common R errors and how to read them</a>. The official <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/NA.html">R documentation on NA</a> specifies how missing values behave in every operation. For the closest sibling error, see <a href="Error-argument-is-of-length-zero-in-R.html">argument is of length zero</a>, which fires when the condition is empty rather than unknown. To deal with the missing values themselves, <a href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html">handling missing values in R</a> covers detecting, counting, and imputing NAs, <a href="Control-Flow-in-R.html">control flow in R</a> explains what <code>if</code>, <code>else</code>, and <code>while</code> expect, and <a href="R-Error-Object-Not-Found.html">object not found</a> covers the error you get when the variable itself is missing.</p>
+
