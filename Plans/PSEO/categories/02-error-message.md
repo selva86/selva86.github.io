@@ -14,10 +14,10 @@ URL pattern: `/Error-<short-tag>-in-R.html`
 Parent: `R-Tutorial.html`
 
 Subscripting / indexing (15):
-- Error-subscript-out-of-bounds-in-R
+- ~~Error-subscript-out-of-bounds-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-only-0s-may-be-mixed-with-negative-subscripts-in-R
 - Error-incorrect-number-of-dimensions-in-R
-- Error-undefined-columns-selected-in-R
+- ~~Error-undefined-columns-selected-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-undefined-rows-selected-in-R
 - Error-invalid-subscript-type-list-in-R
 - Error-NAs-not-allowed-in-subscripted-assignments-in-R
@@ -47,11 +47,11 @@ Object not found / lookup (15):
 - Error-namespace-load-failed-in-R
 - Error-package-X-not-found-in-R
 - Error-namespace-X-not-available-in-R
-- Error-there-is-no-package-called-X-in-R
+- ~~Error-there-is-no-package-called-X-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-package-X-not-available-for-this-version-in-R
 
 Type / coercion (15):
-- Error-non-numeric-argument-to-binary-operator-in-R
+- ~~Error-non-numeric-argument-to-binary-operator-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-non-conformable-arguments-in-R
 - Error-non-conformable-arrays-in-R
 - Error-cannot-coerce-type-X-to-vector-of-type-Y-in-R
@@ -61,7 +61,7 @@ Type / coercion (15):
 - Error-incompatible-types-from-X-to-Y-in-R
 - Error-comparison-is-NA-in-R
 - Error-invalid-comparison-with-complex-values-in-R
-- Error-cannot-allocate-memory-block-of-size-in-R
+- ~~Error-cannot-allocate-memory-block-of-size-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-cannot-coerce-type-builtin-to-vector-of-type-list-in-R
 - Error-arguments-imply-differing-number-of-rows-in-R
 - Error-cannot-have-attributes-on-a-CHARSXP-in-R
@@ -69,7 +69,7 @@ Type / coercion (15):
 
 Memory / size (10):
 - Error-cannot-allocate-vector-of-size-in-R
-- Error-vector-memory-exhausted-in-R
+- ~~Error-vector-memory-exhausted-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-protect-stack-overflow-in-R
 - Error-evaluation-nested-too-deeply-in-R
 - Error-C-stack-usage-is-too-close-to-the-limit-in-R
@@ -93,7 +93,7 @@ Logical / comparison (10):
 
 I/O (15):
 - Error-cannot-open-file-X-no-such-file-or-directory-in-R
-- Error-cannot-open-the-connection-in-R
+- ~~Error-cannot-open-the-connection-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-incomplete-final-line-found-by-readLines-in-R
 - Error-line-X-did-not-have-Y-elements-in-R
 - Error-duplicate-row.names-not-allowed-in-R
@@ -189,7 +189,7 @@ dplyr (35):
 - Error-evaluation-error-NA-NaN-or-Inf-in-X-in-R-dplyr
 - Error-x-and-y-have-no-common-variables-in-R-dplyr
 - Error-tibble-columns-must-have-consistent-sizes-in-R
-- Error-recipes-error-could-not-find-function-X-in-R
+- ~~Error-recipes-error-could-not-find-function-X-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-error-in-mutate_-not-found-in-R-dplyr
 - Error-rename_with-error-must-be-a-character-vector-in-R
 
@@ -249,7 +249,7 @@ readr / readxl (10):
 Parent: `ggplot2-Tutorial-With-R.html`
 
 Aesthetics / mapping (12):
-- Error-ggplot2-aesthetics-must-be-either-length-1-or-the-same-as-the-data-in-R
+- ~~Error-ggplot2-aesthetics-must-be-either-length-1-or-the-same-as-the-data-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-ggplot2-X-must-be-a-vector-not-data-frame-in-R
 - Error-ggplot2-cant-find-color-X-in-palette-in-R
 - Error-ggplot2-X-aesthetic-not-supported-by-Y-geom-in-R
@@ -314,7 +314,7 @@ Parent: `Linear-Regression.html`, `Logistic-Regression-With-R.html`, etc.
 
 lm / glm (20):
 - Error-lm-error-NA-NaN-Inf-in-X-in-R
-- Error-lm-error-singular-matrix-in-R
+- ~~Error-lm-error-singular-matrix-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-lm-error-0-non-NA-cases-in-R
 - Error-lm-error-essentially-perfect-fit-summary-may-be-unreliable-in-R
 - Error-lm-error-X-and-Y-have-different-numbers-of-rows-in-R
@@ -375,7 +375,7 @@ survival / forecast (10):
 - Error-survival-error-time-must-be-non-negative-in-R
 - Error-survival-error-Ran-out-of-iterations-in-R
 - Error-forecast-error-frequency-larger-than-time-series-length-in-R
-- Error-forecast-error-cant-handle-non-numeric-data-in-R
+- ~~Error-forecast-error-cant-handle-non-numeric-data-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-forecast-error-X-cannot-fit-with-Y-frequency-in-R
 - Error-forecast-error-not-stationary-in-R
 - Error-forecast-error-too-few-observations-in-R
@@ -435,7 +435,7 @@ caret / tidymodels (10):
 - Error-install-packages-cannot-find-X-in-R
 - Error-install-packages-permission-denied-in-R
 - Error-install-packages-X-currently-loaded-in-R
-- Error-install-packages-no-package-X-on-CRAN-in-R
+- ~~Error-install-packages-no-package-X-on-CRAN-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-install-packages-X-not-available-as-binary-in-R
 - Error-install-packages-X-requires-R-version-Y-or-greater-in-R
 - Error-install-packages-X-depends-on-Y-not-found-in-R
@@ -461,7 +461,7 @@ caret / tidymodels (10):
 ## 02.7 Performance / memory errors (20)
 
 - Error-cannot-allocate-vector-of-size-N-Gb-in-R
-- Error-vector-memory-exhausted-limit-reached-in-R
+- ~~Error-vector-memory-exhausted-limit-reached-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-protect-stack-overflow-in-R
 - Error-evaluation-nested-too-deeply-infinite-recursion-in-R
 - Error-C-stack-usage-is-too-close-to-the-limit-in-R
@@ -473,7 +473,7 @@ caret / tidymodels (10):
 - Error-future-error-cant-find-globals-X-in-R
 - Error-Rcpp-error-cant-allocate-X-in-R
 - Error-cant-find-X-in-globalenv-during-parallel-in-R
-- Error-out-of-memory-X-in-R
+- ~~Error-out-of-memory-X-in-R~~ (pruned 2026-07-14: cannibalizes a published R-Error-* post; see Scripts/pseo-failures.log)
 - Error-too-many-open-files-in-R
 - Error-system-cant-fork-process-in-R
 - Error-system-resource-limit-X-exceeded-in-R

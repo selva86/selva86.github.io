@@ -79,7 +79,36 @@ def check_slug_registry(slug):
     md_path = PROJECT_ROOT / "posts" / f"{slug}.md"
     if md_path.exists():
         return ("FAIL", f"posts/{slug}.md already exists (drafted)")
+    collided = _normalized_collision(slug)
+    if collided:
+        return ("FAIL", f"same-topic collision: {collided} already covers this "
+                        f"(normalized-token match; see pseo-error-slug-collisions)")
     return ("PASS", f"slug '{slug}' is new")
+
+
+_STOPWORDS = {"in", "r", "error", "the", "a", "an", "to", "of", "x", "with", "is", "for"}
+
+
+def _norm_tokens(name):
+    words = re.sub(r"[^a-z0-9]+", " ", name.lower()).split()
+    return frozenset(w for w in words if w not in _STOPWORDS)
+
+
+def _normalized_collision(slug):
+    """Same-topic/different-slug dedupe: token-set match between the candidate
+    slug and every published root page (catches Error-foo-in-R vs
+    R-Error-Foo.html, which the exact-filename check misses)."""
+    target = _norm_tokens(slug)
+    if len(target) < 2:
+        return None
+    for f in PROJECT_ROOT.glob("*.html"):
+        base = f.stem
+        if base == slug:
+            continue
+        other = _norm_tokens(base)
+        if other and len(other) >= 2 and (other == target or other <= target):
+            return base + ".html"
+    return None
 
 
 def fetch_serp(query, api_key, timeout=20):
