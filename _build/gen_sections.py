@@ -460,6 +460,17 @@ _EX_TOPIC_RULES = [
 
 
 def build_exercises():
+    # The exercises landing is owned by _build/gen_exercises_index.py (the A3
+    # workbook design, rendered from the committed www/exercise-catalog.json).
+    # Delegate so every pipeline entry point produces the same page. The old
+    # fragment-based builder below is retired but kept for reference.
+    import subprocess, sys
+    subprocess.run([sys.executable, os.path.join(REPO_ROOT, '_build', 'gen_exercises_index.py')],
+                   check=True, cwd=REPO_ROOT)
+    print('  exercises/index.html <- gen_exercises_index.py')
+
+
+def _retired_build_exercises_fragment():
     import glob
     css, sprite, body = load_fragment('exercises')
     manifest = json.load(open(os.path.join(REPO_ROOT, 'functions', '_data', 'exercise-manifest.json'), encoding='utf-8'))
