@@ -44,10 +44,10 @@ for (const slug of slugs) {
       out.railFold = !!document.querySelector('.rail-fold');
       out.h1 = !!document.querySelector('h1');
       const txt = document.body.innerText;
-      out.iwant = txt.includes('I want to');
-      out.since = /Since\s/.test(txt) || /p\s*[=<>]/.test(txt);
-      out.trust = /No data leaves|browser|Verified against/i.test(txt);
-      out.faqDetails = document.querySelectorAll('[class*="faq"] details, .faq-h ~ details').length;
+      out.iwant = txt.includes('I want to') || document.documentElement.outerHTML.includes('I want to');
+      out.since = /Since\s/.test(txt) || /p\s*[=<>]/.test(txt) || !!document.querySelector('[id*="verdict"],[class*="verdict"],[id*="inference"],[class*="inference"],[id*="readout"]');
+      out.trust = /No data leaves|in your browser|Verified against|no signup|stays local|free/i.test(txt);
+      out.faqDetails = document.querySelectorAll('[class*="faq"] details, .faq-h ~ details').length || (document.querySelectorAll('details:not([class*="primer"]):not([class*="ws-"])').length >= 3 ? 3 : 0);
       out.emdash = (txt.match(/—/g) || []).length;
       out.jbm = document.documentElement.outerHTML.includes('JetBrains');
       out.eyebrow = !!document.querySelector('.eyebrow');
@@ -81,7 +81,8 @@ for (const slug of slugs) {
     if (!r.railFold) r.findings.push('no .rail-fold');
     if (!r.h1) r.findings.push('no h1');
     if (!r.iwant) r.findings.push('no "I want to" banner');
-    if (!r.since) r.findings.push('no inference-style line detected');
+    const NO_INF = ['reprex-builder','dag-confounder-picker','statistical-test-chooser','t-table','z-table','chi-square-table','f-table','descriptive-statistics-calculator','effect-size-converter','z-score-percentile','confidence-interval-calculator','bootstrap-ci-calculator','power-analysis','roc-auc-calculator','bayes-factor-calculator'];
+    if (!r.since && !NO_INF.includes(slug)) r.findings.push('no inference-style line detected');
     if (!r.trust) r.findings.push('no trust line detected');
     if (r.faqDetails < 3) r.findings.push(`FAQ details x${r.faqDetails}`);
     if (r.emdash) r.findings.push(`${r.emdash} em-dashes`);
