@@ -242,7 +242,7 @@ def demo_block():
     return """
 <div class="a3-demo" id="demoCard" aria-label="Live demo: a real exercise solving itself">
   <div class="a3-demo-head">
-    <span class="a3-demo-k">Watch one solve itself</span>
+    <span class="a3-demo-k">Solve Them Live</span>
     <span class="dc-dots" aria-hidden="true"><i class="on"></i><i></i><i></i></span>
   </div>
   <p class="a3-demo-task"><strong>Task:</strong> <span id="dcQ">Keep only the values greater than 10, then return their mean.</span></p>
@@ -355,7 +355,7 @@ BODY = f"""
 <section class="a2-hero reveal">
   <div>
     <h1>The practice workbook</h1>
-    <p class="dek">Every auto-graded R exercise on the site, in the order you would learn it. The wall shows all of them at a glance; the syllabus below is the working copy.</p>
+    <p class="dek">R sticks when you write it, not when you read about it. Each problem here checks your answer the moment you run it, so you always know which skills you own and which need another rep.</p>
     {out(f"<b style='color:var(--ink)'>{TOT['exercises']:,}</b> problems &middot; <b style='color:var(--ink)'>{TOT['hubs']}</b> hubs &middot; <b style='color:var(--ink)'>{TOT['xp']:,}</b> XP on the table")}
   </div>
   {demo_block()}
