@@ -41,10 +41,11 @@ if not os.path.exists(SHELL):
     print('bootstrapped', SHELL, 'from the previous live page')
 shell = io.open(SHELL, encoding='utf-8').read()
 
-ACC = {'R Fundamentals':'#2056d2','Data Wrangling':'#0f8a5f','Visualization':'#b3591c',
+ACC = {'Collections':'#1c2c4f','R Fundamentals':'#2056d2','Data Wrangling':'#0f8a5f','Visualization':'#b3591c',
  'Statistics':'#7c3aed','Time Series':'#0e7490','Machine Learning':'#be185d',
  'Advanced R':'#4d7c0f','Reporting':'#92590e','Specializations':'#475569','Other':'#475569'}
 INTRO = {
+ 'Collections':'Curated problem sets with a clear promise: interview prep, drills, and challenges.',
  'R Fundamentals':'Vectors, data frames, functions, and the base R muscle memory everything else builds on.',
  'Data Wrangling':'Import, clean, reshape, and join real datasets with dplyr, tidyr, and friends.',
  'Visualization':'Charts that read clearly, from a first ggplot2 bar chart to themed, faceted figures.',
@@ -288,11 +289,11 @@ def bench():
     <span class="s">{sh['b']} of {sh['n']} problems are beginner level. A gentle first set in {sc['name']}. Free, no account needed.</span>
     <div class="row"><a class="btn btn-primary btn-sm" href="/{sh['href']}">Start solving <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a></div>
   </div>
-  <div class="a2-card" id="benchSug">
-    <span class="k">Suggested next</span>
-    <span class="t" id="sgT">{esc(sh['title'])}</span>
-    <span class="s" id="sgS">Mostly beginner problems, a gentle set in {sc['name']}.</span>
-    <div class="row"><a class="btn btn-ghost btn-sm" id="sgGo" href="#{aid(sc['name'])}">See it in the syllabus</a></div>
+  <div class="a2-card" id="benchFeat">
+    <span class="k">Featured collection</span>
+    <span class="t">R Interview Questions (Top 50)</span>
+    <span class="s">The 50 problems interviewers actually ask, from vector gotchas to model output. All auto-graded.</span>
+    <div class="row"><a class="btn btn-primary btn-sm" href="/R-Interview-Questions.html">Take it on <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a></div>
   </div>
   <div class="a2-card" id="benchToday" hidden>
     <span class="k">Today</span>
@@ -453,9 +454,6 @@ function hydrateAll(){
     if(cs)cs.textContent=catSolved;
     if(cb)cb.style.width=Math.round(100*catSolved/Math.max(catN,1))+'%';
   });
-  /* fresh visitor: Suggested next duplicates the New-here card; show it only
-     alongside real progress */
-  if(!cont){var bs=document.getElementById('benchSug');if(bs)bs.hidden=true}
   /* Continue card from the most advanced unfinished hub on this device */
   if(cont){
     var h=HUBIX[cont.hub.getAttribute('data-slug')];
