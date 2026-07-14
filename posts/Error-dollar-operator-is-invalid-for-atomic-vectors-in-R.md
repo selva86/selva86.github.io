@@ -19,13 +19,13 @@ difficulty: "Beginner"
 
 # Fix '$ operator is invalid for atomic vectors' in R
 
-<p class="lead">The error <code>$ operator is invalid for atomic vectors</code> means you used <code>$</code> on an object that has no separate compartments to open: a plain vector, a matrix, or a factor. <code>$</code> only works on lists, data frames, and environments. The fix is to switch to <code>[</code> or <code>[[</code>, or convert the object first.</p>
+<p class="lead">The error <code>$ operator is invalid for atomic vectors</code> means you used <code>$</code> on an object that has no separate compartments to open: a plain vector, a matrix, or a factor. <code>$</code> only works on lists, data frames, and environments, so the fix is to switch to <code>[</code> or <code>[[</code>, or convert the object first.</p>
 
 [QUICK ANSWER]
 x[["price"]]                   # named vector: brackets, not $
 x["price"]                     # same value, keeps the name
 m[, "mpg"]                     # matrix column by name
-df <- as.data.frame(m)         # convert once, then df$mpg works
+as.data.frame(m)$mpg           # convert once and $ works again
 getElement(x, "price")         # one accessor for vectors and lists
 str(x)                         # not sure what x is? look first
 
@@ -42,7 +42,7 @@ x$price
 #> Error in x$price : $ operator is invalid for atomic vectors
 ```
 
-Atomic is R's word for the six flat vector types: logical, integer, double, character, complex, and raw. Every element of an atomic vector shares one type, and the values sit in one contiguous block, which is what makes vectorized arithmetic fast. A list is the opposite kind of container: each slot is a separate compartment that can hold anything, including another list. `$` was designed for the second kind and refuses the first.
+Atomic is R's word for the six flat vector types: logical, integer, double, character, complex, and raw. Every element shares one type and the values sit in one solid block. A list is the opposite kind of container: each slot is a separate compartment that can hold anything, including another list. `$` was designed for the second kind and refuses the first.
 
 The error message itself tells you which object to inspect. `Error in x$price` names the offending expression, so the thing to examine is `x`, not `price`. The names on `x` make it look like it has parts. They are only labels, an attribute attached to the values, not compartments. Compare the same data stored as a list:
 
@@ -72,7 +72,7 @@ getElement(x, "price")
 #> [1] 249
 ```
 
-`x["price"]` keeps the name attached to the result. `x[["price"]]` drops the name and returns the bare value, which is usually what a calculation needs. `getElement()` accepts vectors and lists alike, handy in code that receives either.
+`x["price"]` keeps the name attached to the result. `x[["price"]]` drops the name and returns the bare value, which is usually what a calculation needs. `getElement()` accepts vectors and lists alike.
 
 ## The four causes and their fixes
 
@@ -97,7 +97,7 @@ means[["mpg"]]
 #> [1] 20.09062
 ```
 
-`sapply()` has plenty of company. `table()`, `colMeans()`, `rowSums()`, `quantile()`, and `tapply()` all return named atomic vectors too. The tell is in how the result prints: names appear on a line above the values, with no row numbers on the left. A data frame prints with numbered rows; a named vector prints as two aligned rows of text.
+`sapply()` has plenty of company. `table()`, `colMeans()`, `rowSums()`, `quantile()`, and `tapply()` all return named atomic vectors too. The tell is in how the result prints: names on a line above the values, with no row numbers on the left.
 
 [WARNING]
 **`sapply()` changes its return type depending on the input.** One result per element gives a vector, equal-length results give a matrix, ragged results give a list. Code that works today can fail on next week's data. When downstream code depends on the shape, use `lapply()` to always get a list, or `vapply()` to lock the type.
@@ -127,7 +127,7 @@ round(cm$mpg, 2)
 
 The conversion works because a data frame is a list of columns, so `$` has compartments again.
 
-Matrices sneak into scripts from more places than `cor()`. `scale()` standardizes a data frame and returns a matrix. `t()` transposes into one. `apply()` over rows or columns often assembles one. Model matrices from `model.matrix()` are matrices by definition. If a pipeline mixes these with data frame verbs, check the type at the seam: `class(m)` returning `"matrix" "array"` explains the error immediately.
+Matrices sneak into scripts from more places than `cor()`: `scale()`, `t()`, `apply()`, and `model.matrix()` all return one. If a pipeline mixes these with data frame verbs, check the type at the seam: `class(m)` returning `"matrix" "array"` explains the error immediately.
 
 ### 3. A column you already pulled out (the doubled dollar)
 
@@ -146,9 +146,7 @@ price[2]
 #> [1] 89
 ```
 
-The same thing happens after `orders[["price"]]` and `orders[, "price"]`, and inside loops that hand you one column at a time. Single-bracket extraction accepts `drop = FALSE` if you want the result to stay a data frame: `orders[, "price", drop = FALSE]`. Otherwise, once a column leaves its data frame it is a vector; index it by position or name.
-
-Your editor can warn you before R does. RStudio's autocomplete offers column names after `$` only when the object actually supports `$`. If you type `price$` and no suggestions appear, that silence is the diagnosis: the object has nothing for `$` to complete.
+The same thing happens after `orders[["price"]]` and `orders[, "price"]`, and inside loops that hand you one column at a time. Single-bracket extraction accepts `drop = FALSE` if you want the result to stay a data frame: `orders[, "price", drop = FALSE]`.
 
 ### 4. A list flattened by unlist()
 
@@ -168,11 +166,11 @@ parts[1]
 #> [1] "2026"
 ```
 
-If the pieces deserve named access, skip `unlist()` and read the list with `[[`, or assign names to the vector and use single brackets.
+If the pieces deserve named access, skip `unlist()` and read the list with `[[` instead.
 
 ## Which objects accept $
 
-**Whether `$` works depends on the container type, never on whether names are present.** This table separates the objects that take `$` from the ones that need brackets:
+**Whether `$` works depends on the container type, never on whether names are present.** The table below sorts them:
 
 | Object | `$` works? | Use instead |
 |---|---|---|
@@ -184,9 +182,9 @@ If the pieces deserve named access, skip `unlist()` and read the list with `[[`,
 | Factor | No | `levels()`, `as.character()` |
 | `NULL` | No error, returns `NULL` | guard with `is.null()` |
 
-Three rows earn a note. A factor fails because underneath it is an integer vector with labels, so extract its values with `as.character()` or `levels()` rather than `$`. `NULL$price` does not error at all: it quietly returns `NULL`, which tends to resurface later as [argument is of length zero](Error-argument-is-of-length-zero-in-R.html) when a comparison reaches `if()`. And tibbles, the tidyverse variant of data frames, accept `$` like their base cousins but warn instead of silently partial-matching a misspelled column.
+Two rows earn a note. A factor fails because underneath it is an integer vector with labels, so extract its values with `as.character()` or `levels()` rather than `$`. And `NULL$price` does not error at all: it quietly returns `NULL`, which tends to resurface later as [argument is of length zero](Error-argument-is-of-length-zero-in-R.html) when a comparison reaches `if()`.
 
-S4 objects raise a different message with the same flavor: `$ operator not defined for this S4 class`. Those objects store their pieces in slots, reached with `@` or, better, with the accessor functions the package documents. If you hit that wording instead of the atomic-vector one, reach for `slotNames(obj)` rather than `names(obj)`.
+S4 objects raise a different message with the same flavor: `$ operator not defined for this S4 class`. Those objects store their pieces in slots, reached with `@` or with the accessor functions their package documents.
 
 [NOTE]
 **Coming from Python?** pandas accepts both `df.col` and `df['col']` on a DataFrame, and `s['a']` on a Series. R splits the jobs: `$` belongs to list-like containers only, while brackets work on everything. When you are unsure what you are holding, brackets are the portable choice.
@@ -208,7 +206,7 @@ str(orders)
 
 `Named num` means an atomic vector, so `$` will fail. `'data.frame'` means a list of columns, so `$` will work. `class()` gives a shorter answer, `class(m)` returns `"matrix" "array"`, and `is.atomic()` answers the yes/no directly. In a long pipeline, run `traceback()` right after the error to see which call produced the vector.
 
-The RStudio Environment pane carries the same information at a glance. Data frames get a spreadsheet icon and a blue expander arrow; plain vectors print inline as `Named num [1:2]` with no expander. When a script fails halfway, scanning that pane for the object named in the error is often faster than adding print statements.
+For code that must not break, make the assumption explicit: a single `stopifnot(is.data.frame(df))` at the top of a function turns a confusing downstream failure into a clear complaint at the boundary where the wrong object entered.
 
 [TIP]
 **Read str() output by its dollar signs.** `str()` prints one `$` line per component exactly when the object supports `$` access. If you see `$ item :` and `$ price:` lines, the accessor will work. If the output is a single `Named num` or `chr` line, reach for brackets.
@@ -243,23 +241,19 @@ ex_maths
 
 ## FAQ
 
-<!-- faq: 6 llm-invented (SerpAPI returned no PAA for this query, 2026-07-14); refresh with real PAA later -->
-
-**Why does $ work on a data frame but not on a matrix?**
-
-A data frame is a list of columns dressed up as a table, so each column is a separate compartment that `$` can open. A matrix is one atomic block plus a `dim` attribute describing its shape; there are only positions, no compartments. That is also why a matrix forces every cell to a single type while data frame columns can differ. Convert with `as.data.frame()` when you want `$` back.
+<!-- faq: 4 llm-invented (SerpAPI returned no PAA for this query, 2026-07-14); refresh with real PAA later -->
 
 **What exactly is an atomic vector?**
 
-It is R's most basic container: a sequence of values that all share one of six types (logical, integer, double, character, complex, raw). Atomic means it cannot hold other objects inside it, unlike a list. Names, when present, are an attribute attached to the whole vector rather than handles to independent parts, which is why `$` refuses to use them.
-
-**Why did my code only break after I added sapply()?**
-
-Because `sapply()` simplifies. `lapply()` returns a list, where `[[` and `$`-style access keep working. `sapply()` collapses that list into a named vector or matrix when the pieces line up, silently changing the container type. Swap in `lapply()` to preserve the list, or accept the vector and switch to `means[["mpg"]]` style lookups.
+It is R's most basic container: a sequence of values that all share one of six types (logical, integer, double, character, complex, raw). The name means indivisible: you cannot open an element and find more structure inside, unlike a list. Names, when present, are an attribute attached to the whole vector rather than handles to independent parts, which is why `$` refuses to use them.
 
 **How do I fix this error in Shiny?**
 
 Find the reactive step where your data frame stopped being one. The usual suspects are a single-bracket extraction like `df[, input$col]`, which drops to a vector, and an `apply()` or `sapply()` step that returns a vector or matrix. Add `drop = FALSE`, or read the result with `[[` instead of `$`. Because reactives run lazily, the error appears when the app runs, not when you source it.
+
+**What is the difference between [ ], [[ ]], and $ in R?**
+
+Single brackets return a container of the same kind: a sub-vector from a vector, a sub-list from a list, a data frame from a data frame. Double brackets return one element's bare value, and they accept names on both lists and atomic vectors. `$` is shorthand for `[[` with a literal name, but it is defined only for lists, data frames, and environments. That narrower scope is the entire reason this error exists.
 
 **Is this the same as "object of type 'closure' is not subsettable"?**
 
