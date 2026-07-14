@@ -1413,6 +1413,23 @@
     buildCTA(lastSection);
     if (solvedCount() >= totalCount) showBadge();
 
+    // Deep links from /exercises/ (and anywhere else): the original section
+    // ids move to xh-body-* during enhancement, so a plain #<Hub>-ex-<s>-<n>
+    // hash never resolves natively. Re-resolve it here: open the card and
+    // scroll it under the sticky masthead.
+    var dhash = decodeURIComponent((location.hash || '').slice(1));
+    if (/-ex-\d+-\d+$/.test(dhash)) {
+      var dbody = document.getElementById('xh-body-' + dhash);
+      var dcard = dbody && dbody.closest('section.exercise');
+      if (dcard) {
+        setCardOpen(dcard, true);
+        setTimeout(function () {
+          dcard.scrollIntoView();
+          window.scrollBy(0, -84);
+        }, 150);
+      }
+    }
+
     // Enable the fold transition after the first paint, so cards do not
     // animate themselves open when the page loads. rAF covers the normal
     // case; the timeout is a fallback for background tabs, where rAF is
