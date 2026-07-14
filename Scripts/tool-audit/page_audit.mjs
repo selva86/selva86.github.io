@@ -58,6 +58,12 @@ for (const slug of slugs) {
       out.unpinnedLibs = [...document.querySelectorAll('script[src*="/tools/lib/"]')]
         .filter(s => !s.getAttribute('src').includes('?v='))
         .map(s => s.getAttribute('src'));
+      // design-system fingerprint: Lab-sheet pages carry the injected .tool-chrome
+      // style block and only mention IBM Plex in the shared footer (~3 refs);
+      // old-shell bodies repeat the Plex font stack 30-90x and run 220-270KB
+      out.chromeCss = [...document.querySelectorAll('style')].some(s => s.textContent.includes('.tool-chrome{'));
+      out.plexRefs = (html.match(/IBM Plex/g) || []).length;
+      out.htmlKB = Math.round(html.length / 1024);
       return out;
     });
     Object.assign(r, d);
@@ -93,6 +99,9 @@ for (const slug of slugs) {
     if (!r.gaCopy) r.findings.push('no tool_copy event');
     if (r.inpageFooter) r.findings.push('in-page footer.ft');
     if (r.unpinnedLibs.length) r.findings.push('unpinned libs: ' + r.unpinnedLibs.join(','));
+    if (!r.chromeCss) r.findings.push('missing .tool-chrome style block (broken chrome CSS)');
+    if (r.plexRefs > 10) r.findings.push(`OLD-SHELL body: ${r.plexRefs} IBM Plex refs`);
+    if (r.htmlKB > 200) r.findings.push(`page ${r.htmlKB}KB (Lab-sheet standard ~150KB)`);
     if (r.consoleErrors.length) r.findings.push(`console errors x${r.consoleErrors.length}: ${r.consoleErrors[0]}`);
     if (r.mobileOverflow) r.findings.push('mobile 390 overflow');
   } catch (e) {
