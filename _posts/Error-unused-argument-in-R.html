@@ -1,0 +1,427 @@
+---
+title: "Fix 'unused argument' in R"
+description: "R's unused argument error means the function cannot accept an argument you passed. See the 4 causes, from typos to package masking, with runnable fixes."
+keywords: "unused argument, unused argument R, fix unused argument, unused argument error meaning, R error unused argument, select unused argument, dplyr unused arguments"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "unused argument|unused arguments|unused argument error|unused-argument error|error: unused argument"
+auto_link_case_sensitive: false
+fr_parent: "R-Common-Errors.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Fix 'unused argument' in R</h1>
+
+<p class="lead">The error <code>unused argument</code> means you passed an argument the function does not accept: R matched your call against the function's parameter names and one argument was left with nowhere to go. The usual culprit is a misspelled argument name or a call that reached the wrong function, often one masked by another package.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>args(matrix)<span class="qa-cmt">                           # list the real argument names</span>
+matrix(1:6, nrow = 2)<span class="qa-cmt">                  # nrow, not nrows</span>
+grepl(&quot;red&quot;, x, ignore.case = TRUE)<span class="qa-cmt">    # dots in names count too</span>
+dplyr::select(df, mpg)<span class="qa-cmt">                 # bypass a masked select()</span>
+find(&quot;select&quot;)<span class="qa-cmt">                         # who else defines this name?</span>
+rm(select)<span class="qa-cmt">                             # drop your own shadow copy</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<h2>What this error means</h2>
+
+<p><strong>R could not find a home for one of your arguments.</strong> When you call a function, R binds each argument you supply to a parameter the function declares: exact names first, then unambiguous abbreviations, then leftover values by position. An argument that survives all three rounds has nowhere to go. If the function has no <code>...</code> parameter to absorb extras, R stops and names the leftover.</p>
+
+<p>The shortest way to trigger it is one misspelled name:</p>
+
+<div class="webr-container" data-block-title="Reproduce the error in one line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reproduce the error in one line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">matrix(1:6, nrows = 2)
+#&gt; Error in matrix(1:6, nrows = 2) : unused argument (nrows = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The parentheses quote exactly what R rejected, name and value. Read that first, because the answer is usually one <code>args()</code> call away:</p>
+
+<div class="webr-container" data-block-title="Check the real names with args">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the real names with args</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">args(matrix)
+#&gt; function (data = NA, nrow = 1, ncol = 1, byrow = FALSE, dimnames = NULL) 
+#&gt; NULL
+
+matrix(1:6, nrow = 2)
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    3    5
+#&gt; [2,]    2    4    6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>matrix()</code> declares <code>nrow</code>, singular. <code>nrows</code> matches nothing, and there is no <code>...</code> to catch it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The fix is always one of two moves.</strong> Either rename the argument to one the function declares, or realize the call reached a different function than you intended. Every cause below is a variation of those two.</div></div>
+
+<h2>The four causes and their fixes</h2>
+
+<p><strong>Four situations produce nearly every unused argument error.</strong> Check them in order. The first two cover most cases, and each takes under a minute to confirm.</p>
+
+<h3>1. A misspelled argument name</h3>
+
+<p><strong>The name you typed matches no declared parameter.</strong> <code>rnorm()</code> declares <code>n</code>, <code>mean</code>, and <code>sd</code>, so one stray vowel breaks the call:</p>
+
+<div class="webr-container" data-block-title="A typo R cannot place">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A typo R cannot place</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+rnorm(3, meen = 100)
+#&gt; Error in rnorm(3, meen = 100) : unused argument (meen = 100)
+
+rnorm(3, mean = 100)
+#&gt; [1] 101.3710  99.4353 100.3631</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R does accept unambiguous abbreviations: <code>rnorm(3, m = 100)</code> runs because only <code>mean</code> starts with <code>m</code>. Partial matching only saves you when your spelling is a prefix of the real name. <code>meen</code> is a prefix of nothing, so it fails.</p>
+
+<p>Watch for dots inside names too. Base R uses them everywhere, and dropping one produces the same error:</p>
+
+<div class="webr-container" data-block-title="Dots in names count too">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dots in names count too</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grepl(&quot;red&quot;, c(&quot;Red&quot;, &quot;blue&quot;, &quot;DARK RED&quot;), ignorecase = TRUE)
+#&gt; Error in grepl(&quot;red&quot;, c(&quot;Red&quot;, &quot;blue&quot;, &quot;DARK RED&quot;), ignorecase = TRUE) : 
+#&gt;   unused argument (ignorecase = TRUE)
+
+grepl(&quot;red&quot;, c(&quot;Red&quot;, &quot;blue&quot;, &quot;DARK RED&quot;), ignore.case = TRUE)
+#&gt; [1]  TRUE FALSE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Another package masked the function</h3>
+
+<p><strong>Your call reached a same-named function from a different package.</strong> When two loaded packages export the same name, the one attached last wins. The classic collision is <code>select()</code>: dplyr's version takes a data frame and column names, while MASS's version takes a single fitted model object.</p>
+
+<div class="webr-container" data-block-title="MASS masks dplyr select">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MASS masks dplyr select</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(MASS)
+
+select(mtcars, mpg)
+#&gt; Error in select(mtcars, mpg) : unused argument (mpg)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The call is valid dplyr code. It just never reached dplyr, because <code>library(MASS)</code> ran later and its <code>select()</code> sits in front. A column name means nothing to MASS's version, so <code>mpg</code> comes back as unused. The fix that always works is the double colon:</p>
+
+<div class="webr-container" data-block-title="Call the version you meant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Call the version you meant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dplyr::select(mtcars, mpg) |&gt; head(3)
+#&gt;                mpg
+#&gt; Mazda RX4     21.0
+#&gt; Mazda RX4 Wag 21.0
+#&gt; Datsun 710    22.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Make masking loud instead of confusing.</strong> The conflicted package turns every ambiguous call into an immediate error that names both packages and asks you to choose. Add <code>library(conflicted)</code> to scripts that load many packages and this whole cause disappears.</div></div>
+
+<h3>3. You redefined the name yourself</h3>
+
+<p><strong>A function you wrote earlier in the session shadows the package version.</strong> Objects in your workspace sit in front of every package on R's search path. Name a helper <code>filter</code>, <code>select</code>, or <code>summary</code> and you quietly hijack every later call:</p>
+
+<div class="webr-container" data-block-title="Your own name shadows dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your own name shadows dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">filter &lt;- function(x) x * 2
+
+filter(mtcars, mpg &gt; 30)
+#&gt; Error in filter(mtcars, mpg &gt; 30) : unused argument (mpg &gt; 30)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Your two-line helper declares one parameter, <code>x</code>, so the condition <code>mpg &gt; 30</code> has no slot to land in. Delete your copy and the package version becomes reachable again:</p>
+
+<div class="webr-container" data-block-title="Remove the shadowing copy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Remove the shadowing copy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rm(filter)
+
+nrow(filter(mtcars, mpg &gt; 30))
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Your own function never declared the parameter</h3>
+
+<p><strong>The error is honest here: you are passing an option your function does not have.</strong> This bites when you wrap other functions and forget to pass their options along:</p>
+
+<div class="webr-container" data-block-title="A wrapper missing a parameter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A wrapper missing a parameter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">normalize &lt;- function(x) (x - min(x)) / (max(x) - min(x))
+
+normalize(c(2, 4, NA, 8), na.rm = TRUE)
+#&gt; Error in normalize(c(2, 4, NA, 8), na.rm = TRUE) : 
+#&gt;   unused argument (na.rm = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Declare the parameter, or accept <code>...</code> and forward it to the functions inside:</p>
+
+<div class="webr-container" data-block-title="Declare the parameter you need">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Declare the parameter you need</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">normalize &lt;- function(x, na.rm = FALSE) {
+  if (na.rm) x &lt;- x[!is.na(x)]
+  (x - min(x)) / (max(x) - min(x))
+}
+
+normalize(c(2, 4, NA, 8), na.rm = TRUE)
+#&gt; [1] 0.0000000 0.3333333 1.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> This is R's version of pandas' <code>TypeError: got an unexpected keyword argument</code>. The diagnosis is the same in both languages: the name in your call does not exist in the signature of the function you reached.</div></div>
+
+<h2>When no error fires: the silent version</h2>
+
+<p>**A function with a <code>...</code> parameter swallows the typo instead of rejecting it.** That is the dangerous cousin of this error. <code>sum()</code> adds everything in its dots, so a misspelled <code>na.rm</code> becomes data:</p>
+
+<div class="webr-container" data-block-title="Dots absorb a misspelled na.rm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dots absorb a misspelled na.rm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sum(1:3, narm = TRUE)
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is no error and no warning. <code>narm = TRUE</code> rides into <code>...</code>, <code>TRUE</code> counts as 1, and the total silently gains one. Two more classics:</p>
+
+<div class="webr-container" data-block-title="Two more silent failures">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two more silent failures</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(c(1, 2, 3, 4, 100), trm = 0.2)
+#&gt; [1] 22
+
+data.frame(x = 1:2, stringsAsFactor = FALSE)
+#&gt;   x stringsAsFactor
+#&gt; 1 1           FALSE
+#&gt; 2 2           FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The misspelled <code>trm</code> is ignored, so no trimming happens and the <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> stays in; the correct <code>trim = 0.2</code> returns 3. And <code>data.frame()</code> turns the misspelled <code>stringsAsFactor</code> into a new column, because the real parameter ends in s: <code>stringsAsFactors</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An unused argument error is the good outcome.</strong> Functions without <code>...</code> catch the typo at the door. Functions with <code>...</code> let it walk in and quietly change your numbers. When a result looks wrong and no error fired, re-check the spelling of every named argument first.</div></div>
+
+<h2>Diagnose it in 30 seconds</h2>
+
+<p><strong>Three commands identify the cause every time.</strong> <code>args()</code> shows what the function declares, <code>find()</code> lists every package or environment that defines the name, and <code>environment()</code> reveals which definition a bare call reaches:</p>
+
+<div class="webr-container" data-block-title="Trace which function answers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace which function answers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">find(&quot;select&quot;)
+#&gt; [1] &quot;package:MASS&quot;  &quot;package:dplyr&quot;
+
+environmentName(environment(select))
+#&gt; [1] &quot;MASS&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>find()</code> reports definitions in search order, and the first entry wins. If <code>&quot;.GlobalEnv&quot;</code> tops the list, the shadow is your own. Two packages listed means masking.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Clue</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The name is close to a real parameter</td>
+<td>Typo</td>
+<td>Spell it as <code>args()</code> shows</td>
+</tr>
+<tr>
+<td><code>find()</code> lists two packages</td>
+<td>Masking</td>
+<td>Call <code>pkg::fun()</code> directly</td>
+</tr>
+<tr>
+<td><code>find()</code> starts with ".<a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">GlobalEnv</a>"</td>
+<td>Your own redefinition</td>
+<td><code>rm()</code> your copy or rename it</td>
+</tr>
+<tr>
+<td>The function is one you wrote</td>
+<td>Missing parameter</td>
+<td>Declare it or add <code>...</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>How to avoid it next time</h2>
+
+<p><strong>Three habits eliminate nearly every repeat.</strong></p>
+
+<ul>
+
+<li><a class="auto-link" href="R-Namespaces.html" title="R Namespaces: How Packages Export Functions & Prevent Conflicts">Namespace</a> collision-prone verbs. In scripts that load several packages, write <code>dplyr::select()</code> and <code>dplyr::filter()</code> so load order stops mattering.</li>
+
+<li>Read the signature instead of guessing. <code>args(fun)</code> is instant, and <code>?fun</code> documents what each parameter expects.</li>
+
+<li>Never name your own helpers after popular functions. <code>filter</code>, <code>select</code>, <code>summary</code>, and <code>c</code> are each one careless assignment away from shadowing something you need.</li>
+
+</ul>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The call below should build a 2 x 3 matrix from the numbers 1 to 6, but both argument names are wrong. Check <code>args(matrix)</code>, fix the call, and save the result to <code>ex_m</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fix both names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fix both names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: repair the matrix call
+ex_m &lt;- # your code here, starting from: matrix(1:6, nrows = 2, ncols = 3)
+
+ex_m
+#&gt; Expected: a 2 x 3 matrix filled column by column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m &lt;- matrix(1:6, nrow = 2, ncol = 3)
+ex_m
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    3    5
+#&gt; [2,]    2    4    6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>matrix()</code> declares <code>nrow</code> and <code>ncol</code>, both singular. R rejects the plural spellings together in one message: <code>unused arguments (nrows = 2, ncols = 3)</code>.</p>
+
+</details>
+</section>
+
+<h2>FAQ</h2>
+
+<!-- faq: 4 real PAA (SerpAPI 2026-07-14) -->
+
+<p><strong>What does the unused argument error mean in R?</strong></p>
+
+<p>It means the function cannot accept one of the arguments in your call. R matches supplied arguments to declared parameters by exact name, then by unambiguous abbreviation, then by position. Whatever remains unmatched triggers the error, and the message quotes the rejected argument in parentheses. It does not mean your value is wrong; it means the argument's name has no match in the function you actually called.</p>
+
+<p><strong>Why does R say "could not find function %>%" instead?</strong></p>
+
+<p>That is a different failure at an earlier stage. "Could not find function" means the name resolves to nothing at all, usually because the package providing it is not loaded. Unused argument means the name resolved fine but the function rejected what you passed. For the pipe specifically, load dplyr or magrittr first, or switch to the base pipe <code>|&gt;</code>, which needs no package. See <a href="Error-could-not-find-function-X-in-R.html">could not find function</a> for that error's own causes.</p>
+
+<p><strong>How do I get rid of "unused variable" warnings in R?</strong></p>
+
+<p>Those come from a different tool. Linters such as lintr, and check pipelines like <code>R CMD check</code>, warn about variables you created but never used. That is a style diagnostic, not a runtime error, and the R interpreter itself never raises it. Fix it by deleting the dead assignment or actually using the variable. The unused argument error on this page is unrelated: it is R refusing to run a call.</p>
+
+<p><strong>Why does R keep saying "object not found"?</strong></p>
+
+<p>That error concerns a variable, not a parameter. <code>object &#x27;x&#x27; not found</code> means a name you referenced holds no value anywhere on the search path: a typo'd variable, a column used outside functions that do data masking, or code run out of order. Unused argument fires when the value arrived but its name matched no parameter. See <a href="R-Error-Object-Not-Found.html">object not found</a> for the common triggers and fixes.</p>
+
+<h2>Related R errors</h2>
+
+<p>Start with the parent guide, <a href="R-Common-Errors.html">common R errors and how to read them</a>. The R Language Definition's <a href="https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Argument-matching">argument matching section</a> specifies the exact matching order R follows. For neighbors of this error, see <a href="Error-could-not-find-function-X-in-R.html">could not find function</a> for names that resolve to nothing, <a href="R-Error-Object-Not-Found.html">object not found</a> for missing variables rather than rejected parameters, <a href="Error-object-of-type-closure-is-not-subsettable-in-R.html">object of type closure is not subsettable</a> for another symptom of name collisions, and <a href="R-Functions.html">functions in R</a> for declaring parameters, defaults, and <code>...</code> in your own code.</p>
+
+{% endraw %}
