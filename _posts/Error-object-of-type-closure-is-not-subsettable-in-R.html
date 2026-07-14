@@ -1,0 +1,375 @@
+---
+title: "Fix 'object of type closure is not subsettable' in R"
+description: "R's object of type closure is not subsettable error means you subset a function like data. See the 4 causes, from df name clashes to Shiny, with fixes."
+keywords: "object of type closure is not subsettable, object of type closure is not subsettable R, fix object of type closure is not subsettable, R error closure not subsettable, closure is not subsettable meaning, df closure error R, Shiny closure not subsettable"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "object of type closure is not subsettable|object of type 'closure' is not subsettable|closure is not subsettable|closure not subsettable|not subsettable error"
+auto_link_case_sensitive: false
+fr_parent: "R-Common-Errors.html"
+---
+<!-- md2html:generated -->
+
+<h1>Fix 'object of type closure is not subsettable' in R</h1>
+
+<p class="lead">The error <code>object of type 'closure' is not subsettable</code> means you used subsetting syntax (<code>[ ]</code>, <code>[[ ]]</code>, or <code>$</code>) on a function instead of a data object. It usually appears because a data frame was never created, so its name resolved to a built-in function such as <code>df</code> or <code>data</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mean(x)<span class="qa-cmt">                      # call a function with ( ), never [ ]</span>
+read.csv(&quot;sales.csv&quot;)<span class="qa-cmt">        # assign this to df, then df$col works</span>
+class(df)<span class="qa-cmt">                    # &quot;function&quot; means df was never created</span>
+rm(df)<span class="qa-cmt">                       # drop a variable that masks a function</span>
+my_data()[1:5, ]<span class="qa-cmt">             # Shiny: call the reactive, then subset</span>
+find(&quot;df&quot;)<span class="qa-cmt">                   # show which environment owns the name</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<h2>What this error means</h2>
+
+<p><strong>R found a function where you expected data.</strong> "Closure" is R's internal name for a function, and "not subsettable" says that <code>[ ]</code>, <code>[[ ]]</code>, and <code>$</code> do not work on functions. Translated, the message reads: you tried to slice a function.</p>
+
+<p>The shortest way to trigger it is to put square brackets on any built-in function:</p>
+
+<div class="webr-container" data-block-title="Reproduce the error in one line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reproduce the error in one line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean[2]
+#&gt; Error in mean[2] : object of type 'closure' is not subsettable</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mean</code> is a function, and <code>[2]</code> asks for its second element. Functions do not have elements, so R stops with this error. Every real-world case is a disguised version of this one line.</p>
+
+<p>You can confirm what R means by "closure" with <code>typeof()</code>:</p>
+
+<div class="webr-container" data-block-title="A closure is just a function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A closure is just a function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">typeof(mean)
+#&gt; [1] &quot;closure&quot;
+
+class(mean)
+#&gt; [1] &quot;function&quot;
+
+typeof(function(x) x + 1)
+#&gt; [1] &quot;closure&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The error names the exact problem: subsetting a function.</strong> The <a href="https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Function-objects">R Language Definition</a> defines a closure as a function bundled with the environment it was created in. So the fix is never about your <code>[ ]</code> syntax; it is about why that name pointed at a function in the first place.</div></div>
+
+<h2>The four causes and their fixes</h2>
+
+<p><strong>Nearly every occurrence traces back to one of four situations.</strong> Check them in order; the first two cover most scripts, and the fourth covers most Shiny apps.</p>
+
+<h3>1. You subset a function you meant to call</h3>
+
+<p>Parentheses call a function; square brackets <a class="auto-link" href="R-Subsetting.html" title="R Subsetting: One Definitive Rule for [], [[]], $, and @, No More Guessing">extract elements</a> from data. Swapping them produces the error immediately:</p>
+
+<div class="webr-container" data-block-title="Brackets vs parentheses">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Brackets vs parentheses</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(4, 8, 15, 16, 23, 42)
+
+mean[x]   # wrong: [ ] treats mean like a container
+#&gt; Error in mean[x] : object of type 'closure' is not subsettable
+
+mean(x)   # right: ( ) calls the function on x
+#&gt; [1] 18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is mechanical: replace <code>[ ]</code> with <code>( )</code> on the function name shown in the error.</p>
+
+<p>The dollar-sign and double-bracket forms fail the same way, so <code>mean$x</code> and <code>mean[[&quot;x&quot;]]</code> raise the identical message.</p>
+
+<h3>2. The object was never created, and a built-in owns its name</h3>
+
+<p>This is the classic <code>df$price</code> failure. You intend <code>df</code> to be your data frame, but the line that creates it never ran or failed silently. R then searches its packages, finds a function called <code>df</code>, and hands that to <code>$</code>:</p>
+
+<div class="webr-container" data-block-title="df is a function until you create your own">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">df is a function until you create your own</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df$price
+#&gt; Error in df$price : object of type 'closure' is not subsettable
+
+class(df)
+#&gt; [1] &quot;function&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This bites hardest in interactive work: you restart R, rerun only the bottom half of a script, and a line that worked yesterday fails because the workspace is empty. Check the Environment pane in RStudio, or run <code>ls()</code>, to confirm the object exists before trusting its name.</p>
+
+<p>The fix is to actually create the object before subsetting it. Once your own <code>df</code> exists in the workspace, it masks the built-in and everything works:</p>
+
+<div class="webr-container" data-block-title="Create the object, then subset it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create the object, then subset it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(price = c(10, 20, 30))
+df$price
+#&gt; [1] 10 20 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>df</code> and <code>data</code> are both built-in functions.</strong> <code>df()</code> is the F-distribution density from the stats package, and <code>data()</code> loads datasets. Scripts that use them as data frame names look fine, then throw the closure error whenever the assignment line is skipped, misspelled, or errors out earlier.</div></div>
+
+<h3>3. You wrote the closure yourself</h3>
+
+<p><a class="auto-link" href="R-Function-Factories.html" title="R Function Factories: Functions That Create Functions (With 5 Examples)">Functions that return functions</a> are a standard R pattern. The returned value is a closure, and it is tempting to treat it like the data it will eventually produce:</p>
+
+<div class="webr-container" data-block-title="Closures returned by other functions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Closures returned by other functions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">make_counter &lt;- function() {
+  count &lt;- 0
+  function() {
+    count &lt;&lt;- count + 1
+    count
+  }
+}
+counter &lt;- make_counter()
+
+counter[1]   # wrong: counter is a function
+#&gt; Error in counter[1] : object of type 'closure' is not subsettable
+
+counter()    # right: call it first
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Whenever a <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">function factory</a>, <code>local()</code>, or <code>Vectorize()</code> hands you a result, call it with <code>( )</code> before applying any subsetting to what it returns. The same rule covers functions stored in lists: <code>handlers$log</code> retrieves the function, and only <code>handlers$log(x)</code> runs it.</p>
+
+<h3>4. Shiny reactives without parentheses</h3>
+
+<p><code>reactive()</code> returns a function, not a data frame. Inside a Shiny server, <code>my_data</code> is the reactive object itself; <code>my_data()</code> is the current value. Subsetting the former is the single most common source of this error in app code:</p>
+
+<div class="webr-container" data-block-title="Call the reactive before subsetting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Call the reactive before subsetting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">server &lt;- function(input, output) {
+  my_data &lt;- reactive(mtcars[mtcars$cyl == input$cyl, ])
+  output$tbl &lt;- renderTable(my_data()[1:5, ])
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The wrong version, <code>renderTable(my_data[1:5, ])</code>, only fails when the app runs, which makes it harder to spot. Any time an error points into your server function, search it for reactives used without <code>( )</code>. The same rule covers <code>reactiveVal()</code> and <code>eventReactive()</code>, which also return functions.</p>
+
+<h2>The mirror error: calling data like a function</h2>
+
+<p><strong>Swap the mistake and R complains differently.</strong> Putting <code>( )</code> on a data object makes R hunt for a function with that name specifically, skipping your vector, so the message reports a missing function:</p>
+
+<div class="webr-container" data-block-title="Calling data like a function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Calling data like a function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices &lt;- c(10, 20, 30)
+
+prices(2)   # wrong: ( ) treats prices like a function
+#&gt; Error in prices(2) : could not find function &quot;prices&quot;
+
+prices[2]   # right: [ ] extracts the second element
+#&gt; [1] 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two messages are opposite ends of one confusion: square brackets belong to data, parentheses belong to functions.</p>
+
+<h2>Diagnose it in 30 seconds</h2>
+
+<p><strong>Three calls tell you which case you have.</strong> Take the name from your error message and inspect what R actually sees:</p>
+
+<div class="webr-container" data-block-title="Three diagnostic calls">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three diagnostic calls</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class(data)      # what did R actually find?
+#&gt; [1] &quot;function&quot;
+
+find(&quot;data&quot;)     # which environment owns the name?
+#&gt; [1] &quot;package:utils&quot;
+
+exists(&quot;sales&quot;)  # was my object ever created?
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second call matters because R searches your workspace first, then each attached package in order, taking the first match. Your objects mask package functions when both exist, which is why creating <code>df</code> makes the error vanish; when <code>find()</code> reports only a package, your version simply is not there.</p>
+
+<p>Match the results against this table:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Code looks like <code>mean[2]</code></td>
+<td>Subsetting instead of calling</td>
+<td>Use <code>( )</code>: <code>mean(x)</code></td>
+</tr>
+<tr>
+<td><code>class(obj)</code> returns <code>&quot;function&quot;</code></td>
+<td>Object never created; a built-in owns the name</td>
+<td>Run the creating line, or rename</td>
+</tr>
+<tr>
+<td><code>find(&quot;obj&quot;)</code> shows only a package</td>
+<td>Name lives in a package, not your workspace</td>
+<td>Rename to <code>sales_df</code>, <code>prices_tbl</code></td>
+</tr>
+<tr>
+<td>Error appears when a Shiny app runs</td>
+<td>Reactive used without <code>( )</code></td>
+<td><code>my_data()[rows, cols]</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run <code>class()</code> on the name from the error first.</strong> One call splits the problem in two: <code>&quot;function&quot;</code> means the name never pointed at your data, so fix the creation or the name; anything else means the subsetting call itself is wrong.</div></div>
+
+<h2>How to avoid it next time</h2>
+
+<p><strong>A few habits make this error rare.</strong></p>
+
+<ul>
+
+<li>Give data objects distinctive names. Prefer <code>sales_df</code> or <code>prices_tbl</code> over <code>df</code>, <code>data</code>, <code>t</code>, or <code>c</code>, all of which already belong to functions.</li>
+
+<li>Rerun scripts from the top after a restart, or restart R deliberately and often, so stale workspaces never hide a missing object.</li>
+
+<li>Read the failing call in the error message before touching code; it names the exact object that resolved wrongly.</li>
+
+<li>Print or <code>str()</code> an object right after creating it, so a read that silently failed surfaces immediately.</li>
+
+<li>In Shiny, treat every reactive as a function until called, and add the <code>( )</code> at creation time.</li>
+
+</ul>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The broken line below throws the closure error. Write the working call so <code>ex_avg</code> holds the average of <code>ex_prices</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fix the closure error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fix the closure error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prices &lt;- c(120, 95, 143)
+# mean[ex_prices] throws the closure error; write the working call
+ex_avg &lt;- # your code here
+
+ex_avg
+#&gt; Expected: [1] 119.3333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prices &lt;- c(120, 95, 143)
+ex_avg &lt;- mean(ex_prices)
+ex_avg
+#&gt; [1] 119.3333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mean[ex_prices]</code> subsets the <code>mean</code> function itself, which is not subsettable. Calling it with parentheses, <code>mean(ex_prices)</code>, passes the vector as an argument and returns the average.</p>
+
+</details>
+</section>
+
+<h2>FAQ</h2>
+
+<p><strong>What is an object of type 'closure' in R?</strong></p>
+
+<p>A closure is R's internal type name for a function, covering the function's code plus the environment it was defined in. <code>typeof(mean)</code> returns <code>&quot;closure&quot;</code> even though <code>class(mean)</code> returns <code>&quot;function&quot;</code>. Every function you create with <code>function()</code> is a closure. When the word appears in an error message, read it simply as "a function": R is telling you that the object you tried to subset is a function.</p>
+
+<p><strong>What does subsettable mean in R?</strong></p>
+
+<p>Subsettable means an object supports the extraction operators <code>[ ]</code>, <code>[[ ]]</code>, and <code>$</code>. Vectors, lists, matrices, and data frames are subsettable because they contain elements you can pull out by position or name. Functions contain code to execute, not elements to extract, so R marks them as not subsettable.</p>
+
+<p><strong>Why does R say my data frame is a closure?</strong></p>
+
+<p>Because the name never pointed at your data frame in the current session. The line that creates it did not run, failed with an earlier error, or the name is misspelled. R then falls back to a function with the same name, such as the built-in <code>df()</code> or <code>data()</code>, and reports a closure. Confirm with <code>class(your_name)</code>: if it returns <code>&quot;function&quot;</code>, recreate the object or pick a more distinctive name.</p>
+
+<p><strong>Can I look inside a function if <code>[ ]</code> does not work?</strong></p>
+
+<p>Yes, through accessor functions rather than subsetting operators. <code>body(mean)</code> returns the code, <code>formals(mean)</code> returns the argument list, and <code>environment(mean)</code> returns the environment the closure captured. These are the legitimate tools for inspecting a function's parts. If you reached for <code>[ ]</code> expecting data, though, the fix is still the name, not dissecting the function.</p>
+
+<p><strong>How do I fix 'object of type closure is not subsettable' in Shiny?</strong></p>
+
+<p>Call every reactive with parentheses before subsetting its result: <code>my_data()[1:5, ]</code>, never <code>my_data[1:5, ]</code>. The same applies to <code>reactiveVal()</code> objects and anything returned by <code>reactive()</code>. Because reactives only execute while the app is running, the error surfaces at runtime rather than when you source the file, so search your server code for reactive names followed directly by <code>[</code> or <code>$</code>.</p>
+
+<h2>Related R errors</h2>
+
+<p>Start with the parent guide, <a href="R-Common-Errors.html">common R errors and how to read them</a>. For the mechanics, see <a href="R-Closures.html">closures in R</a> for how functions capture environments, <a href="R-Functions.html">functions in R</a> for calling conventions, <a href="R-Subsetting.html">subsetting in R</a> for what the extraction operators apply to, and <a href="R-Data-Frames.html">data frames in R</a> if your object exists but subsetting still fails.</p>
+
