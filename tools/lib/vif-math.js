@@ -102,6 +102,128 @@
     return { vifs: vifs, eigenvalues: ev, cond: cond };
   }
 
+  // ---- Pearson correlation matrix from raw predictor columns ----
+  // cols: array of equal-length numeric arrays (one per predictor).
+  // Matches R's cor() to ~1e-12 (two-pass, mean-centred cross products).
+  function corMatrix(cols) {
+    var p = cols.length, n = p ? cols[0].length : 0, i, j, k;
+    var mean = [], sd = [];
+    for (i = 0; i < p; i++) {
+      var s = 0; for (k = 0; k < n; k++) s += cols[i][k];
+      mean.push(s / n);
+    }
+    for (i = 0; i < p; i++) {
+      var ss = 0; for (k = 0; k < n; k++) { var d = cols[i][k] - mean[i]; ss += d * d; }
+      sd.push(Math.sqrt(ss));
+    }
+    var R = [];
+    for (i = 0; i < p; i++) {
+      R.push(new Array(p));
+      for (j = 0; j < p; j++) R[i][j] = (i === j) ? 1 : 0;
+    }
+    for (i = 0; i < p; i++) {
+      for (j = i + 1; j < p; j++) {
+        var cov = 0;
+        for (k = 0; k < n; k++) cov += (cols[i][k] - mean[i]) * (cols[j][k] - mean[j]);
+        var denom = sd[i] * sd[j];
+        var r = denom > 0 ? cov / denom : NaN;
+        R[i][j] = r; R[j][i] = r;
+      }
+    }
+    return R;
+  }
+
+  // ---- VIFs straight from raw predictor columns ----
+  // Returns { R, vifs, eigenvalues, cond } or { error, R } when singular.
+  function vifFromData(cols) {
+    if (!cols || cols.length < 2) return { error: 'Need at least 2 predictor columns to compute VIFs.' };
+    var n = cols[0].length;
+    for (var i = 0; i < cols.length; i++) {
+      if (cols[i].length !== n) return { error: 'Predictor columns have unequal lengths after dropping missing rows.' };
+    }
+    var R = corMatrix(cols);
+    // zero-variance column -> NaN row in R -> not usable
+    for (i = 0; i < R.length; i++) {
+      if (!isFinite(R[i][i]) || R.some(function (row) { return !isFinite(row[i]); })) {
+        return { error: 'A predictor has zero variance (all values identical); VIF is undefined for it.', R: R };
+      }
+    }
+    var res = vifFromCor(R);
+    res.R = R;
+    return res;
+  }
+
+  // ---- reduce a correlation matrix to a subset of indices (keep, in order) ----
+  function subMatrix(R, keep) {
+    return keep.map(function (i) { return keep.map(function (j) { return R[i][j]; }); });
+  }
+
+  // ---- aliased (perfectly dependent) columns of a correlation matrix ----
+  // Pivoted Cholesky with a rank check: a column whose residual variance after
+  // projecting onto the earlier kept columns is ~0 is an exact linear
+  // combination of them (mirrors R's alias(): the later term of a dependent
+  // set is flagged, earlier terms kept). Returns an array of 0-based indices.
+  function aliasedColumns(R, tol) {
+    tol = tol || 1e-8;
+    var n = R.length, L = [], kept = [], aliased = [], i, k, m;
+    for (i = 0; i < n; i++) L.push(new Array(n).fill(0));
+    for (k = 0; k < n; k++) {
+      var d = R[k][k];
+      for (m = 0; m < kept.length; m++) { var kk = kept[m]; d -= L[k][kk] * L[k][kk]; }
+      if (d <= tol) { aliased.push(k); continue; }
+      var Lkk = Math.sqrt(d);
+      L[k][k] = Lkk;
+      for (i = k + 1; i < n; i++) {
+        var v = R[i][k];
+        for (m = 0; m < kept.length; m++) { var kj = kept[m]; v -= L[i][kj] * L[k][kj]; }
+        L[i][k] = v / Lkk;
+      }
+      kept.push(k);
+    }
+    return aliased;
+  }
+
+  // ---- greedy minimal drop-set: keep dropping the highest-VIF predictor until
+  // every remaining VIF is below `threshold` (or fewer than 2 predictors left).
+  // Operates on a correlation matrix R with named predictors. Returns
+  // { drop:[names], keep:[names], vifs:[remaining], cond, singular }.
+  function greedyDropSet(R, names, threshold) {
+    var keepIdx = names.map(function (_, i) { return i; });
+    var dropped = [];
+    for (var guard = 0; guard < names.length; guard++) {
+      if (keepIdx.length < 2) break;
+      var sub = subMatrix(R, keepIdx);
+      var res = vifFromCor(sub);
+      if (res.error) {
+        // singular subset: drop an aliased column, then continue.
+        var al = aliasedColumns(sub);
+        if (!al.length) break;
+        var gi = keepIdx[al[al.length - 1]];
+        dropped.push(names[gi]);
+        keepIdx = keepIdx.filter(function (x) { return x !== gi; });
+        continue;
+      }
+      var maxV = -Infinity, maxLocal = -1;
+      res.vifs.forEach(function (v, i) {
+        var vv = isFinite(v) ? v : 1e18;
+        if (vv > maxV) { maxV = vv; maxLocal = i; }
+      });
+      if (maxV < threshold) break;               // all remaining under threshold
+      var globalI = keepIdx[maxLocal];
+      dropped.push(names[globalI]);
+      keepIdx = keepIdx.filter(function (x) { return x !== globalI; });
+    }
+    var keepNames = keepIdx.map(function (i) { return names[i]; });
+    var finalRes = keepIdx.length >= 2 ? vifFromCor(subMatrix(R, keepIdx)) : { vifs: [], cond: null };
+    return {
+      drop: dropped,
+      keep: keepNames,
+      vifs: finalRes.error ? [] : finalRes.vifs,
+      cond: finalRes.error ? Infinity : finalRes.cond,
+      singular: !!finalRes.error
+    };
+  }
+
   function tolerance(v) { return (isFinite(v) && v > 0) ? 1 / v : 0; }
   function seInflation(v) { return (isFinite(v) && v > 0) ? Math.sqrt(v) : Infinity; }
 
@@ -121,6 +243,11 @@
     eigenvaluesSym: eigenvaluesSym,
     conditionNumber: conditionNumber,
     vifFromCor: vifFromCor,
+    corMatrix: corMatrix,
+    vifFromData: vifFromData,
+    subMatrix: subMatrix,
+    aliasedColumns: aliasedColumns,
+    greedyDropSet: greedyDropSet,
     tolerance: tolerance,
     seInflation: seInflation,
     gvifComparable: gvifComparable,
