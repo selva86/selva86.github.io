@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -71,6 +71,9 @@ C3META = {
  'confidence-interval-calculator': ('Confidence Intervals', 'CI',
   'Eight interval types for means, proportions, and variances, drawn to scale.',
   '<path class="s" d="M22 6 V16" stroke-dasharray="2.5 2.5"/><path class="a" d="M8 24 H36 M8 19.5 V28.5 M36 19.5 V28.5" fill="none"/><circle class="af" cx="22" cy="24" r="3"/>'),
+ 'margin-of-error-calculator': ('Margin of Error', 'MOE',
+  'The plus-or-minus on a poll or survey, the sample size for a target margin, or the margin on an average.',
+  '<path class="af" d="M12 20 H32 V28 H12 Z" style="opacity:.16"/><path class="a" d="M8 24 H36 M8 19 V29 M36 19 V29" fill="none"/><path class="a" d="M8 24 l5 -3 M8 24 l5 3 M36 24 l-5 -3 M36 24 l-5 3" fill="none"/><circle class="af" cx="22" cy="24" r="3"/>'),
  'bootstrap-ci-calculator': ('Bootstrap CI', 'boot',
   'Paste raw data and bootstrap a CI for the mean, median, SD, or any quantile.',
   '<path class="s" d="M22 6 V38" stroke-dasharray="2.5 2.5"/><path class="a" d="M10 13 H30 M10 10.5 V15.5 M30 10.5 V15.5" fill="none"/><path class="a" style="opacity:.65" d="M14 22 H36 M14 19.5 V24.5 M36 19.5 V24.5" fill="none"/><path class="a" style="opacity:.4" d="M8 31 H28 M8 28.5 V33.5 M28 28.5 V33.5" fill="none"/><circle class="af" cx="20" cy="13" r="2"/><circle class="af" style="opacity:.65" cx="25" cy="22" r="2"/><circle class="af" style="opacity:.4" cx="18" cy="31" r="2"/>'),

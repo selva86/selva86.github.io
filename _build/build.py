@@ -606,6 +606,11 @@ _TOOL_ICONS = {
         '<rect x="6.5" y="4.8" width="1.7" height="6.7" fill="currentColor" stroke="none"/>'
         '<rect x="9" y="7" width="1.7" height="4.5" fill="currentColor" stroke="none"/>'
         '<rect x="11.5" y="9.5" width="1.7" height="2" fill="currentColor" stroke="none"/></svg>',
+    'margin-of-error-calculator.html':   # double-headed give-or-take arrow with a centre estimate
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 8H13.5"/>'
+        '<path d="M2.5 8l2.2-2M2.5 8l2.2 2M13.5 8l-2.2-2M13.5 8l-2.2 2"/>'
+        '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg>',
 }
 
 
@@ -620,6 +625,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'descriptive-statistics-calculator.html',   'text': 'Descriptive Statistics'},
     {'group': 'Calculators', 'slug': 'chi-square-calculator.html',               'text': 'Chi-Square Test'},
     {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html',      'text': 'Confidence Interval'},
+    {'group': 'Calculators', 'slug': 'margin-of-error-calculator.html',          'text': 'Margin of Error'},
     {'group': 'Calculators', 'slug': 'bootstrap-ci-calculator.html',             'text': 'Bootstrap CI'},
     {'group': 'Calculators', 'slug': 'effect-size-converter.html',               'text': 'Effect Size Converter'},
     {'group': 'Calculators', 'slug': 'power-analysis.html',                      'text': 'Power Analysis'},
