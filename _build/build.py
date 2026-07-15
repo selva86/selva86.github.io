@@ -431,6 +431,13 @@ _TOOL_ICONS = {
         '<path d="M1.5 13c2 0 3-1 4-3s1.5-6 2.5-6 1.5 6 2.5 6 2-1 3.5-1"/>'
         '<path d="M1.5 13.5h13"/>'
         '<path d="M5.5 13C6.3 11 7 7 8 4C9 7 9.7 11 10.5 13Z" fill="currentColor" stroke="none" opacity="0.4"/></svg>',
+    'anova-calculator.html':   # three group means with error whiskers
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M4 4v4M8 6v4M12 3v4"/>'
+        '<circle cx="4" cy="6" r="1.1" fill="currentColor" stroke="none"/>'
+        '<circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none"/>'
+        '<circle cx="12" cy="5" r="1.1" fill="currentColor" stroke="none"/>'
+        '<path d="M2 13.5h12"/></svg>',
     'p-value-calculator.html':   # bell with a shaded tail wedge
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M1.5 13c2 0 3-1 4-3s1.5-6 2.5-6 1.5 6 2.5 6 2-1 3.5-1"/>'
@@ -619,6 +626,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'cronbachs-alpha-calculator.html',          'text': "Cronbach's Alpha"},
     {'group': 'Calculators', 'slug': 'correlation-calculator.html',              'text': 'Correlation'},
     {'group': 'Calculators', 'slug': 'linear-regression-calculator.html',        'text': 'Linear Regression'},
+    {'group': 'Calculators', 'slug': 'anova-calculator.html',                    'text': 'ANOVA Calculator'},
     {'group': 'Calculators', 'slug': 'odds-ratio-calculator.html',               'text': 'Odds Ratio &amp; RR'},
 
     # Reference tables (critical values / distribution areas)

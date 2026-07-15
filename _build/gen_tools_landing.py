@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','linear-regression-calculator','odds-ratio-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -173,6 +173,9 @@ C3META = {
  'linear-regression-calculator': ('Linear Regression', 'lm',
   'Paste x and y for the fitted line, the slope and intercept with SEs, t and p, R-squared, and a scatter with the fit.',
   '<path class="s" d="M8 5 V38 H41"/><path class="a" d="M9 34 L39 11" fill="none"/><circle class="af" cx="14" cy="31" r="2.1"/><circle class="af" cx="20" cy="24" r="2.1"/><circle class="af" cx="26" cy="23" r="2.1"/><circle class="af" cx="32" cy="15" r="2.1"/><path class="s" d="M20 24 V26.3 M32 15 V17.1" stroke-dasharray="2 2"/>'),
+ 'anova-calculator': ('One-Way &amp; Two-Way ANOVA', 'aov',
+  'Paste raw group data for the full ANOVA table (SS, df, F, p), effect sizes, a group-means plot, an assumption check and the R code.',
+  '<path class="s" d="M6 38 H40"/><path class="a" d="M12 12 V28 M8 12 H16 M8 28 H16 M22 20 V34 M18 20 H26 M18 34 H26 M32 8 V22 M28 8 H36 M28 22 H36" fill="none"/><circle class="af" cx="12" cy="20" r="2.4"/><circle class="af" cx="22" cy="27" r="2.4"/><circle class="af" cx="32" cy="15" r="2.4"/>'),
  'odds-ratio-calculator': ('Odds Ratio', 'OR',
   'Enter a 2x2 table for the odds ratio, risk ratio, NNT and attributable risk, each with a confidence interval and the right p-value.',
   '<path class="s" d="M6 38 H40"/><rect class="af" x="9" y="15" width="9" height="23" rx="1"/><rect class="af" style="opacity:.5" x="22" y="26" width="9" height="12" rx="1"/><rect class="a" x="30" y="5" width="10" height="10" rx="1.5" fill="none"/><path class="a" d="M35 5 V15 M30 10 H40" fill="none"/>'),
