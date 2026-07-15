@@ -426,6 +426,11 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/>'
         '<path d="M2 13.5h12"/></svg>',
+    'normal-distribution-calculator.html':   # bell curve with a shaded central area
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.5 13c2 0 3-1 4-3s1.5-6 2.5-6 1.5 6 2.5 6 2-1 3.5-1"/>'
+        '<path d="M1.5 13.5h13"/>'
+        '<path d="M5.5 13C6.3 11 7 7 8 4C9 7 9.7 11 10.5 13Z" fill="currentColor" stroke="none" opacity="0.4"/></svg>',
     'p-value-calculator.html':   # bell with a shaded tail wedge
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M1.5 13c2 0 3-1 4-3s1.5-6 2.5-6 1.5 6 2.5 6 2-1 3.5-1"/>'
@@ -599,6 +604,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'survival-power-calculator.html',           'text': 'Survival Power'},
     {'group': 'Calculators', 'slug': 'type-i-ii-error-visualizer.html',          'text': 'Type I / II Error'},
     {'group': 'Calculators', 'slug': 'z-score-percentile.html',                  'text': 'Z-Score &amp; Percentile'},
+    {'group': 'Calculators', 'slug': 'normal-distribution-calculator.html',      'text': 'Normal Distribution'},
     {'group': 'Calculators', 'slug': 'equivalence-noninferiority-calculator.html', 'text': 'Equivalence / NI'},
     {'group': 'Calculators', 'slug': 'outlier-detection-calculator.html',        'text': 'Outlier Detection'},
     {'group': 'Calculators', 'slug': 'roc-auc-calculator.html',                  'text': 'ROC / AUC'},
