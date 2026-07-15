@@ -349,8 +349,11 @@ def shelf():
     feat = next((c for c in CATS if c['name'] == FEATURED), None)
     if not feat:
         return ''
+    # shelf order = family order (RING insertion order): interview prep, fluency, depth
+    order = {s: i for i, s in enumerate(RING)}
+    hubs = sorted(feat['hubs'], key=lambda h: order.get(h['slug'], len(order)))
     cards = []
-    for h in feat['hubs']:
+    for h in hubs:
         rc = RING.get(h['slug'], RING_BLUE)
         cards.append(f"""<div class="sh-card" style="--rc:{rc}"><div class="sh-ring" data-href="{h['href']}" data-n="{h['n']}"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--border)" stroke-width="3.5"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-dasharray="0 100.5"/></svg><span class="v"></span></div><a class="t" href="/{h['href']}">{esc(h['title'])}</a><span class="n" data-shn>{h['n']} problems</span></div>""")
     return ('\n<section class="sh-wrap reveal" id="featured" aria-label="Featured problem sets">'
