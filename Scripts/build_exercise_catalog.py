@@ -27,7 +27,7 @@ COLLECTIONS = ('R-Interview-Questions', 'Statistics-Interview-Questions', 'ML-In
  'Top-25-Regression', 'Top-20-Time-Series', 'Resampling-Problems', 'Data-Cleaning-Gauntlet',
  'Error-Triage', 'Regex-Drills', 'Dates-and-Times-Drills', 'Base-R-Speed-Round',
  'ggplot2-Recreation', 'Take-Home-Assignment')
-ORDER = ['Collections'] + list(PATH_NAME.values())
+ORDER = ['Featured Problem Sets'] + list(PATH_NAME.values())
 
 KEYMAP = [
  (('Apply-Family','R-Beginner','R-Debugging','Loops-vs-Vectorization','purrr','R-for-Data-Science'), 'R Fundamentals'),
@@ -124,7 +124,7 @@ def main():
         row['sections'] = [{'num': k, 'title': sec_titles.get(k, f'Section {k}'),
                             'problems': v} for k, v in sorted(groups.items())]
         if any(slug.startswith(c) for c in COLLECTIONS):
-            cat = 'Collections'
+            cat = 'Featured Problem Sets'
         else:
             cat = slug2path.get(slug) or keycat(slug) or 'Other'
         cats[cat].append(row)

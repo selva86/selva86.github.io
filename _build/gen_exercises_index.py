@@ -41,11 +41,25 @@ if not os.path.exists(SHELL):
     print('bootstrapped', SHELL, 'from the previous live page')
 shell = io.open(SHELL, encoding='utf-8').read()
 
-ACC = {'Collections':'#1c2c4f','R Fundamentals':'#2056d2','Data Wrangling':'#0f8a5f','Visualization':'#b3591c',
+FEATURED = 'Featured Problem Sets'
+ACC = {FEATURED:'#a16207','R Fundamentals':'#2056d2','Data Wrangling':'#0f8a5f','Visualization':'#b3591c',
  'Statistics':'#7c3aed','Time Series':'#0e7490','Machine Learning':'#be185d',
  'Advanced R':'#4d7c0f','Reporting':'#92590e','Specializations':'#475569','Other':'#475569'}
+# shelf ring colors by set family: interview prep / everyday fluency / statistics depth
+RING_BLUE, RING_GREEN, RING_AMBER = '#7faaff', '#34d399', '#fbbf24'
+RING = {
+ 'R-Interview-Questions': RING_BLUE, 'Statistics-Interview-Questions': RING_BLUE,
+ 'ML-Interview-Questions-in-R': RING_BLUE, 'AB-Testing-Interview-Cases': RING_BLUE,
+ 'SQL-to-dplyr-Translations': RING_BLUE, 'Take-Home-Assignment-Simulator': RING_BLUE,
+ 'Base-R-Speed-Round': RING_GREEN, 'Regex-Drills-in-R': RING_GREEN,
+ 'Dates-and-Times-Drills-in-R': RING_GREEN, 'Error-Triage-Drills-in-R': RING_GREEN,
+ 'Data-Cleaning-Gauntlet': RING_GREEN,
+ 'Top-20-Bayesian-Problems-in-R': RING_AMBER, 'Probability-Puzzles-for-Interviews': RING_AMBER,
+ 'Top-25-Regression-Problems-in-R': RING_AMBER, 'Top-20-Time-Series-Problems-in-R': RING_AMBER,
+ 'Resampling-Problems-in-R': RING_AMBER, 'ggplot2-Recreation-Challenge': RING_AMBER,
+}
 INTRO = {
- 'Collections':'Curated problem sets with a clear promise: interview prep, drills, and challenges.',
+ FEATURED:'Curated problem sets with a clear promise: interview prep, drills, and challenges.',
  'R Fundamentals':'Vectors, data frames, functions, and the base R muscle memory everything else builds on.',
  'Data Wrangling':'Import, clean, reshape, and join real datasets with dplyr, tidyr, and friends.',
  'Visualization':'Charts that read clearly, from a first ggplot2 bar chart to themed, faceted figures.',
@@ -98,7 +112,6 @@ html.dark{--chunk:#131b30}
 .a3-demo .webr-container{filter:drop-shadow(0 26px 40px rgba(13,20,38,.28))}
 .a3-demo .webr-code-block{border:1px solid #1e2a44;overflow:hidden}
 .a3-demo-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}
-.a3-demo-k{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
 .a3-demo-task{font-size:13.5px;color:var(--mut);line-height:1.5;margin:0 0 10px}
 .a3-demo-task strong{color:var(--ink)}
 .a3-demo .webr-code-block{border-radius:0}
@@ -117,7 +130,7 @@ html.dark{--chunk:#131b30}
 .a2-bench{display:grid;grid-template-columns:1.35fr 1fr .82fr;gap:15px;margin:26px 0 0;align-items:stretch}
 .a2-card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:0;padding:15px 17px;display:flex;flex-direction:column;gap:8px}
 .a2-card[hidden]{display:none}
-.a2-card .k{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.a2-card .k{font-size:12.5px;font-weight:600;color:var(--faint)}
 .a2-card .t{font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:600;line-height:1.3}
 .a2-card .s{font-size:12.5px;color:var(--mut)}
 .a2-card .row{display:flex;align-items:center;gap:10px;margin-top:auto}
@@ -146,11 +159,42 @@ html.dark{--chunk:#131b30}
 .a2-wband .wh .a2-out{font-size:10.5px}
 .a2-sqs{display:flex;flex-wrap:wrap;gap:2px}
 .a2-sqs a{width:var(--sq);height:var(--sq);border-radius:2.5px;display:block}
-.a2-sqs a.b{background:color-mix(in srgb,var(--green) 30%,var(--card))}
-.a2-sqs a.i{background:color-mix(in srgb,#c99117 45%,var(--card))}
-.a2-sqs a.a{background:color-mix(in srgb,var(--red) 38%,var(--card))}
-.a2-sqs a.s{background:var(--green)}
+.a2-wallwrap{--sqe:color-mix(in srgb,var(--ink) 8%,var(--card))}
+.a2-sqs a.b,.a2-sqs a.i,.a2-sqs a.a{background:var(--sqe)}
+.a2-sqs a.s{background:var(--wc,var(--green))}
 .a2-sqs a:hover{outline:2px solid var(--accent);outline-offset:1px}
+@media (prefers-reduced-motion: no-preference){
+.a2-wallwrap.wave .a2-sqs a:not(.s){animation:sqwave .9s ease both}
+}
+@keyframes sqwave{0%,100%{background:var(--sqe)}45%{background:var(--wc)}}
+
+.sh-wrap{margin:34px calc(50% - 50vw) 0;padding:28px calc(50vw - 50%) 30px;background:#101b33;position:relative}
+.sh-wrap::after{content:"";position:absolute;inset:0;background:radial-gradient(700px 260px at 85% -30%,rgba(127,170,255,.15),transparent);pointer-events:none}
+.sh-head,.sh-rail{position:relative;z-index:1}
+body{overflow-x:clip}
+body.searching .sh-wrap{display:none}
+.sh-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 12px}
+.sh-head h2{font-family:'Inter Tight','Inter',sans-serif;font-size:20px;font-weight:700;margin:0;letter-spacing:-.01em;color:#fff}
+.sh-rail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:10px;scrollbar-color:rgba(255,255,255,.22) rgba(255,255,255,.05);scrollbar-width:thin}
+.sh-rail::-webkit-scrollbar{height:8px}
+.sh-rail::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:4px}
+.sh-rail::-webkit-scrollbar-track{background:rgba(255,255,255,.05)}
+.sh-card{scroll-snap-align:start;flex:0 0 205px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:0;padding:13px 15px;display:flex;flex-direction:column;gap:7px;transition:border-color .15s,background .15s}
+.sh-card:hover{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.085)}
+.sh-card .t{font-family:'Inter Tight','Inter',sans-serif;font-size:14.5px;font-weight:600;line-height:1.3;color:#fff;text-decoration:none}
+.sh-card .t:hover{color:#9dbbff}
+.sh-card .n{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b9cc0}
+.sh-ring{width:40px;height:40px;position:relative}
+.sh-ring svg{transform:rotate(-90deg)}
+.sh-ring svg circle:first-of-type{stroke:rgba(255,255,255,.18)}
+.sh-ring svg circle:last-of-type{stroke:var(--rc,#7faaff)}
+.sh-ring .v{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#cdd9f2}
+.sh-ring .v.ok{color:#34d399;font-size:13px;font-weight:700}
+
+.xp-fly{position:fixed;z-index:200;background:#0f8a5f;color:#fff;font:600 12px 'IBM Plex Mono',monospace;padding:4px 10px;border-radius:99px;transition:transform .95s cubic-bezier(.45,-.05,.25,1),opacity .95s ease;pointer-events:none;box-shadow:0 6px 18px rgba(15,138,95,.35)}
+.a2-card.xp-hit{border-color:#0f8a5f;box-shadow:0 0 0 3px rgba(15,138,95,.22);transition:box-shadow .3s,border-color .3s}
+.tdfly{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#0f8a5f;font-weight:700;opacity:1;transition:opacity 1.4s ease .4s}
+.tdfly.out{opacity:0}
 
 .a2-catnav{position:sticky;top:62px;z-index:40;background:var(--mast);backdrop-filter:blur(8px);margin:30px -24px 0;padding:9px 24px;border-bottom:1px solid var(--line);display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:none}
 .a2-catnav::-webkit-scrollbar{display:none}
@@ -245,7 +289,6 @@ def demo_block():
     return """
 <div class="a3-demo" id="demoCard" aria-label="Live demo: a real exercise solving itself">
   <div class="a3-demo-head">
-    <span class="a3-demo-k">Solve Them Live</span>
     <span class="dc-dots" aria-hidden="true"><i class="on"></i><i></i><i></i></span>
   </div>
   <p class="a3-demo-task"><strong>Task:</strong> <span id="dcQ">Keep only the values greater than 10, then return their mean.</span></p>
@@ -284,28 +327,43 @@ def bench():
     <span class="a2-out" id="bcXp"></span></div>
   </div>
   <div class="a2-card" id="benchStart">
-    <span class="k">New here</span>
     <span class="t">Start with {esc(sh['title'])}</span>
     <span class="s">{sh['b']} of {sh['n']} problems are beginner level. A gentle first set in {sc['name']}. Free, no account needed.</span>
     <div class="row"><a class="btn btn-primary btn-sm" href="/{sh['href']}">Start solving <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a></div>
   </div>
   <div class="a2-card" id="benchFeat">
-    <span class="k">Featured collection</span>
     <span class="t">R Interview Questions (Top 50)</span>
     <span class="s">The 50 problems interviewers actually ask, from vector gotchas to model output. All auto-graded.</span>
     <div class="row"><a class="btn btn-primary btn-sm" href="/R-Interview-Questions.html">Take it on <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a></div>
   </div>
-  <div class="a2-card" id="benchToday" hidden>
-    <span class="k">Today</span>
+  <div class="a2-card" id="benchToday">
+    <span class="t" id="tdT">Start your streak</span>
+    <span class="s" id="tdS">Anything you solve today counts here.</span>
     <div class="a2-goal">
       <div class="nums" id="tdNums"></div>
     </div>
   </div>
 </section>"""
 
+def shelf():
+    feat = next((c for c in CATS if c['name'] == FEATURED), None)
+    if not feat:
+        return ''
+    # shelf order = family order (RING insertion order): interview prep, fluency, depth
+    order = {s: i for i, s in enumerate(RING)}
+    hubs = sorted(feat['hubs'], key=lambda h: order.get(h['slug'], len(order)))
+    cards = []
+    for h in hubs:
+        rc = RING.get(h['slug'], RING_BLUE)
+        cards.append(f"""<div class="sh-card" style="--rc:{rc}"><div class="sh-ring" data-href="{h['href']}" data-n="{h['n']}"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--border)" stroke-width="3.5"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-dasharray="0 100.5"/></svg><span class="v"></span></div><a class="t" href="/{h['href']}">{esc(h['title'])}</a><span class="n" data-shn>{h['n']} problems</span></div>""")
+    return ('\n<section class="sh-wrap reveal" id="featured" aria-label="Featured problem sets">'
+            '<div class="sh-head"><h2>Featured Problem Sets</h2></div>'
+            '<div class="sh-rail">' + '\n'.join(cards) + '</div></section>')
+
 def sections_html():
     secs = []
-    for ci, c in enumerate(CATS):
+    # the Featured sets live on the shelf band; the syllabus is the topic curriculum
+    for ci, c in enumerate([c for c in CATS if c['name'] != FEATURED]):
         a = aid(c['name'])
         n = sum(h['n'] for h in c['hubs']); xp = sum(h['xp'] for h in c['hubs'])
         rows = []
@@ -348,7 +406,7 @@ def sections_html():
 
 chips_nav = ''.join(
     f'<a class="chip" href="#{aid(c["name"])}" data-spy="{aid(c["name"])}"><span class="d" style="background:{ACC.get(c["name"], "#475569")}"></span>{c["name"]} <span class="c">{len(c["hubs"])}</span></a>'
-    for c in CATS)
+    for c in CATS if c['name'] != FEATURED)
 
 quiz_chips = ''.join(
     f'<a style="display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:500" href="/{q["href"]}"><svg class="ic ic-sm" style="color:var(--amber)"><use href="#i-award"/></svg> {esc(q["title"])}</a>'
@@ -359,17 +417,16 @@ BODY = f"""
   <div>
     <h1>The practice workbook</h1>
     <p class="dek">R sticks when you write it, not when you read about it. Each problem here checks your answer the moment you run it, so you always know which skills you own and which need another rep.</p>
-    {out(f"<b style='color:var(--ink)'>{TOT['hubs']}</b> hubs &middot; <b style='color:var(--ink)'>{len(CATS)}</b> Domains &middot; Tons of XP on the table")}
   </div>
   {demo_block()}
 </section>
 {bench()}
+{shelf()}
 <section class="a2-wallwrap reveal" id="wall">
   <h2>The Exercises Wall</h2>
-  <div class="a2-legend"><span><i style="background:color-mix(in srgb,var(--green) 30%,var(--card))"></i>beginner +10</span>
-  <span><i style="background:color-mix(in srgb,#c99117 45%,var(--card))"></i>intermediate +25</span>
-  <span><i style="background:color-mix(in srgb,var(--red) 38%,var(--card))"></i>advanced +50</span>
-  <span><i style="background:var(--green)"></i>solved</span></div>
+  <div class="a2-legend"><span><i style="background:color-mix(in srgb,var(--ink) 8%,var(--card))"></i>unsolved</span>
+  <span><i style="background:#0f8a5f"></i>solved, in its topic color</span>
+  <span>+10 to +50 XP per problem</span></div>
   <div class="a2-wall-clip" id="a2Clip"><div id="a2Wall"><p class="a2-note">One square per problem. Loading the wall...</p></div></div>
   <button class="a2-wall-more" id="a2More" type="button" hidden>Show the full wall</button>
 </section>
@@ -395,7 +452,7 @@ BODY = f"""
 
 JS = r"""
 var XPD={b:10,i:25,a:50},DN={b:'beginner',i:'intermediate',a:'advanced'};
-var CATS=null,HUBIX={},PEN='__PEN__';
+var CATS=null,HUBIX={},PEN='__PEN__',WC=__WCMAP__,FEATAID='__FEATAID__';
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
 
 /* honest progress: the same localStorage the hub engine writes */
@@ -408,7 +465,7 @@ function solvedCount(href){var s=solvedFor(href),n=0;for(var k in s)if(s[k])n++;
 fetch('/www/exercise-catalog.json?v=__CATHASH__').then(function(r){return r.json()}).then(function(d){
   CATS=d.categories;
   CATS.forEach(function(c){c.hubs.forEach(function(h){HUBIX[h.slug]=h})});
-  buildWall();hydrateAll();wireRows();wireSearch();
+  buildWall();hydrateShelf();hydrateAll();wireRows();wireSearch();
 }).catch(function(){
   document.getElementById('a2Wall').innerHTML='<p class="a2-note">The catalog data could not be loaded. The syllabus below still works.</p>';
   wireRows();
@@ -424,15 +481,43 @@ function buildWall(){
         sqs+='<a class="'+(solved?'s':p.d)+'" href="/'+h.href+'#'+p.id+'" title="'+esc(h.title+': '+(p.t||('problem '+p.n))+' ('+DN[p.d]+')')+'"></a>';})})});
     totalSolved+=dex;
     var a=c.name.toLowerCase().replace(/[^a-z]+/g,'-');
-    html+='<div class="a2-wband"><div class="wh"><a href="#'+a+'">'+c.name+'</a>'+
+    html+='<div class="a2-wband" style="--wc:'+(WC[a]||'var(--green)')+'"><div class="wh"><a href="'+(a===FEATAID?'#featured':'#'+a)+'">'+c.name+'</a>'+
     '<span class="a2-out"><span class="pr">#&gt;</span>'+c.hubs.length+' hubs &middot; '+n+' problems &middot; '+dex+' solved</span></div>'+
     '<div class="a2-sqs">'+sqs+'</div></div>';});
   document.getElementById('a2Wall').innerHTML=html;
   var ws=document.getElementById('wallSolved');if(ws)ws.textContent=totalSolved;
+  /* one diagonal color sweep the first time the wall scrolls into view */
+  try{
+    if(!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)){
+      var sq=document.querySelectorAll('#a2Wall .a2-sqs a'),pos=[],i;
+      for(i=0;i<sq.length;i++)pos.push(sq[i].offsetLeft+sq[i].offsetTop*1.6);
+      for(i=0;i<sq.length;i++)sq[i].style.animationDelay=Math.round(pos[i]*1.05)+'ms';
+      if('IntersectionObserver' in window){
+        var io=new IntersectionObserver(function(en){en.forEach(function(e){
+          if(e.isIntersecting){document.getElementById('wall').classList.add('wave');io.disconnect()}})},{threshold:.15});
+        io.observe(document.getElementById('wall'));
+      }
+    }
+  }catch(e){}
   var wrap=document.querySelector('.a2-wallwrap'),clip=document.getElementById('a2Clip'),btn=document.getElementById('a2More');
   if(document.getElementById('a2Wall').scrollHeight>clip.clientHeight+40){btn.hidden=false;
     btn.addEventListener('click',function(){var open=wrap.classList.toggle('open');
       btn.textContent=open?'Collapse the wall':'Show the full wall';});}
+}
+
+/* shelf rings: real progress from the same localStorage as the hubs */
+function hydrateShelf(){
+  document.querySelectorAll('.sh-ring[data-href]').forEach(function(ring){
+    var href=ring.getAttribute('data-href'),n=+ring.getAttribute('data-n')||0;
+    var k=solvedCount(href);if(!k)return;
+    var arc=ring.querySelectorAll('circle')[1],v=ring.querySelector('.v');
+    var frac=Math.min(k/Math.max(n,1),1);
+    arc.setAttribute('stroke-dasharray',(frac*100.5).toFixed(1)+' 100.5');
+    if(k>=n&&n>0){arc.setAttribute('stroke','#34d399');v.classList.add('ok');v.innerHTML='&#10003;'}
+    else{v.textContent=Math.round(frac*100)+'%'}
+    var lab=ring.parentNode.querySelector('[data-shn]');
+    if(lab)lab.innerHTML=n+' problems &middot; '+k+' solved';
+  });
 }
 
 function hydrateAll(){
@@ -448,15 +533,21 @@ function hydrateAll(){
         if(done)done.textContent=n;}
       else if(k>0){st.classList.add('part');st.style.setProperty('--pct',Math.round(360*k/Math.max(n,1))+'deg');
         if(done)done.textContent=k+'/'+n;
-        var f=k/Math.max(n,1);if(f>contFrac&&f<1){contFrac=f;cont={hub:hub,k:k,n:n}}}
+        var f=k/Math.max(n,1);if(f>contFrac&&f<1){contFrac=f;cont={slug:hub.getAttribute('data-slug'),k:k,n:n}}}
     });
     var cs=sec.querySelector('[data-catsolved]'),cb=sec.querySelector('[data-catbar]');
     if(cs)cs.textContent=catSolved;
     if(cb)cb.style.width=Math.round(100*catSolved/Math.max(catN,1))+'%';
   });
+  /* the featured sets live on the shelf, not in the syllabus rows: include them */
+  if(CATS)CATS.forEach(function(c){
+    if(c.name.toLowerCase().replace(/[^a-z]+/g,'-')!==FEATAID)return;
+    c.hubs.forEach(function(h){var k=solvedCount(h.href);
+      if(k>0&&k<h.n){var f=k/Math.max(h.n,1);if(f>contFrac){contFrac=f;cont={slug:h.slug,k:k,n:h.n}}}});
+  });
   /* Continue card from the most advanced unfinished hub on this device */
   if(cont){
-    var h=HUBIX[cont.hub.getAttribute('data-slug')];
+    var h=HUBIX[cont.slug];
     if(h){document.getElementById('bcT').textContent=h.title;
       document.getElementById('bcS').textContent='Problem '+(cont.k+1)+' of '+h.n;
       document.getElementById('bcGo').setAttribute('href','/'+h.href);
@@ -476,9 +567,10 @@ function hydrateAll(){
     var today=(daily&&daily.date===new Date().toISOString().slice(0,10))?daily.count:0;
     var days=(streak&&streak.days)||0;
     if(today>0||days>0){
+      todayMode();
       document.getElementById('tdNums').innerHTML='<b>'+today+' solved today</b><br>'+
         (days>0?('<span style="color:var(--amber)">&#9650;</span> '+days+'-day streak'):'keep the streak alive');
-      document.getElementById('benchToday').hidden=false;}
+      }
   }catch(e){}
   document.addEventListener('auth-hydrated',function(ev){
     var me=ev.detail&&ev.detail.me;if(!me||!me.user)return;
@@ -489,9 +581,15 @@ function hydrateAll(){
         var extra='<span style="color:var(--faint)">'+(s.total_xp||0).toLocaleString()+' XP total</span>';
         if(el&&el.innerHTML)el.innerHTML+='<br>'+extra;
         else{el.innerHTML='<b>'+(s.current_streak_days||0)+'-day streak</b><br>'+extra;
-          document.getElementById('benchToday').hidden=false;}
+          todayMode();}
       }).catch(function(){});
   });
+}
+
+function todayMode(){
+  var t=document.getElementById('tdT'),s=document.getElementById('tdS');
+  if(t)t.textContent='Today';
+  if(s)s.hidden=true;
 }
 
 function hydrateBody(hub){
@@ -595,6 +693,29 @@ function setP(p,k){elQ.textContent=p.q;elS.textContent=p.setup;
   elTy.textContent='';elO.hidden=true;elO.textContent='';
   elV.innerHTML='&nbsp;';elV.classList.remove('ok');
   dots.forEach(function(d,i){d.classList.toggle('on',i===k)});}
+/* the graded verdict banks somewhere: fly the XP chip into the Today card, once */
+var flew=false;
+function flyXP(fb){
+  if(flew)return;
+  var m=fb.match(/\+\d+ XP/);var target=document.getElementById('benchToday');
+  if(!m||!target)return;
+  var r1=elV.getBoundingClientRect(),r2=target.getBoundingClientRect();
+  if(r1.top<0||r2.top>innerHeight||r2.bottom<0)return;
+  flew=true;card.setAttribute('data-flew','1');
+  var chip=document.createElement('span');chip.className='xp-fly';chip.textContent=m[0];
+  chip.style.left=r1.left+'px';chip.style.top=(r1.top-4)+'px';
+  document.body.appendChild(chip);
+  var dx=r2.left+r2.width/2-r1.left-30,dy=r2.top+24-r1.top;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){
+    chip.style.transform='translate('+dx+'px,'+dy+'px) scale(.5)';chip.style.opacity='0';})});
+  setTimeout(function(){chip.remove();target.classList.add('xp-hit');target.setAttribute('data-landed','1');
+    var goal=target.querySelector('.a2-goal');
+    if(goal){var b=document.createElement('span');b.className='tdfly';b.textContent=m[0]+' banked';
+      goal.appendChild(b);
+      requestAnimationFrame(function(){requestAnimationFrame(function(){b.classList.add('out')})});
+      setTimeout(function(){b.remove()},2100);}
+    setTimeout(function(){target.classList.remove('xp-hit')},900)},980);
+}
 (async function loop(){
   for(;;){
     var p=P[ix%P.length];setP(p,ix%P.length);
@@ -606,6 +727,7 @@ function setP(p,k){elQ.textContent=p.q;elS.textContent=p.setup;
     elO.hidden=false;elO.textContent=p.out;
     await wait(500);
     elV.textContent=p.fb;elV.classList.add('ok');
+    flyXP(p.fb);
     await wait(3600);await unpaused();
     ix++;
   }
@@ -619,7 +741,9 @@ if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add(
 var io=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target)}})},{rootMargin:'0px 0px -8% 0px'});
 els.forEach(function(e){io.observe(e)});})();</script>"""
 
-js = JS.replace('__PEN__', PEN.replace("'", "\\'")).replace('__CATHASH__', CAT_HASH)
+WCMAP = json.dumps({aid(k): v for k, v in ACC.items()})
+js = (JS.replace('__PEN__', PEN.replace("'", "\\'")).replace('__CATHASH__', CAT_HASH)
+        .replace('__WCMAP__', WCMAP).replace('__FEATAID__', aid(FEATURED)))
 page = shell.replace('<!--EXBODY-->',
     '<main class="wrap">\n<style>' + CSS + '</style>\n' + BODY + '\n' + reveal + '\n<script>' + js + '</script>\n')
 assert chr(8212) not in CSS + BODY + js, 'em dash found'
