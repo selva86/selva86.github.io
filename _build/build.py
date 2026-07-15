@@ -578,6 +578,14 @@ _TOOL_ICONS = {
         '<circle cx="7.5" cy="8.5" r=".9" fill="currentColor" stroke="none"/>'
         '<circle cx="9.5" cy="7" r=".9" fill="currentColor" stroke="none"/>'
         '<circle cx="11.5" cy="5" r=".9" fill="currentColor" stroke="none"/></svg>',
+    'linear-regression-calculator.html':   # fit line through a point cloud
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 2v11.5h11"/>'
+        '<path d="M3.8 12.2 13.2 4.2"/>'
+        '<circle cx="5.2" cy="11.4" r=".9" fill="currentColor" stroke="none"/>'
+        '<circle cx="7.4" cy="8.6" r=".9" fill="currentColor" stroke="none"/>'
+        '<circle cx="9.4" cy="7.4" r=".9" fill="currentColor" stroke="none"/>'
+        '<circle cx="11.4" cy="4.8" r=".9" fill="currentColor" stroke="none"/></svg>',
     'odds-ratio-calculator.html':   # 2x2 grid with the ad cross-product diagonal marked
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/>'
@@ -610,6 +618,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'roc-auc-calculator.html',                  'text': 'ROC / AUC'},
     {'group': 'Calculators', 'slug': 'cronbachs-alpha-calculator.html',          'text': "Cronbach's Alpha"},
     {'group': 'Calculators', 'slug': 'correlation-calculator.html',              'text': 'Correlation'},
+    {'group': 'Calculators', 'slug': 'linear-regression-calculator.html',        'text': 'Linear Regression'},
     {'group': 'Calculators', 'slug': 'odds-ratio-calculator.html',               'text': 'Odds Ratio &amp; RR'},
 
     # Reference tables (critical values / distribution areas)
