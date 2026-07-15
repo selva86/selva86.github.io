@@ -1,0 +1,1675 @@
+---
+title: "The Data Cleaning Gauntlet: 25 Messy Data Problems in R"
+description: "Data cleaning in R, drilled: 25 messy problems covering missing values, bad strings, mixed dates, type traps, duplicates, outliers, units. Solutions hidden."
+keywords: "data cleaning in R, messy data in R, data cleaning exercises R, dirty data cleaning R, data cleaning problems R"
+mathjax: false
+webr: true
+post_type: "EX"
+auto_link_terms: "data cleaning in R|messy data in R|cleaning data in R|dirty data R|data cleaning problems"
+auto_link_case_sensitive: false
+sidebar_title: "Data Cleaning Gauntlet"
+sidebar_order: "140"
+fr_parent: "R-Tutorial.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>The Data Cleaning Gauntlet: 25 Messy Data Problems in R</h1>
+
+<p class="lead">Messy data is the job. This gauntlet strings together twenty-five problems that mirror the cleanup analysts and data scientists face every day: detecting and strategizing <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, taming inconsistent strings, parsing dates from clashing formats, escaping type-coercion traps, killing duplicates, flagging outliers, reconciling units, and finally fixing a table broken every way at once. Solutions stay hidden so you can fight each one first.</p>
+
+<div class="engagement-header" data-difficulty="Mixed" data-time="55" data-exercises="25" data-xp="375"></div>
+
+<p>Run the setup block once to load the packages and the messy datasets, then work top to bottom or jump straight to the technique you want to drill. Every problem names the dataset it uses.</p>
+
+<div class="webr-container" data-block-title="Run this once before any exercise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run this once before any exercise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tidyr)
+library(stringr)
+library(lubridate)
+
+# --- Missing values ---
+patients &lt;- tibble(
+  id = 1:6,
+  age = c(34, NA, 41, 29, NA, 52),
+  bp = c(120, 130, NA, 110, 140, 135),
+  glucose = c(88, 95, 90, NA, NA, 101)
+)
+survey &lt;- tibble(
+  respondent = 1:5,
+  income = c(50, NA, 62, NA, 71),
+  savings = c(NA, NA, NA, 12, NA),
+  age = c(25, 34, NA, 41, 29)
+)
+
+# --- Inconsistent strings ---
+cities_raw   &lt;- c(&quot;  Mumbai&quot;, &quot;Delhi  &quot;, &quot;  Chennai  &quot;, &quot;Kolkata&quot;)
+gender_raw   &lt;- c(&quot;M&quot;, &quot;male&quot;, &quot;Male &quot;, &quot;FEMALE&quot;, &quot;f&quot;, &quot; Female&quot;)
+products_raw &lt;- c(&quot;Red   Widget&quot;, &quot; Blue  Gadget &quot;, &quot;Green Gizmo&quot;)
+resp &lt;- tibble(country = c(&quot;usa&quot;, &quot;U.S.A.&quot;, &quot;USA &quot;, &quot;india&quot;, &quot;India&quot;, &quot; INDIA&quot;, &quot;uk&quot;))
+
+# --- Mixed date formats ---
+date_str    &lt;- c(&quot;2024-01-05&quot;, &quot;2024-02-14&quot;, &quot;2024-03-30&quot;)
+mixed_dates &lt;- c(&quot;2024-01-05&quot;, &quot;14/02/2024&quot;, &quot;March 30, 2024&quot;)
+raw_dates   &lt;- c(&quot;2024-01-05&quot;, &quot;2024-06-18&quot;, &quot;not a date&quot;, &quot;2024-12-25&quot;)
+
+# --- Type coercion traps ---
+nums_txt   &lt;- c(&quot;12&quot;, &quot;34&quot;, &quot;56&quot;, &quot;78&quot;)
+prices_txt &lt;- c(&quot;$1,200&quot;, &quot;$980&quot;, &quot;$1,050&quot;, &quot;$3,499&quot;)
+scores_f   &lt;- factor(c(&quot;10&quot;, &quot;20&quot;, &quot;30&quot;, &quot;20&quot;, &quot;10&quot;))
+readings &lt;- tibble(
+  sensor = c(&quot;s1&quot;, &quot;s2&quot;, &quot;s3&quot;, &quot;s4&quot;, &quot;s5&quot;),
+  value  = c(&quot;23.5&quot;, &quot;N/A&quot;, &quot;19.8&quot;, &quot;unknown&quot;, &quot;31.2&quot;)
+)
+
+# --- Duplicates ---
+orders &lt;- tibble(
+  order_id = c(1, 2, 2, 3, 3, 3),
+  item     = c(&quot;pen&quot;, &quot;book&quot;, &quot;book&quot;, &quot;mug&quot;, &quot;mug&quot;, &quot;mug&quot;)
+)
+records &lt;- tibble(
+  customer_id = c(1, 1, 2, 2, 3),
+  updated = as.Date(c(&quot;2024-01-10&quot;, &quot;2024-03-05&quot;, &quot;2024-02-01&quot;, &quot;2024-02-20&quot;, &quot;2024-01-15&quot;)),
+  status  = c(&quot;trial&quot;, &quot;active&quot;, &quot;active&quot;, &quot;churned&quot;, &quot;trial&quot;)
+)
+contacts &lt;- tibble(
+  name  = c(&quot;John Smith&quot;, &quot;john smith &quot;, &quot; JOHN SMITH&quot;, &quot;Jane Doe&quot;, &quot;Jane  Doe&quot;),
+  email = c(&quot;j@x.com&quot;, &quot;j@x.com&quot;, &quot;j@x.com&quot;, &quot;jane@x.com&quot;, &quot;jane@x.com&quot;)
+)
+
+# --- Outliers and units ---
+heights &lt;- tibble(
+  person = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;),
+  height_cm = c(170, 165, 999, 158, 182)
+)
+vals   &lt;- c(10, 12, 11, 13, 12, 100, 11, 9, 12, 10)
+income &lt;- c(30, 42, 38, 51, 45, 40, 250, 47, 39, 44)
+weights &lt;- tibble(
+  item  = c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;, &quot;w&quot;),
+  value = c(1.2, 1500, 0.8, 2300),
+  unit  = c(&quot;kg&quot;, &quot;g&quot;, &quot;kg&quot;, &quot;g&quot;)
+)
+
+# --- The final gauntlet ---
+sales &lt;- tibble(
+  product = c(&quot; Widget&quot;, &quot;Gadget &quot;, &quot;widget&quot;, NA),
+  price   = c(&quot;$12.50&quot;, &quot;$8.00&quot;, &quot;$12.50&quot;, &quot;$5.00&quot;),
+  qty     = c(&quot;3&quot;, &quot;2&quot;, &quot;3&quot;, &quot;1&quot;)
+)
+tx &lt;- tibble(
+  product = c(&quot;Pen &quot;, &quot;pen&quot;, &quot;BOOK&quot;, &quot;book &quot;),
+  amount  = c(&quot;10&quot;, &quot;10&quot;, &quot;45&quot;, &quot;45&quot;)
+)
+customers &lt;- tibble(
+  id     = c(1, 2, 2, 3, 4),
+  name   = c(&quot; Alice&quot;, &quot;bob&quot;, &quot;bob&quot;, &quot;CAROL &quot;, &quot;dave&quot;),
+  signup = c(&quot;2024-01-05&quot;, &quot;2024/02/10&quot;, &quot;2024/02/10&quot;, &quot;not recorded&quot;, &quot;2024-03-15&quot;),
+  spend  = c(&quot;$100&quot;, &quot;$250&quot;, &quot;$250&quot;, &quot;$0&quot;, &quot;$75&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Section 1. Detecting and strategizing missing values (4 problems)</h2>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-1-1" data-grade-mode="output-compare" data-difficulty="beginner">
+
+<h3 class="exercise-title">Exercise 1.1: Count missing values in every column</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Before choosing any strategy you first need to see where the gaps are. Using the <code>patients</code> tibble from the setup block, count how many <code>NA</code> values sit in each column and save the named result to <code>ex_1_1</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt;      id     age      bp glucose
+#&gt;       0       2       1       2</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Beginner</p>
+
+<div class="exercise-hints" hidden><p>A data frame is a list of columns, and you want one missingness tally per column, not per row.</p><p>Combine <code>is.na()</code> with <code>colSums()</code> to add up the TRUE values down each column.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_1_1 &lt;- # your code here
+ex_1_1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_1_1 &lt;- colSums(is.na(patients))
+ex_1_1
+#&gt;      id     age      bp glucose
+#&gt;       0       2       1       2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>colSums(is.na(patients))</code> works because <code>is.na()</code> returns a TRUE/FALSE matrix and <code>colSums()</code> treats each TRUE as 1, adding them down every column. This one-liner is your first diagnostic on any new dataset. <code>sapply(patients, function(x) sum(is.na(x)))</code> gives the same answer if you prefer an explicit apply.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-1-2" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 1.2: Keep only the fully complete rows</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A clinical data manager wants a strictly complete cohort for a quick summary. From the <code>patients</code> tibble, keep only the rows that have no missing value in any column, and save the filtered tibble to <code>ex_1_2</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 2 x 4
+#&gt;      id   age    bp glucose
+#&gt;   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1     1    34   120      88
+#&gt; 2     6    52   135     101</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>You want to keep only rows where nothing at all is missing across the columns.</p><p><code>drop_na(patients)</code> removes any row containing an NA in any column.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_1_2 &lt;- # your code here
+ex_1_2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_1_2 &lt;- drop_na(patients)
+ex_1_2
+#&gt; # A tibble: 2 x 4
+#&gt;      id   age    bp glucose
+#&gt;   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1     1    34   120      88
+#&gt; 2     6    52   135     101</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>drop_na()</code> from tidyr keeps only rows complete across every column, which is the safe default when missingness is rare. Beware on wide data: dropping any-NA rows can silently delete most of your sample. To restrict the rule to specific columns, pass them, as in <code>drop_na(patients, age)</code>. Base R's <code>na.omit()</code> behaves similarly.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-1-3" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 1.3: Median-impute age and flag the imputed rows</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Dropping rows loses data, so the team prefers imputation for <code>age</code>. In the <code>patients</code> tibble, replace each missing <code>age</code> with the column median and add a logical <code>age_imputed</code> column marking which rows were filled, then save the result to <code>ex_1_3</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 6 x 5
+#&gt;      id   age    bp glucose age_imputed
+#&gt;   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt; &lt;lgl&gt;
+#&gt; 1     1  34     120      88 FALSE
+#&gt; 2     2  37.5   130      95 TRUE
+#&gt; 3     3  41      NA      90 FALSE
+#&gt; 4     4  29     110      NA FALSE
+#&gt; 5     5  37.5   140      NA TRUE
+#&gt; 6     6  52     135     101 FALSE</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Capture where the gaps were before you fill them, otherwise that information is lost forever.</p><p>Build the flag with <code>is.na(age)</code>, then replace with <code>ifelse()</code> and <code>median(age, na.rm = TRUE)</code> inside <code>mutate()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_1_3 &lt;- # your code here
+ex_1_3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_1_3 &lt;- patients |&gt;
+  mutate(age_imputed = is.na(age),
+         age = ifelse(is.na(age), median(age, na.rm = TRUE), age))
+ex_1_3
+#&gt; # A tibble: 6 x 5
+#&gt;      id   age    bp glucose age_imputed
+#&gt;   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt; &lt;lgl&gt;
+#&gt; 1     1  34     120      88 FALSE
+#&gt; 2     2  37.5   130      95 TRUE
+#&gt; 3     3  41      NA      90 FALSE
+#&gt; 4     4  29     110      NA FALSE
+#&gt; 5     5  37.5   140      NA TRUE
+#&gt; 6     6  52     135     101 FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Recording <code>age_imputed</code> before overwriting <code>age</code> preserves the fact that the value was invented, which every honest analysis needs so imputed points can be excluded or modeled separately later. <code>ifelse()</code> is vectorized, filling only the NA positions. Using the median rather than the mean keeps the fill robust to the extreme values common in dirty data.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-1-4" data-grade-mode="output-compare" data-difficulty="advanced">
+
+<h3 class="exercise-title">Exercise 1.4: Drop mostly-empty columns then impute the rest</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A survey came back patchy. Using the <code>survey</code> tibble, drop any column that is more than 40 percent missing, then median-impute the remaining numeric gaps so downstream code never sees an <code>NA</code>, and save the cleaned tibble to <code>ex_1_4</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 5 x 3
+#&gt;   respondent income   age
+#&gt;        &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1          1     50  25
+#&gt; 2          2     62  34
+#&gt; 3          3     62  31.5
+#&gt; 4          4     62  41
+#&gt; 5          5     71  29</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>First decide which columns are too empty to trust, then treat the survivors.</p><p>Use <code>select(where(...))</code> on the share of NAs, then <code>across(where(is.numeric), ...)</code> with <code>median()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_1_4 &lt;- # your code here
+ex_1_4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_1_4 &lt;- survey |&gt;
+  select(where(~ mean(is.na(.x)) &lt;= 0.4)) |&gt;
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.x), median(.x, na.rm = TRUE), .x)))
+ex_1_4
+#&gt; # A tibble: 5 x 3
+#&gt;   respondent income   age
+#&gt;        &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1          1     50  25
+#&gt; 2          2     62  34
+#&gt; 3          3     62  31.5
+#&gt; 4          4     62  41
+#&gt; 5          5     71  29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>select(where(~ mean(is.na(.x)) &lt;= 0.4))</code> keeps columns whose missing share is at most 40 percent, dropping <code>savings</code> at 80 percent, because imputing a mostly empty column invents more data than it cleans. <code>across(where(is.numeric), ...)</code> then median-imputes the survivors in one sweep. Deciding drop-versus-impute per column is the core judgement of missing-data work.</p>
+
+</details>
+
+</section>
+
+<h2>Section 2. Inconsistent strings: whitespace and case (4 problems)</h2>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-2-1" data-grade-mode="output-compare" data-difficulty="beginner">
+
+<h3 class="exercise-title">Exercise 2.1: Trim leading and trailing whitespace from city names</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Stray spaces silently break joins and grouping. Take the <code>cities_raw</code> vector of city names padded with leading and trailing spaces, strip that whitespace so each name is clean, and save the trimmed character vector to <code>ex_2_1</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] &quot;Mumbai&quot;  &quot;Delhi&quot;   &quot;Chennai&quot; &quot;Kolkata&quot;</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Beginner</p>
+
+<div class="exercise-hints" hidden><p>You only need to remove characters at the two ends of each string, not inside.</p><p><code>str_trim(cities_raw)</code> strips leading and trailing whitespace.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2_1 &lt;- # your code here
+ex_2_1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2_1 &lt;- str_trim(cities_raw)
+ex_2_1
+#&gt; [1] &quot;Mumbai&quot;  &quot;Delhi&quot;   &quot;Chennai&quot; &quot;Kolkata&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>str_trim()</code> removes only leading and trailing whitespace, which is exactly what breaks joins and <code>group_by()</code> when ' Delhi' and 'Delhi' are treated as different keys. It does not touch spaces inside the string. Base R's <code>trimws()</code> is an equivalent drop-in. Always trim text keys before you join or group on them.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-2-2" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 2.2: Standardize messy gender labels into two categories</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A form let people type their gender freely, so the <code>gender_raw</code> vector mixes case, spacing, and abbreviations. Normalize every entry to either <code>Male</code> or <code>Female</code>, treating m and male as Male, and save the cleaned character vector to <code>ex_2_2</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] &quot;Male&quot;   &quot;Male&quot;   &quot;Male&quot;   &quot;Female&quot; &quot;Female&quot; &quot;Female&quot;</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Get everything into a single comparable form first, then map that form to your two labels.</p><p>Lowercase with <code>tolower()</code> after <code>str_trim()</code>, then branch with <code>case_when()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2_2 &lt;- # your code here
+ex_2_2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g &lt;- tolower(str_trim(gender_raw))
+ex_2_2 &lt;- case_when(
+  g %in% c(&quot;m&quot;, &quot;male&quot;)   ~ &quot;Male&quot;,
+  g %in% c(&quot;f&quot;, &quot;female&quot;) ~ &quot;Female&quot;,
+  TRUE ~ NA_character_
+)
+ex_2_2
+#&gt; [1] &quot;Male&quot;   &quot;Male&quot;   &quot;Male&quot;   &quot;Female&quot; &quot;Female&quot; &quot;Female&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Normalizing to one form with <code>tolower()</code> and <code>str_trim()</code> before mapping means you write two branches instead of a dozen. <code>case_when()</code> evaluates top to bottom and returns on the first match, and the explicit <code>NA_character_</code> default surfaces any value you did not anticipate rather than hiding it. Standardize first, then map, is the reusable pattern.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-2-3" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 2.3: Collapse repeated internal spaces with str_squish</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Copy-paste left ragged spacing inside product names. Using the <code>products_raw</code> vector, collapse every run of internal whitespace to a single space and trim the ends so labels group correctly, saving the cleaned character vector to <code>ex_2_3</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] &quot;Red Widget&quot;  &quot;Blue Gadget&quot; &quot;Green Gizmo&quot;</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>The problem is repeated spaces inside the text as well as at the edges.</p><p><code>str_squish()</code> collapses internal runs of whitespace and trims the ends in one call.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2_3 &lt;- # your code here
+ex_2_3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2_3 &lt;- str_squish(products_raw)
+ex_2_3
+#&gt; [1] &quot;Red Widget&quot;  &quot;Blue Gadget&quot; &quot;Green Gizmo&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>str_squish()</code> does two jobs at once: it collapses every internal run of whitespace to a single space and trims the ends, so 'Red   Widget' and 'Red Widget' finally match. <code>str_trim()</code> alone would leave the double space inside. Ragged internal spacing is a classic reason categories fail to group as expected.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-2-4" data-grade-mode="output-compare" data-difficulty="advanced">
+
+<h3 class="exercise-title">Exercise 2.4: Clean and count inconsistent country strings</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A marketing analyst needs counts by country, but the <code>resp</code> tibble spells countries with mixed case and stray punctuation like U.S.A. Standardize the <code>country</code> column to a canonical uppercase form, then <a class="auto-link" href="dplyr-tally-in-R.html" title="dplyr tally() in R: Count Rows Quickly After group_by">count rows</a> per country and save the summary to <code>ex_2_4</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 3 x 2
+#&gt;   country     n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 INDIA       3
+#&gt; 2 USA         3
+#&gt; 3 UK          1</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>Different spellings must resolve to the same token before any counting can work.</p><p>Strip non-letters with <code>str_replace_all(country, &quot;[^A-Za-z]&quot;, &quot;&quot;)</code>, uppercase, then <code>count(sort = TRUE)</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2_4 &lt;- # your code here
+ex_2_4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2_4 &lt;- resp |&gt;
+  mutate(country = str_to_upper(str_replace_all(country, &quot;[^A-Za-z]&quot;, &quot;&quot;))) |&gt;
+  count(country, sort = TRUE)
+ex_2_4
+#&gt; # A tibble: 3 x 2
+#&gt;   country     n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 INDIA       3
+#&gt; 2 USA         3
+#&gt; 3 UK          1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Stripping every non-letter with <code>str_replace_all(country, &quot;[^A-Za-z]&quot;, &quot;&quot;)</code> turns U.S.A., USA, and usa into one token before <code>str_to_upper()</code>, so <code>count()</code> sees three of the same country rather than three near-misses. Cleaning the grouping key before aggregation is the single most common fix in messy <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">categorical data</a>, and <code>sort = TRUE</code> orders the counts descending.</p>
+
+</details>
+
+</section>
+
+<h2>Section 3. Parsing dates from mixed formats (3 problems)</h2>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-3-1" data-grade-mode="output-compare" data-difficulty="beginner">
+
+<h3 class="exercise-title">Exercise 3.1: Parse ISO date strings into Date objects</h3>
+
+<p class="exercise-task"><strong>Task:</strong> The <code>date_str</code> vector holds three dates written in clean ISO year-month-day text but still stored as character. Convert them into real <code>Date</code> objects so you can do arithmetic and sorting on them, and save the result to <code>ex_3_1</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] &quot;2024-01-05&quot; &quot;2024-02-14&quot; &quot;2024-03-30&quot;</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Beginner</p>
+
+<div class="exercise-hints" hidden><p>The strings are already in the standard ordering, they just need to become a real date type.</p><p><code>ymd(date_str)</code> reads year-month-day text into <code>Date</code> values.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_3_1 &lt;- # your code here
+ex_3_1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_3_1 &lt;- ymd(date_str)
+ex_3_1
+#&gt; [1] &quot;2024-01-05&quot; &quot;2024-02-14&quot; &quot;2024-03-30&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>ymd()</code> from lubridate reads year-month-day text and returns real <code>Date</code> objects, unlocking sorting, differences, and component extraction that character strings cannot do. It is stricter and clearer than <code>as.Date()</code> because the function name states the expected order. The related <code>dmy()</code> and <code>mdy()</code> handle the other two common layouts.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-3-2" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 3.2: Parse three different date formats in one vector</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Three systems exported dates three different ways into the <code>mixed_dates</code> vector: ISO, day/month/year, and a written month. Parse all of them into one consistent <code>Date</code> vector regardless of the incoming format, and save the parsed result to <code>ex_3_2</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] &quot;2024-01-05&quot; &quot;2024-02-14&quot; &quot;2024-03-30&quot;</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>You need a parser that will try several date layouts and pick whichever fits each string.</p><p><code>parse_date_time(mixed_dates, orders = c(&quot;ymd&quot;,&quot;dmy&quot;,&quot;mdy&quot;))</code>, then wrap it in <code>as_date()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_3_2 &lt;- # your code here
+ex_3_2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_3_2 &lt;- as_date(parse_date_time(mixed_dates, orders = c(&quot;ymd&quot;, &quot;dmy&quot;, &quot;mdy&quot;)))
+ex_3_2
+#&gt; [1] &quot;2024-01-05&quot; &quot;2024-02-14&quot; &quot;2024-03-30&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>parse_date_time()</code> tries each format in <code>orders</code> until one succeeds per element, so a single call absorbs ISO, day/month/year, and written-month strings together. Wrapping the result in <code>as_date()</code> drops the time and timezone for a clean <code>Date</code>. When several systems feed one column, format-guessing beats writing a separate parser for each source.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-3-3" data-grade-mode="output-compare" data-difficulty="advanced">
+
+<h3 class="exercise-title">Exercise 3.3: Parse dates and flag the unparseable ones</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Real feeds contain junk. Using the <code>raw_dates</code> vector, build a tibble that parses each string to a <code>Date</code>, extracts the <code>year</code>, and adds a <code>valid</code> flag that is FALSE where parsing failed, then save the tibble to <code>ex_3_3</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 4 x 4
+#&gt;   raw        parsed      year valid
+#&gt;   &lt;chr&gt;      &lt;date&gt;     &lt;dbl&gt; &lt;lgl&gt;
+#&gt; 1 2024-01-05 2024-01-05  2024 TRUE
+#&gt; 2 2024-06-18 2024-06-18  2024 TRUE
+#&gt; 3 not a date NA            NA FALSE
+#&gt; 4 2024-12-25 2024-12-25  2024 TRUE</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>Parsing can fail, so plan to detect failures rather than let them crash the pipeline.</p><p>Use <code>ymd(raw, quiet = TRUE)</code>, then <code>year()</code> and <code>is.na()</code> to build the columns inside <code>mutate()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_3_3 &lt;- # your code here
+ex_3_3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_3_3 &lt;- tibble(raw = raw_dates) |&gt;
+  mutate(parsed = ymd(raw, quiet = TRUE),
+         year   = year(parsed),
+         valid  = !is.na(parsed))
+ex_3_3
+#&gt; # A tibble: 4 x 4
+#&gt;   raw        parsed      year valid
+#&gt;   &lt;chr&gt;      &lt;date&gt;     &lt;dbl&gt; &lt;lgl&gt;
+#&gt; 1 2024-01-05 2024-01-05  2024 TRUE
+#&gt; 2 2024-06-18 2024-06-18  2024 TRUE
+#&gt; 3 not a date NA            NA FALSE
+#&gt; 4 2024-12-25 2024-12-25  2024 TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Passing <code>quiet = TRUE</code> stops <code>ymd()</code> from spraying warnings while it returns <code>NA</code> for the unparseable 'not a date', and the <code>valid</code> flag records exactly which rows failed so you can quarantine them. Never assume a date column parses cleanly; measure the failure rate first. <code>year()</code> still returns <code>NA</code> where the parse failed, which is the honest result.</p>
+
+</details>
+
+</section>
+
+<h2>Section 4. Type coercion traps (4 problems)</h2>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-4-1" data-grade-mode="output-compare" data-difficulty="beginner">
+
+<h3 class="exercise-title">Exercise 4.1: Convert number-like text to numeric and sum</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A CSV loaded a numeric field as text, giving you the <code>nums_txt</code> character vector. Convert those strings to numbers and return their total so you can confirm the coercion worked, saving the single sum value to <code>ex_4_1</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] 180</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Beginner</p>
+
+<div class="exercise-hints" hidden><p>The values look like numbers but are stored as text, so arithmetic will not work yet.</p><p><code>as.numeric(nums_txt)</code> converts the strings, then <code>sum()</code> totals them.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_4_1 &lt;- # your code here
+ex_4_1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_4_1 &lt;- sum(as.numeric(nums_txt))
+ex_4_1
+#&gt; [1] 180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> The strings look numeric but live as character, so <code>sum()</code> would error until <code>as.numeric()</code> converts them. This tiny round-trip is the daily reality of CSVs where one stray value forced a whole column to text. If any element were non-numeric, <code>as.numeric()</code> would return <code>NA</code> with a warning, which is your signal to clean further before summing.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-4-2" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 4.2: Strip currency symbols and commas before coercion</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A finance export wrote prices as strings like $1,200 in the <code>prices_txt</code> vector. Remove the dollar signs and thousands commas, convert the cleaned strings to numeric, and save the resulting numeric vector to <code>ex_4_2</code> for later math.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] 1200  980 1050 3499</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Numbers cannot be parsed while dollar signs and commas are still attached.</p><p>Remove them with <code>str_remove_all(prices_txt, &quot;[$,]&quot;)</code> before calling <code>as.numeric()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_4_2 &lt;- # your code here
+ex_4_2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_4_2 &lt;- as.numeric(str_remove_all(prices_txt, &quot;[$,]&quot;))
+ex_4_2
+#&gt; [1] 1200  980 1050 3499</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Currency formatting defeats direct coercion, so <code>str_remove_all(prices_txt, &quot;[$,]&quot;)</code> strips the dollar signs and thousands commas first, leaving clean digits for <code>as.numeric()</code>. The character class <code>[$,]</code> matches either symbol. Forgetting the comma is the usual bug: '1,200' becomes <code>NA</code> because R reads the comma as a non-numeric character. Clean, then coerce.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-4-3" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 4.3: Recover true numbers from a factor column</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A column arrived as a factor, so the <code>scores_f</code> factor holds numbers as levels. Recover the true underlying numeric values rather than the integer level codes so calculations are correct, and save the numeric vector to <code>ex_4_3</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] 10 20 30 20 10</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Converting a factor directly gives you its hidden integer codes, not the labels you see.</p><p>Go through text first: <code>as.numeric(as.character(scores_f))</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_4_3 &lt;- # your code here
+ex_4_3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_4_3 &lt;- as.numeric(as.character(scores_f))
+ex_4_3
+#&gt; [1] 10 20 30 20 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> A factor stores labels as integer codes, so <code>as.numeric(scores_f)</code> returns 1, 2, 3 (the codes) instead of 10, 20, 30. Routing through <code>as.character()</code> first recovers the printed labels, which <code>as.numeric()</code> then reads correctly. This factor trap silently corrupts results and is one of the most common R mistakes. When numbers arrive as factors, always go via character.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-4-4" data-grade-mode="output-compare" data-difficulty="advanced">
+
+<h3 class="exercise-title">Exercise 4.4: Coerce a mixed column to numeric, junk to NA</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A sensor dump in the <code>readings</code> tibble mixed real numbers with the strings N/A and unknown, forcing the whole <code>value</code> column to character. Coerce it to numeric, turning any non-numeric junk into <code>NA</code> without warnings, and save the tibble to <code>ex_4_4</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 5 x 2
+#&gt;   sensor value
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 s1      23.5
+#&gt; 2 s2      NA
+#&gt; 3 s3      19.8
+#&gt; 4 s4      NA
+#&gt; 5 s5      31.2</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>Replace the known junk tokens with a real missing value before any numeric conversion.</p><p>Inside <code>mutate()</code>, use <code>if_else(value %in% c(&quot;N/A&quot;,&quot;unknown&quot;), NA_character_, value)</code> then <code>as.numeric()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_4_4 &lt;- # your code here
+ex_4_4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_4_4 &lt;- readings |&gt;
+  mutate(value = as.numeric(if_else(value %in% c(&quot;N/A&quot;, &quot;unknown&quot;),
+                                    NA_character_, value)))
+ex_4_4
+#&gt; # A tibble: 5 x 2
+#&gt;   sensor value
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 s1      23.5
+#&gt; 2 s2      NA
+#&gt; 3 s3      19.8
+#&gt; 4 s4      NA
+#&gt; 5 s5      31.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Replacing the known junk tokens with <code>NA_character_</code> before <code>as.numeric()</code> avoids the noisy '<a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">NAs introduced by coercion</a>' warning and makes intent explicit: these specific strings are missing, not accidental parse failures. <code>if_else()</code> is type-stable, requiring the <code>NA_character_</code> form. The result is a clean numeric column where only genuine values survive and everything else is honestly <code>NA</code>.</p>
+
+</details>
+
+</section>
+
+<h2>Section 5. Duplicates and near-duplicates (3 problems)</h2>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-5-1" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 5.1: Remove exact duplicate rows with distinct</h3>
+
+<p class="exercise-task"><strong>Task:</strong> An append job ran twice and left repeats in the <code>orders</code> tibble. Remove every exact duplicate row so each order appears once, keeping the first occurrence, and save the de-duplicated tibble to <code>ex_5_1</code> for the reconciliation report.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 3 x 2
+#&gt;   order_id item
+#&gt;      &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1        1 pen
+#&gt; 2        2 book
+#&gt; 3        3 mug</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>You want to keep one copy of each fully identical row and discard the repeats.</p><p><code>distinct(orders)</code> returns the unique rows.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_5_1 &lt;- # your code here
+ex_5_1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_5_1 &lt;- distinct(orders)
+ex_5_1
+#&gt; # A tibble: 3 x 2
+#&gt;   order_id item
+#&gt;      &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1        1 pen
+#&gt; 2        2 book
+#&gt; 3        3 mug</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>distinct()</code> compares whole rows and keeps the first occurrence of each unique combination, which is the right tool when an append or join accidentally duplicated records. It is far safer than eyeballing the data. To dedupe on a subset of columns instead of the entire row, name them: <code>distinct(orders, order_id, .keep_all = TRUE)</code>.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-5-2" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 5.2: Keep the most recent record per customer</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A CRM export in the <code>records</code> tibble has several rows per customer, one per update. Keep only the most recent record for each <code>customer_id</code>, based on the <code>updated</code> date, and save the one-row-per-customer result to <code>ex_5_2</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 3 x 3
+#&gt;   customer_id updated    status
+#&gt;         &lt;dbl&gt; &lt;date&gt;     &lt;chr&gt;
+#&gt; 1           1 2024-03-05 active
+#&gt; 2           2 2024-02-20 churned
+#&gt; 3           3 2024-01-15 trial</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>When duplicates carry a timestamp, sort so the record you want to keep comes first.</p><p><code>arrange(customer_id, desc(updated))</code> then <code>distinct(customer_id, .keep_all = TRUE)</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_5_2 &lt;- # your code here
+ex_5_2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_5_2 &lt;- records |&gt;
+  arrange(customer_id, desc(updated)) |&gt;
+  distinct(customer_id, .keep_all = TRUE)
+ex_5_2
+#&gt; # A tibble: 3 x 3
+#&gt;   customer_id updated    status
+#&gt;         &lt;dbl&gt; &lt;date&gt;     &lt;chr&gt;
+#&gt; 1           1 2024-03-05 active
+#&gt; 2           2 2024-02-20 churned
+#&gt; 3           3 2024-01-15 trial</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Sorting with <code>arrange(customer_id, desc(updated))</code> puts each customer's newest row first, so <code>distinct(customer_id, .keep_all = TRUE)</code> keeps exactly that record and drops the older ones. <code>.keep_all = TRUE</code> retains every column, not just the key. This sort-then-distinct idiom is the standard way to take the latest row per group without a window function.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-5-3" data-grade-mode="output-compare" data-difficulty="advanced">
+
+<h3 class="exercise-title">Exercise 5.3: Collapse near-duplicate names that differ by case</h3>
+
+<p class="exercise-task"><strong>Task:</strong> The <code>contacts</code> tibble holds the same people typed inconsistently, like John Smith and JOHN SMITH. Build a normalized name key, group by it, count how many raw rows collapse into each person, and save that summary to <code>ex_5_3</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 2 x 3
+#&gt;   name_key   n_raw email
+#&gt;   &lt;chr&gt;      &lt;int&gt; &lt;chr&gt;
+#&gt; 1 jane doe       2 jane@x.com
+#&gt; 2 john smith     3 j@x.com</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>Rows are not identical, so normalize the text into a shared key before grouping.</p><p>Build the key with <code>str_squish(str_to_lower(name))</code>, then <code>group_by()</code> and <code>summarise(n())</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_5_3 &lt;- # your code here
+ex_5_3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_5_3 &lt;- contacts |&gt;
+  mutate(name_key = str_squish(str_to_lower(name))) |&gt;
+  group_by(name_key) |&gt;
+  summarise(n_raw = n(), email = first(email), .groups = &quot;drop&quot;)
+ex_5_3
+#&gt; # A tibble: 2 x 3
+#&gt;   name_key   n_raw email
+#&gt;   &lt;chr&gt;      &lt;int&gt; &lt;chr&gt;
+#&gt; 1 jane doe       2 jane@x.com
+#&gt; 2 john smith     3 j@x.com</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> The rows are not byte-identical, so <code>distinct()</code> alone would miss them; building <code>str_squish(str_to_lower(name))</code> creates a canonical key that unifies 'John Smith', 'john smith ', and ' JOHN SMITH'. Grouping on that key and counting shows how many raw rows collapse into each real person. Near-duplicate detection almost always starts with a normalized key like this.</p>
+
+</details>
+
+</section>
+
+<h2>Section 6. Outliers and unit mismatches (4 problems)</h2>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-6-1" data-grade-mode="output-compare" data-difficulty="beginner">
+
+<h3 class="exercise-title">Exercise 6.1: Flag physically impossible height values</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A data-entry slip produced an impossible height in the <code>heights</code> tibble. Add an <code>is_outlier</code> column that is TRUE whenever <code>height_cm</code> falls outside the plausible human range of 50 to 250 centimeters, and save the flagged tibble to <code>ex_6_1</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 5 x 3
+#&gt;   person height_cm is_outlier
+#&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;lgl&gt;
+#&gt; 1 a            170 FALSE
+#&gt; 2 b            165 FALSE
+#&gt; 3 c            999 TRUE
+#&gt; 4 d            158 FALSE
+#&gt; 5 e            182 FALSE</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Beginner</p>
+
+<div class="exercise-hints" hidden><p>An <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> here is simply any value outside a range you know is physically possible.</p><p>Create the flag with <code>height_cm &lt; 50 | height_cm &gt; 250</code> inside <code>mutate()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_6_1 &lt;- # your code here
+ex_6_1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_6_1 &lt;- heights |&gt;
+  mutate(is_outlier = height_cm &lt; 50 | height_cm &gt; 250)
+ex_6_1
+#&gt; # A tibble: 5 x 3
+#&gt;   person height_cm is_outlier
+#&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;lgl&gt;
+#&gt; 1 a            170 FALSE
+#&gt; 2 b            165 FALSE
+#&gt; 3 c            999 TRUE
+#&gt; 4 d            158 FALSE
+#&gt; 5 e            182 FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> A range check is the simplest outlier rule and the right one when you know the physical limits, here 50 to 250 centimeters, so the 999 entry is flagged without touching valid rows. Flagging with a logical column rather than deleting keeps the suspect visible for review. Domain-informed bounds beat purely statistical rules whenever such bounds exist.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-6-2" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 6.2: Detect outliers with the 1.5 times IQR rule</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Fixed thresholds do not always fit the data, so use the distribution itself. From the <code>vals</code> numeric vector, return only the values that fall beyond 1.5 times the interquartile range from the quartiles, and save those outliers to <code>ex_6_2</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; [1] 100</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Let the middle half of the data define what counts as far away.</p><p>Compute <code>quantile()</code> at 0.25 and 0.75, then keep values beyond 1.5 times their difference.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_6_2 &lt;- # your code here
+ex_6_2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q &lt;- quantile(vals, c(0.25, 0.75))
+iqr &lt;- q[2] - q[1]
+ex_6_2 &lt;- vals[vals &lt; q[1] - 1.5 * iqr | vals &gt; q[2] + 1.5 * iqr]
+ex_6_2
+#&gt; [1] 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> The 1.5-times-IQR rule lets the middle half of the data define normal: anything beyond Q1 minus 1.5 IQR or Q3 plus 1.5 IQR is an outlier, catching the 100 here. Unlike a fixed threshold, it adapts to each column's spread, which is why boxplots use it. <code>quantile()</code> returns Q1 and Q3, and their difference is the IQR.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-6-3" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 6.3: Cap extreme incomes at the 90th percentile</h3>
+
+<p class="exercise-task"><strong>Task:</strong> The analytics team prefers capping over deleting so counts stay stable. Using the <code>income</code> vector, cap every value at the 90th percentile so extreme figures are pulled down to that ceiling, and save the winsorized vector to <code>ex_6_3</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt;  [1] 30.0 42.0 38.0 51.0 45.0 40.0 70.9 47.0 39.0 44.0</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Capping means no value is allowed above a chosen ceiling, but nothing is deleted.</p><p>Find the ceiling with <code>quantile(income, 0.90)</code> and apply it with <code>pmin()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_6_3 &lt;- # your code here
+ex_6_3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap &lt;- quantile(income, 0.90)
+ex_6_3 &lt;- pmin(income, cap)
+ex_6_3
+#&gt;  [1] 30.0 42.0 38.0 51.0 45.0 40.0 70.9 47.0 39.0 44.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Winsorizing with <code>pmin(income, cap)</code> pulls every value above the 90th percentile down to that ceiling instead of deleting it, so row counts and downstream sums stay stable while the extreme 250 stops distorting the mean. <code>pmin()</code> is elementwise, comparing each value to the cap. Capping is preferred over dropping when you cannot afford to lose observations.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-6-4" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 6.4: Convert mixed weight units to a common scale</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Weights in the <code>weights</code> tibble were logged in two units, kilograms and grams, marked by the <code>unit</code> column. Convert every measurement to kilograms in a new <code>kg</code> column so the values are finally comparable, and save the tibble to <code>ex_6_4</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 4 x 4
+#&gt;   item   value unit     kg
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 x        1.2 kg      1.2
+#&gt; 2 y     1500   g       1.5
+#&gt; 3 z        0.8 kg      0.8
+#&gt; 4 w     2300   g       2.3</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Values are only comparable once they share the same unit, so convert the odd one out.</p><p>Use <code>if_else(unit == &quot;g&quot;, value / 1000, value)</code> inside <code>mutate()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_6_4 &lt;- # your code here
+ex_6_4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_6_4 &lt;- weights |&gt;
+  mutate(kg = if_else(unit == &quot;g&quot;, value / 1000, value))
+ex_6_4
+#&gt; # A tibble: 4 x 4
+#&gt;   item   value unit     kg
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 x        1.2 kg      1.2
+#&gt; 2 y     1500   g       1.5
+#&gt; 3 z        0.8 kg      0.8
+#&gt; 4 w     2300   g       2.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Measurements are only comparable in a shared unit, so <code>if_else(unit == &quot;g&quot;, value / 1000, value)</code> converts the grams rows to kilograms and leaves the kilograms rows untouched. Storing the result in a new <code>kg</code> column preserves the raw <code>value</code> for auditing. Unit mismatches are a quiet source of order-of-magnitude errors, so always normalize before you compare or aggregate.</p>
+
+</details>
+
+</section>
+
+<h2>Section 7. The final gauntlet: multi-issue cleanup (3 problems)</h2>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-7-1" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 7.1: Clean a messy sales table in one pipeline</h3>
+
+<p class="exercise-task"><strong>Task:</strong> The <code>sales</code> tibble is dirty on three axes at once: padded product names, price strings with symbols, and text quantities. In one pipeline, clean the strings, coerce the types, drop rows with a missing product, and save the result to <code>ex_7_1</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 3 x 3
+#&gt;   product price   qty
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Widget   12.5     3
+#&gt; 2 Gadget    8       2
+#&gt; 3 Widget   12.5     3</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Handle each kind of mess as its own step, then filter what is left.</p><p>Chain <code>str_squish()</code> with <code>str_to_title()</code>, <code>as.numeric(str_remove_all(...))</code>, and <code>drop_na(product)</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_7_1 &lt;- # your code here
+ex_7_1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_7_1 &lt;- sales |&gt;
+  mutate(product = str_to_title(str_squish(product)),
+         price = as.numeric(str_remove_all(price, &quot;[$,]&quot;)),
+         qty = as.numeric(qty)) |&gt;
+  drop_na(product)
+ex_7_1
+#&gt; # A tibble: 3 x 3
+#&gt;   product price   qty
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Widget   12.5     3
+#&gt; 2 Gadget    8       2
+#&gt; 3 Widget   12.5     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Chaining the fixes in one pipeline keeps the transformation readable: <code>str_squish()</code> and <code>str_to_title()</code> standardize the names, <code>as.numeric(str_remove_all(...))</code> repairs the price and quantity types, and <code>drop_na(product)</code> removes the unusable row last. Order matters, since filtering before coercion can hide type problems. This is what a real cleaning step looks like end to end.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-7-2" data-grade-mode="output-compare" data-difficulty="intermediate">
+
+<h3 class="exercise-title">Exercise 7.2: Standardize labels then total revenue per product</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A reporting analyst needs revenue by product, but the <code>tx</code> tibble spells the same product several ways and stores amounts as text. Standardize the product labels, coerce amounts to numeric, then total revenue and row count per product, saving the summary to <code>ex_7_2</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 2 x 3
+#&gt;   product total     n
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 Book       90     2
+#&gt; 2 Pen        20     2</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Clean the grouping key first, or the same product will split across several groups.</p><p>Normalize with <code>str_to_title(str_squish(product))</code>, then <code>group_by()</code> and <code>summarise(sum())</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_7_2 &lt;- # your code here
+ex_7_2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_7_2 &lt;- tx |&gt;
+  mutate(product = str_to_title(str_squish(product)),
+         amount = as.numeric(amount)) |&gt;
+  group_by(product) |&gt;
+  summarise(total = sum(amount), n = n(), .groups = &quot;drop&quot;)
+ex_7_2
+#&gt; # A tibble: 2 x 3
+#&gt;   product total     n
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 Book       90     2
+#&gt; 2 Pen        20     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Cleaning the <code>product</code> key before grouping is essential: without <code>str_to_title(str_squish(product))</code>, 'Pen ' and 'pen' would form separate groups and split the revenue. Once the key is canonical, <code>group_by()</code> and <code>summarise()</code> total the numeric amount and count the rows per product. Standardize the grouping variable first is the rule that saves most botched aggregations.</p>
+
+</details>
+
+</section>
+
+<section class="exercise" data-exercise-id="Data-Cleaning-Gauntlet-ex-7-3" data-grade-mode="output-compare" data-difficulty="advanced">
+
+<h3 class="exercise-title">Exercise 7.3: Run the full gauntlet on one filthy table</h3>
+
+<p class="exercise-task"><strong>Task:</strong> This is the final gauntlet: the <code>customers</code> tibble has a duplicate row, padded mixed-case names, dates in two formats plus a junk value, and dollar-string spend. Produce one analysis-ready tibble that fixes every issue, and save the clean result to <code>ex_7_3</code>.</p>
+
+<div class="exercise-expected">
+<p><strong>Expected result:</strong></p>
+<pre><code>#&gt; # A tibble: 4 x 4
+#&gt;      id name  signup     spend
+#&gt;   &lt;dbl&gt; &lt;chr&gt; &lt;date&gt;     &lt;dbl&gt;
+#&gt; 1     1 Alice 2024-01-05   100
+#&gt; 2     2 Bob   2024-02-10   250
+#&gt; 3     3 Carol NA             0
+#&gt; 4     4 Dave  2024-03-15    75</code></pre>
+</div>
+
+<p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>Order matters: <a class="auto-link" href="dplyr-distinct-in-R.html" title="dplyr distinct() in R: Remove Duplicate Rows">remove duplicates</a> first, then fix types and formats on the survivors.</p><p>Combine <code>distinct()</code>, <code>str_to_title(str_squish())</code>, <code>ymd()</code> after swapping slashes, and <code>as.numeric()</code>.</p></div>
+
+<div class="webr-container" data-block-title="Your turn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_7_3 &lt;- # your code here
+ex_7_3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details class="exercise-solution">
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_7_3 &lt;- customers |&gt;
+  distinct() |&gt;
+  mutate(
+    name   = str_to_title(str_squish(name)),
+    signup = ymd(str_replace_all(signup, &quot;/&quot;, &quot;-&quot;), quiet = TRUE),
+    spend  = as.numeric(str_remove_all(spend, &quot;[$,]&quot;))
+  )
+ex_7_3
+#&gt; # A tibble: 4 x 4
+#&gt;      id name  signup     spend
+#&gt;   &lt;dbl&gt; &lt;chr&gt; &lt;date&gt;     &lt;dbl&gt;
+#&gt; 1     1 Alice 2024-01-05   100
+#&gt; 2     2 Bob   2024-02-10   250
+#&gt; 3     3 Carol NA             0
+#&gt; 4     4 Dave  2024-03-15    75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p class="exercise-explanation"><strong>Explanation:</strong> Running <code>distinct()</code> first removes the duplicate row so it cannot inflate later sums, then the <code>mutate()</code> repairs names, dates, and money together. Swapping slashes for dashes lets <code>ymd()</code> read '2024/02/10', while <code>quiet = TRUE</code> returns <code>NA</code> for 'not recorded' without warnings. Sequencing dedupe before type fixes is deliberate: you clean the rows you are keeping, not the ones you will discard.</p>
+
+</details>
+
+</section>
+
+<h2>What to do next</h2>
+
+<p>You just cleared twenty-five of the messiest problems in day-to-day analytics. Keep the momentum with these related drills:</p>
+
+<ul>
+
+<li><a href="Data-Cleaning-Exercises-in-R.html">Data Cleaning Exercises in R</a> for a second pass at missing values, validation, and end-to-end pipelines.</li>
+
+<li><a href="stringr-Exercises-in-R.html">stringr Exercises in R</a> to go deeper on regex, case, and whitespace fixes.</li>
+
+<li><a href="lubridate-Exercises-in-R.html">lubridate Exercises in R</a> for heavier date and time parsing practice.</li>
+
+<li><a href="dplyr-Exercises-in-R.html">dplyr Exercises in R</a> to sharpen the group, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>, and mutate verbs behind every cleanup.</li>
+
+</ul>
+
+{% endraw %}
