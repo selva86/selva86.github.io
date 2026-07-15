@@ -161,6 +161,8 @@ def check_setup_block(fm, body, ctx):
 
 def check_exercise_count(fm, body, ctx):
     exercises = ctx["exercises"]
+    if "exercise_count" in ctx["exempt"]:
+        return True, f"{len(exercises)} exercises (count check waived; featured collection)"
     tier = ctx["tier"]
     min_count = TIER_MIN_EXERCISES.get(tier, 25)
     if len(exercises) < min_count:
