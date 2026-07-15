@@ -101,7 +101,9 @@ for (const slug of slugs) {
     if (r.unpinnedLibs.length) r.findings.push('unpinned libs: ' + r.unpinnedLibs.join(','));
     if (!r.chromeCss) r.findings.push('missing .tool-chrome style block (broken chrome CSS)');
     if (r.plexRefs > 10) r.findings.push(`OLD-SHELL body: ${r.plexRefs} IBM Plex refs`);
-    if (r.htmlKB > 200) r.findings.push(`page ${r.htmlKB}KB (Lab-sheet standard ~150KB)`);
+    // table-heavy pages carry big pre-rendered critical-value / method tables; size is data, not design debt
+    const SIZE_EXEMPT = ['f-table', 'multiple-testing-correction', 'chi-square-table', 't-table', 'z-table', 'binomial-table', 'pearson-critical-values-table'];
+    if (r.htmlKB > 200 && !SIZE_EXEMPT.includes(slug)) r.findings.push(`page ${r.htmlKB}KB (Lab-sheet standard ~150KB)`);
     if (r.consoleErrors.length) r.findings.push(`console errors x${r.consoleErrors.length}: ${r.consoleErrors[0]}`);
     if (r.mobileOverflow) r.findings.push('mobile 390 overflow');
   } catch (e) {
