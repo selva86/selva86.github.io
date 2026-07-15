@@ -599,6 +599,13 @@ _TOOL_ICONS = {
         '<path d="M8 2.5v11M2.5 8h11"/>'
         '<circle cx="5.25" cy="5.25" r="1.05" fill="currentColor" stroke="none"/>'
         '<circle cx="10.75" cy="10.75" r="1.05" fill="currentColor" stroke="none"/></svg>',
+    'fisher-exact-test-calculator.html':   # hypergeometric null distribution, one tail shaded
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 2v11.5h11"/>'
+        '<rect x="4" y="8" width="1.7" height="3.5" fill="currentColor" stroke="none" opacity=".5"/>'
+        '<rect x="6.5" y="4.8" width="1.7" height="6.7" fill="currentColor" stroke="none"/>'
+        '<rect x="9" y="7" width="1.7" height="4.5" fill="currentColor" stroke="none"/>'
+        '<rect x="11.5" y="9.5" width="1.7" height="2" fill="currentColor" stroke="none"/></svg>',
 }
 
 
@@ -628,6 +635,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'linear-regression-calculator.html',        'text': 'Linear Regression'},
     {'group': 'Calculators', 'slug': 'anova-calculator.html',                    'text': 'ANOVA Calculator'},
     {'group': 'Calculators', 'slug': 'odds-ratio-calculator.html',               'text': 'Odds Ratio &amp; RR'},
+    {'group': 'Calculators', 'slug': 'fisher-exact-test-calculator.html',        'text': "Fisher's Exact Test"},
 
     # Reference tables (critical values / distribution areas)
     {'group': 'Reference tables', 'slug': 't-table.html',                        'text': 't Table'},

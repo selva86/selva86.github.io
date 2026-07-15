@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -179,6 +179,9 @@ C3META = {
  'odds-ratio-calculator': ('Odds Ratio', 'OR',
   'Enter a 2x2 table for the odds ratio, risk ratio, NNT and attributable risk, each with a confidence interval and the right p-value.',
   '<path class="s" d="M6 38 H40"/><rect class="af" x="9" y="15" width="9" height="23" rx="1"/><rect class="af" style="opacity:.5" x="22" y="26" width="9" height="12" rx="1"/><rect class="a" x="30" y="5" width="10" height="10" rx="1.5" fill="none"/><path class="a" d="M35 5 V15 M30 10 H40" fill="none"/>'),
+ 'fisher-exact-test-calculator': ("Fisher's Exact Test", 'FET',
+  'Enter a 2x2 table for the exact one- and two-sided p, the odds ratio with an exact CI, and an optional mid-p, with the null distribution drawn.',
+  '<path class="s" d="M6 38 H40"/><rect class="af" x="9" y="29" width="5" height="9" rx="1"/><rect class="af" x="16" y="13" width="5" height="25" rx="1"/><rect class="s" x="23" y="20" width="5" height="18" rx="1" fill="none"/><rect class="s" x="30" y="28" width="5" height="10" rx="1" fill="none"/><path class="a" d="M18.5 6 L15.5 10 H21.5 Z" fill="currentColor"/>'),
 }
 
 # (accent, one-sentence intro) per category, aligned by CATEGORIES order.
