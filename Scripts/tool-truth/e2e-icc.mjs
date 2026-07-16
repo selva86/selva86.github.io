@@ -9,7 +9,12 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 
 const BASE = process.argv[2] || 'http://127.0.0.1:8099';
-const URL = `${BASE}/tools/icc-calculator.html`;
+// Against a real origin, always navigate with a cache-buster. Cloudflare (and
+// the browser) will otherwise hand back the pre-deploy response you just
+// finished polling past, and the suite silently tests the old page.
+const URL = /^https?:\/\/(127|localhost)/.test(BASE)
+  ? `${BASE}/tools/icc-calculator.html`
+  : `${BASE}/tools/icc-calculator.html?fresh=${Date.now()}`;
 const truth = Object.fromEntries(
   JSON.parse(fs.readFileSync('Scripts/tool-truth/icc-calculator.json', 'utf8'))
     .map(c => [c.name, c])
