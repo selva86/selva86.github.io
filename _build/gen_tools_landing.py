@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','binomial-probability-calculator','poisson-distribution-calculator','proportion-test-calculator']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','box-plot-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','binomial-probability-calculator','poisson-distribution-calculator','proportion-test-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -116,6 +116,9 @@ C3META = {
  'iqr-calculator': ('IQR &amp; Outliers', 'IQR',
   'Paste data for the interquartile range, quartiles, five-number summary, the 1.5 IQR fences and every flagged outlier, on a labeled boxplot.',
   '<path class="s" d="M6 22 H12 M6 18 V26"/><path class="s" d="M32 22 H36 M36 18 V26"/><rect class="a" x="12" y="14" width="20" height="16" rx="2" fill="none"/><path class="a" d="M21 14 V30"/><circle class="af" cx="40" cy="22" r="2.6"/>'),
+ 'box-plot-calculator': ('Box Plot', 'boxplot',
+  'Paste one group or several named groups for the five-number summary, quartiles, IQR and outliers, drawn as side-by-side box plots.',
+  '<path class="s" d="M5 5 V39 H41"/><path class="s" d="M14 9 V13 M14 30 V34"/><rect class="a" x="9" y="13" width="10" height="17" rx="1.5" fill="none"/><path class="a" d="M9 22 H19"/><path class="s" d="M31 13 V17 M31 32 V36"/><rect class="a" x="26" y="17" width="10" height="15" rx="1.5" fill="none"/><path class="a" d="M26 24 H36"/><circle class="af" cx="31" cy="8" r="2.4"/>'),
  't-table': ('t Table', 'qt',
   'Look up t critical values by df and alpha, or go backwards from t to p. Printable.',
   '<rect class="s" x="6" y="8" width="32" height="28" rx="2" fill="none"/><path class="s" d="M6 15 H38 M6 22 H38 M6 29 H38 M14 8 V36 M22 8 V36 M30 8 V36"/><rect class="af" x="22" y="22" width="8" height="7" style="opacity:.8"/>'),

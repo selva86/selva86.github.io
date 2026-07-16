@@ -483,6 +483,14 @@ _TOOL_ICONS = {
         '<path d="M7.3 5V11"/>'
         '<path d="M10.5 8H12"/><path d="M12 6.2V9.8"/>'
         '<circle cx="14" cy="8" r="1" fill="currentColor" stroke="none"/></svg>',
+    'box-plot-calculator.html':   # two vertical boxes side by side (grouped boxplot)
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M4.4 2.5V4.6M4.4 11.4V13.5"/>'
+        '<rect x="2.7" y="4.6" width="3.4" height="6.8" rx="0.7"/>'
+        '<path d="M2.7 8.2H6.1"/>'
+        '<path d="M11.4 4V6M11.4 12V14"/>'
+        '<rect x="9.7" y="6" width="3.4" height="6" rx="0.7"/>'
+        '<path d="M9.7 9.4H13.1"/></svg>',
     'mean-median-mode-calculator.html':   # three graduated centre markers on a baseline
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 13.5h12"/>'
@@ -673,6 +681,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'standard-deviation-calculator.html',       'text': 'Standard Deviation'},
     {'group': 'Calculators', 'slug': 'percentile-calculator.html',               'text': 'Percentile Calculator'},
     {'group': 'Calculators', 'slug': 'iqr-calculator.html',                      'text': 'IQR &amp; Outliers'},
+    {'group': 'Calculators', 'slug': 'box-plot-calculator.html',                 'text': 'Box Plot'},
     {'group': 'Calculators', 'slug': 'chi-square-calculator.html',               'text': 'Chi-Square Test'},
     {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html',      'text': 'Confidence Interval'},
     {'group': 'Calculators', 'slug': 'margin-of-error-calculator.html',          'text': 'Margin of Error'},
