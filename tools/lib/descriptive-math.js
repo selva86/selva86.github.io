@@ -187,6 +187,7 @@
 
     return {
       n: n, mean: m, sum: sm, median: med,
+      ss: (mo ? mo.ss : (n > 0 ? 0 : null)),        // sum of squared deviations
       sd: sd, var: v, sdPop: sdPop, varPop: varPop, se: se,
       level: level, ciLo: ci[0], ciHi: ci[1],
       min: mn, max: mx, range: rng,
