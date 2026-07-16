@@ -1,0 +1,873 @@
+---
+title: "Test Stationarity in R: ADF, KPSS, and Differencing"
+description: "Most time series models require stationarity. Run the ADF and KPSS tests in R, pick the right number of differences with ndiffs(), and verify the result."
+keywords: "test stationarity in R, ADF test in R, KPSS test in R, adf.test, kpss.test, ndiffs, differencing in R, unit root test, stationary time series R, augmented dickey-fuller"
+mathjax: true
+webr: true
+curriculum_id: "3.8.3"
+post_type: "C"
+auto_link_terms: "test stationarity|stationarity|stationarity test|stationary series|non-stationary|ADF test|Augmented Dickey-Fuller|adf.test|KPSS test|kpss.test|unit root|unit root test|differencing|ndiffs|nsdiffs|seasonal differencing|difference-stationary|trend-stationary"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Test Stationarity"
+sidebar_order: "7"
+---
+<!-- md2html:generated -->
+
+<p class="lead">A time series is stationary when its statistical behaviour does not depend on when you look at it: same average level, same amount of wobble, same relationship between neighbouring points in 1949 as in 1960. Most forecasting models, ARIMA above all, require this. R gives you two tests that check it from opposite directions: <code>adf.test()</code> asks whether the series has a unit root, and <code>kpss.test()</code> asks whether it is stationary. This post runs both on real data, teaches you to read output that looks contradictory the first time you meet it, and turns the verdict into the only number you actually need: how many times to difference.</p>
+
+<h2>Is the airline passenger series stationary?</h2>
+
+<p>The series we will use for the whole post is <code>AirPassengers</code>. It ships with R, so you already have it. It holds 144 real numbers: the monthly total of international airline passengers, in thousands, from January 1949 to December 1960. The first month is 112 (meaning 112,000 passengers) and the last is 432.</p>
+
+<p>Two functions do the standard job, both from the <code>tseries</code> package. <code>adf.test()</code> runs the Augmented Dickey-Fuller test. <code>kpss.test()</code> runs the KPSS test. Each prints a test statistic and a p-value.</p>
+
+<p>A test's <strong>null hypothesis</strong> is the claim it starts out assuming is true and will only abandon if your data makes it look implausible. The p-value measures how implausible: for now, read it the usual way, where below 0.05 means "reject this test's null hypothesis" and above 0.05 means "do not reject it". The catch, and the reason this post exists, is that the two tests have <strong>opposite</strong> null hypotheses, so the same p-value means opposite things depending on which test printed it.</p>
+
+<p>Here is the whole standard check, on real data.</p>
+
+<div class="webr-container" data-block-title="The two standard stationarity tests, on real data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The two standard stationarity tests, on real data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(tseries))
+
+# AirPassengers: 144 monthly totals of international airline
+# passengers (thousands), Jan 1949 to Dec 1960.
+
+adf.test(AirPassengers)     # null hypothesis: the series HAS a unit root
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  AirPassengers
+#&gt; Dickey-Fuller = -7.3186, Lag order = 5, p-value = 0.01
+#&gt; alternative hypothesis: stationary
+
+kpss.test(AirPassengers)    # null hypothesis: the series IS stationary
+#&gt; 
+#&gt; 	KPSS Test for Level Stationarity
+#&gt; 
+#&gt; data:  AirPassengers
+#&gt; KPSS Level = 2.7395, Truncation lag parameter = 4, p-value = 0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read those two results literally and they seem to fight each other.</p>
+
+<p>ADF returned p = 0.01. That is below 0.05, so we reject ADF's null. ADF's null is "the series has a unit root", so rejecting it says: <strong>no unit root, this series looks stationary.</strong></p>
+
+<p>KPSS returned p = 0.01. That is also below 0.05, so we reject KPSS's null too. But KPSS's null is "the series is stationary", so rejecting it says: <strong>this series is not stationary.</strong></p>
+
+<p>One series, two respected tests, run correctly, and the answers point in opposite directions. Most tutorials never show you this because they pick an example where it does not happen. It happens constantly on real data, and it is not a bug in either test. By the end of this post you will know exactly what causes it, and the answer will make both tests much easier to trust.</p>
+
+<p>You will also see a warning next to each result: <code>p-value smaller than printed p-value</code>. That is normal and worth understanding now so it stops bothering you. Neither test computes p-values from a formula. Both look the test statistic up in a small printed table and interpolate. When your statistic falls off the end of that table, R gives you the nearest edge value and warns that the truth is further out. So <code>p-value = 0.01</code> from these functions really means "0.01 or less", and (as you will see later) <code>p-value = 0.1</code> from KPSS really means "0.1 or more". It is a table limit, not an error.</p>
+
+<blockquote><p><strong>Watch out:</strong> The single most common mistake with these tests is reading the p-value without checking which null it belongs to. "p < 0.05, so it's significant, so it's stationary" is right for ADF and exactly backwards for KPSS.</p></blockquote>
+
+<h2>What does "stationary" actually mean?</h2>
+
+<p>Before testing for a property, it is worth being able to say what the property is. Informally, a series is stationary if the process generating it has settled down: you could not tell which decade a chunk of it came from by looking at its statistics.</p>
+
+<p>Formally, a series \(y_t\) is (weakly) stationary when all three of these hold:</p>
+
+<ol>
+
+<li><strong>Constant mean.</strong> \(E[y_t] = \mu\) for every \(t\). The average does not depend on when you measure it. Here \(E[y_t]\) is the expected value (the long-run average) of the series at time \(t\), and \(\mu\) is a single fixed number.</li>
+
+<li><strong>Constant variance.</strong> \(\mathrm{Var}(y_t) = \sigma^2\) for every \(t\). The size of the wobble around the mean does not grow or shrink over time.</li>
+
+<li><strong>Autocovariance depends only on the gap.</strong> \(\mathrm{Cov}(y_t, y_{t+k}) = \gamma_k\), a value that depends on the gap \(k\) but not on \(t\). How strongly today relates to a point \(k\) steps away is the same relationship in 1949 as in 1960.</li>
+
+</ol>
+
+<p>Notice what is <em>not</em> on that list: the series does not have to be flat, boring or random. It has to be <em>statistically anchored</em>. And notice something else: each of the three rules has a characteristic way of failing. A trend breaks rule 1, because the average keeps moving. Growing swings break rule 2, because the wobble gets bigger. A repeating seasonal pattern breaks rule 1 as well (July's average is not January's average) and shows up in rule 3 too, because points twelve months apart resemble each other more than neighbouring months do.</p>
+
+<p><code>AirPassengers</code> fails on every count. We do not need a test to see the first two: we can just cut the series in half and compare. One note on how that slicing works. <code>AirPassengers</code> is a <code>ts</code> object, so it carries its own calendar and you cut it by date rather than by position. <code>window()</code> takes a start and an end written as <code>c(year, month)</code>, which makes <code>c(1949, 1)</code> January 1949.</p>
+
+<div class="webr-container" data-block-title="Split the series in half and compare the two halves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the series in half and compare the two halves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">first_half  &lt;- window(AirPassengers, start = c(1949, 1), end = c(1954, 12))
+second_half &lt;- window(AirPassengers, start = c(1955, 1), end = c(1960, 12))
+
+# window() pulls out a date range from a ts object.
+round(c(mean_1949_54 = mean(first_half),  mean_1955_60 = mean(second_half)), 1)
+#&gt; mean_1949_54 mean_1955_60 
+#&gt;        182.9        377.7 
+
+round(c(sd_1949_54   = sd(first_half),    sd_1955_60   = sd(second_half)), 1)
+#&gt; sd_1949_54 sd_1955_60 
+#&gt;       47.7       86.4 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The average number of passengers per month roughly doubled, from 182.9 thousand to 377.7 thousand. That kills rule 1. The standard deviation also nearly doubled, from 47.7 to 86.4, so the series does not just sit higher in the 1950s, it swings harder. That kills rule 2. If you had to guess which half a chunk came from, the level alone would tell you almost every time.</p>
+
+<p>The plot says the same thing faster, and you should always look before you test.</p>
+
+<div class="webr-container" data-block-title="Look at it before you test it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look at it before you test it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(AirPassengers, main = &quot;AirPassengers: monthly totals, 1949-1960&quot;,
+     ylab = &quot;Passengers (thousands)&quot;, xlab = &quot;Year&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You will see a line climbing from 112 up to a peak of 622, with a saw-tooth pattern repeating every year (summer peaks, winter troughs) whose teeth get visibly taller as the line rises. That 622 is July 1960; the 432 we quoted earlier as the final value is December 1960, sitting in the annual trough.</p>
+
+<p>The growing teeth are worth a number of their own. In 1949 the busiest month was 148 and the quietest was 104, a gap of 44. In 1960 the busiest was 622 and the quietest 390, a gap of 232. The annual swing did not merely ride up with the series, it grew more than fivefold.</p>
+
+<p>Three distinct problems in one picture: a rising level, a repeating annual cycle, and swings that grow with the level. Keep that picture in mind, because the rest of the post removes those three problems one at a time.</p>
+
+<h2>What is a unit root?</h2>
+
+<p>The tests do not actually test the three-rule definition above. They test something narrower and more specific, and understanding it is what makes the ADF output readable.</p>
+
+<p>Start with the simplest interesting model of a series, where each value is a fraction \(\phi\) (the Greek letter phi) of the previous value plus a fresh random shock:</p>
+
+<p>\[ y_t = \phi \, y_{t-1} + \varepsilon_t \]</p>
+
+<p>Here \(y_t\) is the value at time \(t\), \(y_{t-1}\) is the value one step earlier, \(\varepsilon_t\) is a random shock drawn fresh each period with mean zero (think of it as this month's news), and \(\phi\) is a single number that controls how much of the past carries forward. This is called an AR(1) process, short for autoregressive of order 1.</p>
+
+<p>Everything hinges on \(\phi\):</p>
+
+<ul>
+
+<li>If \(\lvert \phi \rvert < 1\), the series is <strong>stationary</strong>. Each shock's influence decays: a shock today is worth \(\phi\) of itself next month, \(\phi^2\) the month after, and so on toward zero. The series has a home level and keeps getting pulled back to it.</li>
+
+<li>If \(\phi = 1\), the model becomes \(y_t = y_{t-1} + \varepsilon_t\). Every shock is added to the level and <strong>never</strong> decays. The series has no home to return to, and it wanders forever. This is a <strong>random walk</strong>, and this case is called a <strong>unit root</strong> (the "root" of the model equals 1).</li>
+
+</ul>
+
+<p>That is the whole idea. A unit root means shocks are permanent, which means the series has no fixed mean, which means it is not stationary. A unit root produces what is called a <strong>stochastic trend</strong>: the series drifts, but the drift is made of accumulated randomness rather than an underlying line.</p>
+
+<p>Let us build both kinds by hand, so we know the right answer before we ask a test for it. This is the single most useful habit when learning a statistical test: run it on data whose truth you control.</p>
+
+<p>One line needs a word of explanation. <code>set.seed(42)</code> pins R's random number generator to a known starting point, so the "random" draws come out the same every time the code runs. That is why the numbers you get will match the numbers printed here exactly, and it is why any of the simulations on this page can be reproduced.</p>
+
+<div class="webr-container" data-block-title="Build one stationary series and one random walk">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build one stationary series and one random walk</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 200
+
+white_noise &lt;- rnorm(n)              # 200 independent draws: stationary by construction
+random_walk &lt;- cumsum(rnorm(n))      # cumsum() adds each shock to the running total: a unit root
+
+round(head(random_walk, 5), 3)
+#&gt; [1] -2.001 -1.667 -0.496  1.564  0.187</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>white_noise</code> is 200 independent standard normal draws. It is stationary by construction: fixed mean of 0, fixed variance of 1, no relationship between neighbours. <code>random_walk</code> is <code>cumsum()</code> of a different set of 200 shocks, meaning element 5 is the sum of shocks 1 through 5. That is exactly \(y_t = y_{t-1} + \varepsilon_t\), so it has a unit root by construction. You can see the accumulation in the printed values: the series is at -2.001, then a +0.334 shock takes it to -1.667, then +1.171 takes it to -0.496. Each value is simply the previous one plus whatever the next shock happens to be.</p>
+
+<p>Be careful about what "wanders forever" does and does not mean. The fourth value is 1.564, so this series does cross back over zero, but not because anything pulled it there: a large positive shock happened to arrive. There is no force in the model tugging it home, which is the whole difference. A stationary series returns to its mean because it is built to; a random walk visits zero only by coincidence, and has no reason to stay.</p>
+
+<p>The key point is that these two series are genuinely different in kind, not just in appearance, and we now have one of each with a known answer. Every test from here on gets checked against them.</p>
+
+<h2>How does the ADF test work?</h2>
+
+<p>The Augmented Dickey-Fuller test asks one question: <strong>is \(\phi\) equal to 1?</strong> Rather than estimate \(\phi\) directly, it rewrites the model by subtracting \(y_{t-1}\) from both sides. Writing \(\Delta y_t = y_t - y_{t-1}\) for the month-to-month change, the regression <code>adf.test()</code> actually fits is:</p>
+
+<p>\[ \Delta y_t = \alpha + \beta t + \gamma \, y_{t-1} + \sum_{i=1}^{k} \delta_i \, \Delta y_{t-i} + \varepsilon_t \]</p>
+
+<p>Every symbol, in words:</p>
+
+<ul>
+
+<li>\(\Delta y_t\) is this period's change, the thing being predicted.</li>
+
+<li>\(\alpha\) is an intercept (a constant level).</li>
+
+<li>\(\beta t\) is a <strong>straight-line trend term</strong>, with \(t\) counting time. Remember this one, it explains the contradiction from section 1.</li>
+
+<li>\(\gamma\) (gamma) is the coefficient of interest, and it equals \(\phi - 1\).</li>
+
+<li>The sum of \(\delta_i \Delta y_{t-i}\) terms are \(k\) lagged changes: last month's change, the one before it, and so on back \(k\) steps. These are the "Augmented" part of the name. They are there to absorb <strong>autocorrelation</strong>, which means a series being correlated with its own recent past: a busy month tends to be followed by another busy month. That short-term stickiness looks a lot like the long-term persistence \(\gamma\) is supposed to measure, so if you leave it in the residuals it contaminates the estimate of \(\gamma\). Including the lagged changes mops it up.</li>
+
+<li>\(\varepsilon_t\) is the leftover error.</li>
+
+</ul>
+
+<p>Because \(\gamma = \phi - 1\), testing \(\phi = 1\) is the same as testing \(\gamma = 0\). So:</p>
+
+<ul>
+
+<li><strong>Null hypothesis</strong> \(H_0: \gamma = 0\), which is \(\phi = 1\), a unit root, non-stationary.</li>
+
+<li><strong>Alternative</strong> \(H_1: \gamma < 0\), which is \(\phi < 1\), stationary.</li>
+
+</ul>
+
+<p>The printed <code>Dickey-Fuller</code> number is the t-statistic on \(\gamma\). More negative means \(\gamma\) is further below zero, which is stronger evidence against a unit root. <code>Lag order</code> is \(k\), which <code>adf.test()</code> picks for you as <code>trunc((n - 1)^(1/3))</code>. With 200 points that gives 5, which is what you are about to see printed.</p>
+
+<p>Now run it on the two series whose truth we built.</p>
+
+<div class="webr-container" data-block-title="ADF on data where we know the answer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ADF on data where we know the answer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adf.test(white_noise)      # truth: stationary. We want a SMALL p-value.
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  white_noise
+#&gt; Dickey-Fuller = -5.6389, Lag order = 5, p-value = 0.01
+#&gt; alternative hypothesis: stationary
+
+adf.test(random_walk)      # truth: unit root. We want a LARGE p-value.
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  random_walk
+#&gt; Dickey-Fuller = -1.9193, Lag order = 5, p-value = 0.6099
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both verdicts are correct. On <code>white_noise</code>, the statistic is -5.6389 and p = 0.01, so we reject the unit root null: correct, we built it stationary. On <code>random_walk</code>, the statistic is only -1.9193 and p = 0.6099, far above 0.05, so we do not reject the unit root null: correct again, we built it with a unit root.</p>
+
+<p>The <code>alternative hypothesis: stationary</code> line printed under both is not a verdict. It is R reminding you what the alternative <em>is</em>, and it prints identically whether the test rejected or not. Reading that line as the answer is a common misread.</p>
+
+<blockquote><p><strong>Note:</strong> Failing to reject is not proving. <code>adf.test(random_walk)</code> did not prove there is a unit root; it said there was not enough evidence to rule one out. That asymmetry is exactly why a second test with the opposite null is useful, which is the whole point of KPSS.</p></blockquote>
+
+<h2>How does the KPSS test work?</h2>
+
+<p>KPSS (named for Kwiatkowski, Phillips, Schmidt and Shin) tests the same territory from the opposite side. Its null hypothesis is <strong>stationarity</strong>, and its alternative is a unit root.</p>
+
+<p>Mechanically, KPSS regresses the series on its <strong>deterministic part</strong>, meaning the fixed, predictable shape the series is supposed to sit on, as opposed to the randomness wobbling around that shape. It then looks at the cumulative sum of the leftover residuals. If the series really is stationary, the residuals hover around zero and their running total stays small. If the series is wandering, the residuals stay on one side for long stretches and the running total grows large. A <strong>big</strong> KPSS statistic means a big running total, which means evidence <strong>against</strong> stationarity.</p>
+
+<p>The critical detail is which deterministic shape it assumes, and that is controlled by the <code>null</code> argument:</p>
+
+<ul>
+
+<li><code>null = &quot;Level&quot;</code> (the default) regresses on a constant only. It tests <strong>level stationarity</strong>: does the series hover around one fixed horizontal line?</li>
+
+<li><code>null = &quot;Trend&quot;</code> regresses on a constant plus a straight-line trend. It tests <strong>trend stationarity</strong>: does the series hover around one fixed sloped line?</li>
+
+</ul>
+
+<p>One more thing appears in every KPSS result, so it is worth naming before it puzzles you: <code>Truncation lag parameter</code>. That running total is noisy, so before comparing it to a critical value the test has to scale it by how variable the series is over the long run, and estimating that means averaging over a window of nearby lags. The truncation lag is how wide that window is. <code>kpss.test()</code> picks it from the sample size as <code>trunc(4 * (n / 100)^0.25)</code>, which is why it prints 4 for every series on this page (they all fall between 131 and 200 points). It is KPSS's counterpart to ADF's <code>Lag order</code>: chosen for you, and not something you normally touch.</p>
+
+<p>That Level-versus-Trend distinction is about to resolve everything. First, confirm KPSS gets our known series right.</p>
+
+<div class="webr-container" data-block-title="KPSS on data where we know the answer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">KPSS on data where we know the answer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kpss.test(white_noise)     # truth: stationary. We want a LARGE p-value.
+#&gt; 
+#&gt; 	KPSS Test for Level Stationarity
+#&gt; 
+#&gt; data:  white_noise
+#&gt; KPSS Level = 0.095473, Truncation lag parameter = 4, p-value = 0.1
+
+kpss.test(random_walk)     # truth: unit root. We want a SMALL p-value.
+#&gt; 
+#&gt; 	KPSS Test for Level Stationarity
+#&gt; 
+#&gt; data:  random_walk
+#&gt; KPSS Level = 0.50324, Truncation lag parameter = 4, p-value = 0.04094</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both correct, and note the p-values point the opposite way from ADF. On <code>white_noise</code> the statistic is a tiny 0.095473 with p = 0.1, so we do not reject stationarity: correct. On <code>random_walk</code> the statistic is five times larger at 0.50324 with p = 0.04094, so we reject stationarity: correct.</p>
+
+<p>Remember the table limit from section 1. That <code>p-value = 0.1</code> on <code>white_noise</code> came with a <code>p-value greater than printed p-value</code> warning, because KPSS's table stops at 0.1. It means "0.1 or more", which is a comfortable "no evidence against stationarity", not a borderline result.</p>
+
+<h2>Why do ADF and KPSS seem to disagree?</h2>
+
+<p>Now we can settle section 1. Look again at what each test was actually asked.</p>
+
+<p><code>adf.test()</code> <strong>always</strong> fits that \(\beta t\) trend term. You cannot turn it off. So its <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">alternative hypothesis</a> is not "stationary" in general, it is "stationary <strong>around a straight-line trend</strong>".</p>
+
+<p><code>kpss.test()</code> defaults to <code>null = &quot;Level&quot;</code>. So its null is not "stationary" in general, it is "stationary <strong>around a flat line</strong>".</p>
+
+<p>So on <code>AirPassengers</code>, ADF said "this is not a random walk, it looks like a trend plus well-behaved deviations", and KPSS said "this is definitely not flat". Both are true. Both are obviously true, in fact, once you remember the plot climbing from 110 to 600. They were never in conflict, because they were answering different questions. We compared a trend-aware alternative against a flat-line null.</p>
+
+<p>Ask KPSS the same question ADF was asked, and watch what happens.</p>
+
+<div class="webr-container" data-block-title="Ask KPSS the same question ADF is asking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ask KPSS the same question ADF is asking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kpss.test(AirPassengers, null = &quot;Trend&quot;)   # allow a straight-line trend, like ADF does
+#&gt; 
+#&gt; 	KPSS Test for Trend Stationarity
+#&gt; 
+#&gt; data:  AirPassengers
+#&gt; KPSS Trend = 0.09615, Truncation lag parameter = 4, p-value = 0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The statistic collapses from 2.7395 to 0.09615, and p rises from 0.01 to 0.1. Once KPSS is allowed a sloped line instead of a flat one, it stops rejecting. The two tests now agree completely: <code>AirPassengers</code> is not a random walk, it is a series with a trend. The apparent contradiction was never about the data. It was about mismatched deterministic terms.</p>
+
+<p><img src="screenshots/Test-Stationarity-in-R-decision.webp" alt="The ADF and KPSS decision rule" class="img-responsive img-zoomable" loading="lazy" width="2248" height="1720" /></p>
+
+<p><em>Figure 1: How to combine the two verdicts. The two cells on the outside are agreement. The two in the middle are the informative cases: a conflict is a message, not a malfunction.</em></p>
+
+<p>The diagram gives you the full rule. In words:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>ADF</th>
+<th>KPSS</th>
+<th>What it means</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>p < 0.05 (reject unit root)</td>
+<td>p > 0.05 (keep stationarity)</td>
+<td>Both say stationary</td>
+<td>Model it as is. <code>d = 0</code></td>
+</tr>
+<tr>
+<td>p > 0.05 (keep unit root)</td>
+<td>p < 0.05 (reject stationarity)</td>
+<td>Both say non-stationary</td>
+<td>Difference it. <code>d = 1</code></td>
+</tr>
+<tr>
+<td>p < 0.05 (reject unit root)</td>
+<td>p < 0.05 (reject stationarity)</td>
+<td>Often trend-stationary, or mismatched trend terms</td>
+<td>Re-run KPSS with <code>null = &quot;Trend&quot;</code>. This was our case</td>
+</tr>
+<tr>
+<td>p > 0.05 (keep unit root)</td>
+<td>p > 0.05 (keep stationarity)</td>
+<td>Neither test can decide</td>
+<td>Not enough data. Difference and re-test</td>
+</tr>
+</tbody>
+</table>
+
+<p>The bottom-right case deserves a word, because it surprises people. Both tests failing to reject is not "doubly stationary". ADF failing to reject means "cannot rule out a unit root" and KPSS failing to reject means "cannot rule out stationarity", so both together mean the data is too short or too noisy to distinguish the two. That is a statement about your sample, not your series.</p>
+
+<h2>How many differences does your series need?</h2>
+
+<p>We now know <code>AirPassengers</code> has a trend. There are two ways to remove a trend, and which one is right depends on what kind of trend it is.</p>
+
+<ul>
+
+<li>A <strong>deterministic trend</strong> is an underlying line with noise around it. The cure is to subtract the line, called detrending.</li>
+
+<li>A <strong>stochastic trend</strong> is accumulated shocks, a unit root. The cure is <strong>differencing</strong>: model the changes instead of the levels.</li>
+
+</ul>
+
+<p>Differencing means replacing each value with the change from the previous value, \(\Delta y_t = y_t - y_{t-1}\). If the series is a random walk, \(y_t = y_{t-1} + \varepsilon_t\), then \(\Delta y_t = \varepsilon_t\), which is stationary. Differencing converts a random walk into pure noise, which is exactly why it is the standard fix. The number of times you difference is called \(d\).</p>
+
+<p>You do not have to choose \(d\) by squinting at p-values. <code>forecast::ndiffs()</code> runs a stationarity test and reads the verdict; if the verdict is "not stationary" it differences the series, tests the result, and repeats until the verdict comes back stationary, then reports how many rounds it took. Its seasonal twin <code>nsdiffs()</code> does the same for a repeating cycle and reports \(D\).</p>
+
+<p>Order matters, and it is the opposite of what most people try first. Deal with the seasonality <strong>before</strong> testing the level, because a strong annual cycle is exactly the kind of structure that confuses both ADF and KPSS.</p>
+
+<p><img src="screenshots/Test-Stationarity-in-R-workflow.webp" alt="The stationarity workflow" class="img-responsive img-zoomable" loading="lazy" width="932" height="2728" /></p>
+
+<p><em>Figure 2: The order of operations. Fix what the tests cannot see (variance, seasonality) first, then test the level, then re-test after every transform.</em></p>
+
+<div class="webr-container" data-block-title="Let R count the differences for you">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let R count the differences for you</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(forecast))
+
+nsdiffs(AirPassengers)              # D: how many SEASONAL differences?
+#&gt; [1] 1
+
+ndiffs(AirPassengers)               # d: how many ordinary differences? (KPSS-based)
+#&gt; [1] 1
+
+ndiffs(AirPassengers, test = &quot;adf&quot;) # same question, asked via ADF instead
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three answers agree: one seasonal difference and one ordinary difference. The fact that <code>ndiffs()</code> gives 1 whether it asks KPSS or ADF is reassuring; when those two disagree, you are in one of the middle rows of the table above and should look closer.</p>
+
+<p>Differencing itself is <code>diff()</code>, and it is worth seeing exactly what it does to your data before trusting it.</p>
+
+<div class="webr-container" data-block-title="What diff() actually does">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What diff() actually does</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d1 &lt;- diff(AirPassengers)
+
+c(original = length(AirPassengers), differenced = length(d1))
+#&gt;    original differenced 
+#&gt;         144         143 
+
+head(AirPassengers, 4)
+#&gt;      Jan Feb Mar Apr
+#&gt; 1949 112 118 132 129
+
+head(d1, 3)
+#&gt;      Feb Mar Apr
+#&gt; 1949   6  14  -3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the two <code>head()</code> outputs together and the arithmetic is plain. January 1949 was 112 and February was 118, so February's differenced value is 118 - 112 = 6. March was 132, so its value is 132 - 118 = 14. April dropped to 129, giving 129 - 132 = -3. The series now describes <em>change in passengers per month</em> rather than <em>passengers</em>.</p>
+
+<p>Notice you lost one observation (144 became 143) and January 1949 is gone. That is unavoidable: the first month has no previous month to subtract. Every difference costs you one point at the front, and a seasonal difference at lag 12 costs you twelve.</p>
+
+<h2>Did the differencing actually work?</h2>
+
+<p>Never assume a transform worked. Test it. This is the step people skip, and it is the step that catches the interesting problems.</p>
+
+<div class="webr-container" data-block-title="Re-test the differenced series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Re-test the differenced series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adf.test(d1)
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  d1
+#&gt; Dickey-Fuller = -7.0177, Lag order = 5, p-value = 0.01
+#&gt; alternative hypothesis: stationary
+
+kpss.test(d1)
+#&gt; 
+#&gt; 	KPSS Test for Level Stationarity
+#&gt; 
+#&gt; data:  d1
+#&gt; KPSS Level = 0.014626, Truncation lag parameter = 4, p-value = 0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both tests now agree, and this time on a flat-line null. ADF rejects the unit root (p = 0.01) and KPSS does not reject level stationarity (its statistic fell from 2.7395 to a minuscule 0.014626, p = 0.1). By the top-left row of our table, that is the clean "both say stationary" verdict. Differencing worked.</p>
+
+<p>Except it did not, quite. And no test on this page is going to tell you.</p>
+
+<h3>The tests are blind to variance</h3>
+
+<p>Remember rule 2 from the definition: constant variance. Both ADF and KPSS are built around the mean and the level. Neither one is checking whether the wobble is growing. So let us check it ourselves, the same way we did at the start.</p>
+
+<div class="webr-container" data-block-title="Split the differenced series in half too">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the differenced series in half too</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(sd_1949_54 = sd(window(d1, start = c(1949, 2), end = c(1954, 12))),
+        sd_1955_60 = sd(window(d1, start = c(1955, 1), end = c(1960, 12)))), 1)
+#&gt; sd_1949_54 sd_1955_60 
+#&gt;       19.2       43.7 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The month-to-month changes swing more than twice as hard in the second half (standard deviation 43.7) as in the first (19.2). That violates rule 2 outright. Both tests just handed this series a clean bill of health, and both were wrong, because neither was looking at variance. This is the most important practical limitation on the page.</p>
+
+<p>The cause is that airline traffic grows <em>multiplicatively</em>. A busy month in 1960 is not "50 thousand more" than a quiet one, it is "30 percent more", and 30 percent of a big number is a big number. The fix is to take logs first. Logs turn multiplicative behaviour into additive behaviour, because a constant percentage change becomes a constant additive change in log units.</p>
+
+<div class="webr-container" data-block-title="Take logs, then difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Take logs, then difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lap  &lt;- log(AirPassengers)   # log scale: proportional changes become additive
+dlap &lt;- diff(lap)            # now the changes are (roughly) monthly growth rates
+
+round(c(sd_1949_54 = sd(window(dlap, start = c(1949, 2), end = c(1954, 12))),
+        sd_1955_60 = sd(window(dlap, start = c(1955, 1), end = c(1960, 12)))), 4)
+#&gt; sd_1949_54 sd_1955_60 
+#&gt;     0.1034     0.1103 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is. On the log scale the two halves wobble by 0.1034 and 0.1103, which is as close to constant variance as real data gets. The 2.3-fold blowup is gone. Nothing about the differencing changed; only the scale did.</p>
+
+<blockquote><p><strong>Note:</strong> No stationarity test asked you to take that log, and none would have complained if you had not. Deciding on a variance-stabilising transform is your job, done by eye on the plot, before the tests get involved. That is why the workflow starts with "plot it".</p></blockquote>
+
+<h3>The full recipe</h3>
+
+<p>Now put the steps in the right order: log first, then seasonal difference, then ordinary difference, testing as we go.</p>
+
+<div class="webr-container" data-block-title="The full recipe, in the right order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The full recipe, in the right order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nsdiffs(lap)                        # D: seasonal differences needed on the log series
+#&gt; [1] 1
+
+seasonal_diff &lt;- diff(lap, lag = 12) # lag = 12: subtract the same month last year
+ndiffs(seasonal_diff)                # d: any ordinary differencing still needed?
+#&gt; [1] 1
+
+clean &lt;- diff(seasonal_diff)         # apply that one ordinary difference
+c(original = length(AirPassengers), final = length(clean))
+#&gt; original    final 
+#&gt;      144      131 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>diff(lap, lag = 12)</code> subtracts each month's value from the same month one year earlier, which removes the annual cycle: it compares July with last July instead of with June. After that, <code>ndiffs()</code> still wants one ordinary difference for the remaining drift, so we apply it. The 13 lost observations are exactly the price we predicted: 12 for the seasonal difference and 1 for the ordinary one.</p>
+
+<p>The final verdict.</p>
+
+<div class="webr-container" data-block-title="Test the fully transformed series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the fully transformed series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adf.test(clean)
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  clean
+#&gt; Dickey-Fuller = -5.1993, Lag order = 5, p-value = 0.01
+#&gt; alternative hypothesis: stationary
+
+kpss.test(clean)
+#&gt; 
+#&gt; 	KPSS Test for Level Stationarity
+#&gt; 
+#&gt; data:  clean
+#&gt; KPSS Level = 0.084365, Truncation lag parameter = 4, p-value = 0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ADF rejects the unit root (p = 0.01) and KPSS does not reject level stationarity (p = 0.1). Both agree, on a flat-line null, on a series whose variance we verified is stable. That is a genuinely stationary series, and <code>log</code>, <code>d = 1</code>, <code>D = 1</code> is the recipe that got us there. It is also, not coincidentally, exactly the transformation behind the classic "airline model" that Box and Jenkins fitted to this very dataset.</p>
+
+<div class="webr-container" data-block-title="See the result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(clean, main = &quot;log(AirPassengers) after seasonal and first differencing&quot;,
+     ylab = &quot;Change in log passengers&quot;, xlab = &quot;Year&quot;)
+abline(h = 0, col = &quot;red&quot;, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare this picture with the one from section 2. The climb is gone, the annual saw-tooth is gone, and the teeth no longer grow. What is left is a band of wobble sitting flat around the red zero line, looking about the same in 1949 as in 1960. That is what stationary looks like, and it is what your ARIMA model wants.</p>
+
+<h2>When do these tests mislead you?</h2>
+
+<p>You have the recipe. Now here is when to distrust it, because every one of these will happen to you.</p>
+
+<h3>A trend does not always mean "difference it"</h3>
+
+<p>Not every trending series has a unit root. Build one that has a real straight-line trend and nothing else: no accumulation, no wandering, just a line plus independent noise.</p>
+
+<div class="webr-container" data-block-title="A series with a deterministic trend, not a unit root">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A series with a deterministic trend, not a unit root</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+tt &lt;- 1:200
+trend_stat &lt;- 0.05 * tt + rnorm(200)   # a genuine line, plus independent noise
+
+adf.test(trend_stat)
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  trend_stat
+#&gt; Dickey-Fuller = -5.7406, Lag order = 5, p-value = 0.01
+#&gt; alternative hypothesis: stationary
+
+kpss.test(trend_stat)
+#&gt; 
+#&gt; 	KPSS Test for Level Stationarity
+#&gt; 
+#&gt; data:  trend_stat
+#&gt; KPSS Level = 4.0042, Truncation lag parameter = 4, p-value = 0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the same "contradiction" as section 1, and now you know exactly what it is: ADF rejects the unit root (correct, there isn't one), and level-KPSS rejects flatness (correct, it slopes upward). This series is <strong>trend-stationary</strong>: stationary once you account for the line. It does not need differencing, it needs detrending.</p>
+
+<div class="webr-container" data-block-title="Ask KPSS about the trend, then detrend by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ask KPSS about the trend, then detrend by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kpss.test(trend_stat, null = &quot;Trend&quot;)
+#&gt; 
+#&gt; 	KPSS Test for Trend Stationarity
+#&gt; 
+#&gt; data:  trend_stat
+#&gt; KPSS Trend = 0.04317, Truncation lag parameter = 4, p-value = 0.1
+
+detrended &lt;- residuals(lm(trend_stat ~ tt))   # fit the line, keep what's left over
+kpss.test(detrended)
+#&gt; 
+#&gt; 	KPSS Test for Level Stationarity
+#&gt; 
+#&gt; data:  detrended
+#&gt; KPSS Level = 0.04317, Truncation lag parameter = 4, p-value = 0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look closely at those two statistics: <code>0.04317</code> and <code>0.04317</code>. Identical. That is not a coincidence, it is the definition. Running <code>kpss.test(x, null = &quot;Trend&quot;)</code> and running level-KPSS on the residuals of <code>lm(x ~ t)</code> are the same computation. Seeing the two match is the clearest possible proof of what the <code>null = &quot;Trend&quot;</code> argument actually does: it regresses out a straight line and tests what remains.</p>
+
+<p>The practical distinction: difference a trend-stationary series and you add noise you did not need; detrend a difference-stationary series and the trend you removed was never really there. On short, seasonal, real-world data the tests often cannot separate the two confidently, which is why forecasters usually prefer differencing: it handles both a stochastic trend and a slowly changing deterministic one, at the cost of a little efficiency.</p>
+
+<h3>The tests are weak on short series</h3>
+
+<p>ADF has low <a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">statistical power</a>, which is jargon for "it often fails to reject even when it should". It is worst exactly when \(\phi\) is close to but below 1, because such a series looks a lot like a random walk over a short window.</p>
+
+<div class="webr-container" data-block-title="Same process, 60 points versus 600">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same process, 60 points versus 600</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ar_short &lt;- arima.sim(model = list(ar = 0.95), n = 60)   # truly stationary: phi = 0.95 &lt; 1
+adf.test(ar_short)
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  ar_short
+#&gt; Dickey-Fuller = -2.1099, Lag order = 3, p-value = 0.5303
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>arima.sim(model = list(ar = 0.95))</code> generates the AR(1) from section 3 with \(\phi = 0.95\). Since 0.95 is less than 1, this series <strong>is</strong> stationary, by construction, with certainty. ADF returned p = 0.5303 and failed to reject the unit root. The test is simply wrong here. Give it the identical process with more data and it recovers.</p>
+
+<div class="webr-container" data-block-title="More data, same process">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">More data, same process</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ar_long &lt;- arima.sim(model = list(ar = 0.95), n = 600)   # identical process, 10x the data
+adf.test(ar_long)
+#&gt; 
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  ar_long
+#&gt; Dickey-Fuller = -4.5267, Lag order = 8, p-value = 0.01
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same \(\phi\), same seed, 600 points instead of 60, and now p = 0.01. Nothing about the process changed; only the evidence did. Treat "ADF failed to reject" on a short series as "this test learned nothing", not as "there is a unit root".</p>
+
+<h3>Differencing more is not safer</h3>
+
+<p>Since differencing fixes non-stationarity, it is tempting to difference again for good measure. Do not. Differencing an already-stationary series (called over-differencing) injects artificial negative autocorrelation and inflates the variance your model has to explain.</p>
+
+<div class="webr-container" data-block-title="What over-differencing costs you">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What over-differencing costs you</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(white_noise)                    # already stationary: needs zero differences
+#&gt; [1] 0
+
+over_differenced &lt;- diff(white_noise)  # difference it anyway
+round(c(sd_white_noise = sd(white_noise), sd_over_differenced = sd(over_differenced)), 3)
+#&gt;      sd_white_noise sd_over_differenced 
+#&gt;               0.975               1.383 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ndiffs()</code> correctly says <code>white_noise</code> needs zero differences. Difference it anyway and the standard deviation goes <em>up</em>, from 0.975 to 1.383, a factor of about 1.41. That number is not random: differencing two independent draws each with variance \(\sigma^2\) gives a result with variance \(2\sigma^2\), and \(\sqrt{2} \approx 1.414\). You took a clean series and made it noisier. Trust <code>ndiffs()</code>, and stop when it says stop.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Should I use ADF or KPSS?</strong> Both, always, and compare them with the table in section 6. They have opposite nulls, so each covers the other's blind spot: ADF cannot confirm stationarity (it can only fail to reject a unit root) and KPSS cannot confirm a unit root. Running one alone throws away half the information.</p>
+
+<p><strong>My ADF p-value is 0.01 but KPSS says non-stationary. Which do I believe?</strong> Neither is wrong: you are comparing a trend-aware alternative against a flat-line null, exactly as in section 1. Re-run KPSS with <code>null = &quot;Trend&quot;</code>. If it stops rejecting, your series is trend-stationary and the two tests agree.</p>
+
+<p><strong>What about the Phillips-Perron test?</strong> <code>pp.test()</code> in <code>tseries</code> is a third unit-root test with the same null as ADF, so you read its p-value the same way. The difference is only in how it handles autocorrelation: where ADF adds lagged change terms to the regression, Phillips-Perron fits the plain regression and then corrects the test statistic afterwards. It usually agrees with ADF, and when it does not, you are typically in the low-power situation described above, where neither test is telling you much. ADF plus KPSS already covers both directions, so adding a third test rarely changes the decision.</p>
+
+<p><strong>Why does R warn "p-value smaller than printed p-value"?</strong> Both tests interpolate p-values from a small printed table (roughly 0.01 to 0.99 for ADF, 0.01 to 0.1 for KPSS). When your statistic falls off the end, R returns the nearest edge value and warns you the truth is more extreme. It is a table limit, not an error, and <code>p = 0.01</code> should be read as "0.01 or less".</p>
+
+<p><strong>Do I need to test for stationarity if I use <code>auto.arima()</code>?</strong> Not manually, because <code>auto.arima()</code> calls <code>ndiffs()</code> and <code>nsdiffs()</code> internally to pick \(d\) and \(D\). But you should still plot the series and decide on a log or other variance-stabilising transform yourself, because no part of that automatic machinery checks whether your variance is growing.</p>
+
+<p><strong>How many differences is too many?</strong> More than two ordinary differences (\(d > 2\)) or more than one seasonal difference (\(D > 1\)) is almost always a sign that something else is wrong, usually a variance problem that a log would fix. If <code>ndiffs()</code> keeps asking for more, go back and plot the series.</p>
+
+<p><strong>Does a stationarity test check seasonality?</strong> Not usefully. Strong seasonality violates rule 3 and confuses both tests, which is why the workflow removes it with <code>nsdiffs()</code> and <code>diff(y, lag = 12)</code> <em>before</em> testing the level. Use <code>nsdiffs()</code> for the seasonal question and <code>ndiffs()</code> for the level question.</p>
+
+<h2>Summary</h2>
+
+<p>We started with <code>AirPassengers</code> and two tests that appeared to contradict each other. They did not: <code>adf.test()</code> always fits a trend, <code>kpss.test()</code> defaults to a flat line, and once we asked both the same question (<code>null = &quot;Trend&quot;</code>, p = 0.1) they agreed the series has a trend but no random walk. Taking logs stabilised the variance that neither test could see, one seasonal difference removed the annual cycle, one ordinary difference removed the drift, and the fully transformed series passed both tests on a flat-line null. That is the airline model's recipe, derived from evidence rather than assumed.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stationary</td>
+<td>Constant mean, constant variance, autocovariance depending only on the gap</td>
+</tr>
+<tr>
+<td>Unit root</td>
+<td>\(\phi = 1\) in \(y_t = \phi y_{t-1} + \varepsilon_t\); shocks never decay; a random walk</td>
+</tr>
+<tr>
+<td><code>adf.test()</code></td>
+<td>Null = <strong>has</strong> a unit root. Small p means stationary. Always fits a trend</td>
+</tr>
+<tr>
+<td><code>kpss.test()</code></td>
+<td>Null = <strong>is</strong> stationary. Small p means non-stationary. Default null is <code>&quot;Level&quot;</code></td>
+</tr>
+<tr>
+<td>The conflict case</td>
+<td>Mismatched trend terms. Re-run KPSS with <code>null = &quot;Trend&quot;</code></td>
+</tr>
+<tr>
+<td><code>ndiffs()</code> / <code>nsdiffs()</code></td>
+<td>Let them choose \(d\) and \(D\). Do the seasonal one first</td>
+</tr>
+<tr>
+<td><code>diff()</code></td>
+<td>Costs one observation per difference, twelve for a seasonal one</td>
+</tr>
+<tr>
+<td>The blind spot</td>
+<td>No test checks variance. Plot first; take logs if swings grow with the level</td>
+</tr>
+<tr>
+<td>Low power</td>
+<td>"ADF did not reject" on a short series means the test learned nothing</td>
+</tr>
+<tr>
+<td>Over-differencing</td>
+<td>Inflates variance by \(\sqrt{2}\) per needless difference. Stop when <code>ndiffs()</code> says 0</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li><a href="https://otexts.com/fpp3/stationarity.html">Forecasting: Principles and Practice, "Stationarity and differencing"</a> - Hyndman and Athanasopoulos. The canonical free treatment of everything on this page, and the source of the "difference first, ask questions later" workflow.</li>
+
+<li><a href="https://robjhyndman.com/hyndsight/unit-root-tests/">Unit root tests</a> - Rob Hyndman on why he prefers KPSS-based <code>ndiffs()</code> over ADF for choosing \(d\). Short, opinionated, and from the author of the <code>forecast</code> package.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/tseries/tseries.pdf">tseries reference manual</a> - the definitive statement of what <code>adf.test()</code> and <code>kpss.test()</code> actually fit, including the constant-and-trend regression and the interpolated p-value tables.</li>
+
+<li><a href="https://pkg.robjhyndman.com/forecast/reference/ndiffs.html">ndiffs() documentation</a> - the exact algorithm behind the number of differences, and how to change the test or <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">significance level</a>.</li>
+
+<li><a href="https://doi.org/10.1016/0304-4076%2892%2990104-Y">Kwiatkowski, Phillips, Schmidt and Shin (1992)</a> - the original KPSS paper, which introduced the "null of stationarity" idea specifically to complement unit-root tests like ADF.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/urca/urca.pdf">urca reference manual</a> - when you outgrow <code>tseries</code> and need to control the deterministic terms yourself, <code>ur.df()</code> and <code>ur.kpss()</code> are the tools, with proper critical-value tables.</li>
+
+<li><a href="https://otexts.com/fpp3/seasonal-arima.html">Forecasting: Principles and Practice, "Seasonal ARIMA models"</a> - where \(d\) and \(D\) go once you have them, including the airline model this post reconstructed.</li>
+
+<li><a href="https://cran.r-project.org/view=TimeSeries">CRAN Task View: Time Series Analysis</a> - the maintained map of the R time series ecosystem, with a section on unit roots and cointegration.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> covers the <code>ts</code> class that <code>window()</code>, <code>diff()</code> and both tests rely on, plus when to reach for <code>xts</code> or <code>tsibble</code> instead.</li>
+
+<li><a href="Visualize-Time-Series-in-R.html">Visualize Time Series in R</a> goes deeper on the "plot it first" step, which is where you catch the variance problems no test reports.</li>
+
+<li><a href="EDA-for-Time-Series-in-R.html">EDA for Time Series in R</a> puts stationarity testing in the wider set of checks to run before modelling.</li>
+
+<li><a href="Time-Series-Exercises-in-R.html">Time Series Exercises in R</a> has practice problems if you want to drill differencing on other series.</li>
+
+</ul>
+
