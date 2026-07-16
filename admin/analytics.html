@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Site Analytics · r-statistics.co</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#0a0d14;--mut:#6b7280;--line:#e4e7ee;--acc:#2056d2;--good:#0f8a5f;--warn:#a16207}
+  html.dark{--bg:#0b1120;--card:#101830;--ink:#eef2fa;--mut:#9aa6c0;--line:#1f2a48;--acc:#7faaff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 'IBM Plex Sans','Segoe UI',Roboto,Arial,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  h1{font-size:22px;margin:0}
+  .sub{color:var(--mut);font-size:13px}
+  .state{margin:40px auto;max-width:460px;background:var(--card);border:1px solid var(--line);padding:26px;text-align:center}
+  .state a{color:var(--acc)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:18px 0}
+  .tile{background:var(--card);border:1px solid var(--line);padding:14px 16px}
+  .tile b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+  .tile span{font-size:12.5px;color:var(--mut)}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+  .card{background:var(--card);border:1px solid var(--line);padding:14px 16px}
+  .card h2{font-size:14px;margin:0 0 10px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  td,th{text-align:left;padding:5px 6px;border-top:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;border-top:0;font-size:12px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  td.path{max-width:0;width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  canvas{width:100%;height:64px;display:block}
+  .note{background:var(--card);border:1px solid var(--warn);padding:12px 16px;font-size:13.5px;margin:14px 0}
+  .note code{font-family:'IBM Plex Mono',monospace;font-size:12px;display:block;margin:4px 0;word-break:break-all}
+  .foot{color:var(--mut);font-size:12px;margin-top:18px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<script>try{if(localStorage.getItem('rsc-dark')==='1')document.documentElement.classList.add('dark')}catch(e){}</script>
+<div class="wrap">
+  <header>
+    <h1>Site analytics</h1>
+    <div class="sub">Today = IST day · signed-in metrics from the site database, traffic from Cloudflare Web Analytics · auto-refreshes every 60s</div>
+  </header>
+
+  <div id="gate" class="state">Checking access...</div>
+
+  <div id="dash" class="hidden">
+    <div class="tiles" id="tiles"></div>
+    <div class="cols">
+      <div class="card"><h2>Signups, last 7 days</h2><canvas id="spark-signups" height="64"></canvas></div>
+      <div class="card"><h2>Exercises passed, last 7 days</h2><canvas id="spark-ex" height="64"></canvas></div>
+    </div>
+    <div id="cfnote"></div>
+    <div class="cols" style="margin-top:12px">
+      <div class="card"><h2>Top pages today (visits)</h2><table id="t-pages"></table></div>
+      <div class="card"><h2>Top referrers today</h2><table id="t-refs"></table></div>
+      <div class="card"><h2>Top exercise hubs today</h2><table id="t-hubs"></table></div>
+      <div class="card"><h2>Recent signups</h2><table id="t-signups"></table></div>
+    </div>
+    <div class="foot" id="foot"></div>
+  </div>
+</div>
+<script>
+(function(){
+  'use strict';
+  function token(){
+    try{
+      for (var i = 0; i < localStorage.length; i++){
+        var k = localStorage.key(i);
+        if (/^sb-.*-auth-token$/.test(k)){
+          var v = JSON.parse(localStorage.getItem(k));
+          return (Array.isArray(v) ? v[0] : (v && v.access_token)) || null;
+        }
+      }
+    }catch(e){}
+    return null;
+  }
+  var gate = document.getElementById('gate'), dash = document.getElementById('dash');
+  var tok = token();
+  if (!tok){
+    gate.innerHTML = 'Sign in as the site owner to view this dashboard.<br><br>' +
+      '<a href="/signin.html?next=/admin/analytics.html">Sign in</a>';
+    return;
+  }
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  function n(x){ return Number(x || 0).toLocaleString(); }
+  function tile(label, value, hint){
+    return '<div class="tile"><b>' + value + '</b><span>' + label + (hint ? ' · ' + hint : '') + '</span></div>';
+  }
+  function rows(el, head, items, cols){
+    var h = '<tr>' + head.map(function(x, i){ return '<th class="' + (i ? 'num' : '') + '">' + x + '</th>'; }).join('') + '</tr>';
+    el.innerHTML = h + (items.length ? items.map(function(it){
+      return '<tr>' + cols(it) + '</tr>';
+    }).join('') : '<tr><td colspan="' + head.length + '" style="color:var(--mut)">nothing yet today</td></tr>');
+  }
+  function spark(id, vals){
+    var c = document.getElementById(id), ctx = c.getContext('2d');
+    var w = c.width = c.offsetWidth * 2, h = c.height = 128;
+    var max = Math.max.apply(null, vals.concat([1]));
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--acc').trim() || '#2056d2';
+    ctx.lineWidth = 3; ctx.beginPath();
+    vals.forEach(function(v, i){
+      var x = 12 + i * ((w - 24) / (vals.length - 1)), y = h - 14 - (v / max) * (h - 34);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+    vals.forEach(function(v, i){
+      var x = 12 + i * ((w - 24) / (vals.length - 1)), y = h - 14 - (v / max) * (h - 34);
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+    });
+  }
+  function render(data){
+    var d = data.d1, cf = data.cf;
+    var liveParts = [];
+    if (cf && cf.configured && !cf.error) liveParts.push(n(cf.live_pageviews_5m) + ' views/5m');
+    liveParts.push(n(d.live_signed_in_5m) + ' signed-in');
+    document.getElementById('tiles').innerHTML =
+      tile('Live right now', liveParts[0].split(' ')[0], liveParts.join(' · ')) +
+      tile('Visitors today', cf && cf.configured && !cf.error ? n(cf.visits_today) : 'n/a',
+           cf && cf.configured && !cf.error ? n(cf.pageviews_today) + ' page views' : 'needs CF token') +
+      tile('Signups today', n(d.signups_today), n(d.users_total) + ' total · ' + n(d.pro_total) + ' pro') +
+      tile('Sign-ins today', n(d.signins_today), 'new sessions') +
+      tile('Exercises passed today', n(d.exercises_passed_today),
+           n(d.exercises_attempts_today) + ' attempts · ' + n(d.exercise_solvers_today) + ' solvers') +
+      tile('XP awarded today', n(d.xp_today), '');
+    spark('spark-signups', d.series7.signups);
+    spark('spark-ex', d.series7.exercises_passed);
+    var cfn = document.getElementById('cfnote');
+    if (!cf || !cf.configured){
+      cfn.innerHTML = '<div class="note"><b>Traffic metrics need a one-time setup</b> (signed-in metrics above already work): ' +
+        'create a Cloudflare API token with Account Analytics Read, then run:' +
+        '<code>wrangler pages secret put CF_ANALYTICS_TOKEN --project-name r-statistics-co</code>' +
+        '<code>wrangler pages secret put CF_ACCOUNT_TAG --project-name r-statistics-co</code>' +
+        '(CF_ACCOUNT_TAG = the account id from the Cloudflare dashboard URL. Note: wrangler may need <b>wrangler login</b> first.)</div>';
+    } else if (cf.error){
+      cfn.innerHTML = '<div class="note">Cloudflare Analytics error: ' + esc(cf.error) + '</div>';
+    } else cfn.innerHTML = '';
+    var pages = (cf && cf.top_pages_today) || [], refs = (cf && cf.top_referrers_today) || [];
+    rows(document.getElementById('t-pages'), ['Page', 'Visits', 'Views'], pages, function(p){
+      return '<td class="path" title="' + esc(p.path) + '">' + esc(p.path) + '</td><td class="num">' + n(p.visits) + '</td><td class="num">' + n(p.views) + '</td>';
+    });
+    rows(document.getElementById('t-refs'), ['Source', 'Visits'], refs, function(r){
+      return '<td>' + esc(r.host) + '</td><td class="num">' + n(r.visits) + '</td>';
+    });
+    rows(document.getElementById('t-hubs'), ['Hub', 'Attempts', 'Passed'], d.top_hubs_today, function(h){
+      return '<td class="path">' + esc(h.hub_slug) + '</td><td class="num">' + n(h.attempts) + '</td><td class="num">' + n(h.passed) + '</td>';
+    });
+    rows(document.getElementById('t-signups'), ['User', 'When'], d.recent_signups, function(s){
+      var when = new Date(s.at * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return '<td class="path">' + esc(s.email) + (s.name ? ' (' + esc(s.name) + ')' : '') + '</td><td class="num">' + when + '</td>';
+    });
+    document.getElementById('foot').textContent =
+      'Generated ' + new Date(data.generated_at * 1000).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) +
+      ' IST. Live signed-in = distinct users with an authenticated request in the last 5 minutes. ' +
+      'Sign-ins = new sessions created since IST midnight.';
+  }
+  function load(){
+    fetch('/api/admin/stats', { headers: { Authorization: 'Bearer ' + tok } })
+      .then(function(r){
+        if (r.status === 401) throw { msg: 'Your session expired. <a href="/signin.html?next=/admin/analytics.html">Sign in again</a>.' };
+        if (r.status === 403) throw { msg: 'This dashboard is restricted to the site owner.' };
+        if (!r.ok) throw { msg: 'Something went wrong (HTTP ' + r.status + '). Refresh to retry.' };
+        return r.json();
+      })
+      .then(function(data){
+        gate.classList.add('hidden'); dash.classList.remove('hidden'); render(data);
+      })
+      .catch(function(e){ gate.classList.remove('hidden'); dash.classList.add('hidden'); gate.innerHTML = e.msg || 'Network error. Refresh to retry.'; });
+  }
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>
