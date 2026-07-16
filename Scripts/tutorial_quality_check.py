@@ -163,6 +163,21 @@ def main():
         if want in joined: ok('%s section present' % label)
         else: fail('missing %s H2 section' % label)
 
+    # 3b. reviewer-sourced structural lints (2026-07-17 factory review)
+    for am in re.finditer(r'!\[([^\]]*)\]\(', body):
+        if '"' in am.group(1):
+            fail('image alt text contains a double quote (breaks the alt attribute): %s'
+                 % am.group(1)[:80])
+    first_el = next((l for l in prose.splitlines() if l.strip()), '')
+    if first_el.startswith(('#', '!', '>', '|', '<')):
+        fail('body must open with the lead paragraph (plain text answering the title), '
+             'not a heading/image/callout')
+    triads = re.findall(r'\b(\w[\w() ]{2,30}), (\w[\w() ]{2,30}), (?:and |or )\w[\w() ]{2,30}[.!]',
+                        prose)
+    if len(triads) > 2:
+        warn('%d rhythm-of-three sentence patterns (cap is ~1 per post; vary the shapes)'
+             % len(triads))
+
     # 4. banned strings
     for ch, name in [('—', 'em dash'), ('�', 'broken replacement character')]:
         n = text.count(ch)

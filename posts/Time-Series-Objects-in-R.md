@@ -95,7 +95,7 @@ $$t_i = \text{start} + \frac{i - 1}{f}$$
 
 where \(t_i\) is the time of the \(i\)-th observation, \(\text{start}\) is the starting time as a decimal (2023.0), \(i\) is the position (1, 2, 3, ...) and \(f\) is the frequency (12). Check the third value with your own arithmetic: \(2023 + (3-1)/12 = 2023.1\overline{6}\), which is the 2023.167 that printed for March.
 
-![Where each R time series class keeps the "when": a plain vector keeps it nowhere, ts computes it from start and frequency, zoo and xts store an index vector beside the values, and tsibble puts it in a column](screenshots/Time-Series-Objects-in-R-where-time-lives.webp)
+![Where each R time series class keeps the when: a plain vector keeps it nowhere, ts computes it from start and frequency, zoo and xts store an index vector beside the values, and tsibble puts it in a column](screenshots/Time-Series-Objects-in-R-where-time-lives.webp)
 
 *Figure 1: The one thing that separates the four classes. A `ts` computes its index from `start` and `frequency`, so every observation must sit on an evenly spaced grid. `zoo` and `xts` store the index, so it can be anything.*
 

@@ -134,6 +134,20 @@ def build_skip_set(html, skip_tags, skip_classes):
                     else:
                         search_pos += next_close.end()
 
+    # MathJax regions: injecting an <a> tag inside \( ... \), \[ ... \] or
+    # $$ ... $$ stops MathJax from typesetting that formula (readers see raw
+    # TeX). Found live on Visualize-Time-Series-in-R 2026-07-17.
+    for pat in (r'\\\(.*?\\\)', r'\\\[.*?\\\]', r'\$\$.*?\$\$'):
+        for m in re.finditer(pat, html, re.DOTALL):
+            skip_ranges.append((m.start(), m.end()))
+
+    # References section: a citation's visible text must not gain a second
+    # link pointing somewhere other than the cited source. Skip everything
+    # from a References-style <h2> to the next <h2> (or end of document).
+    for m in re.finditer(r'<h2[^>]*>[^<]*Reference[^<]*</h2>', html, re.IGNORECASE):
+        nxt = re.search(r'<h2[\s>]', html[m.end():], re.IGNORECASE)
+        skip_ranges.append((m.start(), m.end() + nxt.start() if nxt else len(html)))
+
     return skip_ranges
 
 
@@ -177,7 +191,10 @@ def make_term_pattern(term, case_sensitive):
         # Function-style terms like select() - use lookbehind/ahead for non-word
         pattern = r'(?<![a-zA-Z0-9_.])' + escaped + r'(?![a-zA-Z0-9_])'
     else:
-        pattern = r'\b' + escaped + r'\b'
+        # \b alone treats a hyphen as a boundary, so the term "browser R" matched
+        # inside the compound "in-browser R" (live defect, 2026-07-17). Exclude
+        # hyphenated-compound continuations on both sides.
+        pattern = r'(?<![a-zA-Z0-9-])' + escaped + r'(?![a-zA-Z0-9-])'
     flags = 0 if case_sensitive else re.IGNORECASE
     return pattern, flags
 
