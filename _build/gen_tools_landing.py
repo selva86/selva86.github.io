@@ -16,7 +16,7 @@ CATEGORIES = [
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
     ('Pickers and Decision Tools', ['statistical-test-chooser','normality-test-picker','nonparametric-test-picker','dag-confounder-picker']),
-    ('Study Design and Power', ['power-analysis','survival-power-calculator','effect-size-converter','type-i-ii-error-visualizer']),
+    ('Study Design and Power', ['sample-size-t-test-calculator','power-analysis','survival-power-calculator','effect-size-converter','type-i-ii-error-visualizer']),
     ('Specialized', ['ts-stationarity-calculator','outlier-detection-calculator','roc-auc-calculator','cronbachs-alpha-calculator','cohens-kappa-calculator','icc-calculator','reprex-builder']),
 ]
 
@@ -179,6 +179,9 @@ C3META = {
  'dag-confounder-picker': ('DAG Adjustment Sets', 'DAG',
   'Draw your causal diagram; it finds the minimum set of variables to adjust for and flags colliders.',
   '<circle class="a" cx="22" cy="9" r="4.5" fill="none"/><circle class="a" cx="10" cy="33" r="4.5" fill="none"/><circle class="a" cx="34" cy="33" r="4.5" fill="none"/><path class="s" d="M19 13 L12.5 29 M25 13 L31.5 29"/><path class="a" d="M15 33 H28" fill="none"/><path class="af" d="M29.5 33 L26 31 V35 Z"/>'),
+ 'sample-size-t-test-calculator': ('Sample Size for t Tests', 'n',
+  'How many participants a one-sample, two-group, or paired t test needs, from Cohen&rsquo;s d or from your means and SDs.',
+  '<path class="s" d="M6 6 V36 H40"/><path class="a" d="M7 34 C18 34 17 12 39 10" fill="none"/><path class="s" d="M21 36 V20.5" stroke-dasharray="2.5 2.5"/><circle class="af" cx="21" cy="20.5" r="3.2"/>'),
  'power-analysis': ('Power Analysis', '1&minus;&beta;',
   'Solve for any one of sample size, power, effect size, or alpha across the common tests.',
   '<path class="s" d="M4 36 H40"/><path class="s" d="M4 36 C11 36 12 12 18 12 C24 12 25 36 32 36" fill="none"/><path class="a" d="M12 36 C19 36 20 12 26 12 C32 12 33 36 40 36" fill="none"/><path class="s" d="M24 8 V36" stroke-dasharray="2.5 2.5"/><path class="af" d="M24 13.5 C25 12.3 25.4 12 26 12 C32 12 33 36 40 36 L24 36 Z" style="opacity:.2"/>'),
