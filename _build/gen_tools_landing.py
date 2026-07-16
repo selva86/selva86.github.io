@@ -13,7 +13,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATEGORIES = [
     ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','box-plot-calculator','correlation-calculator','correlation-matrix-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','statistical-significance-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','empirical-rule-calculator','binomial-probability-calculator','poisson-distribution-calculator','proportion-test-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table','binomial-table','pearson-critical-values-table']),
-    ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
+    ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator','beta-distribution-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
     ('Pickers and Decision Tools', ['statistical-test-chooser','normality-test-picker','nonparametric-test-picker','dag-confounder-picker']),
     ('Study Design and Power', ['sample-size-calculator','sample-size-t-test-calculator','sample-size-proportion-calculator','sample-size-anova-calculator','power-analysis','survival-power-calculator','effect-size-converter','type-i-ii-error-visualizer']),
@@ -143,6 +143,9 @@ C3META = {
  'pearson-critical-values-table': ('Pearson r Table', 'cor.test',
   'How strong a correlation has to be, at your sample size, to count as real. Critical r by df and alpha, with a verdict and an exact p-value. Printable.',
   '<rect class="s" x="6" y="8" width="32" height="28" rx="2" fill="none"/><path class="s" d="M6 15 H38 M14 8 V36"/><path class="a" d="M17 32 L35 20" fill="none"/><circle class="af" cx="18.5" cy="30.8" r="1.4"/><circle class="af" cx="24" cy="27.2" r="1.4"/><circle class="af" cx="29.5" cy="23.5" r="1.4"/><circle class="af" cx="34.5" cy="20.2" r="1.4"/>'),
+ 'beta-distribution-calculator': ('Beta Distribution', 'dbeta',
+  'The distribution for a proportion: density, tail areas, quantiles and credible intervals for any alpha and beta, with a shaded curve.',
+  '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C11 37 12 11 19 11 C26 11 33 37 39 37" fill="none"/><path class="af" d="M5 37 C11 37 12 11 19 11 C23.5 11 27.5 21 30 30 L30 37 Z" style="opacity:.2"/><path class="s" d="M5 37 V27 M39 37 V27"/><path class="a" d="M30 37 V22" fill="none" stroke-dasharray="2.5 2.5"/>'),
  'bayes-factor-calculator': ('Bayes Factor', 'BF&#8321;&#8320;',
   'How strongly the data favor H1 over H0, with a plot showing how the answer moves as the prior changes.',
   '<path class="s" d="M4 36 H40"/><path class="s" d="M6 36 C13 27 31 27 38 36" fill="none"/><path class="a" d="M13 36 C18 36 19 8 24 8 C29 8 30 36 35 36" fill="none"/>'),

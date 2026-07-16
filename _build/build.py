@@ -476,6 +476,12 @@ _TOOL_ICONS = {
         '<rect x="7.6" y="5" width="1.7" height="9" fill="currentColor" stroke="none"/>'
         '<rect x="10.3" y="7.5" width="1.7" height="6.5" fill="currentColor" stroke="none" opacity="0.45"/>'
         '<rect x="13" y="10.5" width="1.2" height="3.5" fill="currentColor" stroke="none" opacity="0.45"/></svg>',
+    'beta-distribution-calculator.html':   # skewed density penned inside 0..1 by two walls
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.5 13.5h13"/>'
+        '<path d="M2 13.5C4 13.5 4.5 4.5 7 4.5C9.5 4.5 11.5 13.5 14 13.5"/>'
+        '<path d="M2 13.5C4 13.5 4.5 4.5 7 4.5C8.6 4.5 10 8.2 11.2 13.5Z" fill="currentColor" stroke="none" opacity="0.35"/>'
+        '<path d="M2 13.5V10.5M14 13.5V10.5"/></svg>',
     'poisson-distribution-calculator.html':   # right-skewed discrete PMF bars
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M1.5 14h13"/>'
@@ -805,6 +811,7 @@ COMPENDIUM_TOOLS = [
     # Bayesian
     {'group': 'Bayesian',    'slug': 'bayes-theorem-calculator.html',            'text': 'Bayes Theorem'},
     {'group': 'Bayesian',    'slug': 'bayes-factor-calculator.html',             'text': 'Bayes Factor'},
+    {'group': 'Bayesian',    'slug': 'beta-distribution-calculator.html',        'text': 'Beta Distribution'},
 
     # Interpreters (paste R output, get plain-English read)
     {'group': 'Interpreters', 'slug': 'lm-output-interpreter.html',              'text': 'lm() Output'},
