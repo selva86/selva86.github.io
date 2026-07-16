@@ -439,6 +439,12 @@ _TOOL_ICONS = {
         '<rect x="7.6" y="5" width="1.7" height="9" fill="currentColor" stroke="none"/>'
         '<rect x="10.3" y="7.5" width="1.7" height="6.5" fill="currentColor" stroke="none" opacity="0.45"/>'
         '<rect x="13" y="10.5" width="1.2" height="3.5" fill="currentColor" stroke="none" opacity="0.45"/></svg>',
+    'proportion-test-calculator.html':   # normal curve, a shaded rejection tail, a z marker line
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.5 13c2 0 3-1 4-3s1.5-6 2.5-6 1.5 6 2.5 6 2-1 3.5-1"/>'
+        '<path d="M1.5 13.5h13"/>'
+        '<path d="M11.3 13 L14.2 13 L14.2 10.4 Z" fill="currentColor" stroke="none" opacity="0.4"/>'
+        '<path d="M9.6 5.4V13" stroke-dasharray="1.8 1.6"/></svg>',
     'anova-calculator.html':   # three group means with error whiskers
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M4 4v4M8 6v4M12 3v4"/>'
@@ -678,6 +684,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'odds-ratio-calculator.html',               'text': 'Odds Ratio &amp; RR'},
     {'group': 'Calculators', 'slug': 'fisher-exact-test-calculator.html',        'text': "Fisher's Exact Test"},
     {'group': 'Calculators', 'slug': 'binomial-probability-calculator.html',      'text': 'Binomial Probability'},
+    {'group': 'Calculators', 'slug': 'proportion-test-calculator.html',           'text': 'Proportion Test'},
 
     # Reference tables (critical values / distribution areas)
     {'group': 'Reference tables', 'slug': 't-table.html',                        'text': 't Table'},
