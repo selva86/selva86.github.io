@@ -13,7 +13,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATEGORIES = [
     ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','box-plot-calculator','correlation-calculator','correlation-matrix-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','statistical-significance-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','empirical-rule-calculator','binomial-probability-calculator','poisson-distribution-calculator','proportion-test-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table','binomial-table','pearson-critical-values-table']),
-    ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator','beta-distribution-calculator','bayesian-ab-test-calculator']),
+    ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator','beta-distribution-calculator','bayesian-ab-test-calculator','posterior-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
     ('Pickers and Decision Tools', ['statistical-test-chooser','normality-test-picker','nonparametric-test-picker','dag-confounder-picker']),
     ('Study Design and Power', ['sample-size-calculator','sample-size-t-test-calculator','sample-size-proportion-calculator','sample-size-anova-calculator','power-analysis','survival-power-calculator','effect-size-converter','type-i-ii-error-visualizer']),
@@ -146,6 +146,9 @@ C3META = {
  'bayesian-ab-test-calculator': ('Bayesian A/B Test', 'E[loss]',
   'Whether you can stop the test: P(B beats A), the expected loss of shipping each variant in conversion points, and a credible interval for the lift.',
   '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C10 37 11 18 16 18 C21 18 22 37 27 37" fill="none"/><path class="af" d="M17 37 C22 37 23 11 28 11 C33 11 34 37 39 37 Z" style="opacity:.2"/><path class="a" d="M17 37 C22 37 23 11 28 11 C33 11 34 37 39 37" fill="none"/><path class="s" d="M28 37 V8" stroke-dasharray="2.5 2.5"/>'),
+ 'posterior-calculator': ('Posterior Calculator', 'qbeta',
+  'Update a prior with data in closed form: Beta-Binomial, Normal-Normal or Gamma-Poisson. Prior, likelihood and posterior on one plot, the update arithmetic, and a credible interval.',
+  '<path class="s" d="M4 37 H40"/><path class="s" d="M5 37 C12 37 12 22 22 22 C32 22 32 37 39 37" fill="none" stroke-dasharray="2.5 2.5"/><path class="af" d="M14 37 C20 37 21 10 26 10 C31 10 32 37 38 37 Z" style="opacity:.2"/><path class="a" d="M14 37 C20 37 21 10 26 10 C31 10 32 37 38 37" fill="none"/>'),
  'beta-distribution-calculator': ('Beta Distribution', 'dbeta',
   'The distribution for a proportion: density, tail areas, quantiles and credible intervals for any alpha and beta, with a shaded curve.',
   '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C11 37 12 11 19 11 C26 11 33 37 39 37" fill="none"/><path class="af" d="M5 37 C11 37 12 11 19 11 C23.5 11 27.5 21 30 30 L30 37 Z" style="opacity:.2"/><path class="s" d="M5 37 V27 M39 37 V27"/><path class="a" d="M30 37 V22" fill="none" stroke-dasharray="2.5 2.5"/>'),

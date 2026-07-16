@@ -482,6 +482,12 @@ _TOOL_ICONS = {
         '<path d="M1.8 13.5C3.4 13.5 3.6 6.8 5.8 6.8C8 6.8 8.2 13.5 9.8 13.5"/>'
         '<path d="M6.2 13.5C7.8 13.5 8 4.6 10.2 4.6C12.4 4.6 12.6 13.5 14.2 13.5Z" fill="currentColor" stroke="none" opacity="0.35"/>'
         '<path d="M6.2 13.5C7.8 13.5 8 4.6 10.2 4.6C12.4 4.6 12.6 13.5 14.2 13.5"/></svg>',
+    'posterior-calculator.html':   # a wide prior tightening into a tall narrow posterior
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.5 13.5h13"/>'
+        '<path d="M2 13.5C4.4 13.5 4 8.8 8 8.8C12 8.8 11.6 13.5 14 13.5" opacity="0.45" stroke-dasharray="2 1.6"/>'
+        '<path d="M5.4 13.5C7.1 13.5 7.3 4.8 9.4 4.8C11.5 4.8 11.7 13.5 13.4 13.5Z" fill="currentColor" stroke="none" opacity="0.3"/>'
+        '<path d="M5.4 13.5C7.1 13.5 7.3 4.8 9.4 4.8C11.5 4.8 11.7 13.5 13.4 13.5"/></svg>',
     'beta-distribution-calculator.html':   # skewed density penned inside 0..1 by two walls
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M1.5 13.5h13"/>'
@@ -819,6 +825,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Bayesian',    'slug': 'bayes-factor-calculator.html',             'text': 'Bayes Factor'},
     {'group': 'Bayesian',    'slug': 'beta-distribution-calculator.html',        'text': 'Beta Distribution'},
     {'group': 'Bayesian',    'slug': 'bayesian-ab-test-calculator.html',         'text': 'Bayesian A/B Test'},
+    {'group': 'Bayesian',    'slug': 'posterior-calculator.html',                'text': 'Posterior Calculator'},
 
     # Interpreters (paste R output, get plain-English read)
     {'group': 'Interpreters', 'slug': 'lm-output-interpreter.html',              'text': 'lm() Output'},
