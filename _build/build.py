@@ -461,6 +461,13 @@ _TOOL_ICONS = {
         '<path d="M1.5 14h13"/>'
         '<path d="M2 12h2.6V9.6h2.6V7h2.6V4.4h3.2"/>'
         '<circle cx="9.8" cy="4.4" r="1" fill="currentColor" stroke="none"/></svg>',
+    'iqr-calculator.html':   # horizontal boxplot: box, median, whiskers, outlier dot
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 8H4.5"/><path d="M2 6.2V9.8"/>'
+        '<rect x="4.5" y="5" width="6" height="6" rx="1"/>'
+        '<path d="M7.3 5V11"/>'
+        '<path d="M10.5 8H12"/><path d="M12 6.2V9.8"/>'
+        '<circle cx="14" cy="8" r="1" fill="currentColor" stroke="none"/></svg>',
     'confusion-matrix-interpreter.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="2.5" width="4.5" height="4.5"/>'
@@ -637,6 +644,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'p-value-calculator.html',                  'text': 'p-value Calculator'},
     {'group': 'Calculators', 'slug': 'descriptive-statistics-calculator.html',   'text': 'Descriptive Statistics'},
     {'group': 'Calculators', 'slug': 'percentile-calculator.html',               'text': 'Percentile Calculator'},
+    {'group': 'Calculators', 'slug': 'iqr-calculator.html',                      'text': 'IQR &amp; Outliers'},
     {'group': 'Calculators', 'slug': 'chi-square-calculator.html',               'text': 'Chi-Square Test'},
     {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html',      'text': 'Confidence Interval'},
     {'group': 'Calculators', 'slug': 'margin-of-error-calculator.html',          'text': 'Margin of Error'},

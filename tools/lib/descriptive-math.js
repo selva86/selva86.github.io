@@ -232,10 +232,41 @@
     return { edges: edges, counts: counts, binWidth: w };
   }
 
+  // stats::boxplot.stats reproduction. R builds the box from the Tukey
+  // hinges (fivenum), NOT the type-7 quartiles: stats = fivenum(x); the
+  // hinge spread iqr = stats[4] - stats[2]; a point is an outlier if it
+  // falls outside stats[2] - coef*iqr .. stats[4] + coef*iqr (strict). When
+  // outliers exist, R replaces the whisker ends stats[1]/stats[5] with the
+  // range of the retained (non-outlier) values. Returns {stats:[wLo, hingeLo,
+  // med, hingeHi, wHi], out:[sorted outliers], n, iqr}. Matches
+  // boxplot.stats(x, coef)$stats and $out to full precision (coef default 1.5;
+  // pass 3 for Tukey's "far out" fences). `sorted` must be ascending.
+  function boxplotStats(sorted, coef) {
+    if (coef == null) coef = 1.5;
+    var n = sorted.length;
+    if (n === 0) return { stats: [NaN, NaN, NaN, NaN, NaN], out: [], n: 0, iqr: NaN };
+    var st = fivenum(sorted);
+    var iqr = st[3] - st[1];
+    var out = [], i, lo = NaN, hi = NaN;
+    var stats = st.slice();
+    if (isFinite(iqr)) {
+      lo = st[1] - coef * iqr;
+      hi = st[3] + coef * iqr;
+      var wLo = Infinity, wHi = -Infinity;
+      for (i = 0; i < n; i++) {
+        if (sorted[i] < lo || sorted[i] > hi) out.push(sorted[i]);
+        else { if (sorted[i] < wLo) wLo = sorted[i]; if (sorted[i] > wHi) wHi = sorted[i]; }
+      }
+      if (out.length && isFinite(wLo)) { stats[0] = wLo; stats[4] = wHi; }
+    }
+    return { stats: stats, out: out, n: n, iqr: iqr };
+  }
+
   return {
     sum: sum, mean: mean, median: median, quantile7: quantile7,
     quantileType: quantileType, ecdf: ecdf,
-    fivenum: fivenum, fdBins: fdBins, sturgesBins: sturgesBins,
+    fivenum: fivenum, boxplotStats: boxplotStats,
+    fdBins: fdBins, sturgesBins: sturgesBins,
     modesOf: modesOf, ciMean: ciMean, describe: describe, histogram: histogram
   };
 }));
