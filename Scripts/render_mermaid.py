@@ -226,6 +226,26 @@ def render_directory(
         print(f"No .mmd files found in {directory}")
         return []
 
+    # Freshness guard: skip any .mmd whose rendered output already exists and is
+    # newer than the source. Without this, a batch writer calling the documented
+    # "render the whole directory" command re-renders every historical diagram
+    # (846+ files, ~30s each) and times out. Delete the .webp (or touch the .mmd)
+    # to force a re-render.
+    ext_suffix = ".png" if output_format == "png" else ".webp"
+    fresh_skipped = 0
+    stale: list[Path] = []
+    for m in mmd_files:
+        out_path = (out_dir / m.with_suffix(ext_suffix).name) if out_dir else m.with_suffix(ext_suffix)
+        if out_path.exists() and out_path.stat().st_mtime >= m.stat().st_mtime:
+            fresh_skipped += 1
+        else:
+            stale.append(m)
+    if fresh_skipped:
+        print(f"Skipping {fresh_skipped} up-to-date diagram(s); rendering {len(stale)}.")
+    mmd_files = stale
+    if not mmd_files:
+        return []
+
     ext = output_format.upper()
     print(f"Found {len(mmd_files)} Mermaid file(s) in {directory}")
     if out_dir:

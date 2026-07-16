@@ -147,8 +147,13 @@ Examples: `Bar-Chart-in-R`, `Stacked-Area-Chart-in-R`,
 
 **Title formula:**
 ```
-{Chart Name} in R: Build, Customize, and Annotate With ggplot2
+{Chart Name} in R: ggplot2 Code and Examples
 ```
+(Keyword-first, always <= 65 characters even for long chart names like
+"Diverging Stacked Bar Chart", and no imperative-triad tail: the old
+"Build, Customize, and Annotate With ggplot2" formula ran to 78 chars on long
+names and reads as generated copy. Updated 2026-07-17 in the sitewide CTR-title
+pass.)
 
 **target_keyword:** `{chart name} R` (e.g., `bar chart R`).
 
