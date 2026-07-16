@@ -468,6 +468,12 @@ _TOOL_ICONS = {
         '<path d="M7.3 5V11"/>'
         '<path d="M10.5 8H12"/><path d="M12 6.2V9.8"/>'
         '<circle cx="14" cy="8" r="1" fill="currentColor" stroke="none"/></svg>',
+    'mean-median-mode-calculator.html':   # three graduated centre markers on a baseline
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 13.5h12"/>'
+        '<path d="M4.5 13.5V8"/><circle cx="4.5" cy="7" r="1.15" fill="currentColor" stroke="none"/>'
+        '<path d="M8 13.5V4.5"/><circle cx="8" cy="3.6" r="1.15" fill="currentColor" stroke="none"/>'
+        '<path d="M11.5 13.5V6.5"/><circle cx="11.5" cy="5.6" r="1.15" fill="currentColor" stroke="none"/></svg>',
     'standard-deviation-calculator.html':   # bell curve with a sigma span underneath
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M1.5 11.5h13"/>'
@@ -648,6 +654,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 't-test-calculator.html',                   'text': 't-Test Calculator'},
     {'group': 'Calculators', 'slug': 'p-value-calculator.html',                  'text': 'p-value Calculator'},
     {'group': 'Calculators', 'slug': 'descriptive-statistics-calculator.html',   'text': 'Descriptive Statistics'},
+    {'group': 'Calculators', 'slug': 'mean-median-mode-calculator.html',         'text': 'Mean, Median &amp; Mode'},
     {'group': 'Calculators', 'slug': 'standard-deviation-calculator.html',       'text': 'Standard Deviation'},
     {'group': 'Calculators', 'slug': 'percentile-calculator.html',               'text': 'Percentile Calculator'},
     {'group': 'Calculators', 'slug': 'iqr-calculator.html',                      'text': 'IQR &amp; Outliers'},

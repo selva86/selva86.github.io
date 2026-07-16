@@ -191,6 +191,7 @@
       sd: sd, var: v, sdPop: sdPop, varPop: varPop, se: se,
       level: level, ciLo: ci[0], ciHi: ci[1],
       min: mn, max: mx, range: rng,
+      midrange: (n > 0 ? (mn + mx) / 2 : null),  // (min + max) / 2
       q1: q1, q3: q3, iqr: iqr,
       skewness: skewness, kurtosis: kurtosis,
       cv: cv, cvPop: cvPop,

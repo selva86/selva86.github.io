@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','binomial-probability-calculator']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','binomial-probability-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -98,6 +98,9 @@ C3META = {
  'descriptive-statistics-calculator': ('Descriptive Statistics', 'summary',
   'Paste a column of numbers for the mean, median, SD, quartiles, skewness, and a live histogram and boxplot.',
   '<path class="s" d="M6 24 H38"/><rect class="af" x="8" y="16" width="6" height="8"/><rect class="af" x="15" y="9" width="6" height="15"/><rect class="af" x="22" y="12" width="6" height="12"/><rect class="af" x="29" y="18" width="6" height="6"/><path class="a" d="M9 34 H16 M28 34 H37" fill="none"/><rect class="a" x="16" y="30" width="12" height="8" rx="1" fill="none"/><path class="a" d="M22 30 V38" fill="none"/>'),
+ 'mean-median-mode-calculator': ('Mean, Median &amp; Mode', 'x&#772;',
+  'Paste a list or a frequency table for the mean, median and mode together, with the range, midrange and a read on when the median beats the mean.',
+  '<path class="s" d="M5 37 H40"/><rect class="af" x="8" y="19" width="4.5" height="18"/><rect class="af" x="13.5" y="12" width="4.5" height="25"/><rect class="af" x="19" y="22" width="4.5" height="15"/><rect class="af" x="24.5" y="27" width="4.5" height="10"/><rect class="af" x="30" y="31" width="4.5" height="6"/><path class="a" d="M17 8 V37" stroke-dasharray="2.5 2.5"/><path class="a" d="M23 8 V37" fill="none"/>'),
  'standard-deviation-calculator': ('Standard Deviation', 'SD',
   'Paste a list or a frequency table for the sample and population standard deviation, variance, standard error and CV, with every step shown.',
   '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C13 37 14 9 22 9 C30 9 31 37 39 37" fill="none"/><path class="af" d="M15 37 C17.5 29 19.5 15 22 9 C24.5 15 26.5 29 29 37 Z" style="opacity:.2"/><path class="a" d="M15 37 V25 M29 37 V25" fill="none" stroke-dasharray="2.5 2.5"/><path class="a" d="M15 32 H29 M15 32 l3 -2 M15 32 l3 2 M29 32 l-3 -2 M29 32 l-3 2" fill="none"/>'),
