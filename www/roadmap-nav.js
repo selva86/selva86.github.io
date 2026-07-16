@@ -26,7 +26,7 @@
   var ARR = '<svg class="rn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
 
   function nodeHTML(n){
-    var inner = '<span class="rn-t"><span class="rn-dt" style="background:'+n.dot+'"></span><b>'+n.name+'</b></span>'+
+    var inner = '<span class="rn-t"><b>'+n.name+'</b></span>'+
       '<p>'+n.p+'</p><span class="rn-m" data-rn-m>'+n.m+'</span>'+
       (n.start ? '<span class="rn-go">Start free '+ARR+'</span>' : '');
     if (n.soon) return '<div class="rn-node rn-soon">'+inner+'</div>';
@@ -47,7 +47,7 @@
     var link = document.querySelector('.sitenav .snav-links a[href="/roadmap/"]') || document.querySelector('.nav a[href="/roadmap/"]');
     if (!link || link.closest('.rn-wrap')) return;
     if (!document.querySelector('link[data-rn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=3';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=4';
       l.setAttribute('data-rn-css', ''); document.head.appendChild(l);
     }
     var wrap = document.createElement('div'); wrap.className = 'rn-wrap';
