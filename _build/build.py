@@ -429,6 +429,13 @@ _TOOL_ICONS = {
     'power-analysis.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg>',
+    'sample-size-calculator.html':   # branching signpost: one question, three routes
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M8 14.5V9"/>'
+        '<path d="M8 9L3.5 4.5"/>'
+        '<path d="M8 9l4.5-4.5"/>'
+        '<circle cx="3.5" cy="3" r="1.6"/>'
+        '<circle cx="12.5" cy="3" r="1.6"/></svg>',
     'sample-size-t-test-calculator.html':   # power curve rising to a marked required n
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2.5 2.5v11h11"/>'
@@ -750,6 +757,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'bootstrap-ci-calculator.html',             'text': 'Bootstrap CI'},
     {'group': 'Calculators', 'slug': 'effect-size-converter.html',               'text': 'Effect Size Converter'},
     {'group': 'Calculators', 'slug': 'power-analysis.html',                      'text': 'Power Analysis'},
+    {'group': 'Calculators', 'slug': 'sample-size-calculator.html',              'text': 'Sample Size'},
     {'group': 'Calculators', 'slug': 'sample-size-t-test-calculator.html',       'text': 'Sample Size (t Tests)'},
     {'group': 'Calculators', 'slug': 'sample-size-proportion-calculator.html',   'text': 'Sample Size (Proportions)'},
     {'group': 'Calculators', 'slug': 'sample-size-anova-calculator.html',        'text': 'Sample Size (ANOVA)'},
