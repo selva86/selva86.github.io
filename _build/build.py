@@ -434,6 +434,11 @@ _TOOL_ICONS = {
         '<path d="M2.5 2.5v11h11"/>'
         '<path d="M3.5 12C7 12 6.5 4.5 13.5 4"/>'
         '<path d="M8 13.5v-4"/></svg>',
+    'sample-size-proportion-calculator.html':   # two proportion bars of unequal height
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 2.5v11h11"/>'
+        '<path d="M6 13.5V9.5"/>'
+        '<path d="M11 13.5V5"/></svg>',
     'z-score-percentile.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/>'
@@ -740,6 +745,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'effect-size-converter.html',               'text': 'Effect Size Converter'},
     {'group': 'Calculators', 'slug': 'power-analysis.html',                      'text': 'Power Analysis'},
     {'group': 'Calculators', 'slug': 'sample-size-t-test-calculator.html',       'text': 'Sample Size (t Tests)'},
+    {'group': 'Calculators', 'slug': 'sample-size-proportion-calculator.html',   'text': 'Sample Size (Proportions)'},
     {'group': 'Calculators', 'slug': 'survival-power-calculator.html',           'text': 'Survival Power'},
     {'group': 'Calculators', 'slug': 'type-i-ii-error-visualizer.html',          'text': 'Type I / II Error'},
     {'group': 'Calculators', 'slug': 'z-score-percentile.html',                  'text': 'Z-Score &amp; Percentile'},
