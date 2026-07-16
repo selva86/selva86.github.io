@@ -12,7 +12,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
     ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','box-plot-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','statistical-significance-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','empirical-rule-calculator','binomial-probability-calculator','poisson-distribution-calculator','proportion-test-calculator']),
-    ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
+    ('Reference Tables', ['t-table','z-table','chi-square-table','f-table','binomial-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
     ('Pickers and Decision Tools', ['statistical-test-chooser','normality-test-picker','nonparametric-test-picker','dag-confounder-picker']),
@@ -137,6 +137,9 @@ C3META = {
  'f-table': ('F Distribution Table', 'qf',
   'Look up F critical values by df1, df2 and alpha, or go from an F statistic to p. Printable.',
   '<path class="s" d="M4 37 H40"/><path class="a" d="M5 31 C6 16 8 10 11 10 C16 10 18 26 24 31 C29 35 34 36.4 39 36.9" fill="none"/><path class="s" d="M26 37 V20" stroke-dasharray="2.5 2.5"/><path class="af" d="M26 32.6 C30 35 34 36.4 39 36.9 L39 37 H26 Z"/>'),
+ 'binomial-table': ('Binomial Table', 'dbinom',
+  'Look up the chance of k successes in n trials: exact and cumulative cells for n = 1 to 20, with the p &gt; 0.5 mirror handled for you. Printable.',
+  '<rect class="s" x="6" y="8" width="32" height="28" rx="2" fill="none"/><path class="s" d="M6 15 H38 M14 8 V36"/><rect class="af" style="opacity:.4" x="17" y="27" width="4" height="6"/><rect class="af" x="23" y="20" width="4" height="13"/><rect class="af" style="opacity:.4" x="29" y="25" width="4" height="8"/>'),
  'bayes-factor-calculator': ('Bayes Factor', 'BF&#8321;&#8320;',
   'How strongly the data favor H1 over H0, with a plot showing how the answer moves as the prior changes.',
   '<path class="s" d="M4 36 H40"/><path class="s" d="M6 36 C13 27 31 27 38 36" fill="none"/><path class="a" d="M13 36 C18 36 19 8 24 8 C29 8 30 36 35 36" fill="none"/>'),

@@ -97,6 +97,84 @@
   function variance(n, p) { return n * p * (1 - p); }
   function sd(n, p) { return Math.sqrt(n * p * (1 - p)); }
 
+  // ---- exact display arithmetic --------------------------------------------
+  // A printed 4dp table is otherwise hostage to the last bit of a double. Many
+  // of these probabilities terminate exactly one digit past the printed
+  // precision: dbinom(1, 6, 0.5) is exactly 0.09375, dbinom(1, 5, 0.1) is
+  // exactly 0.32805. Those sit ON the rounding tie, where one ulp decides the
+  // 4th decimal, and no implementation is reliable there:
+  //   dbinom(1, 6, 0.5) == 0.09375 is FALSE in R  (R is 1.4e-17 low, though
+  //     0.09375 is exactly representable), so sprintf("%.4f") prints 0.0937
+  //   dbinom(0, 5, 0.5) == 0.03125 is TRUE, and R then rounds the tie to even
+  //     and prints 0.0312
+  // So R's printed digit at a tie is half its own float error and half a
+  // half-to-even rule. It is not reproducible and not worth reproducing.
+  //
+  // The numbers we PRINT therefore come from exact rationals via BigInt, not
+  // doubles. For a decimal p = m / 10^t:
+  //   P(X = k) = C(n,k) * m^k * (10^t - m)^(n-k) / 10^(t*n)
+  // is exact, and P(X <= k) is an exact sum of those terms. Ties round half up:
+  // the rule printed tables use, the one a reader applies by hand, and the one
+  // that agrees with the value R shows at the console (dbinom(1, 6, 0.5) prints
+  // 0.09375, which a reader rounds to 0.0938 -- our cell). Every cell is thus
+  // the true probability, correctly rounded. The double routines above still do
+  // all the statistics; this only decides the printed digits.
+  // Scripts/tool-truth/test-binomial-table-math.js pins all 4600 cells against
+  // R and proves each of the 11 tie disagreements is exactly this and nothing
+  // more.
+  // Returns null (caller falls back to toFixed) when p is not a plain decimal
+  // or the integers would get big enough to cost real time.
+  var EXACT_MAX_DIGITS = 2000;   // cap on the denominator 10^(t*n)
+
+  function decParts(pStr) {      // "0.05" -> {m: 5n, t: 2}; null if not plain
+    var s = String(pStr).trim();
+    if (!/^[01](\.\d+)?$|^0?\.\d+$/.test(s)) return null;
+    var dot = s.indexOf('.');
+    if (dot < 0) return { m: BigInt(s), t: 0 };
+    var frac = s.slice(dot + 1);
+    return { m: BigInt((s.slice(0, dot) || '0') + frac), t: frac.length };
+  }
+  function chooseBig(n, k) {
+    var r = 1n, N = BigInt(n);
+    for (var i = 0n; i < BigInt(k); i++) r = r * (N - i) / (i + 1n);
+    return r;
+  }
+  // Exact P(X = k) or P(X <= k) or P(X >= k) as a rational {N, D}. kind: eq|le|ge
+  function exactRational(kind, k, n, pStr) {
+    var d = decParts(pStr);
+    if (!d || !Number.isInteger(n) || !Number.isInteger(k) || n < 0) return null;
+    if (d.t * n > EXACT_MAX_DIGITS) return null;
+    var ten = 10n ** BigInt(d.t), m = d.m, q = ten - m;
+    if (m < 0n || q < 0n) return null;
+    var D = ten ** BigInt(n);
+    function term(j) {           // C(n,j) * m^j * q^(n-j)
+      return chooseBig(n, j) * (m ** BigInt(j)) * (q ** BigInt(n - j));
+    }
+    if (kind === 'eq') return (k < 0 || k > n) ? { N: 0n, D: D } : { N: term(k), D: D };
+    var lo = 0, hi;
+    if (kind === 'le') { if (k < 0) return { N: 0n, D: D }; hi = Math.min(k, n); }
+    else { if (k <= 0) return { N: D, D: D }; if (k > n) return { N: 0n, D: D }; lo = k; hi = n; }
+    var s = 0n;
+    for (var j = lo; j <= hi; j++) s += term(j);
+    return { N: s, D: D };
+  }
+  // Round an exact rational to d decimals, ties away from zero (all values
+  // here are probabilities, so: half up). N and D are non-negative.
+  function fmtRational(N, D, d) {
+    var scale = 10n ** BigInt(d);
+    var num = N * scale, quo = num / D, rem = num % D;
+    if (rem * 2n >= D) quo += 1n;
+    var s = quo.toString().padStart(d + 1, '0');
+    return d > 0 ? s.slice(0, s.length - d) + '.' + s.slice(s.length - d) : s;
+  }
+  // The one entry point the table baker and the page both print through.
+  // kind: 'eq' | 'le' | 'ge'. Returns null when exact arithmetic does not apply.
+  function fmtExact(kind, k, n, pStr, d) {
+    var r = exactRational(kind, k, n, pStr);
+    if (!r) return null;
+    return fmtRational(r.N, r.D, d === undefined ? 4 : d);
+  }
+
   // Normal-approximation note. Rule of thumb: n*p >= 5 AND n*(1-p) >= 5.
   // Returns the continuity-corrected normal probability for a query so the
   // page can show exact-vs-approx side by side.
@@ -119,6 +197,7 @@
     lchoose: lchoose, dbinom: dbinom, pbinom: pbinom, pbinomUpper: pbinomUpper,
     pbinomRange: pbinomRange, qbinom: qbinom,
     mean: mean, variance: variance, sd: sd,
+    fmtExact: fmtExact, exactRational: exactRational,
     normalOK: normalOK, normalApproxLE: normalApproxLE,
     normalApproxGE: normalApproxGE, normalApproxEq: normalApproxEq
   };

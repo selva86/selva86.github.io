@@ -640,6 +640,13 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="3" width="11" height="10" rx="1"/>'
         '<path d="M2.5 6.5h11M6 3v10"/><path d="M8.5 9.5h3.5" stroke-width="2"/></svg>',
+    'binomial-table.html':   # table grid with discrete bars in the body
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="2.5" y="3" width="11" height="10" rx="1"/>'
+        '<path d="M2.5 6.5h11M6 3v10"/>'
+        '<rect x="7.4" y="9.6" width="1.3" height="2.6" fill="currentColor" stroke="none" opacity="0.5"/>'
+        '<rect x="9.4" y="7.8" width="1.3" height="4.4" fill="currentColor" stroke="none"/>'
+        '<rect x="11.4" y="9.6" width="1.3" height="2.6" fill="currentColor" stroke="none" opacity="0.5"/></svg>',
     'cronbachs-alpha-calculator.html':   # items converging to one score
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 4h5M2 8h5M2 12h5"/>'
@@ -744,6 +751,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Reference tables', 'slug': 'z-table.html',                        'text': 'z Table'},
     {'group': 'Reference tables', 'slug': 'chi-square-table.html',               'text': 'Chi-Square Table'},
     {'group': 'Reference tables', 'slug': 'f-table.html',                        'text': 'F Distribution Table'},
+    {'group': 'Reference tables', 'slug': 'binomial-table.html',                 'text': 'Binomial Table'},
 
     # Bayesian
     {'group': 'Bayesian',    'slug': 'bayes-theorem-calculator.html',            'text': 'Bayes Theorem'},
