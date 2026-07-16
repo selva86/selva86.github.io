@@ -2926,7 +2926,7 @@ def patch_tool_pages(sections, asset_hrefs):
         # The Exercises item carries a markup caret glyph; practice-nav.js
         # upgrades it into the Practice mega-dropdown.
         '<div class="snav-links">'
-        '<a href="/roadmap/">Roadmap</a>'
+        '<a href="/roadmap/">Roadmap <span class="ex-caret" aria-hidden="true">&#9662;</span></a>'
         '<a href="/tutorials/">Tutorials</a>'
         '<a href="/exercises/">Exercises '
         '<span class="ex-caret" aria-hidden="true">&#9662;</span></a>'
