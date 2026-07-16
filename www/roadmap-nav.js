@@ -8,17 +8,17 @@
 
   var STAGES = [
     ["Start", [
-      {href:"/roadmap/new-to-r.html", dot:"#2056d2", name:"New to R",
+      {href:"/roadmap/new-to-r.html", dot:"#2056d2", name:"New to R", track:"foundations", free:1,
        p:"Syntax to functions, from zero. Feeds every other track.",
        m:"43 interactive lessons", start:1}
     ]],
     ["Work with data", [
-      {href:"/roadmap/data-analyst.html", dot:"#0f8a5f", name:"Data Analyst", p:"Wrangle, visualize, report.", m:"44 interactive lessons"},
+      {href:"/roadmap/data-analyst.html", dot:"#0f8a5f", name:"Data Analyst", track:"analyst", free:1, p:"Wrangle, visualize, report.", m:"44 interactive lessons"},
       {href:"/roadmap/researcher.html", dot:"#7c3aed", name:"Researcher", p:"Tests, models, inference.", m:"tutorial curriculum"},
       {href:"/roadmap/forecaster.html", dot:"#0e7490", name:"Forecaster", p:"Decomposition to ARIMA.", m:"tutorial curriculum"}
     ]],
     ["Go deep", [
-      {href:"/roadmap/data-scientist.html", dot:"#be185d", name:"Data Scientist", p:"Machine learning end to end.", m:"178 interactive lessons"},
+      {href:"/roadmap/data-scientist.html", dot:"#be185d", name:"Data Scientist", track:"ds", p:"Machine learning end to end.", m:"178 interactive lessons"},
       {href:"/roadmap/r-developer.html", dot:"#4d7c0f", name:"R Developer", p:"Packages, performance, Shiny.", m:"tutorial curriculum"},
       {soon:1, dot:"#c3c9d4", name:"ML Engineer", p:"Production ML systems.", m:"in the works"}
     ]]
@@ -27,10 +27,10 @@
 
   function nodeHTML(n){
     var inner = '<span class="rn-t"><span class="rn-dt" style="background:'+n.dot+'"></span><b>'+n.name+'</b></span>'+
-      '<p>'+n.p+'</p><span class="rn-m">'+n.m+'</span>'+
+      '<p>'+n.p+'</p><span class="rn-m" data-rn-m>'+n.m+'</span>'+
       (n.start ? '<span class="rn-go">Start free '+ARR+'</span>' : '');
     if (n.soon) return '<div class="rn-node rn-soon">'+inner+'</div>';
-    return '<a class="rn-node'+(n.start?' rn-start':'')+'" href="'+n.href+'" role="menuitem">'+inner+'</a>';
+    return '<a class="rn-node'+(n.start?' rn-start':'')+'"'+(n.track?' data-rn-track="'+n.track+'"':'')+(n.free?' data-rn-free="1"':'')+' href="'+n.href+'" role="menuitem">'+inner+'</a>';
   }
   function panelHTML(){
     var cols = STAGES.map(function(sg){
@@ -47,7 +47,7 @@
     var link = document.querySelector('.sitenav .snav-links a[href="/roadmap/"]') || document.querySelector('.nav a[href="/roadmap/"]');
     if (!link || link.closest('.rn-wrap')) return;
     if (!document.querySelector('link[data-rn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=1';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=2';
       l.setAttribute('data-rn-css', ''); document.head.appendChild(l);
     }
     var wrap = document.createElement('div'); wrap.className = 'rn-wrap';
@@ -82,6 +82,48 @@
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && open) setOpen(false); });
   }
 
-  if (document.readyState !== 'loading') init();
-  else document.addEventListener('DOMContentLoaded', init);
+  /* signed-in: real lesson progress per track, from the same localStorage the
+     lesson player writes (rsc-course-v1:<course_id>.completed). Per-device. */
+  function hydrateProgress(isPro){
+    if (window.__rnProg && (!isPro || window.__rnProgPro)) return;
+    window.__rnProg = 1; if (isPro) window.__rnProgPro = 1;
+    fetch('/courses.json').then(function(r){ return r.json(); }).then(function(d){
+      var tr = {};
+      (d.courses || []).forEach(function(c){
+        var t = c.roadmap && c.roadmap.track; if (!t) return;
+        tr[t] = tr[t] || { done: 0, total: 0 };
+        var done = {};
+        try { done = (JSON.parse(localStorage.getItem('rsc-course-v1:' + c.course_id) || 'null') || {}).completed || {}; } catch (e) {}
+        (c.lessons || []).forEach(function(l){
+          if (l.built === false) return;
+          tr[t].total++;
+          if (done[l.slug]) tr[t].done++;
+        });
+      });
+      document.querySelectorAll('.rn-node[data-rn-track]').forEach(function(node){
+        var p = tr[node.getAttribute('data-rn-track')];
+        if (!p || !p.done) return;
+        /* free tier covers New to R + Data Analyst; other tracks need access */
+        if (!node.hasAttribute('data-rn-free') && !isPro) return;
+        var pct = Math.min(100, Math.round(100 * p.done / Math.max(p.total, 1)));
+        var m = node.querySelector('[data-rn-m]');
+        if (!m || node.querySelector('.rn-bar')) return;
+        var bar = document.createElement('span');
+        bar.className = 'rn-bar'; bar.innerHTML = '<i style="width:' + pct + '%"></i>';
+        m.parentNode.insertBefore(bar, m);
+        m.textContent = p.done + ' of ' + p.total + ' lessons done';
+      });
+    }).catch(function(){});
+  }
+  document.addEventListener('auth-hydrated', function(e){
+    var me = e && e.detail && e.detail.me;
+    if (me && me.user) hydrateProgress(!!me.pro);
+  });
+
+  function boot(){
+    init();
+    if (document.body && document.body.classList.contains('state-pro')) hydrateProgress(document.body.classList.contains('pro'));
+  }
+  if (document.readyState !== 'loading') boot();
+  else document.addEventListener('DOMContentLoaded', boot);
 })();
