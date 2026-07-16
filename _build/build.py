@@ -679,6 +679,15 @@ _TOOL_ICONS = {
         '<path d="M2.5 8H13.5"/>'
         '<path d="M2.5 8l2.2-2M2.5 8l2.2 2M13.5 8l-2.2-2M13.5 8l-2.2 2"/>'
         '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg>',
+    'icc-calculator.html':   # subjects as rows of rater dots, tightly clustered = agreement
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 2.5V13.5H13.5"/>'
+        '<circle cx="5.6" cy="4.7" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="7.2" cy="4.7" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="6.4" cy="8" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="11" cy="8" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="10.2" cy="11.3" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="11.8" cy="11.3" r="1" fill="currentColor" stroke="none"/></svg>',
     'cohens-kappa-calculator.html':   # KxK agreement grid, diagonal (agreement) cells marked
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/>'
@@ -720,6 +729,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'roc-auc-calculator.html',                  'text': 'ROC / AUC'},
     {'group': 'Calculators', 'slug': 'cronbachs-alpha-calculator.html',          'text': "Cronbach's Alpha"},
     {'group': 'Calculators', 'slug': 'cohens-kappa-calculator.html',             'text': "Cohen's Kappa"},
+    {'group': 'Calculators', 'slug': 'icc-calculator.html',                      'text': 'ICC Calculator'},
     {'group': 'Calculators', 'slug': 'correlation-calculator.html',              'text': 'Correlation'},
     {'group': 'Calculators', 'slug': 'linear-regression-calculator.html',        'text': 'Linear Regression'},
     {'group': 'Calculators', 'slug': 'anova-calculator.html',                    'text': 'ANOVA Calculator'},

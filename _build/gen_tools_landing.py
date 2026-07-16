@@ -17,7 +17,7 @@ CATEGORIES = [
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
     ('Pickers and Decision Tools', ['statistical-test-chooser','normality-test-picker','nonparametric-test-picker','dag-confounder-picker']),
     ('Study Design and Power', ['power-analysis','survival-power-calculator','effect-size-converter','type-i-ii-error-visualizer']),
-    ('Specialized', ['ts-stationarity-calculator','outlier-detection-calculator','roc-auc-calculator','cronbachs-alpha-calculator','cohens-kappa-calculator','reprex-builder']),
+    ('Specialized', ['ts-stationarity-calculator','outlier-detection-calculator','roc-auc-calculator','cronbachs-alpha-calculator','cohens-kappa-calculator','icc-calculator','reprex-builder']),
 ]
 
 
@@ -203,6 +203,9 @@ C3META = {
  'cohens-kappa-calculator': ("Cohen's Kappa", '&kappa;',
   'Paste a confusion matrix or two rating columns for kappa, weighted kappa, a 95% CI and the agreement band.',
   '<rect class="s" x="8" y="8" width="30" height="30" rx="2" fill="none"/><path class="s" d="M18 8 V38 M28 8 V38 M8 18 H38 M8 28 H38"/><rect class="af" x="8" y="8" width="10" height="10"/><rect class="af" x="18" y="18" width="10" height="10"/><rect class="af" x="28" y="28" width="10" height="10"/>'),
+ 'icc-calculator': ('ICC Calculator', 'ICC',
+  'Paste a rater table for all six intraclass correlation forms with CIs, and a picker for which one to report.',
+  '<path class="s" d="M6 37 H40 M6 37 V7"/><circle class="af" cx="13" cy="30" r="2.4"/><circle class="af" cx="17" cy="28.4" r="2.4"/><circle class="s" cx="15" cy="21" r="2.4" fill="none"/><circle class="af" cx="27" cy="19" r="2.4"/><circle class="af" cx="31" cy="17.4" r="2.4"/><circle class="s" cx="29" cy="10" r="2.4" fill="none"/><path class="a" d="M11 33 L33 13" fill="none" stroke-dasharray="3 2.5"/>'),
  'correlation-calculator': ('Correlation', 'r',
   'Paste two columns for Pearson r, Spearman rho or Kendall tau-b with a CI, p-value and a live scatter plot.',
   '<path class="s" d="M8 5 V38 H41"/><path class="a" d="M10 35 L38 9" fill="none"/><circle class="af" cx="13" cy="31" r="2.2"/><circle class="af" cx="18" cy="29" r="2.2"/><circle class="af" cx="22" cy="23" r="2.2"/><circle class="af" cx="27" cy="21" r="2.2"/><circle class="af" cx="31" cy="15" r="2.2"/><circle class="af" cx="36" cy="12" r="2.2"/>'),
