@@ -1,0 +1,733 @@
+---
+title: "Visualize Time Series in R: autoplot(), Seasonal, Lag Plots"
+description: "Visualize time series in R with autoplot(), season and subseries plots, lag plots and ACF. See trend, seasonality and autocorrelation before you model."
+keywords: "visualize time series in R, autoplot R, ggseasonplot, ggsubseriesplot, gglagplot, ggAcf, season plot R, lag plot R, time series plot R, ACF plot R"
+mathjax: true
+webr: true
+curriculum_id: "3.8.2"
+post_type: "C"
+auto_link_terms: "visualize time series|visualise time series|time series plot|time plot|season plot|seasonal plot|subseries plot|lag plot|ACF plot|autocorrelation function|autoplot()|ggseasonplot()|ggsubseriesplot()|ggAcf()|time series visualization"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Visualize Time Series"
+sidebar_order: "5"
+---
+<!-- md2html:generated -->
+
+<p>Plotting is the first thing you do to a time series and the last thing you should skip. Four plots answer almost every question you will have about a series before you fit anything: the <strong>time plot</strong> (<code>autoplot()</code>) shows trend, the <strong>season plot</strong> (<code>ggseasonplot()</code>) shows the shape of a repeating cycle, the <strong>subseries plot</strong> (<code>ggsubseriesplot()</code>) shows what each month does on its own, and the <strong>lag plot</strong> with the <strong>ACF</strong> (<code>gglagplot()</code>, <code>ggAcf()</code>) show whether the series remembers its own past. This post builds all four on one real dataset, explaining every line and every symbol as it goes.</p>
+
+<p>Everything here assumes you can write basic R and that you have met the <code>ts</code> object before. If "monthly <code>ts</code> with frequency 12" is not yet a familiar phrase, read <a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> first and come back. Nothing else is assumed: ggplot2, seasonality, lags, and autocorrelation are all defined as they come up.</p>
+
+<p><strong>Our running example.</strong> Every plot in this post is built from the same 144 numbers: <code>AirPassengers</code>, the monthly total of international airline passengers, in thousands, from January 1949 to December 1960. It ships with base R, so you already have it. In January 1949, 112 thousand people flew. In July 1960, 622 thousand did. Somewhere between those two numbers is a story about growth and summer holidays, and the whole point of this post is that you cannot see that story in the numbers, only in the pictures.</p>
+
+<h2>What does a time plot show that a summary table cannot?</h2>
+
+<p>Start with the most ordinary thing an R user does to an unfamiliar variable: <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> it. Then do the one thing that is special about time series data, which is to draw it in time order. The contrast between those two outputs is the entire argument for this post.</p>
+
+<p>The code below loads two packages and produces both. <code>forecast</code> is Rob Hyndman's <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> package; we use it here purely for its plotting functions, which are built on top of <code>ggplot2</code>. <code>autoplot()</code> is the one-liner: hand it a time series and it draws a <strong>time plot</strong>, meaning observations on the vertical axis, time on the horizontal axis, joined by a line in the order the observations happened. The <code>+ labs(...)</code> part is ggplot2's way of setting the title and axis labels; the <code>+</code> adds a layer to the plot, and <code>labs</code> is short for labels.</p>
+
+<div class="webr-container" data-block-title="The same 144 numbers, twice">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same 144 numbers, twice</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+library(ggplot2)
+
+# 1. The 144 numbers as a summary table. Time appears nowhere.
+summary(as.numeric(AirPassengers))
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;   104.0   180.0   265.5   280.3   360.5   622.0
+
+# 2. The same 144 numbers, drawn in the order they happened.
+autoplot(AirPassengers) +
+  labs(title = &quot;International airline passengers, 1949 to 1960&quot;,
+       x = &quot;Year&quot;, y = &quot;Passengers (thousands)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what each one told you.</p>
+
+<p>The summary table says: the smallest month had 104 thousand passengers, the largest had 622, the average was 280, and half the months fell between 180 and 361. That is everything a summary can know. It is a perfectly good description of 144 numbers in a bag. Notice what is missing: the table would be identical if you shuffled the 144 months into random order. Every number in it survives shuffling, which is another way of saying that the table cannot see time at all.</p>
+
+<p>The time plot says something the table structurally cannot. Run it and you will see a line that does three things at once. First, it climbs steadily from around 120 in 1949 to around 500 by 1960: that upward drift is called the <strong>trend</strong>, the long-run direction of the series once you ignore the wiggles. Second, the line is not smooth: it makes the same up-and-down shape every single year, a big hump in the middle of each year with dips at both ends. A pattern that repeats on a fixed, known period like this is called <strong>seasonality</strong>. Third, those yearly humps get taller as the years go by: the wiggle in 1949 spans a few tens of thousands of passengers, while the wiggle in 1960 spans a couple of hundred thousand.</p>
+
+<p>Trend, seasonality, and swings that grow. Three findings, one line of code, and not one of them is visible in the summary table. That is the payoff, and everything that follows is a way of looking harder at those same three things.</p>
+
+<p>The time plot has one more job, even though <code>AirPassengers</code> gives it nothing to do here. It is where you catch the observations that do not belong. A month sitting far above or below its neighbours is an <strong><a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a></strong>: a data-entry slip, a strike, a one-off event. The summary table can never show you one, because it absorbs the odd value into the mean and the quartiles and moves on. On a time plot it sticks out and you cannot miss it. The related pattern is a <strong>level shift</strong>, where the line jumps to a new baseline and simply stays there, which is what an airline merger or a change in how the numbers were recorded looks like. Scan for both before you go any further. Our line has neither, and knowing that is exactly what lets the rest of this post get straight to trend and season.</p>
+
+<blockquote><p><strong>Note:</strong> <code>autoplot()</code> is not doing anything mysterious. It draws a line from the first observation to the last, in time order, which is the one thing you must never do with data that is not ordered in time. For time series, order is not a detail; it is the whole signal.</p></blockquote>
+
+<h2>Why does autoplot() know how to draw your series?</h2>
+
+<p>You gave <code>autoplot()</code> one argument and got a correctly labelled 1949-to-1960 axis, tick marks in years, and a sensible y axis. It never asked you when the data started or how often it was measured. Where did it get that? The answer is worth two minutes, because it explains what <code>autoplot()</code> can and cannot do for you, and it is the reason the rest of the plots in this post are also one-liners.</p>
+
+<p>A <code>ts</code> object is not just a vector of numbers. It is a vector plus two pieces of metadata: when the series starts, and how many observations make up one full cycle. Ask it directly:</p>
+
+<div class="webr-container" data-block-title="What the ts object knows about itself">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What the ts object knows about itself</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frequency(AirPassengers)   # observations per cycle: 12 means monthly
+#&gt; [1] 12
+start(AirPassengers)       # year 1949, month 1
+#&gt; [1] 1949    1
+end(AirPassengers)         # year 1960, month 12
+#&gt; [1] 1960   12
+
+# Because it knows the calendar, you can ask for a slice in calendar terms
+window(AirPassengers, start = c(1949, 1), end = c(1949, 12))
+#&gt;      Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; 1949 112 118 132 129 121 135 148 148 136 119 104 118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things to take from that output. <code>frequency()</code> returned 12, which means twelve observations make one full cycle; for monthly data the cycle is a year. This number is what the word <strong>seasonal period</strong> means, and it is the single most important piece of metadata in the object: it is why R can say "July" instead of "observation 7". <code>start()</code> returned the pair <code>1949 1</code>, read as "year 1949, month 1". And <code>window()</code> let you ask for a date range in calendar terms rather than by counting positions in a vector, then printed 1949 laid out as a proper calendar row: 112 passengers in January, rising to 148 in July, falling to 104 in November.</p>
+
+<p>Now <code>autoplot()</code>. It is what R calls a <strong>generic function</strong>: one name that dispatches to different code depending on the class of what you hand it. Give it a <code>ts</code> and it runs the <code>ts</code> method, which reads <code>start</code> and <code>frequency</code> out of the object and builds the year axis from them. Give it a fitted model or a forecast and it runs a different method entirely. You are not calling a plotting function so much as saying "draw this thing appropriately", and the object itself supplies the rest.</p>
+
+<p>Which means the whole trick lives in the object, not the function. Strip the metadata off and watch the plot get dumber:</p>
+
+<div class="webr-container" data-block-title="What you lose when you throw the metadata away">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What you lose when you throw the metadata away</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plain &lt;- as.numeric(AirPassengers)   # keep the numbers, drop the calendar
+class(plain)
+#&gt; [1] &quot;numeric&quot;
+class(AirPassengers)
+#&gt; [1] &quot;ts&quot;
+head(plain, 3)
+#&gt; [1] 112 118 132
+
+# ts() with no start or frequency: R has no idea these are months
+autoplot(ts(plain)) +
+  labs(x = &quot;Position in the vector&quot;, y = &quot;Passengers (thousands)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numbers are identical, <code>head()</code> confirms it: 112, 118, 132, exactly as before. But the shape of the line is now the only thing left. The x axis counts 1 to 144 with no notion of a year, R cannot label a peak as "July", and every seasonal function later in this post would refuse to run, because with no frequency there is no season to plot. The lesson is practical: if your plots look wrong, suspect the object before you suspect the plotting call. Getting <code>start</code> and <code>frequency</code> right when you build the <code>ts</code> is what buys you every one-liner below.</p>
+
+<p><img src="screenshots/Visualize-Time-Series-in-R-plot-map.webp" alt="Which plot answers which question" class="img-responsive img-zoomable" loading="lazy" width="2248" height="1408" /></p>
+
+<p><em>Figure 1: The four questions you can ask a time series, and the plot that answers each. The rest of this post walks the four branches from left to right, all on AirPassengers.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The series runs to the end of 1960. Plot only the last four years, from January 1957 onward, and check how many months that leaves.</p>
+<div class="webr-container" data-block-title="Your turn: zoom in on the last four years">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: zoom in on the last four years</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: window() takes start = c(year, month) and, if you omit end,
+# runs to the end of the series.
+# Expected: a 48-month plot covering 1957 to 1960</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Zoom-in solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Zoom-in solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">recent &lt;- window(AirPassengers, start = c(1957, 1))
+autoplot(recent) +
+  labs(title = &quot;The last four years only&quot;, x = &quot;Year&quot;, y = &quot;Passengers (thousands)&quot;)
+length(recent)
+#&gt; [1] 48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four years of monthly data is 48 observations, and <code>window()</code> kept the <code>ts</code> metadata intact, so the plot still has a real year axis. Zooming in like this is the standard move when a long series hides its recent behaviour: the seasonal humps that look cramped in the full plot are obvious across four years.</p>
+
+</details>
+</section>
+
+<h2>How do you see the season inside the trend?</h2>
+
+<p>The time plot told you there is a yearly pattern, but it is hard to study, because the trend keeps dragging the line upward and out of the frame. Every year sits higher than the last, so you are trying to compare shapes that never share a baseline. The fix is a <strong>season plot</strong>: cut the single long line into one line per year, and stack them all on a common January-to-December axis. The trend becomes vertical separation between the lines, and the seasonal shape becomes the thing they all have in common.</p>
+
+<p><img src="screenshots/Visualize-Time-Series-in-R-season-plot.webp" alt="How a season plot is built from a time plot" class="img-responsive img-zoomable" loading="lazy" width="2248" height="1060" /></p>
+
+<p><em>Figure 2: A season plot is the time plot cut at every January and overlaid. Nothing is aggregated or averaged away; the same 144 points are simply re-drawn on a 12-month axis, so 12 years become 12 lines.</em></p>
+
+<p><code>ggseasonplot()</code> does the cutting for you, using the <code>frequency</code> from the object to know where a year ends. <code>year.labels = TRUE</code> writes the year at the right end of each line and <code>year.labels.left = TRUE</code> writes it at the left end too, which is what makes it readable at a glance.</p>
+
+<div class="webr-container" data-block-title="A season plot: one line per year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A season plot: one line per year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggseasonplot(AirPassengers, year.labels = TRUE, year.labels.left = TRUE) +
+  labs(title = &quot;One line per year, all on a Jan-Dec axis&quot;,
+       y = &quot;Passengers (thousands)&quot;)
+
+# What the plot shows, as numbers: the average of all twelve Januaries,
+# all twelve Februaries, and so on. cycle() returns 1..12 for a monthly ts.
+month_means &lt;- tapply(as.numeric(AirPassengers), cycle(AirPassengers), mean)
+round(month_means, 1)
+#&gt;     1     2     3     4     5     6     7     8     9    10    11    12
+#&gt; 241.8 235.0 270.2 267.1 271.8 311.7 351.3 351.1 302.4 266.6 232.8 261.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows twelve lines that never cross much: 1949 sits at the bottom, 1960 at the top, and the ten other years stack up in order between them. That neat stacking is the trend, seen from a new angle: later years are higher than earlier years in essentially every month, which is a much stronger statement than "the line goes up". More importantly, all twelve lines share one shape. Each rises into the middle of the year, peaks around July and August, drops sharply into November, and ticks back up in December.</p>
+
+<p>The numbers underneath say the same thing precisely. Averaged over all twelve years, July is the busiest month at 351.3 thousand passengers and August is a whisker behind at 351.1. November is the quietest at 232.8. So the summer peak is worth roughly 118 thousand passengers a month over the November trough, and December's little bump (261.8, up from November's 232.8) is the Christmas travel you would expect to be there.</p>
+
+<p>The <code>tapply()</code> line deserves a walk-through, because it is doing something specific. <code>cycle()</code> takes the <code>ts</code> and returns, for every one of the 144 observations, its position within the cycle: 1 for January, 2 for February, up to 12 for December. <code>tapply(values, groups, mean)</code> then splits the 144 values into those twelve groups and applies <code>mean</code> to each. The result is twelve numbers, one per month, which is exactly the vertical centre of each column of the season plot.</p>
+
+<p>There is a second way to draw the same plot, which sometimes makes the cycle easier to feel:</p>
+
+<div class="webr-container" data-block-title="The same season plot, wrapped into a circle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same season plot, wrapped into a circle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggseasonplot(AirPassengers, polar = TRUE) +
+  labs(title = &quot;Polar season plot: December wraps around to January&quot;, y = &quot;&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>polar = TRUE</code> bends the January-to-December axis into a circle, so December sits next to January instead of at the opposite end of the page. The spirals grow outward year by year (the trend again) and bulge toward the July side of the circle (the season again). It is the same data as before; the circle just stops the year from having an artificial start and end.</p>
+
+<blockquote><p><strong>Watch out:</strong> A season plot needs a <code>frequency</code> above 1. If you built your <code>ts</code> without setting <code>frequency = 12</code>, <code>ggseasonplot()</code> errors out rather than guessing. That error is almost always a message about the object, not the plot.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> July is the busiest month. Which month is the quietest, and what is its average? Get R to tell you rather than reading it off the plot.</p>
+<div class="webr-container" data-block-title="Your turn: find the quietest month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the quietest month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: which.min() gives you the position of the smallest value,
+# and month.abb is a built-in vector of month abbreviations.
+# Expected: a month name and its average, in thousands of passengers</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Quietest-month solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quietest-month solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">month.abb[which.min(month_means)]
+#&gt; [1] &quot;Nov&quot;
+round(min(month_means), 1)
+#&gt; [1] 232.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>November, at 232.8 thousand passengers on average, is the quietest month of the year. <code>which.min(month_means)</code> returned 11, and <code>month.abb</code> is a base R constant holding <code>&quot;Jan&quot;</code> through <code>&quot;Dec&quot;</code>, so indexing it with 11 gives <code>&quot;Nov&quot;</code>. Worth noting: November is lower than both October and December, so it is a genuine trough rather than just a point on the way down.</p>
+
+</details>
+</section>
+
+<h2>Which months are high, and are they all growing?</h2>
+
+<p>The season plot answers "what shape does a year have?" It is much weaker at a related question: "what has July been doing over the twelve years?" To read that off a season plot you have to trace one x position across twelve different lines, which nobody can do accurately. The <strong>subseries plot</strong> rearranges the same data to make exactly that question easy. It gives each month its own little panel, and inside each panel it draws that month's twelve values as their own mini time plot, in year order, with a horizontal blue line at that month's mean.</p>
+
+<div class="webr-container" data-block-title="A subseries plot: one mini time plot per month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A subseries plot: one mini time plot per month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggsubseriesplot(AirPassengers) +
+  labs(title = &quot;Each month gets its own panel; blue line is that month's mean&quot;,
+       y = &quot;Passengers (thousands)&quot;)
+
+# What each panel contains, as numbers: each month's average over the
+# first six years, over the last six years, and the difference.
+by_month &lt;- split(as.numeric(AirPassengers), cycle(AirPassengers))
+early &lt;- sapply(by_month, function(x) mean(x[1:6]))    # 1949-1954
+late  &lt;- sapply(by_month, function(x) mean(x[7:12]))   # 1955-1960
+round(rbind(first_6_years = early, last_6_years = late, growth = late - early), 1)
+#&gt;                   1     2     3     4     5     6     7     8     9    10    11    12
+#&gt; first_6_years 157.2 159.7 185.8 178.3 177.3 197.8 218.8 220.7 197.2 174.2 153.2 174.7
+#&gt; last_6_years  326.3 310.3 354.5 355.8 366.3 425.5 483.8 481.5 407.7 359.0 312.5 349.0
+#&gt; growth        169.2 150.7 168.7 177.5 189.0 227.7 265.0 260.8 210.5 184.8 159.3 174.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the plot first. Twelve panels sit side by side, one per month. The blue horizontal lines trace out the seasonal shape you already know: low in the winter months, high in July and August. That much duplicates the season plot. The new information is <em>inside</em> each panel: within every single month, the line climbs from left to right. January rises across the twelve years, and so does February, and so does every other month. No month is shrinking, and no month is flat.</p>
+
+<p>The table makes that precise. In the first six years January averaged 157.2 thousand passengers; in the last six it averaged 326.3, a gain of 169.2. July went from 218.8 to 483.8, a gain of 265.0. Every entry in the <code>growth</code> row is positive, which is the numeric version of "every panel slopes upward". And the row is not flat: July and August gained the most (265.0 and 260.8) while February gained the least (150.7).</p>
+
+<p>The three lines that built that table are worth unpacking, because one of them rests on an assumption you should see. <code>split(values, groups)</code> is the same idea as <code>tapply()</code> from the last section, minus the averaging: instead of collapsing each group down to one number, it hands you the groups themselves. Splitting on <code>cycle(AirPassengers)</code> therefore gives twelve vectors, one per month, and each one holds that month's twelve values <em>in year order</em>, so the seventh vector is July 1949, July 1950, and so on up to July 1960. That ordering is the assumption everything else rests on: it is the only reason <code>x[1:6]</code> means "the first six years" and <code>x[7:12]</code> means "the last six". <code>sapply(by_month, function(x) mean(x[1:6]))</code> then runs that small averaging function across all twelve vectors and simplifies the twelve answers into one named vector, and <code>rbind()</code> stacks the three vectors into the three rows you see printed.</p>
+
+<p>That contrast is the thing the subseries plot is uniquely good at. A time plot mixes trend and season together into one wiggling line. A season plot separates them but makes per-month history hard to read. The subseries plot answers the two questions separately and at once: <em>between</em> panels you read the seasonal pattern (which months are high), and <em>within</em> each panel you read that month's own trend (whether it is growing, and how fast).</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>growth</code> row is measured in thousands of passengers, and July gained the most. But is July really growing <em>faster</em>, or is it just bigger to start with? Compare the months as ratios instead of differences.</p>
+<div class="webr-container" data-block-title="Your turn: growth as a ratio, not a difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: growth as a ratio, not a difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute late / early for each month instead of late - early,
+# and round to 2 decimals.
+# Expected: twelve ratios, all near 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Growth-ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Growth-ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(late / early, 2)
+#&gt;    1    2    3    4    5    6    7    8    9   10   11   12
+#&gt; 2.08 1.94 1.91 2.00 2.07 2.15 2.21 2.18 2.07 2.06 2.04 2.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every month roughly doubled, and the ratios sit in a tight band from 1.91 (March) to 2.21 (July). So July's headline gain of 265 thousand versus February's 151 was mostly a story about July being bigger in the first place, not about July growing at a wildly different rate. In differences the months look very unequal; in ratios they look almost the same. That is a hint about the <em>shape</em> of this series, and the next section is about exactly that.</p>
+
+</details>
+</section>
+
+<h2>Why do the swings get bigger every year?</h2>
+
+<p>Go back to the very first time plot and look at the wiggles rather than the trend. The 1949 hump is small and the 1960 hump is huge. The ratio table you just built says why: the whole series, seasonal swing included, is roughly doubling, not adding a constant. This distinction has a name and a consequence, so it is worth measuring rather than eyeballing.</p>
+
+<p>When the seasonal swing stays roughly the same size no matter what level the series is at, the seasonality is called <strong>additive</strong>: the season adds a fixed number of passengers. When the swing grows in proportion to the level, it is called <strong>multiplicative</strong>: the season multiplies the level by a factor. Measure which one <code>AirPassengers</code> is by computing the size of each year's swing, in raw units and as a fraction of that year's smallest month.</p>
+
+<div class="webr-container" data-block-title="Measuring the swing, year by year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measuring the swing, year by year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_year &lt;- split(as.numeric(AirPassengers), floor(time(AirPassengers)))
+
+# Swing in raw units: biggest month minus smallest month, per year
+swing &lt;- sapply(by_year, function(x) max(x) - min(x))
+swing
+#&gt; 1949 1950 1951 1952 1953 1954 1955 1956 1957 1958 1959 1960
+#&gt;   44   56   54   71   92  114  131  142  166  195  217  232
+
+# The same swing as a fraction of that year's smallest month
+round(swing / sapply(by_year, min), 2)
+#&gt; 1949 1950 1951 1952 1953 1954 1955 1956 1957 1958 1959 1960
+#&gt; 0.42 0.49 0.37 0.42 0.51 0.61 0.56 0.52 0.55 0.63 0.63 0.59</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>time()</code> function returns the time of each observation as a decimal year, so January 1949 is 1949.000 and February 1949 is 1949.083. Wrapping it in <code>floor()</code> chops off the fraction, leaving just the year, which <code>split()</code> then uses to cut the 144 values into twelve yearly groups.</p>
+
+<p>Now compare the two rows. In raw passengers, the swing grows relentlessly: 44 thousand in 1949, 232 thousand in 1960, more than five times bigger. If the seasonality were additive, that row would be roughly flat. It is not, so it is not additive. As a fraction of the year's own baseline, though, the swing stays in a band from 0.37 to 0.63: the seasonal effect is worth roughly half the quiet month's traffic near the start of the series, and a little more than half near the end. Be honest about that second row, because it is not perfectly flat: it drifts up from an average of 0.47 across the first six years to 0.58 across the last six. But a 1.2-fold rise is nothing next to the raw swing's 5.3-fold one. The swing is mostly <em>keeping up</em> with the level rather than growing under its own steam, and that is multiplicative seasonality, measured rather than asserted.</p>
+
+<p>The standard fix is to take logs. A log turns multiplication into addition (\(\log(a \times <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> = \log a + \log b\)), so a swing that multiplies the level becomes a swing that adds a constant on the log scale:</p>
+
+<div class="webr-container" data-block-title="Logs turn a growing swing into a steady one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logs turn a growing swing into a steady one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(log(AirPassengers)) +
+  labs(title = &quot;The same series on a log scale&quot;,
+       x = &quot;Year&quot;, y = &quot;log(passengers)&quot;)
+
+log_swing &lt;- sapply(split(as.numeric(log(AirPassengers)), floor(time(AirPassengers))),
+                    function(x) max(x) - min(x))
+round(log_swing, 2)
+#&gt; 1949 1950 1951 1952 1953 1954 1955 1956 1957 1958 1959 1960
+#&gt; 0.35 0.40 0.32 0.35 0.41 0.47 0.45 0.42 0.44 0.49 0.49 0.47</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On the log scale the swing sits between 0.32 and 0.49 across twelve years. It keeps the same mild drift the fraction had (0.38 on average across the first six years, 0.46 across the last six), so the log is a good fix rather than a perfect one. But set either of those against 44 climbing to 232 on the raw scale and the difference is the whole point. The plot shows it visually too: the humps are now roughly the same height from one end to the other, and the trend has turned into a near-straight line. That is what people mean by "log-transform to stabilise the variance", and now you have seen the number that justifies it rather than taking it on trust.</p>
+
+<blockquote><p><strong>Note:</strong> The log scale is a viewing choice, not a change to the data. Nothing forces you to model logs just because you plotted them. But if your next step is a model that assumes an additive season (and many do), this plot is how you find out you need the transform, before the model quietly misfits the last three years.</p></blockquote>
+
+<h2>How do you check whether this month depends on last month?</h2>
+
+<p>Every plot so far has asked about the calendar: is it going up, does it repeat, which month is high. There is a different kind of question, and it is the one that eventually decides which forecasting model you can use. Does the series <em>remember itself</em>? If July was unusually busy, does that tell you anything about August? If you can predict a month from earlier months, there is structure to exploit. If you cannot, there is nothing there to forecast.</p>
+
+<p>The direct way to look is a <strong>lag plot</strong>. The lag-\(k\) value of a series is simply the value \(k\) steps earlier, written \(y_{t-k}\); "lag 1" of July is June, "lag 12" of July 1960 is July 1959. A lag plot is a scatter plot of \(y_t\) against \(y_{t-k}\): each point is one month paired with the month \(k\) steps before it. A tight diagonal cloud means "knowing \(y_{t-k}\) tells you a lot about \(y_t\)"; a shapeless blob means it tells you nothing.</p>
+
+<div class="webr-container" data-block-title="Lag plots: this month against k months ago">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lag plots: this month against k months ago</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gglagplot(AirPassengers, lags = 12, do.lines = FALSE) +
+  labs(title = &quot;Each panel plots this month against k months ago&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lags = 12</code> asks for twelve panels, one per lag from 1 to 12, and <code>do.lines = FALSE</code> draws points only (the default joins consecutive points, which is unreadable at 144 observations). Colour marks the month, so you can see which part of the year each point came from.</p>
+
+<p>Two panels stand out. Lag 1 is a tight upward diagonal: consecutive months are very similar, which is unsurprising for a series that trends. Lag 12 is <em>also</em> tight, which is the interesting one: what a month looks like is strongly predicted by the same month one year earlier. Lag 6 is the loosest and least diagonal, because a month six away is at the opposite side of the seasonal cycle: summer against winter.</p>
+
+<p>Twelve scatter plots is a lot of looking, though, and we only extracted one number's worth of information from each. That is what the ACF is for. <strong>Autocorrelation</strong> is the correlation of a series with a lagged copy of itself, and the lag-\(k\) autocorrelation, written \(r_k\), is one number summarising one lag plot:</p>
+
+<p>$$ r_k = \frac{\sum_{t=k+1}^{T} (y_t - \bar{y})(y_{t-k} - \bar{y})}{\sum_{t=1}^{T} (y_t - \bar{y})^2} $$</p>
+
+<p>Every symbol: \(y_t\) is the value at time \(t\); \(T\) is the number of observations (144 here); \(k\) is the lag; \(\bar{y}\) is the mean of the whole series (280.3, from the very first summary). The numerator sums the product of two deviations from the mean: how far above average the series is now, times how far above average it was \(k\) steps ago. When those two tend to have the same sign (both above average, or both below), the products are positive and \(r_k\) is large. The denominator just rescales the whole thing so that \(r_k\) lands between -1 and 1, exactly like an ordinary correlation.</p>
+
+<p>That is a formula, so compute it by hand once and check it against R's answer. Do not take the definition on faith:</p>
+
+<div class="webr-container" data-block-title="Computing r_1 by hand, then checking against acf()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Computing r_1 by hand, then checking against acf()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- as.numeric(AirPassengers)
+n &lt;- length(y)          # T in the formula: 144 observations
+ybar &lt;- mean(y)         # y-bar: 280.3
+
+# r_1: pair every month with the month before it (drop the first and last)
+r1_by_hand &lt;- sum((y[2:n] - ybar) * (y[1:(n - 1)] - ybar)) / sum((y - ybar)^2)
+r1_by_hand
+#&gt; [1] 0.9480473
+
+# R's own answer, for the first three lags
+acf(AirPassengers, lag.max = 3, plot = FALSE)
+#&gt;
+#&gt; Autocorrelations of series 'AirPassengers', by lag
+#&gt;
+#&gt; 0.0000 0.0833 0.1667 0.2500
+#&gt;  1.000  0.948  0.876  0.807</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hand calculation gave 0.9480473 and <code>acf()</code> printed 0.948 at the first lag. Same number, so the formula is doing exactly what the words said: <code>y[2:n]</code> is the series from February 1949 onward, <code>y[1:(n-1)]</code> is the same series shifted one month back, and correlating the two is all that \(r_1\) ever was.</p>
+
+<p>One trap in that output. The lags print as <code>0.0000 0.0833 0.1667 0.2500</code>, not <code>0 1 2 3</code>. That is because <code>acf()</code> reports lag in <em>units of the seasonal cycle</em>, and for monthly data one month is 1/12 of a year, or 0.0833. So 0.0833 is lag 1 month, not lag 0.08 of anything. <code>ggAcf()</code> labels lags in observations instead, which is why it is easier to read:</p>
+
+<div class="webr-container" data-block-title="The ACF: every r_k on one chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The ACF: every r_k on one chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggAcf(AirPassengers, lag.max = 36) +
+  labs(title = &quot;ACF of AirPassengers: three years of lags&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each bar is one \(r_k\), for lags 1 through 36. Two features carry the meaning. The bars start near 0.95 and decay slowly rather than dropping to zero: that slow decay is the signature of a <strong>trend</strong>, because in a trending series any two nearby months are both high or both low simply by virtue of being late or early. And there are gentle bumps at lags 12, 24, and 36, exactly where the seasonality lives: the same month in earlier years is more correlated than the neighbouring months around it. The blue dashed lines are a significance band, and the next section is about what they actually mean.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You computed \(r_1\) by hand. Now do \(r_{12}\), the correlation between each month and the same month a year earlier, and check it against <code>acf()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compute r_12 by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute r_12 by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Adapt the r1_by_hand line: pair y[13:n] with y[1:(n-12)].
+# Then compare against acf(AirPassengers, lag.max = 12, plot = FALSE)$acf[13]
+# (the [13] is because element 1 is lag 0)
+# Expected: the two agree to 4 decimals</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="r_12 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">r_12 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">r12_by_hand &lt;- sum((y[13:n] - ybar) * (y[1:(n - 12)] - ybar)) / sum((y - ybar)^2)
+round(r12_by_hand, 4)
+#&gt; [1] 0.7604
+round(acf(AirPassengers, lag.max = 12, plot = FALSE)$acf[13], 4)
+#&gt; [1] 0.7604</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both give 0.7604. The only change from the \(r_1\) version is the offset: <code>y[13:n]</code> starts at January 1950 and <code>y[1:(n-12)]</code> is the same series shifted back twelve months, so each product pairs a month with its counterpart one year earlier. The <code>$acf</code> component is a vector starting at lag 0, so lag 12 is element 13. Note that 0.7604 is lower than \(r_1\)'s 0.948 even though the seasonal pattern is real and strong; the trend gives every short lag an advantage, which is precisely the effect the next section warns about.</p>
+
+</details>
+</section>
+
+<h2>What does a series with no structure look like?</h2>
+
+<p>Every plot so far has found something. That is a problem, because you have no idea yet what these plots look like when there is nothing to find, and a chart that always finds a pattern is not evidence of anything. So build the opposite case deliberately: a series that by construction has no trend, no season, and no memory at all. The name for that is <strong>white noise</strong>, and it is 144 independent random draws with no relationship to each other whatsoever.</p>
+
+<div class="webr-container" data-block-title="White noise: the same plots on a series with nothing in it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">White noise: the same plots on a series with nothing in it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)   # so you get exactly the numbers printed here
+noise &lt;- ts(rnorm(144, mean = 280, sd = 60), start = c(1949, 1), frequency = 12)
+
+autoplot(noise) +
+  labs(title = &quot;144 independent random draws&quot;, x = &quot;Year&quot;, y = &quot;Made-up units&quot;)
+
+ggAcf(noise, lag.max = 36) +
+  labs(title = &quot;ACF of white noise: everything inside the band&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rnorm(144, mean = 280, sd = 60)</code> draws 144 independent numbers from a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> centred at 280, deliberately close to the AirPassengers average, and <code>ts(..., start = c(1949, 1), frequency = 12)</code> wraps them up as a monthly series so that R will plot them on the same kind of axis. <code>set.seed(2026)</code> fixes the random draw so your numbers match the ones printed here.</p>
+
+<p>The time plot is the useful shock. It is <em>not</em> a flat line. It jitters up and down, and if you stare at it you will find stretches that look like a rising trend and stretches that look like a dip, because random data does that. This is the single most important calibration in the post: your eye will find patterns in noise. The ACF is what stops it. Almost every bar sits inside the blue dashed band, with no slow decay and no bumps at 12 and 24. Compare it to the AirPassengers ACF from the last section, which started at 0.95 and stayed high for three years, and the difference is not subtle.</p>
+
+<p>That band is a real number, not a decoration. If a series is white noise, each \(r_k\) is a random quantity centred on zero with standard deviation roughly \(1/\sqrt{T}\), so about 95% of them should land within \(\pm 1.96/\sqrt{T}\). The 1.96 is the usual 95% cutoff for a normal distribution, the same number sitting behind any <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a>. That is where the dashed lines come from, and you can compute them yourself:</p>
+
+<div class="webr-container" data-block-title="The band, and how many bars cross it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The band, and how many bars cross it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">band &lt;- 1.96 / sqrt(144)      # T = 144 observations
+round(band, 3)
+#&gt; [1] 0.163
+
+# White noise: how many of the first 36 lags cross the band?
+r_noise &lt;- acf(noise, lag.max = 36, plot = FALSE)$acf[-1]   # [-1] drops lag 0
+sum(abs(r_noise) &gt; band)
+#&gt; [1] 2
+
+# AirPassengers: same question
+r_air &lt;- acf(AirPassengers, lag.max = 36, plot = FALSE)$acf[-1]
+sum(abs(r_air) &gt; band)
+#&gt; [1] 36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The band is 0.163. For the white noise series, 2 of the 36 bars cross it, which is 5.6%, almost exactly the 5% the theory predicts. Those two crossings are not a discovery; they are the price of looking at 36 lags. For AirPassengers, all 36 cross. That is a series drenched in structure.</p>
+
+<p>This is also where the ACF is easiest to over-read, so here is the honest limit of the tool. AirPassengers' huge autocorrelations at lags 20 or 30 do not mean that what happened in August 1955 <em>causes</em> what happens in April 1957. They are mostly the trend: in a series that keeps climbing, any two months are both above the overall mean if they are both late, which the formula reads as correlation. The ACF measures association, and a trend manufactures association at every lag for free. That is why the usual next step is to remove the trend before reading the ACF for model structure, which is the subject of stationarity and differencing.</p>
+
+<blockquote><p><strong>Watch out:</strong> A single bar poking past the dashed line is not a finding. At 36 lags you should <em>expect</em> roughly two crossings from pure chance, which is exactly what the noise series delivered. Read the ACF for its overall shape (slow decay, bumps at the seasonal lag), not for individual bars.</p></blockquote>
+
+<h2>How do the same plots look with tsibble and feasts?</h2>
+
+<p>Everything so far used <code>ts</code> objects and the <code>forecast</code> package, which is the classic stack and the reason it works in the code boxes on this page. There is a newer one. <strong>tidyverts</strong> is a family of packages (<code>tsibble</code>, <code>feasts</code>, <code>fable</code> and friends) that redo time series in tidyverse style, holding the series in a data frame called a <strong>tsibble</strong> rather than in a <code>ts</code>: <a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> covers the difference between the two object types. The plotting functions are near one-to-one with the ones you just learned, so if you have the four questions, you already have this API.</p>
+
+<p>These blocks will not run in the boxes on this page, because the tidyverts packages are not part of this page's runtime. Copy them into your own R session to follow along. The outputs shown are from a real local run on R 4.6.0 with tsibble 1.2.0, feasts 0.5.0, and ggtime 0.2.0.</p>
+
+<pre><code class="language-r"># install.packages(c(&quot;tsibble&quot;, &quot;feasts&quot;, &quot;ggtime&quot;))
+library(tsibble)
+library(feasts)
+library(ggtime)
+
+air &lt;- as_tsibble(AirPassengers)
+air
+#&gt; # A tsibble: 144 x 2 [1M]
+#&gt;       index value
+#&gt;       &lt;mth&gt; &lt;dbl&gt;
+#&gt;  1 1949 Jan   112
+#&gt;  2 1949 Feb   118
+#&gt;  3 1949 Mar   132
+#&gt;  4 1949 Apr   129
+#&gt;  5 1949 May   121
+#&gt;  6 1949 Jun   135
+#&gt;  7 1949 Jul   148
+#&gt;  8 1949 Aug   148
+#&gt;  9 1949 Sep   136
+#&gt; 10 1949 Oct   119
+#&gt; # ℹ 134 more rows</code></pre>
+
+<p><code>as_tsibble()</code> converted the <code>ts</code> into a data frame with one row per observation and two columns: <code>index</code>, the month (note the <code>&lt;mth&gt;</code> type, a real month object rather than a string), and <code>value</code>, the passenger count. The <code>[1M]</code> in the header is the tsibble's interval, meaning one month. The metadata that lived invisibly inside the <code>ts</code> is now an actual column you can filter and join on, which is the whole appeal of the format.</p>
+
+<p>The plots then take the tsibble plus the name of the column to plot:</p>
+
+<pre><code class="language-r">gg_season(air, value)      # season plot   (was ggseasonplot)
+gg_subseries(air, value)   # subseries plot (was ggsubseriesplot)
+gg_lag(air, value, geom = &quot;point&quot;, lags = 1:12)   # lag plot (was gglagplot)</code></pre>
+
+<pre><code class="language-r">autoplot(ACF(air, value, lag_max = 36))
+
+ACF(air, value, lag_max = 3)
+#&gt; # A tsibble: 3 x 2 [1M]
+#&gt;        lag   acf
+#&gt;   &lt;cf_lag&gt; &lt;dbl&gt;
+#&gt; 1       1M 0.948
+#&gt; 2       2M 0.876
+#&gt; 3       3M 0.807</code></pre>
+
+<p>Two things are worth noticing. First, <code>ACF()</code> returns a <em>table</em>, not just a plot: lag 1 is 0.948, lag 2 is 0.876, lag 3 is 0.807, which are the same numbers <code>acf()</code> printed earlier in this post, because it is the same formula. The lags are labelled <code>1M</code>, <code>2M</code>, <code>3M</code> (one month, two months) rather than the confusing 0.0833 the base <code>acf()</code> prints, which is one genuine improvement of the newer stack. Second, the results are in a tidy table you can pipe into <code>filter()</code> or <code>mutate()</code> like any other data frame, instead of being locked in a plot.</p>
+
+<blockquote><p><strong>Note:</strong> <code>gg_season()</code>, <code>gg_subseries()</code>, and <code>gg_lag()</code> used to live in <code>feasts</code> and moved to the <code>ggtime</code> package in feasts 0.4.2. Calling them from <code>feasts</code> alone still works but prints a deprecation warning, so load <code>ggtime</code> as shown. If you follow an older tutorial and see that warning, this is why.</p></blockquote>
+
+<p>Which stack should you use? If you are already in a tidyverse workflow, or your data has multiple series in one table (many products, many stores), tsibble handles that natively where <code>ts</code> does not, and the tidyverts is the better home. If you have one series and want the shortest path from data to picture, <code>ts</code> plus <code>forecast</code> is still perfectly good and is what most existing R material assumes. The plots are the same plots either way; the four questions in Figure 1 do not care which object you store the numbers in.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between a season plot and a subseries plot?</strong> Both re-cut the same series, but along different lines. A season plot draws one line per year on a shared January-to-December axis, so it answers "what shape does a typical year have?" A subseries plot gives each month its own panel containing that month's values across all years, so it answers "what has July been doing over time?" Use the season plot to see the seasonal shape, the subseries plot to see whether individual months are growing or shrinking.</p>
+
+<p><strong>Why does my <code>ggseasonplot()</code> call throw an error?</strong> Almost always because the <code>ts</code> has <code>frequency = 1</code>, so there is no season for R to plot. Check with <code>frequency(your_series)</code>. If it returns 1, rebuild the object with the right frequency, for example <code>ts(x, start = c(2020, 1), frequency = 12)</code> for monthly data or <code>frequency = 4</code> for quarterly. The error is about the object, not the plotting call.</p>
+
+<p><strong>Do I need the forecast package just to plot a time series?</strong> No. Base R's <code>plot(AirPassengers)</code> gives you a perfectly readable time plot with zero dependencies. What <code>forecast</code> adds is the four-question toolkit as one-liners (<code>ggseasonplot()</code>, <code>ggsubseriesplot()</code>, <code>gglagplot()</code>, <code>ggAcf()</code>) and ggplot2 output you can extend with <code>+ labs()</code>, <code>+ theme()</code>, and any other layer.</p>
+
+<p><strong>How many lags should I ask for in <code>ggAcf()</code>?</strong> A useful default is two to three full seasonal cycles, so <code>lag.max = 24</code> or <code>36</code> for monthly data. That is enough to see whether the seasonal bumps repeat at 12, 24, and 36 rather than being a one-off. Asking for far more lags mostly adds bars that cross the significance band by chance.</p>
+
+<p><strong>The ACF bars are all above the line. Does that mean the series is highly predictable?</strong> Not by itself. A trend inflates the autocorrelation at every lag, because in a climbing series any two months are both above the series mean simply for being late in the sample. That is why all 36 AirPassengers bars cross the band. The ACF is most informative about model structure <em>after</em> the trend has been removed, which is what differencing and stationarity testing are for.</p>
+
+<p><strong>Can I use these plots on daily or hourly data?</strong> Yes, but <code>ts</code> handles non-integer seasonality badly, and daily data often has two seasonal periods at once (day-of-week and time-of-year). That is one of the strongest arguments for the tsibble and feasts stack, which supports multiple seasonal periods properly; <code>gg_season(air, value, period = &quot;week&quot;)</code> lets you pick which one to look at.</p>
+
+<h2>Summary</h2>
+
+<p>Four plots, four questions, one dataset. Before fitting any model to <code>AirPassengers</code>, the pictures already told us it trends upward, peaks in July, has a multiplicative season worth about half the quiet month's traffic, grows in every month rather than just the summer, and is autocorrelated at every lag out to three years.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Plot</th>
+<th>forecast (ts)</th>
+<th>tidyverts (tsibble)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Is it trending? Any outliers?</td>
+<td>Time plot</td>
+<td><code>autoplot(y)</code></td>
+<td><code>autoplot(y, value)</code></td>
+</tr>
+<tr>
+<td>What shape does a year have?</td>
+<td>Season plot</td>
+<td><code>ggseasonplot(y)</code></td>
+<td><code>gg_season(y, value)</code></td>
+</tr>
+<tr>
+<td>Which months are high? Are they growing?</td>
+<td>Subseries plot</td>
+<td><code>ggsubseriesplot(y)</code></td>
+<td><code>gg_subseries(y, value)</code></td>
+</tr>
+<tr>
+<td>Does the series remember itself?</td>
+<td>Lag plot</td>
+<td><code>gglagplot(y)</code></td>
+<td><code>gg_lag(y, value)</code></td>
+</tr>
+<tr>
+<td>How strong is that memory, per lag?</td>
+<td>ACF</td>
+<td><code>ggAcf(y)</code></td>
+<td><code>ACF(y, value)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Three things worth carrying forward:</p>
+
+<ul>
+
+<li><strong>The metadata does the work.</strong> <code>start</code> and <code>frequency</code> are what let every one of these be a one-liner. If a plot looks wrong, inspect the object first.</li>
+
+<li><strong>Growing swings mean multiplicative seasonality.</strong> Measure it (swing as a fraction of level, year by year) rather than eyeballing it, and reach for a log when the raw swing climbs but the fraction does not.</li>
+
+<li><strong>Always have the null in mind.</strong> White noise still looks patterned to the human eye. The \(\pm 1.96/\sqrt{T}\) band is the calibration, and roughly 5% of bars cross it for nothing.</li>
+
+</ul>
+
+<p>Continue with <a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> if the <code>ts</code> versus <code>tsibble</code> distinction is still fuzzy, or with <a href="Time-Series-Analysis-With-R.html">Time Series Analysis With R</a>, which picks up where the ACF here leaves off and turns these patterns into models.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed., Chapter 2 "Time series graphics". The canonical treatment of exactly these four plots, by the author of the <code>forecast</code> package: <a href="https://otexts.com/fpp3/graphics.html">otexts.com/fpp3/graphics.html</a></li>
+
+<li><code>forecast</code> package reference. Function-by-function docs for <code>autoplot()</code>, <code>ggseasonplot()</code>, <code>ggsubseriesplot()</code>, <code>gglagplot()</code>, and <code>ggAcf()</code>: <a href="https://pkg.robjhyndman.com/forecast/">pkg.robjhyndman.com/forecast</a></li>
+
+<li><code>feasts</code> package site. The tidyverts feature-extraction and statistics package used in the last section: <a href="https://feasts.tidyverts.org/">feasts.tidyverts.org</a></li>
+
+<li><code>tsibble</code> package site. Reference for <code>as_tsibble()</code>, the index/key model, and why intervals matter: <a href="https://tsibble.tidyverts.org/">tsibble.tidyverts.org</a></li>
+
+<li><code>ggtime</code> on CRAN. The new home of <code>gg_season()</code>, <code>gg_subseries()</code>, and <code>gg_lag()</code> since feasts 0.4.2: <a href="https://cran.r-project.org/package=ggtime">cran.r-project.org/package=ggtime</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a> for <code>acf()</code>. The exact definition and the <code>plot = FALSE</code> return structure used above: <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/acf.html">stat.ethz.ch/R-manual/R-devel/library/stats/html/acf.html</a></li>
+
+<li>R documentation for <code>AirPassengers</code>. Provenance of the running example, from Box, Jenkins & Reinsel: <a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/AirPassengers.html">stat.ethz.ch/R-manual/R-devel/library/datasets/html/AirPassengers.html</a></li>
+
+<li><code>ggplot2</code> reference. For extending any of these plots with <code>labs()</code>, <code>theme()</code>, and friends: <a href="https://ggplot2.tidyverse.org/">ggplot2.tidyverse.org</a></li>
+
+</ol>
+
