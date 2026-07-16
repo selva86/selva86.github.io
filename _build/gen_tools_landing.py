@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','binomial-probability-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -89,6 +89,9 @@ C3META = {
  'normal-distribution-calculator': ('Normal Distribution', 'pnorm',
   'Area below, above, between or outside a value on any normal curve, plus inverse cutoffs, with a shaded plot.',
   '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C13 37 14 9 22 9 C30 9 31 37 39 37" fill="none"/><path class="af" d="M14.5 37 C17 30 19 16 22 9 C25 16 27 30 29.5 37 Z" style="opacity:.2"/><path class="a" d="M14.5 37 V25 M29.5 37 V25" fill="none" stroke-dasharray="2.5 2.5"/>'),
+ 'binomial-probability-calculator': ('Binomial Probability', 'dbinom',
+  'The chance of k successes in n trials, exact or cumulative, a range, or the inverse count, with a shaded bar chart.',
+  '<path class="s" d="M6 38 H40"/><rect class="af" style="opacity:.4" x="8" y="30" width="4.5" height="8"/><rect class="af" style="opacity:.4" x="14" y="22" width="4.5" height="16"/><rect class="af" x="20" y="14" width="4.5" height="24"/><rect class="af" style="opacity:.4" x="26" y="22" width="4.5" height="16"/><rect class="af" style="opacity:.4" x="32" y="30" width="4.5" height="8"/>'),
  'p-value-calculator': ('p-Value Calculator', 'p',
   'Turn a t, z, chi-square, F, or r statistic into its p-value, or go the other way from alpha.',
   '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C13 37 14 9 22 9 C30 9 31 37 39 37" fill="none"/><path class="af" d="M30 21.8 C31.6 26.6 33.4 33 35 35.4 C36.3 36.4 37.6 36.9 39 37 L39 37 H30 Z" style="opacity:.35"/><path class="a" d="M30 37 V18" fill="none" stroke-dasharray="2.5 2.5"/>'),
