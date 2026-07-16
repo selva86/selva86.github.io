@@ -588,6 +588,13 @@ _TOOL_ICONS = {
         '<path d="M3.5 11.5L13 5"/>'
         '<path d="M3.5 9L13 2.5" opacity=".55"/>'
         '<path d="M3.5 14L13 7.5" opacity=".55"/></svg>',
+    # coxph: a stepped survival curve with a censoring tick
+    'coxph-output-interpreter.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 13.5V2.5"/>'
+        '<path d="M2 13.5h12"/>'
+        '<path d="M2.5 4h3.5V7h3.5v3.5H13"/>'
+        '<path d="M7.5 5.4V8.6" opacity=".55"/></svg>',
     'multiple-testing-correction.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2.5 4l2 2 3-3M2.5 8l2 2 3-3M2.5 12l2 2 3-3"/>'
@@ -839,6 +846,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Interpreters', 'slug': 'lm-output-interpreter.html',              'text': 'lm() Output'},
     {'group': 'Interpreters', 'slug': 'glm-output-interpreter.html',             'text': 'glm() Output'},
     {'group': 'Interpreters', 'slug': 'lmer-output-interpreter.html',            'text': 'lmer() Output'},
+    {'group': 'Interpreters', 'slug': 'coxph-output-interpreter.html',           'text': 'coxph() Output'},
     {'group': 'Interpreters', 'slug': 'anova-output-interpreter.html',           'text': 'ANOVA Output'},
     {'group': 'Interpreters', 'slug': 'vif-interpreter.html',                    'text': 'VIF / Multicollinearity'},
     {'group': 'Interpreters', 'slug': 'confusion-matrix-interpreter.html',       'text': 'Confusion Matrix'},
