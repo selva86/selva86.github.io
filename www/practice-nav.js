@@ -8,6 +8,7 @@
 
   // ---- catalog (curated + validated against the 124 published hubs; see Scripts/gen_hubs.py) ----
 window.XN_HUBS=[
+ ["Featured Problem Sets","STAR","/exercises/#featured",[["Interview prep",[["R Interview Questions (Top 50)","R-Interview-Questions"],["Statistics Interview Questions","Statistics-Interview-Questions"],["ML Interview Questions","ML-Interview-Questions-in-R"],["A/B Testing Interview Cases","AB-Testing-Interview-Cases"],["SQL to dplyr Translations","SQL-to-dplyr-Translations"],["Take-Home Simulator","Take-Home-Assignment-Simulator"]]],["Everyday fluency",[["Base R Speed Round","Base-R-Speed-Round"],["The Regex 20","Regex-Drills-in-R"],["Dates and Times Drills","Dates-and-Times-Drills-in-R"],["Error Triage Drills","Error-Triage-Drills-in-R"],["Data Cleaning Gauntlet","Data-Cleaning-Gauntlet"]]],["Statistics depth",[["Top 20 Bayesian Problems","Top-20-Bayesian-Problems-in-R"],["Probability Puzzles","Probability-Puzzles-for-Interviews"],["Top 25 Regression Problems","Top-25-Regression-Problems-in-R"],["Top 20 Time Series Problems","Top-20-Time-Series-Problems-in-R"],["The Resampling 15","Resampling-Problems-in-R"],["ggplot2 Recreation Challenge","ggplot2-Recreation-Challenge"]]]]],
  ["R Fundamentals","BRACKETS","/R-Basics-Exercises.html",[["First steps",[["Beginner drills","R-Beginner-Exercises"],["R basics","R-Basics-Exercises"],["Interview questions","R-Interview-Questions"]]],["Data structures",[["Vectors","R-Vectors-Exercises"],["Lists","R-Lists-Exercises"],["Data frames","R-Data-Frames-Exercises"],["Subsetting","R-Subsetting-Exercises"]]],["Logic and functions",[["Control flow","R-Control-Flow-Exercises"],["Functions","R-Functions-Exercises"],["The apply family","R-Apply-Exercises"],["Loops vs vectorization","Loops-vs-Vectorization-Exercises-in-R"]]]]],
  ["Data Wrangling","ROWS","/dplyr-Exercises-in-R.html",[["dplyr",[["dplyr basics","dplyr-Exercises-in-R"],["filter and select","dplyr-filter-select-Exercises"],["group and summarise","dplyr-group-by-summarise-Exercises"],["joins","dplyr-Joins-Exercises-in-R"],["window functions","dplyr-Window-Functions-Exercises-in-R"]]],["tidyr and friends",[["tidyr basics","tidyr-Exercises-in-R"],["pivot longer and wider","tidyr-Pivot-Exercises-in-R"],["nest and unnest","tidyr-Nest-Unnest-Exercises-in-R"],["reshaping","tidyr-Reshaping-Exercises"],["the tidyverse","tidyverse-Exercises-in-R"],["data.table","data.table-Exercises-in-R"]]],["Text, dates and factors",[["stringr","stringr-Exercises-in-R"],["base strings","R-String-Exercises"],["regular expressions","Regex-Exercises-in-R"],["lubridate","lubridate-Exercises-in-R"],["dates and times","R-Date-Time-Exercises"],["factors with forcats","forcats-Exercises-in-R"]]],["Import and clean",[["readr","readr-Exercises-in-R"],["data import","R-Data-Import-Exercises"],["SQL with dbplyr","dbplyr-SQL-Exercises-in-R"],["web scraping","Web-Scraping-Exercises-in-R"],["API calls","API-Calls-Exercises-in-R"],["data cleaning","Data-Cleaning-Exercises-in-R"],["missing data","Missing-Data-in-R-Exercises"],["wrangling project","Data-Wrangling-Exercises-in-R"]]]]],
  ["Visualization","CHART","/ggplot2-Exercises-in-R.html",[["ggplot2 core",[["ggplot2 basics","ggplot2-Exercises-in-R"],["aesthetics","ggplot2-Aesthetics-Exercises"],["geoms","ggplot2-Geom-Exercises"],["facets","ggplot2-Facets-Exercises-in-R"],["customization","ggplot2-Customization-Exercises"]]],["Chart craft",[["bar charts","ggplot2-Bar-Chart-Exercises-in-R"],["heatmaps","ggplot2-Heatmap-Exercises-in-R"],["color scales","ggplot2-Color-Scales-Exercises-in-R"],["themes","ggplot2-Themes-Exercises-in-R"]]],["Interactive and tables",[["plotly","plotly-Exercises-in-R"],["leaflet maps","leaflet-Exercises-in-R"],["gt tables","gt-Tables-Exercises-in-R"]]],["Put it together",[["visualization drills","Data-Visualization-Exercises-in-R"],["a full project","R-Visualization-Project"]]]]],
@@ -16,6 +17,11 @@ window.XN_HUBS=[
  ["Advanced R","FUNC","/R-Functional-Programming-Exercises.html",[["Functional and OOP",[["functional programming","R-Functional-Programming-Exercises"],["purrr","purrr-Exercises-in-R"],["object-oriented R","R-OOP-Exercises"]]],["Robust code",[["debugging","R-Debugging-Exercises"],["testing with testthat","testthat-Exercises-in-R"]]],["Speed and scale",[["performance","R-Performance-Optimization-Exercises"],["parallel computing","Parallel-Computing-in-R-Exercises"]]],["Build and ship",[["package development","R-Package-Development-Exercises"],["shiny apps","Shiny-Exercises-in-R"],["R Markdown","R-Markdown-Exercises"]]]]],
  ["Specializations","SPEC","/R-for-Finance-Exercises.html",[["By field",[["finance","R-for-Finance-Exercises"],["biostatistics","R-for-Biostatistics-Exercises"],["genomics","R-for-Genomics-Exercises"],["healthcare","R-for-Healthcare-Exercises"],["marketing analytics","R-for-Marketing-Analytics-Exercises"],["sports analytics","R-for-Sports-Analytics-Exercises"]]],["By method",[["time series","Time-Series-Exercises-in-R"],["ARIMA","ARIMA-Exercises-in-R"],["text mining","Text-Mining-Exercises-in-R"],["network analysis","Network-Analysis-Exercises-in-R"],["spatial analysis","Spatial-Analysis-Exercises-in-R"]]]]],
 ];
+
+  // rail dot colors: the same topic colors the exercises page uses
+  var XN_COLOR={"Featured Problem Sets":"#a16207","R Fundamentals":"#2056d2","Data Wrangling":"#0f8a5f",
+    "Visualization":"#b3591c","Statistics":"#7c3aed","Machine Learning":"#be185d",
+    "Advanced R":"#4d7c0f","Specializations":"#475569","Mastery Quizzes":"#0e7490"};
 
   function glyph(d){
     switch(d){
@@ -27,6 +33,7 @@ window.XN_HUBS=[
       case 'FUNC': return '<path d="M8.5 8 L6 12 L8.5 16 M15.5 8 L18 12 L15.5 16 M13 7 L11 17" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
       case 'SPEC': return '<polyline points="6 15 10 10 13 12 18 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
       case 'MEDAL': return '<circle cx="12" cy="10" r="5" stroke="currentColor" stroke-width="2" fill="none"/><polyline points="9 14 8 20 12 18 16 20 15 14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+      case 'STAR': return '<path d="M12 4 L14.2 9.2 L19.8 9.7 L15.6 13.4 L16.9 18.9 L12 16 L7.1 18.9 L8.4 13.4 L4.2 9.7 L9.8 9.2 Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>';
     }
     return '';
   }
@@ -39,14 +46,15 @@ window.XN_HUBS=[
   // the 8th, special "Mastery Quizzes" rail item (timed, cert-bearing - not hubs)
   var QUIZ = ["Mastery Quizzes","MEDAL","/certifications",null];
 
+  function dot(name){ return '<span class="xn-dt" style="background:'+(XN_COLOR[name]||'#475569')+'"></span>'; }
   function railHTML(){
     var items = window.XN_HUBS.map(function(cat,i){
       return '<button class="xn-cat" role="tab" data-i="'+i+'" aria-selected="'+(i===0?'true':'false')+'">'+
-        '<span class="xn-cg">'+svg(cat[1])+'</span><span class="xn-cn">'+esc(cat[0])+'</span>'+
+        dot(cat[0])+'<span class="xn-cn">'+esc(cat[0])+'</span>'+
         '<span class="xn-cc">'+catCount(cat)+'</span></button>';
     }).join('');
     items += '<button class="xn-cat xn-cat-quiz" role="tab" data-i="quiz" aria-selected="false">'+
-      '<span class="xn-cg">'+svg('MEDAL')+'</span><span class="xn-cn">Mastery Quizzes</span>'+
+      dot('Mastery Quizzes')+'<span class="xn-cn">Mastery Quizzes</span>'+
       '<span class="xn-cc">11</span></button>';
     return items;
   }
@@ -54,31 +62,27 @@ window.XN_HUBS=[
   function paneHTML(idx){
     if (idx === 'quiz'){
       return '<div class="xn-pane-head"><span class="xn-ph-name">Mastery Quizzes</span><span class="xn-ph-n">timed and graded</span></div>'+
-        '<div class="xn-quizcard"><div class="xn-qz-t">Prove it, then keep the proof.</div>'+
-        '<p class="xn-qz-p">Eleven timed quizzes, each one graded on real R you write. Pass the track and you earn a verifiable certificate with your name on it. You earn it by doing the work.</p>'+
+        '<div class="xn-quizcard"><div class="xn-qz-t">Eleven timed quizzes, graded on real R you write.</div>'+
+        '<p class="xn-qz-p">Each quiz closes out a topic. Pass a track and you earn a verifiable certificate with your name on it.</p>'+
         '<a class="xn-btn" href="/certifications">See how certification works '+ARR+'</a></div>';
     }
     var cat = window.XN_HUBS[idx];
+    var featured = cat[0].indexOf('Featured') === 0;
     var groups = cat[3].map(function(sg){
-      var hubs = sg[1].map(function(h){ return '<a class="xn-hub" href="/'+h[1]+'.html"><span class="xn-hk"></span>'+esc(h[0])+'</a>'; }).join('');
+      var hubs = sg[1].map(function(h){ return '<a class="xn-hub" href="/'+h[1]+'.html">'+esc(h[0])+'</a>'; }).join('');
       return '<div class="xn-sg"><div class="xn-sgl">'+esc(sg[0])+'</div><div class="xn-hublist">'+hubs+'</div></div>';
     }).join('');
-    return '<div class="xn-pane-head"><span class="xn-ph-name">'+esc(cat[0])+'</span><span class="xn-ph-n">'+catCount(cat)+' hubs</span>'+
+    return '<div class="xn-pane-head"><span class="xn-ph-name">'+esc(cat[0])+'</span><span class="xn-ph-n">'+catCount(cat)+(featured?' curated sets':' hubs')+'</span>'+
       '<a class="xn-ph-all" href="'+cat[2]+'">see all '+ARR+'</a></div>'+
       '<div class="xn-groups">'+groups+'</div>';
   }
 
   function panelHTML(){
     return ''+
-    '<div class="xn-top xn-anon" data-xn-strip>'+
-      '<div class="xn-pl"><svg class="xn-ic" style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 4 14 11 14 10 22 19 9 12 9 13 2"/></svg></div>'+
-      '<div class="xn-pt"><b class="xn-h">Practice R by solving real problems</b>'+
-        '<span class="xn-s">Short problems you solve in the browser, with instant feedback.</span></div>'+
-      '<a class="xn-btn" href="/R-Basics-Exercises.html">Start with R Basics '+ARR+'</a>'+
-    '</div>'+
+    '<div class="xn-hd"><b>Practice</b><a href="/exercises/">Browse the full library '+ARR+'</a></div>'+
     '<div class="xn-body2"><div class="xn-rail" role="tablist">'+railHTML()+'</div><div class="xn-pane" id="xn-pane"></div></div>'+
-    '<div class="xn-foot"><span class="xn-tot">Free to attempt &middot; sign in to save your progress</span>'+
-      '<span class="xn-fl"><a href="/exercises/">Browse the full library '+ARR+'</a></span></div>';
+    '<div class="xn-foot" data-xn-strip><span class="xn-tot">Free to attempt. Sign in to keep your streak, XP and solved problems.</span>'+
+      '<span class="xn-fl"><a href="/R-Basics-Exercises.html">Start with R Basics '+ARR+'</a></span></div>';
   }
 
   // ---- mobile sheet: a full-screen, tap-to-expand version of the same catalog ----
@@ -103,12 +107,10 @@ window.XN_HUBS=[
   }
 
   function userStrip(streak, xp){
-    var k = (streak && streak > 0) ? (streak + '-day streak' + (xp ? (' &middot; ' + xp + ' XP') : ''))
-                                   : (xp ? (xp + ' XP earned') : 'your progress is saved');
-    return '<div class="xn-pl"><svg class="xn-ic" style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1.6 3 4.6 4.2 4.6 8a4.6 4.6 0 0 1-9.2 0c0-1.5.6-2.5 1.5-3.3C9.4 9 10 10 10 11c.9-1.7.6-4.5 2-8z"/></svg></div>'+
-      '<div class="xn-pt"><b class="xn-h">Pick up where you left off</b>'+
-        '<span class="xn-s">'+k+' &middot; your streak, XP and solved problems are saved</span></div>'+
-      '<a class="xn-btn" href="/exercises/">Resume practice '+ARR+'</a>';
+    var k = (streak && streak > 0) ? (streak + '-day streak' + (xp ? (', ' + Number(xp).toLocaleString() + ' XP') : ''))
+                                   : (xp ? (Number(xp).toLocaleString() + ' XP earned') : 'Your progress is saved');
+    return '<span class="xn-tot"><b>'+k+'</b>. Solves, streaks and XP are saved to your account.</span>'+
+      '<span class="xn-fl"><a href="/exercises/">Continue practicing '+ARR+'</a></span>';
   }
 
   function init(){
@@ -116,7 +118,7 @@ window.XN_HUBS=[
     if (!link || link.closest('.xn-wrap')) return;
 
     if (!document.querySelector('link[data-xn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=9';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=10';
       l.setAttribute('data-xn-css', ''); document.head.appendChild(l);
     }
 
@@ -182,7 +184,7 @@ window.XN_HUBS=[
 
     // personalization: default is visitor; swap to signed-in when authenticated.
     var strip = drop.querySelector('[data-xn-strip]');
-    function showUser(streak, xp){ if (strip){ strip.className = 'xn-top xn-user'; strip.innerHTML = userStrip(streak, xp); } }
+    function showUser(streak, xp){ if (strip){ strip.className = 'xn-foot xn-user'; strip.innerHTML = userStrip(streak, xp); } }
     document.addEventListener('auth-hydrated', function(e){
       var me = e && e.detail && e.detail.me;
       if (me && me.user) showUser(me.current_streak_days || me.user.current_streak_days, me.total_xp || me.user.total_xp);
