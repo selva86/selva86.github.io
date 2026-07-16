@@ -1,5 +1,5 @@
 ---
-title: "Time Series Objects in R: ts vs xts vs zoo vs tsibble"
+title: "Time Series Objects in R: ts, xts, zoo, or tsibble?"
 slug: "Time-Series-Objects-in-R"
 description: "R has four time series classes: ts, xts, zoo and tsibble. See how each one stores time, why ts silently mis-dates gapped data, and which to choose."
 keywords: "time series objects in R, ts object R, xts vs zoo, tsibble, R time series class, convert ts to zoo, irregular time series R"
