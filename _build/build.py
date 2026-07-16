@@ -456,6 +456,11 @@ _TOOL_ICONS = {
         '<rect x="5.2" y="6" width="2.6" height="7"/>'
         '<rect x="8.4" y="3.5" width="2.6" height="9.5"/>'
         '<rect x="11.6" y="7.5" width="2.6" height="5.5"/></svg>',
+    'percentile-calculator.html':   # empirical CDF staircase with a percentile marker
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.5 14h13"/>'
+        '<path d="M2 12h2.6V9.6h2.6V7h2.6V4.4h3.2"/>'
+        '<circle cx="9.8" cy="4.4" r="1" fill="currentColor" stroke="none"/></svg>',
     'confusion-matrix-interpreter.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="2.5" width="4.5" height="4.5"/>'
@@ -631,6 +636,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 't-test-calculator.html',                   'text': 't-Test Calculator'},
     {'group': 'Calculators', 'slug': 'p-value-calculator.html',                  'text': 'p-value Calculator'},
     {'group': 'Calculators', 'slug': 'descriptive-statistics-calculator.html',   'text': 'Descriptive Statistics'},
+    {'group': 'Calculators', 'slug': 'percentile-calculator.html',               'text': 'Percentile Calculator'},
     {'group': 'Calculators', 'slug': 'chi-square-calculator.html',               'text': 'Chi-Square Test'},
     {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html',      'text': 'Confidence Interval'},
     {'group': 'Calculators', 'slug': 'margin-of-error-calculator.html',          'text': 'Margin of Error'},

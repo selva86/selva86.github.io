@@ -45,6 +45,39 @@
 
   function median(sorted) { return quantile7(sorted, 0.5); }
 
+  // R quantile for the continuous Hyndman-Fan types on a sorted array.
+  // Implements R's exact type-4..9 branch: with padded ends the value is
+  //   Q = x[clamp(j)] + h*(x[clamp(j+1)] - x[clamp(j)])
+  // where nppm = a + p*(n+1-a-b), j = floor(nppm + fuzz), h = nppm - j (h->0
+  // if within fuzz of an integer). type 7 uses a=b=1 (R default, == Excel
+  // PERCENTILE.INC); type 6 uses a=b=0 (Minitab / SPSS "empirical CDF with
+  // averaging"). Matches quantile(x, p, type) to full double precision.
+  function quantileType(sorted, p, type) {
+    var n = sorted.length;
+    if (n === 0) return NaN;
+    if (n === 1) return sorted[0];
+    var a, b;
+    if (type === 6) { a = 0; b = 0; }
+    else { a = 1; b = 1; }            // type 7 (default)
+    var fuzz = 4 * 2.220446049250313e-16;
+    var nppm = a + p * (n + 1 - a - b);
+    var j = Math.floor(nppm + fuzz);
+    var h = nppm - j;
+    if (Math.abs(h) < fuzz) h = 0;
+    function cx(i) { return sorted[i < 0 ? 0 : (i > n - 1 ? n - 1 : i)]; }
+    var xj = cx(j - 1), xj1 = cx(j);
+    return xj + h * (xj1 - xj);
+  }
+
+  // Empirical CDF evaluated at v: proportion of values <= v. Equals R's
+  // ecdf(x)(v) = mean(x <= v). `sorted` may be sorted or not (linear scan).
+  function ecdf(sorted, v) {
+    var n = sorted.length, i, c = 0;
+    if (n === 0) return NaN;
+    for (i = 0; i < n; i++) if (sorted[i] <= v) c++;
+    return c / n;
+  }
+
   // stats::fivenum (Tukey five-number summary) on a sorted array.
   function fivenum(sorted) {
     var n = sorted.length;
@@ -201,6 +234,7 @@
 
   return {
     sum: sum, mean: mean, median: median, quantile7: quantile7,
+    quantileType: quantileType, ecdf: ecdf,
     fivenum: fivenum, fdBins: fdBins, sturgesBins: sturgesBins,
     modesOf: modesOf, ciMean: ciMean, describe: describe, histogram: histogram
   };
