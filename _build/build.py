@@ -410,6 +410,13 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="3.5" width="4" height="9" rx="0.5"/>'
         '<rect x="9.5" y="3.5" width="4" height="9" rx="0.5"/></svg>',
+    'statistical-significance-calculator.html':   # two bars (control short, variant tall) + a lift arrow
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.5 14h13"/>'
+        '<rect x="2.6" y="8.5" width="2.8" height="5.5" fill="currentColor" stroke="none" opacity="0.4"/>'
+        '<rect x="10.6" y="4.5" width="2.8" height="9.5" fill="currentColor" stroke="none"/>'
+        '<path d="M5.8 8 L10.2 4.4"/>'
+        '<path d="M10.2 4.4 L8.5 4.6 M10.2 4.4 L10 6.3"/></svg>',
     'confidence-interval-calculator.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M3.5 4v8M3.5 4H5M3.5 12H5"/>'
@@ -681,6 +688,7 @@ _TOOL_ICONS = {
 COMPENDIUM_TOOLS = [
     # Calculators (parametric tests + commodity stats)
     {'group': 'Calculators', 'slug': 'ab-test-calculator.html',                  'text': 'A/B Test Calculator'},
+    {'group': 'Calculators', 'slug': 'statistical-significance-calculator.html', 'text': 'Statistical Significance'},
     {'group': 'Calculators', 'slug': 't-test-calculator.html',                   'text': 't-Test Calculator'},
     {'group': 'Calculators', 'slug': 'p-value-calculator.html',                  'text': 'p-value Calculator'},
     {'group': 'Calculators', 'slug': 'descriptive-statistics-calculator.html',   'text': 'Descriptive Statistics'},

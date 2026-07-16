@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','box-plot-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','empirical-rule-calculator','binomial-probability-calculator','poisson-distribution-calculator','proportion-test-calculator']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','box-plot-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','statistical-significance-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','empirical-rule-calculator','binomial-probability-calculator','poisson-distribution-calculator','proportion-test-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -65,6 +65,9 @@ C3META = {
  'ab-test-calculator': ('A/B Test', 'z',
   'Conversion counts for two variants, with sample-size planning and a Bayesian read.',
   '<path class="s" d="M6 38 H38"/><rect class="af" x="11" y="20" width="8" height="18"/><rect class="af" style="opacity:.45" x="25" y="13" width="8" height="25"/><path class="a" d="M15 20 V15 M12.5 15 H17.5" fill="none"/><path class="a" style="opacity:.6" d="M29 13 V8 M26.5 8 H31.5" fill="none"/>'),
+ 'statistical-significance-calculator': ('Statistical Significance', 'p&lt;.05',
+  'Is the difference real or noise? Two conversion rates, two averages, or a rate versus a target, with a plain-English verdict.',
+  '<path class="s" d="M22 6 V38" stroke-dasharray="2.5 2.5"/><path class="a" d="M15 22 H35 M15 17.5 V26.5 M35 17.5 V26.5" fill="none"/><circle class="af" cx="27" cy="22" r="3"/>'),
  'chi-square-calculator': ('Chi-Square', '&chi;&sup2;',
   'Counts in a table: independence, goodness-of-fit, homogeneity. Residuals show which cell drives the result.',
   '<path class="s" d="M4 38 H40"/><path class="a" d="M5 38 C7 16 10 8 14 8 C22 8 24 30 30 34 C33 36 36 37 39 37.6" fill="none"/><path class="s" d="M29 38 V16" stroke-dasharray="2.5 2.5"/><path class="af" d="M29 33.6 C33 36 36 37 39 37.6 L39 38 H29 Z"/>'),
