@@ -431,6 +431,13 @@ _TOOL_ICONS = {
         '<path d="M1.5 13c2 0 3-1 4-3s1.5-6 2.5-6 1.5 6 2.5 6 2-1 3.5-1"/>'
         '<path d="M1.5 13.5h13"/>'
         '<path d="M5.5 13C6.3 11 7 7 8 4C9 7 9.7 11 10.5 13Z" fill="currentColor" stroke="none" opacity="0.4"/></svg>',
+    'empirical-rule-calculator.html':   # bell with a filled central 1-SD band and dashed SD ticks
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.5 12.5h13"/>'
+        '<path d="M2 12.5C5 12.5 5.2 4 8 4C10.8 4 11 12.5 14 12.5"/>'
+        '<path d="M5.6 12.5C6.5 10.8 7.2 7 8 4C8.8 7 9.5 10.8 10.4 12.5Z" fill="currentColor" stroke="none" opacity="0.32"/>'
+        '<path d="M5.6 12.5V10.2M10.4 12.5V10.2" stroke-dasharray="1.5 1.4"/>'
+        '<path d="M3.4 12.5V11M12.6 12.5V11" stroke-dasharray="1.5 1.4"/></svg>',
     'binomial-probability-calculator.html':   # discrete PMF bars forming a bell, centre bar filled
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M1.5 14h13"/>'
@@ -692,6 +699,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'type-i-ii-error-visualizer.html',          'text': 'Type I / II Error'},
     {'group': 'Calculators', 'slug': 'z-score-percentile.html',                  'text': 'Z-Score &amp; Percentile'},
     {'group': 'Calculators', 'slug': 'normal-distribution-calculator.html',      'text': 'Normal Distribution'},
+    {'group': 'Calculators', 'slug': 'empirical-rule-calculator.html',           'text': 'Empirical Rule'},
     {'group': 'Calculators', 'slug': 'equivalence-noninferiority-calculator.html', 'text': 'Equivalence / NI'},
     {'group': 'Calculators', 'slug': 'outlier-detection-calculator.html',        'text': 'Outlier Detection'},
     {'group': 'Calculators', 'slug': 'roc-auc-calculator.html',                  'text': 'ROC / AUC'},
