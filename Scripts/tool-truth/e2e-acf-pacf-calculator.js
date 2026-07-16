@@ -271,6 +271,20 @@ const caseOf = id => truth.cases.find(c => c.id === id);
   ok('no em dashes', !(await page.$eval('body', e => e.innerText)).includes('—'));
   ok('no JetBrains Mono', !(await page.content()).includes('JetBrains'));
 
+  // ===== 11b. every internal link resolves ================================
+  // Guessed URLs are a real failure mode: /Time-Series-Analysis.html looked
+  // right and 404'd (the page is Time-Series-Analysis-With-R.html). Checked
+  // against the live origin, since that is the only place that can answer.
+  {
+    const hrefs = await page.$$eval('.deeper a, .prose a', as =>
+      as.map(a => a.getAttribute('href')).filter(h => h && h.startsWith('/')));
+    const origin = /^https?:\/\/localhost/.test(BASE) ? BASE : 'https://r-statistics.co';
+    for (const h of [...new Set(hrefs)]) {
+      const res = await page.request.get(origin + h, { failOnStatusCode: false });
+      ok(`link resolves ${h}`, res.status() === 200, `HTTP ${res.status()}`);
+    }
+  }
+
   // ===== 12. mobile 390 ===================================================
   await page.setViewportSize({ width: 390, height: 850 });
   await page.waitForTimeout(200);
