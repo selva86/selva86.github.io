@@ -3011,17 +3011,17 @@ def patch_tool_pages(sections, asset_hrefs):
         # nav link) if not already present. Bump the ?v when practice-nav
         # changes so existing tools re-fetch it.
         # Keep the practice-nav version current on already-injected tools.
-        new_html = re.sub(r'practice-nav\.js\?v=\d+', 'practice-nav.js?v=11', new_html)
-        new_html = re.sub(r'roadmap-nav\.js\?v=\d+', 'roadmap-nav.js?v=2', new_html)
-        new_html = re.sub(r'site-nav\.css\?v=\d+', 'site-nav.css?v=5', new_html)
+        new_html = re.sub(r'practice-nav\.js\?v=\d+', 'practice-nav.js?v=12', new_html)
+        new_html = re.sub(r'roadmap-nav\.js\?v=\d+', 'roadmap-nav.js?v=3', new_html)
+        new_html = re.sub(r'site-nav\.css\?v=\d+', 'site-nav.css?v=6', new_html)
         if 'roadmap-nav.js' not in new_html and 'practice-nav.js' in new_html:
-            new_html = new_html.replace('<script defer src="/www/practice-nav.js?v=11"></script>',
-                '<script defer src="/www/practice-nav.js?v=11"></script><script defer src="/www/roadmap-nav.js?v=2"></script>', 1)
+            new_html = new_html.replace('<script defer src="/www/practice-nav.js?v=12"></script>',
+                '<script defer src="/www/practice-nav.js?v=12"></script><script defer src="/www/roadmap-nav.js?v=3"></script>', 1)
         if 'practice-nav.js' not in new_html:
             new_html = re.sub(
                 r'</body>',
-                '<script defer src="/www/practice-nav.js?v=11"></script>'
-                '<script defer src="/www/roadmap-nav.js?v=2"></script></body>',
+                '<script defer src="/www/practice-nav.js?v=12"></script>'
+                '<script defer src="/www/roadmap-nav.js?v=3"></script></body>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         # Canonical navbar CSS + auth hydration for tools injected before the
@@ -3029,7 +3029,7 @@ def patch_tool_pages(sections, asset_hrefs):
         if 'site-nav.css' not in new_html:
             new_html = re.sub(
                 r'</head>',
-                '<link rel="stylesheet" href="/www/site-nav.css?v=5"></head>',
+                '<link rel="stylesheet" href="/www/site-nav.css?v=6"></head>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         if 'auth-hydrate.js' not in new_html:
@@ -3126,7 +3126,7 @@ def patch_tool_pages(sections, asset_hrefs):
         m = first_style_re.search(html)
         if m:
             html = html[:m.start()] + f'<link rel="stylesheet" href="/{main_css_href}">\n' + html[m.start():]
-        html = head_close_re.sub(layout_css + '<link rel="stylesheet" href="/www/site-nav.css?v=5">\n</head>', html, count=1)
+        html = head_close_re.sub(layout_css + '<link rel="stylesheet" href="/www/site-nav.css?v=6">\n</head>', html, count=1)
 
         # 2. Strip the tool's bespoke masthead.
         html = masthead_re.sub('', html, count=1)
@@ -3173,8 +3173,8 @@ def patch_tool_pages(sections, asset_hrefs):
             f'<script src="/{toc_js_href}"></script>'
             f'<script src="/www/r-syntax-highlight.js"></script>'
             # Exercises mega-dropdown (upgrades the /exercises/ nav link).
-            f'<script defer src="/www/practice-nav.js?v=11"></script>'
-            f'<script defer src="/www/roadmap-nav.js?v=2"></script>'
+            f'<script defer src="/www/practice-nav.js?v=12"></script>'
+            f'<script defer src="/www/roadmap-nav.js?v=3"></script>'
             # Auth state (body.state-anon/.state-pro) + avatar dropdown.
             f'<script defer src="/www/auth-hydrate.js?v=11"></script>'
         )

@@ -47,7 +47,7 @@
     var link = document.querySelector('.sitenav .snav-links a[href="/roadmap/"]') || document.querySelector('.nav a[href="/roadmap/"]');
     if (!link || link.closest('.rn-wrap')) return;
     if (!document.querySelector('link[data-rn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=2';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=3';
       l.setAttribute('data-rn-css', ''); document.head.appendChild(l);
     }
     var wrap = document.createElement('div'); wrap.className = 'rn-wrap';
@@ -80,6 +80,34 @@
     link.addEventListener('click', function(e){ if (window.innerWidth > 980){ e.preventDefault(); setOpen(!open); } });
     document.addEventListener('click', function(e){ if (open && !wrap.contains(e.target)) setOpen(false); });
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && open) setOpen(false); });
+
+    /* ---- mobile: tap the drawer "Roadmap" -> full-screen sheet (same catalog,
+       .rn-node markup reused so hydrateProgress decorates the sheet too) ---- */
+    var sheet = document.createElement('div');
+    sheet.className = 'rn-sheet'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Roadmaps');
+    sheet.innerHTML = '<div class="rn-sheet-hd"><span class="rn-sheet-t">Roadmaps</span><button class="rn-sheet-x" aria-label="Close">&times;</button></div>'+
+      '<div class="rn-sheet-strip">Six roadmaps, one path. Every roadmap ends in a verifiable certificate.</div>'+
+      '<div class="rn-sheet-body">'+
+        STAGES.map(function(sg){
+          return '<div class="rn-ssl"><span class="rn-msdot"></span>'+sg[0]+'</div>'+sg[1].map(nodeHTML).join('');
+        }).join('')+
+      '</div>'+
+      '<a class="rn-sheet-foot" href="/roadmap/">Open the full roadmap '+ARR+'</a>';
+    document.body.appendChild(sheet);
+    function openSheet(){ document.documentElement.classList.add('rn-lock'); sheet.classList.add('rn-sheet-open'); }
+    function closeSheet(){ sheet.classList.remove('rn-sheet-open'); document.documentElement.classList.remove('rn-lock'); }
+    sheet.querySelector('.rn-sheet-x').addEventListener('click', closeSheet);
+    // the drawer Roadmap rows carry the same caret pill as the desktop trigger
+    Array.prototype.forEach.call(document.querySelectorAll('.mnav-link[href="/roadmap/"]'), function(a){
+      if (!a.querySelector('.ex-caret')) a.insertAdjacentHTML('beforeend', ' <span class="ex-caret" aria-hidden="true">&#9662;</span>');
+    });
+    // delegated so the lazily-built generic drawer (site-nav.js .snav-dlink) is covered too
+    document.addEventListener('click', function(e){
+      var a = e.target && e.target.closest && e.target.closest('.mnav-link[href="/roadmap/"],.snav-dlink[href="/roadmap/"]');
+      if (!a || window.innerWidth > 980) return;
+      e.preventDefault(); openSheet();
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
   }
 
   /* signed-in: real lesson progress per track, from the same localStorage the

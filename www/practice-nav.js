@@ -118,7 +118,7 @@ window.XN_HUBS=[
     if (!link || link.closest('.xn-wrap')) return;
 
     if (!document.querySelector('link[data-xn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=10';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=11';
       l.setAttribute('data-xn-css', ''); document.head.appendChild(l);
     }
 
@@ -177,8 +177,15 @@ window.XN_HUBS=[
     }
     function openSheet(){ ensureSheet(); document.documentElement.classList.add('xn-lock'); sheet.classList.add('xn-sheet-open'); }
     function closeSheet(){ if (sheet) sheet.classList.remove('xn-sheet-open'); document.documentElement.classList.remove('xn-lock'); }
+    // the drawer Exercises rows carry the same caret pill as the desktop trigger
     Array.prototype.forEach.call(document.querySelectorAll('.mnav-link[href="/exercises/"]'), function(a){
-      a.addEventListener('click', function(e){ if (window.innerWidth <= 980){ e.preventDefault(); openSheet(); } });
+      if (!a.querySelector('.ex-caret')) a.insertAdjacentHTML('beforeend', ' <span class="ex-caret" aria-hidden="true">&#9662;</span>');
+    });
+    // delegated so the lazily-built generic drawer (site-nav.js .snav-dlink) is covered too
+    document.addEventListener('click', function(e){
+      var a = e.target && e.target.closest && e.target.closest('.mnav-link[href="/exercises/"],.snav-dlink[href="/exercises/"]');
+      if (!a || window.innerWidth > 980) return;
+      e.preventDefault(); openSheet();
     });
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
 
