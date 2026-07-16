@@ -439,6 +439,15 @@ _TOOL_ICONS = {
         '<rect x="7.6" y="5" width="1.7" height="9" fill="currentColor" stroke="none"/>'
         '<rect x="10.3" y="7.5" width="1.7" height="6.5" fill="currentColor" stroke="none" opacity="0.45"/>'
         '<rect x="13" y="10.5" width="1.2" height="3.5" fill="currentColor" stroke="none" opacity="0.45"/></svg>',
+    'poisson-distribution-calculator.html':   # right-skewed discrete PMF bars
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.5 14h13"/>'
+        '<rect x="2" y="9" width="1.6" height="5" fill="currentColor" stroke="none" opacity="0.45"/>'
+        '<rect x="4.3" y="5" width="1.6" height="9" fill="currentColor" stroke="none"/>'
+        '<rect x="6.6" y="6.5" width="1.6" height="7.5" fill="currentColor" stroke="none" opacity="0.7"/>'
+        '<rect x="8.9" y="9" width="1.6" height="5" fill="currentColor" stroke="none" opacity="0.55"/>'
+        '<rect x="11.2" y="11" width="1.6" height="3" fill="currentColor" stroke="none" opacity="0.45"/>'
+        '<rect x="13.5" y="12.5" width="1.2" height="1.5" fill="currentColor" stroke="none" opacity="0.4"/></svg>',
     'proportion-test-calculator.html':   # normal curve, a shaded rejection tail, a z marker line
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M1.5 13c2 0 3-1 4-3s1.5-6 2.5-6 1.5 6 2.5 6 2-1 3.5-1"/>'
@@ -684,6 +693,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'odds-ratio-calculator.html',               'text': 'Odds Ratio &amp; RR'},
     {'group': 'Calculators', 'slug': 'fisher-exact-test-calculator.html',        'text': "Fisher's Exact Test"},
     {'group': 'Calculators', 'slug': 'binomial-probability-calculator.html',      'text': 'Binomial Probability'},
+    {'group': 'Calculators', 'slug': 'poisson-distribution-calculator.html',       'text': 'Poisson Distribution'},
     {'group': 'Calculators', 'slug': 'proportion-test-calculator.html',           'text': 'Proportion Test'},
 
     # Reference tables (critical values / distribution areas)

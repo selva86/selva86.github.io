@@ -11,7 +11,7 @@ import html as htmllib
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CATEGORIES = [
-    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','binomial-probability-calculator','proportion-test-calculator']),
+    ('Calculators', ['t-test-calculator','p-value-calculator','descriptive-statistics-calculator','mean-median-mode-calculator','standard-deviation-calculator','percentile-calculator','iqr-calculator','correlation-calculator','linear-regression-calculator','anova-calculator','odds-ratio-calculator','fisher-exact-test-calculator','ab-test-calculator','chi-square-calculator','confidence-interval-calculator','margin-of-error-calculator','bootstrap-ci-calculator','multiple-testing-correction','equivalence-noninferiority-calculator','z-score-percentile','normal-distribution-calculator','binomial-probability-calculator','poisson-distribution-calculator','proportion-test-calculator']),
     ('Reference Tables', ['t-table','z-table','chi-square-table','f-table']),
     ('Bayesian', ['bayes-factor-calculator','bayes-theorem-calculator']),
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
@@ -92,6 +92,9 @@ C3META = {
  'binomial-probability-calculator': ('Binomial Probability', 'dbinom',
   'The chance of k successes in n trials, exact or cumulative, a range, or the inverse count, with a shaded bar chart.',
   '<path class="s" d="M6 38 H40"/><rect class="af" style="opacity:.4" x="8" y="30" width="4.5" height="8"/><rect class="af" style="opacity:.4" x="14" y="22" width="4.5" height="16"/><rect class="af" x="20" y="14" width="4.5" height="24"/><rect class="af" style="opacity:.4" x="26" y="22" width="4.5" height="16"/><rect class="af" style="opacity:.4" x="32" y="30" width="4.5" height="8"/>'),
+ 'poisson-distribution-calculator': ('Poisson Distribution', 'dpois',
+  'The chance of k events at an average rate lambda, exact or cumulative, a range, or the inverse count, with a shaded bar chart.',
+  '<path class="s" d="M6 38 H40"/><rect class="af" style="opacity:.4" x="8" y="27" width="4.5" height="11"/><rect class="af" x="14" y="14" width="4.5" height="24"/><rect class="af" style="opacity:.7" x="20" y="19" width="4.5" height="19"/><rect class="af" style="opacity:.55" x="26" y="27" width="4.5" height="11"/><rect class="af" style="opacity:.4" x="32" y="33" width="4.5" height="5"/>'),
  'proportion-test-calculator': ('Proportion Z-Test', 'z',
   'A one- or two-proportion z-test the classroom way: hypotheses, the z statistic, a critical value, and the p-value, with the continuity-correction note.',
   '<path class="s" d="M4 37 H40"/><path class="a" d="M5 37 C13 37 14 9 22 9 C30 9 31 37 39 37" fill="none"/><path class="af" d="M5 37 C8.5 37 9.5 32 11 26 L11 37 Z" style="opacity:.28"/><path class="af" d="M33 26 C34.5 32 35.5 37 39 37 L33 37 Z" style="opacity:.28"/><path class="a" d="M28 37 V16" fill="none" stroke-dasharray="2.5 2.5"/>'),
