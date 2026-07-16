@@ -520,6 +520,13 @@ _TOOL_ICONS = {
         '<path d="M7.3 5V11"/>'
         '<path d="M10.5 8H12"/><path d="M12 6.2V9.8"/>'
         '<circle cx="14" cy="8" r="1" fill="currentColor" stroke="none"/></svg>',
+    'correlation-matrix-calculator.html':   # 3x3 grid with a shaded diagonal
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="2.4" y="2.4" width="11.2" height="11.2" rx="1"/>'
+        '<path d="M2.4 6.1H13.6M2.4 9.9H13.6M6.1 2.4V13.6M9.9 2.4V13.6"/>'
+        '<rect x="2.4" y="2.4" width="3.7" height="3.7" fill="currentColor" stroke="none" opacity="0.55"/>'
+        '<rect x="6.1" y="6.1" width="3.8" height="3.8" fill="currentColor" stroke="none" opacity="0.55"/>'
+        '<rect x="9.9" y="9.9" width="3.7" height="3.7" fill="currentColor" stroke="none" opacity="0.55"/></svg>',
     'box-plot-calculator.html':   # two vertical boxes side by side (grouped boxplot)
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M4.4 2.5V4.6M4.4 11.4V13.5"/>'
@@ -751,6 +758,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'percentile-calculator.html',               'text': 'Percentile Calculator'},
     {'group': 'Calculators', 'slug': 'iqr-calculator.html',                      'text': 'IQR &amp; Outliers'},
     {'group': 'Calculators', 'slug': 'box-plot-calculator.html',                 'text': 'Box Plot'},
+    {'group': 'Calculators', 'slug': 'correlation-matrix-calculator.html',       'text': 'Correlation Matrix'},
     {'group': 'Calculators', 'slug': 'chi-square-calculator.html',               'text': 'Chi-Square Test'},
     {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html',      'text': 'Confidence Interval'},
     {'group': 'Calculators', 'slug': 'margin-of-error-calculator.html',          'text': 'Margin of Error'},
