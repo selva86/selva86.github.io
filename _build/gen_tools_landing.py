@@ -17,7 +17,7 @@ CATEGORIES = [
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
     ('Pickers and Decision Tools', ['statistical-test-chooser','normality-test-picker','nonparametric-test-picker','dag-confounder-picker']),
     ('Study Design and Power', ['sample-size-calculator','sample-size-t-test-calculator','sample-size-proportion-calculator','sample-size-anova-calculator','power-analysis','survival-power-calculator','effect-size-converter','type-i-ii-error-visualizer']),
-    ('Specialized', ['ts-stationarity-calculator','outlier-detection-calculator','roc-auc-calculator','cronbachs-alpha-calculator','cohens-kappa-calculator','icc-calculator','reprex-builder']),
+    ('Specialized', ['ts-stationarity-calculator','acf-pacf-calculator','outlier-detection-calculator','roc-auc-calculator','cronbachs-alpha-calculator','cohens-kappa-calculator','icc-calculator','reprex-builder']),
 ]
 
 
@@ -206,6 +206,9 @@ C3META = {
  'ts-stationarity-calculator': ('Stationarity Tests', 'ADF',
   'ADF, KPSS and Phillips-Perron on your series, and what to do when they disagree.',
   '<path class="s" d="M4 24 H40" stroke-dasharray="3 2.5"/><path class="a" d="M4 30 L9 26 L13 32 L18 22 L23 27 L28 15 L33 20 L40 12" fill="none"/>'),
+ 'acf-pacf-calculator': ('ACF & PACF', 'Lags',
+  'Both correlograms with the significance bands, and an honest read on the ARIMA order.',
+  '<path class="s" d="M4 36 H42"/><path class="s" d="M4 22 H42" stroke-dasharray="3 2.5"/><path class="a" d="M7 36 V8"/><path class="a" d="M13 36 V14"/><path class="a" d="M19 36 V19"/><path class="s" d="M25 36 V25"/><path class="s" d="M31 36 V29"/><path class="s" d="M37 36 V32"/>'),
  'outlier-detection-calculator': ('Outlier Detection', 'IQR',
   'Grubbs, ESD, Hampel and IQR on the same data, side by side.',
   '<path class="s" d="M4 34 H40" stroke-dasharray="3 2.5"/><circle class="af" cx="8" cy="28" r="2.2"/><circle class="af" cx="14" cy="30" r="2.2"/><circle class="af" cx="20" cy="27" r="2.2"/><circle class="af" cx="26" cy="29" r="2.2"/><circle class="af" cx="31" cy="28" r="2.2"/><circle class="af" cx="37" cy="10" r="2.2"/><circle class="a" cx="37" cy="10" r="5.5" fill="none" stroke-dasharray="2.5 2"/>'),

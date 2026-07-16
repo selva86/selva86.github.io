@@ -638,6 +638,11 @@ _TOOL_ICONS = {
     'ts-stationarity-calculator.html':   # series settling to level
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 8c1-3.5 2-3.5 3 0s2 3.5 3 0 1.8-2.2 2.8-1 2.2 1.6 3.2 1.4"/></svg>',
+    'acf-pacf-calculator.html':   # correlogram: decaying stems above a baseline
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M1.6 13h12.8"/>'
+        '<path d="M3 13V3.2M5.4 13V5.6M7.8 13V7.8M10.2 13V9.6M12.6 13V11.2"/>'
+        '<path d="M1.6 6.4h12.8" stroke-dasharray="2 1.6" opacity="0.55"/></svg>',
     'dag-confounder-picker.html':   # three-node dag
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<circle cx="8" cy="3.5" r="1.6"/>'
@@ -817,6 +822,7 @@ COMPENDIUM_TOOLS = [
 
     # Time series + utilities
     {'group': 'Time series',  'slug': 'ts-stationarity-calculator.html',         'text': 'TS Stationarity'},
+    {'group': 'Time series',  'slug': 'acf-pacf-calculator.html',                'text': 'ACF &amp; PACF'},
 
     # Causal + reproducibility
     {'group': 'Utilities',    'slug': 'dag-confounder-picker.html',              'text': 'DAG Confounder Picker'},
