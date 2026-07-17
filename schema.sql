@@ -260,3 +260,17 @@ CREATE TABLE IF NOT EXISTS waitlist (
   notified_at   INTEGER                      -- set when we email them that Pro is live
 );
 CREATE INDEX IF NOT EXISTS idx_waitlist_created ON waitlist(created_at);
+
+-- ===== traffic_daily (admin analytics: per-UTC-day traffic snapshots) =====
+-- Cloudflare Web Analytics retains only 30 days on the free plan, so
+-- /api/admin/stats snapshots each day's rollup here on every dashboard load.
+-- Rows accumulate indefinitely, giving the admin dashboard 90d/all-time
+-- visitor trends and (approximate) long-range top pages. top_pages is a JSON
+-- array of that day's top 15: [{path, visits, views}].
+CREATE TABLE IF NOT EXISTS traffic_daily (
+  day        TEXT PRIMARY KEY,              -- 'YYYY-MM-DD' (UTC)
+  visits     INTEGER NOT NULL DEFAULT 0,
+  pageviews  INTEGER NOT NULL DEFAULT 0,
+  top_pages  TEXT,                          -- JSON, filled by nightly backfill
+  updated_at INTEGER NOT NULL
+);

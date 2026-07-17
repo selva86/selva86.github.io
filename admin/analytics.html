@@ -11,9 +11,13 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 'IBM Plex Sans','Segoe UI',Roboto,Arial,sans-serif}
   .wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px}
-  header{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:6px}
   h1{font-size:22px;margin:0}
-  .sub{color:var(--mut);font-size:13px}
+  .sub{color:var(--mut);font-size:13px;flex-basis:100%}
+  .seg{display:inline-flex;border:1px solid var(--line);background:var(--card);overflow:hidden}
+  .seg button{border:0;background:none;color:var(--ink);font:inherit;font-size:13px;padding:6px 12px;cursor:pointer;border-left:1px solid var(--line)}
+  .seg button:first-child{border-left:0}
+  .seg button.on{background:var(--acc);color:#fff}
   .state{margin:40px auto;max-width:460px;background:var(--card);border:1px solid var(--line);padding:26px;text-align:center}
   .state a{color:var(--acc)}
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:18px 0}
@@ -23,6 +27,7 @@
   .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
   .card{background:var(--card);border:1px solid var(--line);padding:14px 16px}
   .card h2{font-size:14px;margin:0 0 10px}
+  .card h2 em{color:var(--mut);font-style:normal;font-weight:400;font-size:12px}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
   td,th{text-align:left;padding:5px 6px;border-top:1px solid var(--line)}
   th{color:var(--mut);font-weight:600;border-top:0;font-size:12px}
@@ -40,7 +45,14 @@
 <div class="wrap">
   <header>
     <h1>Site analytics</h1>
-    <div class="sub">Today = IST day · signed-in metrics from the site database, traffic from Cloudflare Web Analytics · auto-refreshes every 60s</div>
+    <div class="seg" id="rangepick">
+      <button data-r="today">Today</button>
+      <button data-r="7d">7 days</button>
+      <button data-r="30d">30 days</button>
+      <button data-r="90d">90 days</button>
+      <button data-r="all">All time</button>
+    </div>
+    <div class="sub">Days are IST for signed-in metrics, UTC for traffic · signed-in metrics from the site database, traffic from Cloudflare Web Analytics · auto-refreshes every 60s</div>
   </header>
 
   <div id="gate" class="state">Checking access...</div>
@@ -48,14 +60,17 @@
   <div id="dash" class="hidden">
     <div class="tiles" id="tiles"></div>
     <div class="cols">
-      <div class="card"><h2>Signups, last 7 days</h2><canvas id="spark-signups" height="64"></canvas></div>
-      <div class="card"><h2>Exercises passed, last 7 days</h2><canvas id="spark-ex" height="64"></canvas></div>
+      <div class="card"><h2 id="h-visitors">Visitors</h2><canvas id="spark-visitors" height="64"></canvas></div>
+      <div class="card"><h2 id="h-signins">Sign-ins</h2><canvas id="spark-signins" height="64"></canvas></div>
+      <div class="card"><h2 id="h-signups">Signups</h2><canvas id="spark-signups" height="64"></canvas></div>
+      <div class="card"><h2 id="h-ex">Exercises passed</h2><canvas id="spark-ex" height="64"></canvas></div>
+      <div class="card"><h2 id="h-xp">XP awarded</h2><canvas id="spark-xp" height="64"></canvas></div>
     </div>
     <div id="cfnote"></div>
     <div class="cols" style="margin-top:12px">
-      <div class="card"><h2>Top pages today (visits)</h2><table id="t-pages"></table></div>
-      <div class="card"><h2>Top referrers today</h2><table id="t-refs"></table></div>
-      <div class="card"><h2>Top exercise hubs today</h2><table id="t-hubs"></table></div>
+      <div class="card"><h2 id="h-pages">Top pages (visits)</h2><table id="t-pages"></table></div>
+      <div class="card"><h2 id="h-refs">Top referrers</h2><table id="t-refs"></table></div>
+      <div class="card"><h2 id="h-hubs">Top exercise hubs</h2><table id="t-hubs"></table></div>
       <div class="card"><h2>Recent signups</h2><table id="t-signups"></table></div>
     </div>
     <div class="foot" id="foot"></div>
@@ -83,6 +98,24 @@
       '<a href="/signin.html?next=/admin/analytics.html">Sign in</a>';
     return;
   }
+  var RANGE_LABEL = { today: 'today', '7d': 'last 7 days', '30d': 'last 30 days', '90d': 'last 90 days', all: 'all time' };
+  var range = 'today';
+  try{ if (RANGE_LABEL[localStorage.getItem('rsc-adm-range')]) range = localStorage.getItem('rsc-adm-range'); }catch(e){}
+  var pick = document.getElementById('rangepick');
+  function paintPick(){
+    Array.prototype.forEach.call(pick.querySelectorAll('button'), function(b){
+      b.classList.toggle('on', b.getAttribute('data-r') === range);
+    });
+  }
+  pick.addEventListener('click', function(ev){
+    var b = ev.target.closest('button');
+    if (!b || b.getAttribute('data-r') === range) return;
+    range = b.getAttribute('data-r');
+    try{ localStorage.setItem('rsc-adm-range', range); }catch(e){}
+    paintPick(); load();
+  });
+  paintPick();
+
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
   function n(x){ return Number(x || 0).toLocaleString(); }
   function tile(label, value, hint){
@@ -92,40 +125,57 @@
     var h = '<tr>' + head.map(function(x, i){ return '<th class="' + (i ? 'num' : '') + '">' + x + '</th>'; }).join('') + '</tr>';
     el.innerHTML = h + (items.length ? items.map(function(it){
       return '<tr>' + cols(it) + '</tr>';
-    }).join('') : '<tr><td colspan="' + head.length + '" style="color:var(--mut)">nothing yet today</td></tr>');
+    }).join('') : '<tr><td colspan="' + head.length + '" style="color:var(--mut)">nothing yet</td></tr>');
   }
   function spark(id, vals){
     var c = document.getElementById(id), ctx = c.getContext('2d');
     var w = c.width = c.offsetWidth * 2, h = c.height = 128;
+    ctx.clearRect(0, 0, w, h);
+    if (!vals || !vals.length) return;
+    if (vals.length === 1) vals = [vals[0], vals[0]];
     var max = Math.max.apply(null, vals.concat([1]));
     ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--acc').trim() || '#2056d2';
-    ctx.lineWidth = 3; ctx.beginPath();
+    ctx.lineWidth = vals.length > 45 ? 2 : 3; ctx.beginPath();
     vals.forEach(function(v, i){
       var x = 12 + i * ((w - 24) / (vals.length - 1)), y = h - 14 - (v / max) * (h - 34);
       i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
     });
     ctx.stroke();
-    vals.forEach(function(v, i){
-      var x = 12 + i * ((w - 24) / (vals.length - 1)), y = h - 14 - (v / max) * (h - 34);
-      ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
-    });
+    if (vals.length <= 14){
+      vals.forEach(function(v, i){
+        var x = 12 + i * ((w - 24) / (vals.length - 1)), y = h - 14 - (v / max) * (h - 34);
+        ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+      });
+    }
   }
   function render(data){
     var d = data.d1, cf = data.cf;
+    var L = RANGE_LABEL[data.range] || data.range;
+    var trendL = data.range === 'today' ? 'last 7 days' : L;
+    var cfOk = cf && cf.configured && !cf.error;
     var liveParts = [];
-    if (cf && cf.configured && !cf.error) liveParts.push(n(cf.live_pageviews_5m) + ' views/5m');
+    if (cfOk) liveParts.push(n(cf.live_pageviews_5m) + ' views/5m');
     liveParts.push(n(d.live_signed_in_5m) + ' signed-in');
     document.getElementById('tiles').innerHTML =
       tile('Live right now', liveParts[0].split(' ')[0], liveParts.join(' · ')) +
-      tile('Visitors today', cf && cf.configured && !cf.error ? n(cf.visits_today) : 'n/a',
-           cf && cf.configured && !cf.error ? n(cf.pageviews_today) + ' page views' : 'needs CF token') +
-      tile('Signups today', n(d.signups_today), n(d.users_total) + ' total · ' + n(d.pro_total) + ' pro') +
-      tile('Sign-ins today', n(d.signins_today), 'new sessions') +
-      tile('Exercises passed today', n(d.exercises_passed_today),
-           n(d.exercises_attempts_today) + ' attempts · ' + n(d.exercise_solvers_today) + ' solvers') +
-      tile('XP awarded today', n(d.xp_today), '');
-    spark('spark-signups', d.series7.signups);
-    spark('spark-ex', d.series7.exercises_passed);
+      tile('Visitors ' + L, cfOk ? n(cf.visits) : 'n/a',
+           cfOk ? n(cf.pageviews) + ' page views' : 'needs CF token') +
+      tile('Signups ' + L, n(d.signups), n(d.users_total) + ' total · ' + n(d.pro_total) + ' pro') +
+      tile('Sign-ins ' + L, n(d.signins), 'new sessions') +
+      tile('Exercises passed ' + L, n(d.exercises_passed),
+           n(d.exercises_attempts) + ' attempts · ' + n(d.exercise_solvers) + ' solvers') +
+      tile('XP awarded ' + L, n(d.xp), '');
+    var em = ' <em>' + trendL + ', per day</em>';
+    document.getElementById('h-visitors').innerHTML = 'Visitors' + (cfOk && cf.trend ? ' <em>' + trendL + ', per UTC day</em>' : em);
+    document.getElementById('h-signins').innerHTML = 'Sign-ins' + em;
+    document.getElementById('h-signups').innerHTML = 'Signups' + em;
+    document.getElementById('h-ex').innerHTML = 'Exercises passed' + em;
+    document.getElementById('h-xp').innerHTML = 'XP awarded' + em;
+    spark('spark-visitors', cfOk && cf.trend ? cf.trend.visits : []);
+    spark('spark-signins', d.series.signins);
+    spark('spark-signups', d.series.signups);
+    spark('spark-ex', d.series.exercises_passed);
+    spark('spark-xp', d.series.xp);
     var cfn = document.getElementById('cfnote');
     if (!cf || !cf.configured){
       cfn.innerHTML = '<div class="note"><b>Traffic metrics need a one-time setup</b> (signed-in metrics above already work): ' +
@@ -136,14 +186,19 @@
     } else if (cf.error){
       cfn.innerHTML = '<div class="note">Cloudflare Analytics error: ' + esc(cf.error) + '</div>';
     } else cfn.innerHTML = '';
-    var pages = (cf && cf.top_pages_today) || [], refs = (cf && cf.top_referrers_today) || [];
+    document.getElementById('h-pages').innerHTML = 'Top pages (visits) <em>' +
+      esc(cfOk && cf.pages_note ? cf.pages_note : L) + '</em>';
+    document.getElementById('h-refs').innerHTML = 'Top referrers <em>' +
+      esc(cfOk && cf.referrers_note ? cf.referrers_note : L) + '</em>';
+    document.getElementById('h-hubs').innerHTML = 'Top exercise hubs <em>' + esc(L) + '</em>';
+    var pages = (cf && cf.top_pages) || [], refs = (cf && cf.top_referrers) || [];
     rows(document.getElementById('t-pages'), ['Page', 'Visits', 'Views'], pages, function(p){
       return '<td class="path" title="' + esc(p.path) + '">' + esc(p.path) + '</td><td class="num">' + n(p.visits) + '</td><td class="num">' + n(p.views) + '</td>';
     });
     rows(document.getElementById('t-refs'), ['Source', 'Visits'], refs, function(r){
       return '<td>' + esc(r.host) + '</td><td class="num">' + n(r.visits) + '</td>';
     });
-    rows(document.getElementById('t-hubs'), ['Hub', 'Attempts', 'Passed'], d.top_hubs_today, function(h){
+    rows(document.getElementById('t-hubs'), ['Hub', 'Attempts', 'Passed'], d.top_hubs, function(h){
       return '<td class="path">' + esc(h.hub_slug) + '</td><td class="num">' + n(h.attempts) + '</td><td class="num">' + n(h.passed) + '</td>';
     });
     rows(document.getElementById('t-signups'), ['User', 'When'], d.recent_signups, function(s){
@@ -152,11 +207,14 @@
     });
     document.getElementById('foot').textContent =
       'Generated ' + new Date(data.generated_at * 1000).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) +
-      ' IST. Live signed-in = distinct users with an authenticated request in the last 5 minutes. ' +
-      'Sign-ins = new sessions created since IST midnight.';
+      ' IST · range: ' + L + '. Live signed-in = distinct users with an authenticated request in the last 5 minutes. ' +
+      'Signed-in metrics bucket on IST days; the visitors trend buckets on UTC days (Cloudflare). ' +
+      'Traffic beyond 30 days comes from daily snapshots accumulating in the site database since 2026-07-17.';
   }
+  var seq = 0;
   function load(){
-    fetch('/api/admin/stats', { headers: { Authorization: 'Bearer ' + tok } })
+    var mySeq = ++seq;
+    fetch('/api/admin/stats?range=' + encodeURIComponent(range), { headers: { Authorization: 'Bearer ' + tok } })
       .then(function(r){
         if (r.status === 401) throw { msg: 'Your session expired. <a href="/signin.html?next=/admin/analytics.html">Sign in again</a>.' };
         if (r.status === 403) throw { msg: 'This dashboard is restricted to the site owner.' };
@@ -164,9 +222,13 @@
         return r.json();
       })
       .then(function(data){
+        if (mySeq !== seq) return; // a newer request (range switch) superseded this one
         gate.classList.add('hidden'); dash.classList.remove('hidden'); render(data);
       })
-      .catch(function(e){ gate.classList.remove('hidden'); dash.classList.add('hidden'); gate.innerHTML = e.msg || 'Network error. Refresh to retry.'; });
+      .catch(function(e){
+        if (mySeq !== seq) return;
+        gate.classList.remove('hidden'); dash.classList.add('hidden'); gate.innerHTML = e.msg || 'Network error. Refresh to retry.';
+      });
   }
   load();
   setInterval(load, 60000);
