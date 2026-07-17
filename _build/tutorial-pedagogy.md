@@ -126,18 +126,32 @@ sentence, decide HOW to teach this topic, not just what to cover. It must contai
   of understanding is the top priority: when in doubt, explain MORE, never less;
   over-explaining a point beats leaving the reader stuck on it. But completeness is
   not repetition. Cover each idea ONCE, at the depth a basic-R reader needs, then
-  move on. The enemy is REDUNDANCY, not length: do not prove the same conclusion two
-  or three different ways when one clean proof plus a one-line confirmation lands it,
-  do not restate a point the previous paragraph already made, do not milk the running
-  example past the point where it still teaches something new. No word budget in
-  either direction - a rich topic taught properly runs long and that is correct, and
-  a post inflated by re-proving what the reader already accepted is bloated even when
-  every sentence is true. The cut test: remove a passage ONLY if the reader loses no
-  understanding they need; if it carries a new idea, a genuinely helpful new angle,
-  or a needed worked step, keep it even if the post is already long. Wall-of-text
-  sections remain a defect (split THAT section, do not cut content). MEASURE (judge):
-  no conclusion is proven more than once; every retained passage adds understanding
-  the reader does not already have.
+  move on.
+  **The prove-once rule (concrete, and NOT in tension with completeness).** List the
+  post's handful of central claims (e.g. "this series is multiplicative"; "classical
+  decomposition loses the recent trend"). Each claim is ESTABLISHED ONCE, with the
+  single most convincing demonstration - and that demonstration keeps its full,
+  rigorous, unhurried treatment. Any SECOND or THIRD demonstration of the SAME claim
+  is then collapsed to a one-line confirmation that points back ("the remainder test
+  agrees, and shrinks over the decade"), never a fresh full worked example, table, or
+  code block re-deriving the settled point. This removes NO depth: the claim still
+  gets its complete treatment; you are only refusing to re-litigate a point the
+  reader already accepted. A genuinely DIFFERENT claim (e.g. "which METHOD leaves
+  least in the remainder" is a comparison of methods, not another proof that the
+  series is multiplicative) is a new point and earns its own demonstration. Same for
+  the running example: it opens the post and threads through, but each callback must
+  teach something NEW; a callback that only re-states the payoff already delivered is
+  cut. A correct rewrite of a bloated post comes out SHORTER, because the duplicate
+  demonstrations collapsed, even though every original idea is still present.
+  No word budget in either direction - a rich topic taught properly runs long and
+  that is correct, and a post inflated by re-proving what the reader already accepted
+  is bloated even when every sentence is true. The cut test: remove a passage ONLY if
+  the reader loses no understanding they need; if it carries a new idea, a genuinely
+  helpful new angle, or a needed worked step, keep it even if the post is already
+  long. Wall-of-text sections remain a defect (split THAT section, do not cut
+  content). MEASURE (judge): each central claim is demonstrated in full exactly once,
+  extra demonstrations of it collapsed to one-line confirmations; every retained
+  passage adds understanding the reader does not already have.
 - **T14 Room to breathe (care over speed).** One new idea at a time: introduce it
   in plain words, show ONE concrete worked example, then move on. Readable R over
   clever golf (`ifelse()` and named intermediates, never `r * (tau - (r < 0))`);
