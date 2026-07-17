@@ -759,6 +759,12 @@ _TOOL_ICONS = {
         '<circle cx="7.4" cy="8.6" r=".9" fill="currentColor" stroke="none"/>'
         '<circle cx="9.4" cy="7.4" r=".9" fill="currentColor" stroke="none"/>'
         '<circle cx="11.4" cy="4.8" r=".9" fill="currentColor" stroke="none"/></svg>',
+    'prediction-interval-calculator.html':   # fit line inside a band that flares out from the middle
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 2v11.5h11"/>'
+        '<path d="M4 11.8 13.5 4.2"/>'
+        '<path d="M4 13.4Q8.75 7.6 13.5 2.6" stroke-width="1" stroke-dasharray="2 1.6"/>'
+        '<path d="M4 10.2Q8.75 8.4 13.5 5.8" stroke-width="1" stroke-dasharray="2 1.6"/></svg>',
     'odds-ratio-calculator.html':   # 2x2 grid with the ad cross-product diagonal marked
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/>'
@@ -836,6 +842,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'icc-calculator.html',                      'text': 'ICC Calculator'},
     {'group': 'Calculators', 'slug': 'correlation-calculator.html',              'text': 'Correlation'},
     {'group': 'Calculators', 'slug': 'linear-regression-calculator.html',        'text': 'Linear Regression'},
+    {'group': 'Calculators', 'slug': 'prediction-interval-calculator.html',      'text': 'Prediction Interval'},
     {'group': 'Calculators', 'slug': 'anova-calculator.html',                    'text': 'ANOVA Calculator'},
     {'group': 'Calculators', 'slug': 'post-hoc-calculator.html',                 'text': 'Post-Hoc Tests'},
     {'group': 'Calculators', 'slug': 'odds-ratio-calculator.html',               'text': 'Odds Ratio &amp; RR'},
