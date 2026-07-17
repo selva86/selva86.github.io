@@ -509,6 +509,13 @@ _TOOL_ICONS = {
         '<path d="M1.5 13.5h13"/>'
         '<path d="M11.3 13 L14.2 13 L14.2 10.4 Z" fill="currentColor" stroke="none" opacity="0.4"/>'
         '<path d="M9.6 5.4V13" stroke-dasharray="1.8 1.6"/></svg>',
+    'post-hoc-calculator.html':   # three means, the outer pair bracketed as differing
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<circle cx="3.5" cy="10.5" r="1.1" fill="currentColor" stroke="none"/>'
+        '<circle cx="8" cy="7.5" r="1.1" fill="currentColor" stroke="none"/>'
+        '<circle cx="12.5" cy="4.5" r="1.1" fill="currentColor" stroke="none"/>'
+        '<path d="M3.5 2.5v1.6M12.5 2.5v1.6M3.5 3.3h9"/>'
+        '<path d="M2 13.5h12"/></svg>',
     'anova-calculator.html':   # three group means with error whiskers
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M4 4v4M8 6v4M12 3v4"/>'
@@ -821,6 +828,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'correlation-calculator.html',              'text': 'Correlation'},
     {'group': 'Calculators', 'slug': 'linear-regression-calculator.html',        'text': 'Linear Regression'},
     {'group': 'Calculators', 'slug': 'anova-calculator.html',                    'text': 'ANOVA Calculator'},
+    {'group': 'Calculators', 'slug': 'post-hoc-calculator.html',                 'text': 'Post-Hoc Tests'},
     {'group': 'Calculators', 'slug': 'odds-ratio-calculator.html',               'text': 'Odds Ratio &amp; RR'},
     {'group': 'Calculators', 'slug': 'fisher-exact-test-calculator.html',        'text': "Fisher's Exact Test"},
     {'group': 'Calculators', 'slug': 'binomial-probability-calculator.html',      'text': 'Binomial Probability'},
