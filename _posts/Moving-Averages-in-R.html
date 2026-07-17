@@ -1,0 +1,946 @@
+---
+title: "Moving Averages in R: Simple, Weighted, and Exponential"
+description: "Moving averages smooth a time series by averaging nearby values. Learn simple, weighted and exponential moving averages in R, with runnable code and plots."
+keywords: "moving average in R, simple moving average R, weighted moving average R, exponential moving average R, ma function R, rolling mean R, smooth time series R, centred moving average"
+mathjax: true
+webr: true
+curriculum_id: "3.8.6"
+post_type: "C"
+auto_link_terms: "moving average|moving averages|moving average in R|simple moving average|weighted moving average|exponential moving average|centred moving average|centered moving average|rolling mean|rolling average|2x12-MA|smooth a time series|trailing moving average|window length|moving average window"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Moving Averages"
+sidebar_order: "8"
+---
+<!-- md2html:generated -->
+
+<p class="lead">A moving average replaces each value in a series with an average of the values around it. The wiggle cancels out and the trend survives, so you can finally see the shape of the thing. The three versions differ only in how much weight each neighbour gets: a <b>simple</b> moving average gives every value in the window the same weight, a <b>weighted</b> moving average lets you set the weights yourself, and an <b>exponential</b> moving average lets the weight fade smoothly the further back you go. This post builds all three by hand on one dataset, checks each against R's built-in functions to the last decimal, and shows you the four ways they mislead you.</p>
+
+<p>Everything below uses one dataset, so you always have something concrete to picture.</p>
+
+<p><strong><code>AirPassengers</code><strong> ships with R. It is the monthly total of international airline passengers, in </strong>thousands<strong>, from </strong>January 1949 to December 1960</strong>. That is 144 numbers. It starts at 112 thousand passengers in January 1949 and ends above 600 thousand by 1960, and it has a loud yearly cycle: summer is always busy, November is always quiet. It is the same series used in <a href="Visualize-Time-Series-in-R.html">Visualize Time Series in R</a> and <a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a>, so if you have read those, you already know the data.</p>
+
+<p>One month in it will do most of the work in this post: <strong>July 1949</strong>. Hold on to that month. The number R gives you for it is not the number you will expect, and understanding the gap is most of what there is to understand about moving averages.</p>
+
+<h2>What does a moving average actually do?</h2>
+
+<p>The raw monthly data jumps around so much that the growth is hard to see: every summer spike is followed by a winter dip, and the eye keeps getting dragged into the zigzag. A moving average smooths that away. For each month, take the twelve months centred on it and use their average in place of the raw value. A full year in every window means every window contains exactly one busy July and one quiet November, so the yearly cycle cancels itself out and what is left is the growth.</p>
+
+<p>Here is the whole idea, working, before any explanation.</p>
+
+<div class="webr-container" data-block-title="Smooth the airline series and see the trend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smooth the airline series and see the trend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(forecast))
+
+# AirPassengers: monthly airline passengers in thousands, Jan 1949 to Dec 1960.
+window(AirPassengers, start = c(1949, 1), end = c(1949, 12))
+#&gt;      Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; 1949 112 118 132 129 121 135 148 148 136 119 104 118
+
+# Replace each month by an average of the twelve months centred on it.
+trend &lt;- ma(AirPassengers, order = 12)
+
+window(trend, start = c(1949, 1), end = c(1949, 12))
+#&gt;           Jan      Feb      Mar      Apr      May      Jun      Jul      Aug      Sep      Oct
+#&gt; 1949       NA       NA       NA       NA       NA       NA 126.7917 127.2500 127.9583 128.5833
+#&gt;           Nov      Dec
+#&gt; 1949 129.0000 129.7500
+
+plot(AirPassengers, col = &quot;grey65&quot;, xlab = &quot;year&quot;, ylab = &quot;passengers (thousands)&quot;,
+     main = &quot;AirPassengers, and a 12-month moving average through it&quot;)
+lines(trend, col = &quot;tomato&quot;, lwd = 3)
+legend(&quot;topleft&quot;, legend = c(&quot;monthly data&quot;, &quot;12-month moving average&quot;),
+       col = c(&quot;grey65&quot;, &quot;tomato&quot;), lwd = c(1, 3), bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the output row by row. The first line loads the <code>forecast</code> package, which gives us <code>ma()</code>, the function that computes moving averages. The <code>window()</code> call is just a way of asking a time series for one slice of itself; here it prints the twelve months of 1949 so you can see the raw data. The airline carried 112 thousand passengers in January, climbed to 148 in July, and fell back to 104 by November. That November dip is the yearly cycle, not a decline in the business.</p>
+
+<p>Then <code>ma(AirPassengers, order = 12)</code> did the smoothing. <code>order = 12</code> is the <strong>window length</strong>: how many months go into each average. The result is another time series, one value per month, and printing 1949's twelve values shows two things worth noticing straight away.</p>
+
+<p>The first is the <code>NA</code>s. January through June came back empty. A window of twelve months centred on January would have to reach back into 1948, and 1948 is not in the data, so R returns <code>NA</code> rather than inventing numbers. You lose months at each end. That is not a flaw in the code, it is a property of the method, and section 3 puts an exact number on the loss.</p>
+
+<p>The second is the numbers themselves. July 1949 came back as <strong>126.7917</strong>. The raw July value was 148, and the smoothed value is much lower because July is one of the busiest months and the average pulls it back toward the rest of the year. The plot makes the point better than any number: the grey line saws up and down twelve times a year, and the red line walks calmly through the middle of it, climbing from about 127 to over 470. The airline business grew roughly four-fold in eleven years, and now you can see it.</p>
+
+<blockquote><p><strong>Note:</strong> The plot has no <code>NA</code> gap in the middle, only at the two ends, where the red line starts six months in and stops six months early. Keep an eye on the right-hand end of that red line. It stops in mid-1960 even though the data runs to December. Section 8 is about why that missing piece is the expensive one.</p></blockquote>
+
+<p>Hold on to <strong>126.7917</strong>. In section 4 we will compute the average of those first twelve months by hand. The answer will not match, and the reason why is the most useful thing in this post.</p>
+
+<h2>How is a simple moving average computed?</h2>
+
+<p>Start with the simplest possible version and make the window small enough to check by hand. A <strong>simple moving average</strong> of order \(m\) replaces the value at time \(t\) with the plain, unweighted average of the \(m\) values centred on \(t\):</p>
+
+<p>$$ \hat{T}_t = \frac{1}{m} \sum_{j=-k}^{k} y_{t+j}, \qquad k = \frac{m-1}{2} $$</p>
+
+<p>Every symbol in that line, in words. \(y_{t+j}\) is the observed value \(j\) steps away from month \(t\) (so \(y_{t-1}\) is last month, \(y_{t+1}\) is next month, and \(y_t\) is the month itself). \(\hat{T}_t\) is the smoothed value at month \(t\); the hat means "estimate of" and the \(T\) stands for trend, because the trend is what we are trying to estimate. \(m\) is the window length, the number of values we average. \(k\) is the <strong>half-width</strong>: how far the window reaches on each side, which is \((m-1)/2\). The \(\sum_{j=-k}^{k}\) means "add up the values from \(k\) steps before to \(k\) steps after", and dividing by \(m\) turns that sum into an average. That is the entire formula. "Simple" means every value in the window is divided by the same \(m\), so every value counts the same.</p>
+
+<p>Notice that \(k = (m-1)/2\) is only a whole number when \(m\) is odd. With \(m = 3\), \(k = 1\): reach one month back, one month forward. That is why we start with an odd window.</p>
+
+<p><img src="screenshots/Moving-Averages-in-R-window.webp" alt="How a 3-month moving average slides across 1949" class="img-responsive img-zoomable" loading="lazy" width="1424" height="3270" /></p>
+
+<p><em>Figure 1: A 3-month moving average walking across the first months of 1949. Each window drops its oldest value and picks up the next one. January has no month before it, so its window never fills and it comes back NA.</em></p>
+
+<p>Now check the diagram against R.</p>
+
+<div class="webr-container" data-block-title="A 3-month moving average, verified by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A 3-month moving average, verified by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- as.numeric(AirPassengers)   # the 144 values, with the dates stripped off
+y[1:5]
+#&gt; [1] 112 118 132 129 121
+
+ma3 &lt;- ma(AirPassengers, order = 3)
+as.numeric(ma3)[1:5]
+#&gt; [1]       NA 120.6667 126.3333 127.3333 128.3333
+
+# The second value should be the plain average of the first three months.
+mean(y[1:3])
+#&gt; [1] 120.6667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through it. <code>as.numeric()</code> throws away the date information and leaves a plain vector of 144 numbers, which makes it easy to grab values by position: <code>y[1]</code> is January 1949, <code>y[2]</code> is February, and so on. The first five are 112, 118, 132, 129, 121.</p>
+
+<p>Then <code>ma(AirPassengers, order = 3)</code> computes the 3-month moving average. Its first value is <code>NA</code>, exactly as the diagram predicted: the window centred on January needs December 1948. Its second value, the one centred on February, is 120.6667. And <code>mean(y[1:3])</code>, the plain average of January, February and March that you could do on a calculator, is <strong>also 120.6667</strong>. Same number. The function is not doing anything mysterious; it is doing what you would do by hand, 144 times, quickly.</p>
+
+<p>The window length is not special either. Widen it to five and the same logic holds.</p>
+
+<div class="webr-container" data-block-title="The same idea with a wider window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same idea with a wider window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(y[1:5])
+#&gt; [1] 122.4
+
+as.numeric(ma(AirPassengers, order = 5))[1:5]
+#&gt; [1]    NA    NA 122.4 127.0 133.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>order = 5</code>, \(k = (5-1)/2 = 2\), so the window reaches two months each way. Now the first <strong>two</strong> values are <code>NA</code> instead of one, and the third value (centred on March, the first month with two months on each side) is 122.4, which is exactly <code>mean(y[1:5])</code>. Widen the window, lose more at the edges, get a smoother line. That trade is the whole of the next section.</p>
+
+<h2>What window length should you use?</h2>
+
+<p>The window length \(m\) is the only choice a simple moving average asks you to make, and it controls one trade-off. A short window follows the data closely, so it reacts quickly to real changes but keeps a lot of the noise. A long window averages more values together, so it is smoother and more stable but it blurs real turning points and it costs you more months at each end. There is no universally correct \(m\); there is only the \(m\) that matches what you want the smooth line to <em>mean</em>.</p>
+
+<p>Look at three of them on the same series.</p>
+
+<div class="webr-container" data-block-title="Three window lengths on the same data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three window lengths on the same data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ma12 &lt;- ma(AirPassengers, order = 12)
+ma25 &lt;- ma(AirPassengers, order = 25)
+
+# How many values does each one lose?
+sapply(list(m3 = ma3, m12 = ma12, m25 = ma25), function(s) sum(is.na(s)))
+#&gt;  m3 m12 m25
+#&gt;   2  12  24
+
+plot(AirPassengers, col = &quot;grey75&quot;, xlab = &quot;year&quot;, ylab = &quot;passengers (thousands)&quot;,
+     main = &quot;Short windows follow the data, long windows flatten it&quot;)
+lines(ma3,  col = &quot;darkgreen&quot;, lwd = 2)
+lines(ma12, col = &quot;tomato&quot;,    lwd = 3)
+lines(ma25, col = &quot;steelblue&quot;, lwd = 2)
+legend(&quot;topleft&quot;, legend = c(&quot;order 3&quot;, &quot;order 12&quot;, &quot;order 25&quot;),
+       col = c(&quot;darkgreen&quot;, &quot;tomato&quot;, &quot;steelblue&quot;), lwd = c(2, 3, 2), bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>sapply()</code> line counts the <code>NA</code>s in each smoothed series, and the counts are not random. For an odd window the rule is \(2k = m - 1\) values lost in total, \(k\) at the start and \(k\) at the end: order 3 loses 1 each way, and order 25 loses 12 each way, a full year at each end of an eleven-year series.</p>
+
+<p>Order 12 breaks that pattern, and the 12 in the middle column is worth a second look, because \(m - 1\) predicts 11. An even window has no middle month to sit on, so R has to do something slightly different with it, and that something costs one extra value. Section 4 is entirely about what it does and why. For now just note the even-order rule: you lose \(m\) values, \(m/2\) at each end, which is why the red line back in section 1 started six months in and stopped six months early.</p>
+
+<p>On the plot, the three lines behave exactly as the trade-off predicts. The dark green order-3 line still zigzags: a 3-month window is far shorter than the 12-month cycle, so the seasonal swing survives the smoothing almost intact. The red order-12 line is smooth, because averaging a full year cancels the yearly cycle. The blue order-25 line is smoother still, but it starts a year late, ends a year early, and has flattened the growth spurts that the red line shows honestly.</p>
+
+<p>That gives a rule that is better than any number: <strong>match the window to the cycle you want to remove.</strong> Monthly data with a yearly cycle wants \(m = 12\). Quarterly data with a yearly cycle wants \(m = 4\). Daily data with a weekly cycle wants \(m = 7\). If your window is not a whole number of cycles, part of the cycle leaks through and the smooth line will still wobble, which is exactly what the order-3 line is doing.</p>
+
+<blockquote><p><strong>Watch out:</strong> A window of 12 does not remove a yearly cycle from <em>quarterly</em> data, it removes a three-year cycle. The window is counted in <strong>observations</strong>, not months. Ask <code>frequency(x)</code> if you are not sure how many observations a cycle takes; for <code>AirPassengers</code> it returns 12.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute a 7-month moving average of <code>AirPassengers</code> and count its <code>NA</code>s before you run it. The formula says \(m - 1\) values are lost in total.</p>
+<div class="webr-container" data-block-title="Your turn: a 7-month window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a 7-month window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ma7 &lt;- ma(AirPassengers, order = 7)
+
+# 1. Work out m - 1 on paper first, then run sum(is.na(ex_ma7)) to check
+# 2. Use head(as.numeric(ex_ma7), 4) to see which position holds the first real value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="7-month window solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">7-month window solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ma7 &lt;- ma(AirPassengers, order = 7)
+sum(is.na(ex_ma7))
+#&gt; [1] 6
+
+# 3 lost at the start, 3 at the end
+head(as.numeric(ex_ma7), 4)
+#&gt; [1]       NA       NA       NA 127.8571</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six <code>NA</code>s, which is \(m - 1 = 7 - 1\), split as \(k = 3\) at each end. The first real value sits at position 4, the first month with three months on each side of it. Note that a 7-month window on monthly data is not a whole number of years, so this smooth line will still carry some of the seasonal wobble.</p>
+
+</details>
+</section>
+
+<h2>Why does an even-order moving average need a second pass?</h2>
+
+<p>Everything so far used an odd window, and there was a reason. Look again at the formula: \(k = (m-1)/2\). For \(m = 12\) that gives \(k = 5.5\). You cannot reach 5.5 months back. An even window has no middle observation to sit on, which is a real problem, because the most useful window on monthly data is exactly the even one: 12.</p>
+
+<p>Here is what it looks like. We know from section 1 that R gave July 1949 the value 126.7917. Let us just take the plain average of the first twelve months and compare.</p>
+
+<div class="webr-container" data-block-title="The plain 12-month average, versus what R returned">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The plain 12-month average, versus what R returned</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(y[1:12])       # the simple average of Jan through Dec 1949
+#&gt; [1] 126.6667
+
+as.numeric(ma12)[7] # what ma(order = 12) returned for July 1949
+#&gt; [1] 126.7917</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those are different numbers. Not a rounding artifact, not a bug: 126.6667 and 126.7917 differ by 0.125, and the difference is real. <strong><code>ma(x, order = 12)</code> does not return the average of twelve months.</strong> If you have been describing your <code>ma(order = 12)</code> output to colleagues as "the 12-month average", you have been describing something else. Here is what it actually did.</p>
+
+<p>The problem is placement. The average of January through December 1949 is centred on the midpoint of that span, which falls between June and July, not on any month. So R computes <strong>two</strong> such averages, one that leans early and one that leans late, then averages the pair to land back on a real month.</p>
+
+<div class="webr-container" data-block-title="What ma() is really doing to an even window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What ma() is really doing to an even window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># centre = FALSE gives the raw, uncentred even-order average
+ma12_off &lt;- ma(AirPassengers, order = 12, centre = FALSE)
+as.numeric(ma12_off)[6:7]
+#&gt; [1] 126.6667 126.9167
+
+mean(y[1:12])   # Jan..Dec, sits between Jun and Jul
+#&gt; [1] 126.6667
+mean(y[2:13])   # Feb..Jan 1950, sits between Jul and Aug
+#&gt; [1] 126.9167
+
+# Average the two, and you land exactly on July
+(mean(y[1:12]) + mean(y[2:13])) / 2
+#&gt; [1] 126.7917</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the whole trick, and the numbers line it up perfectly. <code>mean(y[1:12])</code> = 126.6667 sits half a month before July. <code>mean(y[2:13])</code> = 126.9167 sits half a month after July. Average those two and you get <strong>126.7917</strong>, which is exactly the number R gave for July 1949 in section 1. A 12-month average, then a 2-month average of the result. That is why this is called a <strong>2x12-MA</strong>, said "two by twelve": a 2-MA of a 12-MA. The <code>centre = TRUE</code> default is doing the second pass for you silently.</p>
+
+<blockquote><p><strong>Note:</strong> This is not an obscure detail. The 2x12-MA is the standard way to extract a trend from monthly data and it is exactly the first step of classical decomposition, which is why <a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a> opens with the same 2x12 window. Any even season length needs the same fix: quarterly data uses a 2x4-MA, and half-hourly data with a daily cycle uses a 2x48-MA.</p></blockquote>
+
+<p>The important consequence is that the 2x12-MA is <strong>no longer a simple moving average.</strong> Averaging two overlapping windows means January 1949 and January 1950 each got counted once, while every month in between got counted twice. The values are not equally weighted anymore. Which raises the obvious question.</p>
+
+<h2>What is a weighted moving average?</h2>
+
+<p>A <strong>weighted moving average</strong> drops the requirement that every value in the window counts the same. Instead of dividing everything by \(m\), you hand each position its own weight:</p>
+
+<p>$$ \hat{T}_t = \sum_{j=-k}^{k} a_j \, y_{t+j}, \qquad \sum_{j=-k}^{k} a_j = 1 $$</p>
+
+<p>\(a_j\) is the weight given to the value \(j\) steps from the centre. The condition that the weights add up to 1 is what keeps the smooth line on the same scale as the data: if the weights summed to 2, your smoothed series would come out roughly twice as high as the series it smooths. The simple moving average is just the special case where every \(a_j\) equals \(1/m\), which of course adds up to 1.</p>
+
+<p>Now we can write the 2x12-MA down as one set of weights. The two overlapping 12-month windows share eleven months and disagree on two, so the eleven shared months get the full \(1/12\) and the two end months get half of that, \(1/24\), each.</p>
+
+<div class="webr-container" data-block-title="The 2x12-MA written as thirteen weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The 2x12-MA written as thirteen weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w212 &lt;- c(0.5, rep(1, 11), 0.5) / 12
+round(w212, 4)
+#&gt;  [1] 0.0417 0.0833 0.0833 0.0833 0.0833 0.0833 0.0833 0.0833 0.0833 0.0833 0.0833 0.0833 0.0417
+
+sum(w212)
+#&gt; [1] 1
+
+# Apply the weights by hand to the first thirteen months
+sum(y[1:13] * w212)
+#&gt; [1] 126.7917</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirteen weights, not twelve, because the window now reaches six months each way plus the centre month. The two outer weights are 0.0417 (that is \(1/24\)) and the eleven inner ones are 0.0833 (that is \(1/12\)). They sum to exactly 1: \(2 \times \frac{1}{24} + 11 \times \frac{1}{12} = \frac{1}{12} + \frac{11}{12} = 1\). And multiplying the first thirteen months by those weights and adding up gives <strong>126.7917</strong> again, the third independent route to the same number. <code>ma(order = 12)</code> was a weighted moving average all along.</p>
+
+<p>Base R will apply any weight vector you like with <code>stats::filter()</code>, which is the general engine underneath all of this.</p>
+
+<div class="webr-container" data-block-title="filter() applies any weights you give it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">filter() applies any weights you give it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wma &lt;- stats::filter(AirPassengers, filter = w212, sides = 2)
+as.numeric(wma)[7]
+#&gt; [1] 126.7917
+
+# Does it match forecast::ma() across all 144 months?
+all.equal(as.numeric(wma), as.numeric(ma12))
+#&gt; [1] TRUE
+
+# And equal weights reproduce the simple moving average exactly
+all.equal(as.numeric(stats::filter(AirPassengers, filter = rep(1/5, 5), sides = 2)),
+          as.numeric(ma(AirPassengers, order = 5)))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>stats::filter()</code> takes the series, a vector of weights (<code>filter =</code>), and <code>sides = 2</code>, which means "centre the window on each point" as opposed to <code>sides = 1</code>, which only looks backward. The <code>all.equal()</code> calls check every one of the 144 values, not just July, and both return <code>TRUE</code>. So <code>forecast::ma(x, order = 12)</code> and <code>stats::filter(x, w212, sides = 2)</code> are the same computation with a friendlier name, and a simple moving average is genuinely just a weighted one with boring weights.</p>
+
+<blockquote><p><strong>Note:</strong> <code>filter()</code> exists in both <code>stats</code> and <code>dplyr</code>, and they do completely unrelated things. If you have loaded the tidyverse, plain <code>filter(x, ...)</code> will try to <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">filter rows</a> and give you a confusing error. Writing <code>stats::filter()</code> explicitly, as above, keeps the ambiguity away.</p></blockquote>
+
+<h2>What is an exponential moving average?</h2>
+
+<p>Both averages so far have a hard edge. A 12-month window treats every month inside it as relevant and the first month outside it as worth nothing at all. Nothing in the world works that way; relevance fades, it does not fall off a cliff. An <strong>exponential moving average</strong> replaces the cliff with a slope, and it does it with a formula short enough to memorise:</p>
+
+<p>$$ s_t = \alpha \, y_t + (1 - \alpha)\, s_{t-1} $$</p>
+
+<p>\(s_t\) is the smoothed value at time \(t\), \(y_t\) is the new observation, and \(s_{t-1}\) is the smoothed value you already had from last time. \(\alpha\) (alpha) is a number between 0 and 1 called the <strong>smoothing parameter</strong>, and it is the only knob. Read the formula in English: <em>the new smooth value is a blend of the new observation and the old smooth value, with \(\alpha\) deciding how much you trust the news.</em> Set \(\alpha = 0.9\) and the line chases every jump. Set \(\alpha = 0.05\) and it barely notices.</p>
+
+<p>The formula refers to itself: \(s_t\) depends on \(s_{t-1}\), which depends on \(s_{t-2}\). That is called <strong>recursive</strong>, and it means we need somewhere to start. The usual choice is to set \(s_1 = y_1\), the first smooth value equals the first observation, and let it settle from there. Write it as a loop and it is six lines.</p>
+
+<div class="webr-container" data-block-title="An exponential moving average, written out in full">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An exponential moving average, written out in full</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ema &lt;- function(y, alpha) {
+  s &lt;- numeric(length(y))
+  s[1] &lt;- y[1]                                     # start the level at the first observation
+  for (t in 2:length(y)) {
+    s[t] &lt;- alpha * y[t] + (1 - alpha) * s[t - 1]  # blend: alpha news, (1-alpha) memory
+  }
+  s
+}
+
+e20 &lt;- ema(y, alpha = 0.2)
+round(e20[1:6], 4)
+#&gt; [1] 112.0000 113.2000 116.9600 119.3680 119.6944 122.7555</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Check the first two values against the formula by hand. \(s_1 = y_1 = 112\), which matches. Then \(s_2 = 0.2 \times y_2 + 0.8 \times s_1 = 0.2 \times 118 + 0.8 \times 112 = 23.6 + 89.6 = 113.2\), which also matches. February's reading was 118, but the smooth line only moved from 112 to 113.2, because with \(\alpha = 0.2\) it takes 20% of the news and keeps 80% of what it already believed.</p>
+
+<p>Base R has the same recursion built in, which is worth knowing because the loop above gets slow on long series.</p>
+
+<div class="webr-container" data-block-title="The same thing, using the built-in recursive filter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same thing, using the built-in recursive filter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">e20_fast &lt;- c(y[1], stats::filter(0.2 * y[-1], filter = 0.8,
+                                  method = &quot;recursive&quot;, init = y[1]))
+all.equal(e20, as.numeric(e20_fast))
+#&gt; [1] TRUE
+
+# And notice what is NOT here
+sum(is.na(e20))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>method = &quot;recursive&quot;</code> tells <code>filter()</code> to feed its own output back in rather than slide a window, and <code>init</code> sets the starting value. It agrees with the hand-written loop on all 144 values.</p>
+
+<p>The second result is the one to care about: <strong>zero <code>NA</code>s</strong>. No warm-up at the start, and nothing missing at the end. Every centred moving average in this post handed back <code>NA</code>s at both edges; the exponential moving average has a value for every single month, including December 1960, because it never needs to look forward.</p>
+
+<p>So where did the "exponential" go? It is hiding in the recursion. Unroll the formula and each old observation reappears with its weight multiplied by \((1-\alpha)\) one more time:</p>
+
+<p>$$ s_t = \alpha \sum_{j=0}^{t-2} (1-\alpha)^j \, y_{t-j} \;+\; (1-\alpha)^{t-1} y_1 $$</p>
+
+<p>The weight on the observation \(j\) steps back is \(\alpha(1-\alpha)^j\), which shrinks by a constant factor at every step. That is exactly what "exponential decay" means, and you can just print it.</p>
+
+<div class="webr-container" data-block-title="The weights decay geometrically and still sum to 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The weights decay geometrically and still sum to 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">j &lt;- 0:9
+round(0.2 * 0.8^j, 5)
+#&gt;  [1] 0.20000 0.16000 0.12800 0.10240 0.08192 0.06554 0.05243 0.04194 0.03355 0.02684
+
+# Every observation ever recorded gets some weight, and they add up to 1
+sum(0.2 * 0.8^(0:500))
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This month gets 20% of the weight, last month 16%, the month before 12.8%, each one 0.8 times the one before it. Ten months back still gets 2.7%, and the weight never actually reaches zero, it just gets too small to matter. So an exponential moving average has an <strong>infinite window</strong>: it uses every observation that ever happened, but it forgets them smoothly. And the weights sum to 1, so the same scale rule from section 5 holds.</p>
+
+<div class="webr-container" data-block-title="What alpha does to the smooth line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What alpha does to the smooth line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">alphas &lt;- c(0.05, 0.2, 0.6)
+cols &lt;- c(&quot;darkgreen&quot;, &quot;tomato&quot;, &quot;steelblue&quot;)
+
+plot(AirPassengers, col = &quot;grey75&quot;, xlab = &quot;year&quot;, ylab = &quot;passengers (thousands)&quot;,
+     main = &quot;One knob: alpha decides how much the line trusts the news&quot;)
+for (i in seq_along(alphas)) {
+  smoothed &lt;- ema(y, alpha = alphas[i])
+  lines(ts(smoothed, start = c(1949, 1), frequency = 12), col = cols[i], lwd = 2)
+}
+legend(&quot;topleft&quot;, legend = paste(&quot;alpha =&quot;, alphas), col = cols, lwd = 2, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The loop calls <code>ema()</code> at each alpha and wraps the plain numeric result back into a time series with <code>ts(..., start = c(1949, 1), frequency = 12)</code> so it lines up on the year axis. The three lines separate cleanly. At \(\alpha = 0.05\) the green line is very smooth and very late, still climbing out of the 1950s when the data has already spiked. At \(\alpha = 0.6\) the blue line hugs the data so tightly that it has kept most of the seasonal zigzag, which is exactly what we were trying to remove. At \(\alpha = 0.2\) the red line sits in between, following the growth without copying every summer.</p>
+
+<blockquote><p><strong>Watch out:</strong> No alpha gives you what a 12-month window gives you. Geometric weights never cover a whole seasonal cycle evenly, so some of the yearly swing always survives. An exponential moving average is a good way to track a <strong>level</strong>; it is a poor way to strip out a <strong>season</strong>. That is what the 2x12-MA is for, and it is why this is a choice about your goal rather than a contest.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pick an alpha and predict what happens before you run it. What does <code>ema(y, alpha = 1)</code> return, and why?</p>
+<div class="webr-container" data-block-title="Your turn: the extreme case">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the extreme case</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_e1 &lt;- ema(y, alpha = 1)
+
+# 1. Put alpha = 1 into s[t] = alpha * y[t] + (1 - alpha) * s[t-1] and simplify
+# 2. Then check your answer with all.equal(ex_e1, y)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="alpha = 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">alpha = 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_e1 &lt;- ema(y, alpha = 1)
+all.equal(ex_e1, y)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With \(\alpha = 1\) the formula becomes \(s_t = 1 \times y_t + 0 \times s_{t-1} = y_t\). The line takes 100% of the news and keeps none of its memory, so the "smoothed" series is the raw series, unchanged. The other extreme, \(\alpha = 0\), gives \(s_t = s_{t-1}\) forever, a flat line stuck at \(y_1 = 112\) that ignores the data entirely. Every useful alpha lives strictly between those two failures, and most practical values fall between 0.05 and 0.3.</p>
+
+</details>
+</section>
+
+<h2>How do the three compare on the same series?</h2>
+
+<p>We now have three smoothers built and verified on one dataset. Put them on one plot, and put their weights on another, because the weights are what actually distinguishes them.</p>
+
+<div class="webr-container" data-block-title="The three smoothers, and the three weight profiles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The three smoothers, and the three weight profiles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
+
+plot(AirPassengers, col = &quot;grey75&quot;, xlab = &quot;year&quot;, ylab = &quot;passengers (thousands)&quot;,
+     main = &quot;Three smoothers&quot;)
+lines(ma3,  col = &quot;darkgreen&quot;, lwd = 2)
+lines(ma12, col = &quot;tomato&quot;, lwd = 3)
+lines(ts(e20, start = c(1949, 1), frequency = 12), col = &quot;steelblue&quot;, lwd = 2)
+legend(&quot;topleft&quot;, legend = c(&quot;simple 3-MA&quot;, &quot;2x12-MA&quot;, &quot;EMA, alpha = 0.2&quot;),
+       col = c(&quot;darkgreen&quot;, &quot;tomato&quot;, &quot;steelblue&quot;), lwd = 2, bty = &quot;n&quot;)
+
+# The weights, which is where the real difference lives
+off &lt;- -7:7
+w_simple13 &lt;- ifelse(abs(off) &lt;= 6, 1/13, 0)
+w_2x12     &lt;- ifelse(abs(off) == 6, 1/24, ifelse(abs(off) &lt;= 5, 1/12, 0))
+plot(off, w_simple13, type = &quot;h&quot;, lwd = 5, col = &quot;grey55&quot;, ylim = c(0, 0.1),
+     xlab = &quot;months from the centre&quot;, ylab = &quot;weight&quot;, main = &quot;Weight profiles&quot;)
+points(off + 0.3, w_2x12, type = &quot;h&quot;, lwd = 5, col = &quot;tomato&quot;)
+points(0:7, 0.2 * 0.8^(0:7), type = &quot;h&quot;, lwd = 5, col = &quot;steelblue&quot;)
+legend(&quot;topleft&quot;, legend = c(&quot;simple 13-MA&quot;, &quot;2x12-MA&quot;, &quot;EMA, alpha = 0.2&quot;),
+       fill = c(&quot;grey55&quot;, &quot;tomato&quot;, &quot;steelblue&quot;), bty = &quot;n&quot;, cex = 0.8)
+
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>par(mfrow = c(1, 2))</code> splits the drawing area into one row of two panels, and the last line puts it back to normal so later plots are not squeezed. On the left panel, the green 3-MA still zigzags, the red 2x12-MA is the clean trend, and the blue EMA sits between them and lags behind the red one whenever the series turns.</p>
+
+<p>The right panel is the summary of this whole post. The grey bars are flat: a simple 13-MA gives every month in the window \(1/13\) and everything outside it zero. The red bars are flat too except at \(\pm 6\), where they drop to half height: that is the 2x12 fix from section 4, drawn. The blue bars start high at lag 0 and decay to the right, never quite reaching zero and never reaching into the future at all. Flat, flat-with-clipped-corners, and decaying. That is the difference.</p>
+
+<p><img src="screenshots/Moving-Averages-in-R-choose.webp" alt="Which moving average should you use" class="img-responsive img-zoomable" loading="lazy" width="2248" height="2146" /></p>
+
+<p><em>Figure 2: Choosing a moving average is a question about the job, not about which one is best. The last box is the one people forget: every centred moving average leaves you blind at exactly the end of the series you care about most.</em></p>
+
+<p>If you work with financial data you will meet these same three under different names in the <code>TTR</code> package, which is the standard toolkit for that world. It is not available in the browser, so run this one locally.</p>
+
+<pre><code class="language-r">library(TTR)
+
+head(SMA(y, n = 3), 5)          # simple
+#&gt; [1]       NA       NA 120.6667 126.3333 127.3333
+
+head(WMA(y, n = 3), 5)          # weighted, linearly declining weights by default
+#&gt; [1]       NA       NA 124.0000 128.1667 125.5000
+
+head(EMA(y, n = 5), 7)          # exponential, alpha = 2/(n+1)
+#&gt; [1]       NA       NA       NA       NA 122.4000 126.6000 133.7333</code></pre>
+
+<p>Two differences are worth naming so they do not surprise you. First, <code>TTR</code> smoothers are <strong>trailing</strong>, not centred: <code>SMA(y, n = 3)</code> puts the average of the first three months at position 3, not at position 2 where <code>ma()</code> put it. Traders cannot use next week's price, so the whole package looks backward only. Second, <code>EMA</code> seeds itself with the simple average of the first <code>n</code> values rather than with \(y_1\), which is why it starts with four <code>NA</code>s and then 122.4, the same number as <code>mean(y[1:5])</code> from section 2. Different seeding conventions, same recursion. Neither is wrong; just know which one you are using before you compare two people's numbers.</p>
+
+<h2>Where do moving averages mislead you?</h2>
+
+<p>A moving average is a very cheap way to see a trend, and cheap tools have edges. There are four ways this one cuts.</p>
+
+<p><strong>It turns late.</strong> A trailing moving average, the kind every dashboard and trading rule uses, only looks backward, so it reports the middle of the window as though it were now. Its output is systematically old by \(k = (m-1)/2\) periods. This is not a subtle effect and you can measure it exactly.</p>
+
+<div class="webr-container" data-block-title="Measuring the lag of a trailing moving average">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measuring the lag of a trailing moving average</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A clean sine wave with a known peak, so we can see the shift exactly
+tt &lt;- 1:200
+wave &lt;- ts(sin(2 * pi * tt / 40))
+
+trail11 &lt;- stats::filter(wave, filter = rep(1/11, 11), sides = 1)  # backward only
+cent11  &lt;- stats::filter(wave, filter = rep(1/11, 11), sides = 2)  # centred
+
+which.max(wave[1:40])      # where the real peak is
+#&gt; [1] 10
+which.max(trail11[1:40])   # where the trailing MA says it is
+#&gt; [1] 15
+which.max(cent11[1:40])    # where the centred MA says it is
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The signal is a sine wave with a period of 40, so its first peak is at 10, and <code>which.max()</code> confirms it. The centred moving average finds the peak at 10 as well: dead on. The trailing one reports it at <strong>15</strong>, five periods late, which is exactly \(k = (11-1)/2 = 5\). If that were a daily series, your dashboard would announce the peak five days after it happened, every time. The lag is a property of the method, not bad luck, so you can subtract it if you know it. This is the strongest argument for the exponential moving average in live monitoring: it also lags, but for a given amount of smoothing it lags less, because its weight is concentrated on recent values instead of spread evenly across the window.</p>
+
+<p><strong>It goes blind exactly where you need it.</strong> The <code>NA</code>s at the right-hand edge are not cosmetic. They fall on the most recent months, which are the ones anyone actually wants to know about.</p>
+
+<div class="webr-container" data-block-title="The end of the series is where the trend is missing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The end of the series is where the trend is missing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tail(as.numeric(ma12), 8)
+#&gt; [1] 472.7500 475.0417       NA       NA       NA       NA       NA       NA
+
+tail(as.numeric(e20), 3)
+#&gt; [1] 501.2970 479.0376 469.6301</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 2x12-MA's last real value is at July 1960; the final six months come back <code>NA</code>. Someone standing in December 1960 asking "what is the trend right now?" gets nothing. The exponential moving average answers all the way to the last month, which is most of why it is the one that ends up in production dashboards. The other standard answer is to use a method built to reach the edge, such as the <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">STL decomposition</a> in <a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a>, which estimates the trend at both ends rather than giving up.</p>
+
+<p><strong>It manufactures cycles that are not there.</strong> This is the one that catches people. Smoothing pure random noise produces a wandering line with what look like real cycles in it, because neighbouring windows share most of their values and are therefore correlated by construction. It is called the Slutsky-Yule effect, and it has been generating fake business cycles since the 1920s.</p>
+
+<div class="webr-container" data-block-title="There is nothing here, and yet">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">There is nothing here, and yet</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+noise &lt;- ts(rnorm(300))                                        # pure noise, no trend, no cycle
+smooth_noise &lt;- stats::filter(noise, filter = rep(1/24, 24), sides = 2)
+
+plot(noise, col = &quot;grey80&quot;, xlab = &quot;time&quot;, ylab = &quot;value&quot;,
+     main = &quot;A 24-point moving average of pure random noise&quot;)
+lines(smooth_noise, col = &quot;tomato&quot;, lwd = 3)
+abline(h = 0, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rnorm(300)</code> draws 300 independent random numbers. There is no trend and no cycle: each value is unrelated to the one before it. But the red line does not look like nothing. It swings above and below zero in slow, smooth arcs that a person would happily describe as a multi-year cycle, and if you saw it on a slide with a business label attached you would believe it. The wave is entirely an artifact of the smoothing. Any two neighbouring windows share 23 of their 24 values, so consecutive smoothed points are almost forced to be similar, and that manufactured stickiness is what your eye reads as a cycle. <strong>A smooth line is not evidence of a real pattern.</strong></p>
+
+<p><strong>It cannot forecast.</strong> A moving average has no opinion about the future. Extending one means either stopping at the last value and drawing a flat line, or feeding it its own output, which just decays toward a constant. Either way it ignores the trend and the season, which for <code>AirPassengers</code> are the only two things that matter. The exponential moving average is the interesting case here: it is the computational core of <strong>simple exponential smoothing</strong>, a genuine forecasting method, but that method's forecast is still a flat line, and it only becomes useful once trend and seasonal terms are bolted on top. That is the Holt-Winters and ETS family, and it is where this section of the site goes next. If you want to predict next month, start at <a href="Time-Series-Forecasting-With-R.html">Time Series Forecasting in R</a> rather than extending a moving average.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: The 2x4-MA for quarterly data</h3>
+
+<p>Section 4 built the 2x12-MA for monthly data. Quarterly data has an even season length too, so it needs the same fix with \(m = 4\). Work out the five weights by the same logic (two overlapping 4-quarter windows, so the shared quarters get the full weight and the two end quarters get half), then confirm they reproduce <code>ma(order = 4)</code> exactly. Use <code>UKgas</code>, a quarterly series that ships with R.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Build the weight vector: c(0.5, 1, 1, 1, 0.5) / 4
+# 2. Check that it sums to 1
+# 3. Compare stats::filter(UKgas, filter = w24, sides = 2) with ma(UKgas, order = 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w24 &lt;- c(0.5, 1, 1, 1, 0.5) / 4
+w24
+#&gt; [1] 0.125 0.250 0.250 0.250 0.125
+
+sum(w24)
+#&gt; [1] 1
+
+all.equal(as.numeric(stats::filter(UKgas, filter = w24, sides = 2)),
+          as.numeric(ma(UKgas, order = 4)))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five weights for a 4-quarter season, exactly as thirteen weights covered a 12-month season: the window reaches \(m/2 = 2\) quarters each way plus the centre. The three inner quarters get \(1/4 = 0.25\) and the two outer ones get \(1/8 = 0.125\), summing to 1. It matches <code>ma(order = 4)</code> on every value. The pattern generalises to any even \(m\): half weights on the two ends, full weights on everything between.</p>
+
+</details>
+
+<h3>Exercise 2: Does the alpha rule of thumb do what people say?</h3>
+
+<p>You will often see the rule \(\alpha = 2/(m+1)\) offered as the way to make an exponential moving average "equivalent" to a simple \(m\)-period one. Compute that alpha for \(m = 12\), build both smoothers on <code>AirPassengers</code>, and compare their roughness with <code>sd(diff(.))</code>, which measures how much the smooth line jumps from one month to the next. Do they come out equivalent? If not, what is the rule actually equalising?</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. alpha &lt;- 2 / (12 + 1)
+# 2. Build ema(y, alpha) and compare with ma12
+# 3. Roughness: sd(diff(x)) on each, and on the raw y for reference</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">2 / (12 + 1)
+#&gt; [1] 0.1538462
+
+e_rule &lt;- ema(y, alpha = 2 / 13)
+
+round(sd(diff(y)), 3)                      # the raw series
+#&gt; [1] 33.754
+round(sd(diff(e_rule)), 3)                 # EMA with the rule-of-thumb alpha
+#&gt; [1] 7.153
+round(sd(diff(ma12[!is.na(ma12)])), 3)     # the 2x12-MA
+#&gt; [1] 1.376</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>They are not equivalent, and not by a little: the 2x12-MA is about five times smoother than the exponential moving average the rule told you was its equal. The rule is not wrong, it is answering a different question. What it equalises is the <strong>average age</strong> of the data in the smoother, and that part is exact:</p>
+
+<div class="webr-container" data-block-title="What the rule actually matches">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What the rule actually matches</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">(12 - 1) / 2          # average age of the data in a simple 12-period MA
+#&gt; [1] 5.5
+
+(1 - 2/13) / (2/13)   # average age of the data in an EMA with alpha = 2/13
+#&gt; [1] 5.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both smoothers are looking at data that is on average 5.5 months old, so they are equally <em>delayed</em>. They are not equally <em>smooth</em>, because smoothness here comes from something else: twelve equal weights spanning exactly one seasonal cycle cancel the yearly swing perfectly, while geometric weights never cover a whole cycle evenly, so the swing leaks through. The rule of thumb is a fine way to match responsiveness. It is not a way to match seasonal cancellation, and only one of these two smoothers can do that at all.</p>
+
+</details>
+
+<h3>Exercise 3: Trailing or centred?</h3>
+
+<p>Section 8 said a trailing moving average lags but reaches the edge, while a centred one is on time but goes blind at both ends. Build a 12-month trailing moving average of <code>AirPassengers</code> with <code>stats::filter(..., sides = 1)</code> and check that claim: count the <code>NA</code>s at each end and compare with the centred <code>ma12</code>. Then decide which one belongs in a dashboard that answers "how are we doing this month?"</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">trail12 &lt;- stats::filter(AirPassengers, filter = rep(1/12, 12), sides = 1)
+
+# 1. How many NAs in total? Where are they?
+# 2. Confirm trail12[12] equals mean(y[1:12])
+# 3. Count NAs in the LAST 6 months of trail12 and of ma12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">trail12 &lt;- stats::filter(AirPassengers, filter = rep(1/12, 12), sides = 1)
+
+sum(is.na(trail12))
+#&gt; [1] 11
+
+as.numeric(trail12)[12]   # the first month with 12 months behind it
+#&gt; [1] 126.6667
+mean(y[1:12])
+#&gt; [1] 126.6667
+
+sum(is.na(tail(as.numeric(trail12), 6)))   # trailing: NAs in the last 6 months
+#&gt; [1] 0
+sum(is.na(tail(as.numeric(ma12), 6)))      # centred: NAs in the last 6 months
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The trailing version loses 11 values, all of them at the <strong>start</strong>, and its first real value at December 1949 is <code>mean(y[1:12])</code>, the plain average of the twelve months up to and including that one. Nothing is missing at the end: it has a value for December 1960. The centred <code>ma12</code> is missing all six of the final months.</p>
+
+<p>So for a dashboard, the trailing version is the only one of the two that can answer the question at all, and you accept that its answer describes roughly six months ago (\(k = 5.5\)) rather than now. The centred version is the right choice when you are studying history and the end of the series is not where the interest is. If you need both currency and low lag, that is the argument for an exponential moving average, which has no <code>NA</code>s anywhere and concentrates its weight on recent months.</p>
+
+</details>
+
+<h2>FAQ</h2>
+
+<p><strong>Is a moving average the same as the MA in ARIMA?</strong></p>
+
+<p>No, and this is the single most common confusion in time series. The moving average in this post is a smoother: it averages nearby <strong>observations</strong> to reveal a trend. The MA(q) part of an ARIMA model is a model component that regresses the series on past <strong>forecast errors</strong>, which are not observations and are not something you can see in the data. They share a name for historical reasons and almost nothing else. When you fit <code>arima(x, order = c(0, 0, 2))</code> you are not smoothing anything.</p>
+
+<p><strong>Should I use a centred or a trailing moving average?</strong></p>
+
+<p>Centred if you are describing the past, trailing if you are tracking the present. A centred average is on time but cannot see the last \(k\) periods, which makes it right for analysis and useless for monitoring. A trailing average always has a value for right now, but that value describes the middle of its window, so it is old by \(k\) periods. Exercise 3 measures both effects.</p>
+
+<p><strong>How do I choose alpha for an exponential moving average?</strong></p>
+
+<p>Three ways, in increasing order of rigour. Pick it by feel from a plot like the one in section 6, which is fine for a chart. Use \(\alpha = 2/(m+1)\) to match the responsiveness of an \(m\)-period simple average, which is the trader's convention (see Exercise 2 for what it really guarantees). Or estimate it from the data by minimising the sum of squared one-step-ahead errors, which is what <code>forecast::ses()</code> does when you leave <code>alpha</code> unset, and which is the right answer whenever you plan to forecast rather than just draw.</p>
+
+<p><strong>Can I forecast with a moving average?</strong></p>
+
+<p>Not usefully. A moving average has no mechanism for extrapolation, so the honest forecast is a flat line at the last value, which ignores both trend and season. Its exponential cousin is the engine inside simple exponential smoothing, a real forecasting method, but that method also forecasts a flat line until you add trend and seasonal terms. Those additions are Holt-Winters and ETS, and that is the next stop in this section.</p>
+
+<p><strong>Why does <code>ma(x, order = 12)</code> not equal the mean of 12 months?</strong></p>
+
+<p>Because with an even window there is no middle month to put the answer on, so <code>ma()</code> averages two overlapping 12-month windows to land back on a real month. That makes it a weighted average with half weights on the two end months, a 2x12-MA. Section 4 shows the three numbers side by side: 126.6667 for the plain mean, 126.9167 for the shifted mean, and 126.7917 for their average, which is what <code>ma()</code> returns. Pass <code>centre = FALSE</code> if you genuinely want the uncentred version.</p>
+
+<p><strong>What about <code>zoo::rollmean()</code> or <code>TTR::SMA()</code>?</strong></p>
+
+<p>They compute the same simple moving average with different defaults, and the defaults are where people get burned. <code>zoo::rollmean(x, k)</code> is centred for odd <code>k</code> and needs <code>fill = NA</code> if you want the output to stay the same length as the input. <code>TTR::SMA(x, n)</code> is trailing, because it was written for financial data where looking forward is cheating. Before comparing two people's moving averages, check three things: the window length, whether it is centred or trailing, and how the ends are handled.</p>
+
+<h2>Summary</h2>
+
+<p>A moving average replaces each value with an average of its neighbours. All three versions in this post are the same operation with different weights, and the weights are the only thing that ever really changes.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Simple MA</th>
+<th>Weighted MA (2xm)</th>
+<th>Exponential MA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Weights</td>
+<td>all equal, \(1/m\)</td>
+<td>your choice, must sum to 1</td>
+<td>\(\alpha(1-\alpha)^j\), decaying</td>
+</tr>
+<tr>
+<td>Window</td>
+<td>fixed, \(m\) values</td>
+<td>fixed, \(m+1\) values</td>
+<td>infinite, fades out</td>
+</tr>
+<tr>
+<td>R call</td>
+<td><code>ma(x, order = m)</code></td>
+<td><code>stats::filter(x, w, sides = 2)</code></td>
+<td><code>stats::filter(a*x, 1-a, method = &quot;recursive&quot;)</code></td>
+</tr>
+<tr>
+<td>Knob</td>
+<td>\(m\)</td>
+<td>the weight vector</td>
+<td>\(\alpha\)</td>
+</tr>
+<tr>
+<td>Values lost</td>
+<td>\(m-1\), split across both ends</td>
+<td>\(m\), split across both ends</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Best at</td>
+<td>describing the past with an order everyone understands</td>
+<td>stripping an even-length season out of a trend</td>
+<td>tracking a live level with no edge blindness</td>
+</tr>
+<tr>
+<td>Fails at</td>
+<td>even season lengths</td>
+<td>nothing, if the weights are right</td>
+<td>cancelling a season</td>
+</tr>
+</tbody>
+</table>
+
+<p>The five things worth carrying away:</p>
+
+<ol>
+
+<li><strong><code>ma(x, order = 12)</code> is not the average of 12 months.</strong> It is a 2x12-MA, a weighted average with half weights on the two end months, because an even window has no centre. July 1949 is 126.7917, not 126.6667.</li>
+
+<li><strong>Match the window to the cycle you want to remove</strong>, and count it in observations, not months. Monthly data with a yearly cycle wants 12; quarterly wants 4; daily with a weekly cycle wants 7.</li>
+
+<li><strong>Every centred moving average costs you \((m-1)/2\) values at each end</strong>, and the ones at the right-hand end are the recent months you care about most.</li>
+
+<li><strong>A trailing moving average is old by \((m-1)/2\) periods</strong>, exactly and measurably. Section 8 catches an 11-period trailing average reporting a peak five periods late.</li>
+
+<li><strong>A smooth line is not evidence of a pattern.</strong> Smoothing pure noise produces convincing cycles that are entirely an artifact of the overlapping windows.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed., section 3.3 "Moving averages". The clearest published treatment of m-MAs and the 2xm-MA, and the source of the notation used here. <a href="https://otexts.com/fpp3/moving-averages.html">otexts.com/fpp3/moving-averages.html</a></li>
+
+<li><code>forecast::ma()</code> reference. Documents the <code>centre</code> argument that silently turns an even-order average into a 2xm-MA. <a href="https://pkg.robjhyndman.com/forecast/reference/ma.html">pkg.robjhyndman.com/forecast/reference/ma.html</a></li>
+
+<li><code>stats::filter()</code> reference. The base R engine for both convolution (windowed) and recursive (exponential) filters, including the <code>sides</code> argument. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/filter.html">stat.ethz.ch/R-manual/R-devel/library/stats/html/filter.html</a></li>
+
+<li>NIST/SEMATECH <em>e-Handbook of Statistical Methods</em>, section 6.4.2 on single exponential smoothing. Works the recursion through by hand and derives the geometric weights. <a href="https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc431.htm">itl.nist.gov/div898/handbook/pmc/section4/pmc431.htm</a></li>
+
+<li><code>TTR</code> package vignette. The financial toolkit's <code>SMA</code>, <code>WMA</code> and <code>EMA</code>, all trailing by convention. <a href="https://cran.r-project.org/web/packages/TTR/TTR.pdf">cran.r-project.org/web/packages/TTR/TTR.pdf</a></li>
+
+<li><code>zoo</code> package vignette on rolling functions. <code>rollmean()</code> and <code>rollapply()</code>, and the <code>fill</code> and <code>align</code> arguments that decide how the ends behave. <a href="https://cran.r-project.org/web/packages/zoo/vignettes/zoo.pdf">cran.r-project.org/web/packages/zoo/vignettes/zoo.pdf</a></li>
+
+<li>Slutsky, E. "The Summation of Random Causes as the Source of Cyclic Processes." <em>Econometrica</em> 5(2), 1937. The original demonstration that averaging random shocks manufactures convincing cycles, which is what section 8 reproduces with <code>rnorm()</code>. The paper is paywalled on JSTOR; background and the effect's later name are at <a href="https://en.wikipedia.org/wiki/Eugen_Slutsky">Eugen Slutsky</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a> puts the 2x12-MA from section 4 to work. Classical decomposition's first step is exactly the moving average you just built, and STL is the answer to the endpoint problem in section 8.</li>
+
+<li><a href="Visualize-Time-Series-in-R.html">Visualize Time Series in R</a> covers the plots to draw before you smooth anything, on the same <code>AirPassengers</code> series. The season and subseries plots show you the cycle that tells you what window length to pick.</li>
+
+<li><a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> explains the <code>ts</code> object, <code>frequency()</code> and <code>window()</code> used throughout this post, and why a series with gaps in it breaks every method here.</li>
+
+</ul>
+
