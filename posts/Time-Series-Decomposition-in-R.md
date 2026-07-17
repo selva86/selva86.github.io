@@ -7,7 +7,7 @@ auto_link_terms: "time series decomposition|decompose a time series|decompositio
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
-date: "2026-07-17"
+date: "2026-07-18"
 curriculum_id: "3.8.4"
 post_type: "C"
 sidebar_section: "Time Series"
@@ -16,7 +16,7 @@ sidebar_order: 8
 difficulty: "Intermediate"
 ---
 
-<p class="lead">Decomposition splits a time series into three parts: a <strong>trend</strong> (where the series has got to), a <strong>seasonal</strong> component (the part that repeats every year) and a <strong>remainder</strong> (everything neither of those explains). R gives you two tools for the job. <code>decompose()</code> is the classical method, simple enough to rebuild by hand in four lines. <code>stl()</code> is the modern one, and it can do things the classical method structurally cannot: keep the most recent months, let the seasonal pattern change over the years, and shrug off a one-off shock. This post runs both on the same real series and shows you exactly where they part company.</p>
+<p class="lead">Decomposition splits a time series into three parts: a <strong>trend</strong> (the level the series has reached), a <strong>seasonal</strong> component (the part that repeats every year) and a <strong>remainder</strong> (everything neither of those explains). R gives you two tools for the job. <code>decompose()</code> is the classical method, simple enough to rebuild by hand in four lines. <code>stl()</code> is the modern one, and it can do three things the classical method structurally cannot: keep the most recent months, let the seasonal pattern change from year to year, and stop a one-off shock from distorting the rest of the series. This post runs both on the same real series and shows exactly where they differ.</p>
 
 ## Was July 1960 a good month for the airlines?
 
@@ -24,9 +24,9 @@ The series we will use for the whole post is `AirPassengers`. It ships with R, s
 
 Its biggest number is **622**, in July 1960. That is the busiest month in the entire file. So: was it a good month?
 
-The honest answer is that 622 on its own tells you nothing. Two things guarantee a big number in July 1960 before any real news gets a chance to show up. First, 1960 sits at the end of a decade in which air travel roughly quadrupled, so *any* month in 1960 beats *any* month in 1949. Second, July is peak holiday season, so July beats its own neighbours every single year. A record in the peak month of the final year is exactly what you would expect from a growing, seasonal series where nothing interesting happened at all.
+The honest answer is that 622 on its own tells you nothing. Two things push July 1960 to a big number by themselves, before anything specific to that month is taken into account. First, 1960 sits at the end of a decade in which air travel roughly quadrupled, so any month in 1960 is larger than any month in 1949. Second, July is peak holiday season, so July is larger than its neighbouring months every year. A record in the peak month of the final year is exactly what a growing, seasonal series produces even when nothing unusual has happened.
 
-Decomposition is what separates those two boring explanations from the interesting part. It takes the 622 and splits it into the part that is trend, the part that is "it is July", and the part that is neither. That last part is the only bit that carries news.
+Decomposition separates those two ordinary explanations from the part that is genuinely informative. It takes the 622 and splits it into the part that is trend, the part that is "this is July", and the part that is neither. That last part is the only one that reflects something specific to July 1960.
 
 Here is the whole idea, on the real number, before any theory.
 
@@ -55,9 +55,9 @@ Read the three numbers in the middle and the question is answered.
 
 The **trend** was **474.08**. That is where the airline business had got to by mid-1960, with the seasonal ups and downs averaged away. It is not a number that appears anywhere in the data file; it is the underlying level.
 
-The **seasonal** part was **1.2416**. July runs about 24% above the trend, every year, because July is July. Nothing about 1960 is special here.
+The **seasonal** part was **1.2416**. July runs about 24% above the trend, every year, because July is peak season. Nothing about 1960 is special here.
 
-The **remainder** was **1.0567**. This is the only part carrying actual news, and it says July 1960 came in about **5.7% higher** than the trend and the calendar together predicted. So yes, it was a genuinely good month, but by roughly 5.7%, not by "biggest number in twelve years".
+The **remainder** was **1.0567**. This is the part that reflects something beyond the trend and the calendar, and it says July 1960 came in about **5.7% higher** than the two of them together predicted. So yes, it was a genuinely good month, but by roughly 5.7%, not by "biggest number in twelve years".
 
 The last line is worth pausing on. `prod()` multiplies the three parts together and gets back exactly `622`, the number we started with. The decomposition is not an approximation or a summary that throws information away. It is a **re-description**: the same number, rewritten as a product of three interpretable pieces. Nothing is lost, and you can always put it back together.
 
@@ -67,7 +67,7 @@ The last line is worth pausing on. `prod()` multiplies the three parts together 
 plot(fit)
 ```
 
-You get four panels. The top one (`data`) is the familiar `AirPassengers` shape. Below it, `seasonal` is a wave that repeats identically every twelve months. `trend` is the smooth climb underneath it all, with none of the wobble. `remainder` is what is left, and it is small and patternless, which is what tells you the first two panels have done their job. The grey bars on the right show each panel on a common scale, so a tall bar means that component is a small part of the story. The seasonal bar is short and the remainder bar is tall, which is the picture's way of saying the season explains a lot and the leftovers explain little.
+You get four panels. The top one (`data`) is the familiar `AirPassengers` shape. Below it, `seasonal` is a wave that repeats identically every twelve months. `trend` is the smooth climb underneath it all, with none of the wobble. `remainder` is what is left, and it is small and patternless, which is what tells you the first two panels have done their job. The grey bars on the right show each panel on a common scale, so a tall bar means that component is a small part of the whole. The seasonal bar is short and the remainder bar is tall, which means the season explains a large share of the series and the remainder explains little.
 
 > **Note:** The panels are on the log scale, because we passed `log(AirPassengers)` rather than `AirPassengers`. That is why the seasonal wave has a constant height here even though the swings in the raw data visibly grow. The next section explains why we did that, and what it would have looked like otherwise.
 
@@ -87,7 +87,7 @@ $$y_t = T_t \times S_t \times R_t$$
 
 Here \(S_t\) is a **ratio** with no units: \(S_t = 1.25\) means "July runs 25% above trend". This model claims July adds a fixed *percentage*, so the size of the July bump grows in step with the business.
 
-Which one is right is not a matter of taste. It is a claim about the data, and the data can settle it. Ask each model what it thinks July is worth.
+Which one is right is not a matter of taste. It is a claim about the data, and the data can settle it. Look at what each model claims July is worth.
 
 ```r title="What each model claims about July"
 add <- decompose(AirPassengers, type = "additive")
@@ -125,9 +125,9 @@ The additive model claimed **+63.83, every year**. Reality: **+21.2** in 1949, r
 
 The multiplicative model claimed **1.2266, every year**. Reality: **1.167** in 1949 drifting to **1.272** in 1959. That is not perfect either, but the numbers stay in a narrow band around 1.2 while the business quadruples underneath them. As a description of what July does, "about 22% above trend" survives the decade. "Exactly 63,830 extra passengers" does not.
 
-There is a standard way to make that comparison without eyeballing rows: look at the remainder. If a model fits, its remainder should look about the same size at the start of the series as at the end. If the model is wrong in a way that grows, the remainder grows with it.
+There is a standard, repeatable way to make that comparison without eyeballing rows: look at the remainder. If a model fits, its remainder should be about the same size at the start of the series as at the end. If the model is wrong in a way that grows, the remainder grows with it.
 
-```r title="The bowtie test: does the remainder stay the same size?"
+```r title="Does the remainder stay the same size, early vs late?"
 era <- function(r) {
   c(early = sd(window(r, c(1950, 1), c(1953, 12)), na.rm = TRUE),
     late  = sd(window(r, c(1957, 1), c(1960, 12)), na.rm = TRUE))
@@ -145,14 +145,14 @@ round(era(mul$random), 4)     # multiplicative remainder, measured as a ratio
 
 One naming quirk before the numbers: `decompose()` calls the remainder `$random`, while `stl()` calls the same thing `remainder`. Two names, one idea. This post says "remainder" throughout and only writes `$random` when it has to reach into a `decompose()` result.
 
-The additive remainder grows from **18.34** to **25.38**. Its errors get bigger as the series gets bigger, which is the signature of a model whose seasonal term is stuck at a constant while the real thing grows. Plotted, this makes a shape that widens left to right like a bowtie, which is where the name comes from.
+The additive remainder grows from **18.34** to **25.38**. Its errors get bigger as the series gets bigger, which is the signature of a model whose seasonal term is held at a constant while the real seasonal effect grows. Plot that remainder and it forms a band that widens steadily from left to right.
 
 The multiplicative remainder goes from **0.0408** to **0.0349**. It does not grow. (It even shrinks slightly, which is a real feature of this series rather than something to explain away.) The multiplicative model has absorbed the growth into its structure instead of leaving it in the errors.
 
-So `AirPassengers` is multiplicative. Which brings us to the trick we used in the very first code block without explaining it.
+So `AirPassengers` is multiplicative. Which brings us to the step we used in the very first code block without explaining it.
 
 ![Decomposition splits the observed value 622 into a trend of 474.08, a July seasonal effect of 1.2416 and a remainder of 1.0567, which multiply back to 622. Taking logs converts the multiplicative model into an additive one.](screenshots/Time-Series-Decomposition-in-R-anatomy.webp)
-*Figure 1: The same 622, rewritten three ways. The multiplicative model is the one that fits this series, and `log()` is the bridge that lets an additive tool fit a multiplicative series.*
+*Figure 1: The same 622, rewritten three ways. The multiplicative model is the one that fits this series, and `log()` is the conversion that lets an additive tool fit a multiplicative series.*
 
 Take logarithms of both sides of the multiplicative model. Because a log turns multiplication into addition, \(\log(ab) = \log a + \log b\), you get:
 
@@ -236,7 +236,7 @@ Our hand-built July 1949 value is `126.7917`. `decompose()`'s is `126.7917`. And
 It also explains the `NA`s at a glance. To centre thirteen months on July 1949 you need six months before it. January 1949 is the first month in the file, so there is nothing before it to average, and the same applies at the other end of the series. The window simply cannot be filled, so classical decomposition **loses six months at each end**. That is not a bug or a tuning choice. It falls directly out of the definition of a centred average, and no setting will get those months back.
 
 ![The four steps of classical decomposition: estimate the trend with a 2x12 centred moving average, which costs six months at each end; detrend by dividing; average each calendar month together to build one seasonal index, which is reused for every year; and take the remainder.](screenshots/Time-Series-Decomposition-in-R-classical-steps.webp)
-*Figure 2: Classical decomposition in four steps. The two side boxes are the consequences that the next section turns into deal-breakers: the trend has no ends, and the season cannot change.*
+*Figure 2: Classical decomposition in four steps. The two side boxes are the two consequences the next section examines: the trend has no ends, and the season cannot change.*
 
 Steps 2 and 3 are just as plain. Having got a trend, divide it out (that is step 2, detrending) and you are left with season plus noise. Then, to isolate the season, average all the Januarys together, all the Februarys together, and so on. Averaging across years is what cancels the noise: the seasonal effect is in every January, while the noise is different each time, so it averages away. That gives twelve numbers, one per month, and those twelve numbers are the `$figure` we borrowed earlier.
 
@@ -256,7 +256,7 @@ That is the whole algorithm. A moving average, a division, twelve averages and a
 
 ## Where does classical decomposition break?
 
-Now that you know how it works, its two limits are not surprises but predictions. Both of them fall straight out of the four steps, and both of them hit the question this post opened with.
+Now that you know how it works, its two limits are not surprises but predictions. Both of them fall straight out of the four steps, and both of them bear on the question this post opened with.
 
 Here is the first one, asked directly.
 
@@ -267,9 +267,9 @@ which(is.na(mul$trend))
 #>  [1]   1   2   3   4   5   6 139 140 141 142 143 144
 ```
 
-**`NA`.** Classical decomposition has no opinion about July 1960, because July 1960 is the 139th of 144 months and the centred window runs off the end of the data. `which(is.na(...))` lists exactly which months are missing: the first six and the last six.
+**`NA`.** Classical decomposition returns no trend for July 1960, because July 1960 is the 139th of 144 months and the centred window runs off the end of the data. `which(is.na(...))` lists exactly which months are missing: the first six and the last six.
 
-Look at what that means in practice. Our entire question was "was July 1960 a good month?", and the classical method's answer is a shrug. This is not an edge case invented to make a point. **The most recent months are the ones you actually care about**, always. Nobody urgently needs to know the trend in 1953. They need to know the trend right now, and the last six months are precisely the ones classical decomposition throws away. `stl()` gave us `474.08` for that same month.
+Look at what that means in practice. Our entire question was "was July 1960 a good month?", and classical decomposition returns `NA` for exactly that month. This is not an edge case invented to make a point. **The most recent months are almost always the ones you care about most.** Few analyses urgently need the trend in 1953; they need the trend at the end of the series, and the last six months are precisely the ones classical decomposition cannot estimate. `stl()` gave us `474.08` for that same month.
 
 The second limit is the one about the season, and this code makes it concrete.
 
@@ -282,9 +282,9 @@ identical(mul$seasonal[7], mul$seasonal[139])
 #> [1] TRUE
 ```
 
-The July effect in 1949 and the July effect in 1960 are not merely similar. `identical()` returns `TRUE`: they are the same number, bit for bit. And of course they are. Step 3 computed **one** number for July by averaging all the Julys together, then stamped that single number onto all twelve years. The classical seasonal component is a rubber stamp.
+The July effect in 1949 and the July effect in 1960 are not merely similar. `identical()` returns `TRUE`: they are the same number, bit for bit. And they have to be. Step 3 computed **one** number for July by averaging all the Julys together, then assigned that single number to all twelve years. The classical seasonal component is one fixed value per calendar month, reused for every year.
 
-But we already know that is false for this series. Two sections ago we watched the real July ratio climb from **1.167** to **1.272** across the decade. Classical decomposition takes that genuine, systematic change and flattens it into `1.2266` everywhere. The drift does not vanish, it just gets pushed somewhere else: into the remainder, where it sits and pretends to be noise. The one component that is supposed to hold only news now holds a slow, structural trend in the seasonality, and any test you run on that remainder will be misled by it.
+But we already know that is false for this series. Two sections ago the real July ratio climbed from **1.167** to **1.272** across the decade. Classical decomposition takes that genuine, systematic change and flattens it into `1.2266` everywhere. The drift does not vanish; it moves into the remainder. The component that should hold only the part specific to each month now also holds a slow, systematic change in the seasonality, so any test you run on that remainder will be affected by it.
 
 > **Watch out:** These two limits are not bugs to be fixed by tuning. They are consequences of the algorithm's definition. A centred average cannot see past the ends of the data, and a single averaged index cannot vary by year. If you need either thing, you need a different method, not different arguments.
 
@@ -294,8 +294,8 @@ STL stands for **Seasonal and Trend decomposition using Loess**. The name gives 
 
 **Loess** is a smoother. Where a moving average takes a plain (or weighted) mean of the points in a window, loess fits a small regression line through the points in a window, uses it to estimate the value at the centre, then slides the window along and does it again. Two consequences follow, and they are exactly the two limits from the last section:
 
-1. A regression through a window does not need the target point to sit in the *middle* of that window. Near the edges of the data, loess just fits its line to the points that exist and leans on it. So **there are no `NA`s at the ends**.
-2. STL does not build one seasonal index and stamp it everywhere. It smooths *across* the years, month by month: it takes all twelve Julys, and rather than averaging them into one number, it runs a smoother through them. So July's effect can **drift over time**, as long as it drifts smoothly.
+1. A regression through a window does not need the target point to sit in the *middle* of that window. Near the edges of the data, loess just fits its line to the points that exist and reads off the value there. So **there are no `NA`s at the ends**.
+2. STL does not build one seasonal index and reuse it everywhere. It smooths *across* the years, month by month: it takes all twelve Julys, and rather than averaging them into one number, it runs a smoother through them. So July's effect can **change over time**, as long as it changes smoothly.
 
 That second point is what the `s.window` argument controls, and it is the argument that matters most. `s.window` sets how many years the seasonal smoother looks at when deciding what July is worth in a given year.
 
@@ -310,7 +310,7 @@ round(exp(fit_ch$time.series[jul, "seasonal"]), 3)
 #>  [1] 1.209 1.212 1.214 1.218 1.223 1.235 1.247 1.256 1.265 1.268 1.271 1.273
 ```
 
-There is the drift, recovered. STL says July was worth about **20.9%** above trend in 1949 and about **27.3%** above trend in 1960, climbing smoothly and steadily in between. Compare that against the raw July ratios we measured by hand earlier (`1.167` to `1.272`): STL has tracked the same real movement, smoothing out the year-to-year noise while keeping the trend in the seasonality. Classical decomposition reported `1.2266` for all twelve of those years and called the difference noise.
+There is the drift, recovered. STL says July was worth about **20.9%** above trend in 1949 and about **27.3%** above trend in 1960, climbing smoothly and steadily in between. Compare that against the raw July ratios we measured by hand earlier (`1.167` to `1.272`): STL has tracked the same real movement, smoothing out the year-to-year noise while keeping the trend in the seasonality. Classical decomposition reported `1.2266` for all twelve of those years and treated the difference as remainder.
 
 And the other limit:
 
@@ -327,7 +327,7 @@ Zero missing values, across all three components, for all 144 months. And STL's 
 Two more `stl()` arguments are worth knowing now that `s.window` makes sense:
 
 - `t.window` controls the trend smoother's span, in the same units. Bigger gives a stiffer, smoother trend. You can usually leave it alone; STL picks a sensible default from the frequency.
-- `robust` (default `FALSE`) decides whether outliers are allowed to drag the components around. It gets its own section at the end of this post, because the default is not always the right choice.
+- `robust` (default `FALSE`) decides whether outliers are allowed to distort the components. It gets its own section at the end of this post, because the default is not always the right choice.
 
 **Try it:** Refit with `s.window = 7` instead of `13` and look at the same twelve Julys. A smaller span means a more responsive seasonal smoother. Does the July path get smoother or wigglier?
 
@@ -345,7 +345,7 @@ round(exp(fit_wig$time.series[jul, "seasonal"]), 3)
 #>  [1] 1.184 1.184 1.184 1.185 1.209 1.240 1.264 1.276 1.281 1.288 1.292 1.293
 ```
 
-Wigglier, and over a wider range. With `s.window = 7` the July effect runs from **1.184** to **1.293**, against **1.209** to **1.273** at `s.window = 13`. The smaller span lets the smoother chase each year's noise more closely, so it commits harder at both ends.
+Wigglier, and over a wider range. With `s.window = 7` the July effect runs from **1.184** to **1.293**, against **1.209** to **1.273** at `s.window = 13`. The smaller span lets the smoother follow each year's noise more closely, so its estimates at both ends move further.
 
 Which is right? There is no test that will tell you. `s.window` is a genuine judgement about the series: how fast do you believe a seasonal pattern can really change? For airline travel over a decade, a slow steady drift is believable and a sharp year-to-year jump is not, so the stiffer `13` is the safer story. The honest way to use it is to fit two or three spans, look at whether your conclusion survives all of them, and say so if it does not.
 
@@ -355,7 +355,7 @@ Which is right? There is no test that will tell you. `s.window` is a genuine jud
 
 We have the two methods and the evidence. Here is the summary, then the rule.
 
-One number sharpens it. The remainder is the part that is supposed to hold nothing but news, so the method that leaves the least in it has explained the most with its structure. Measure all three over the same decade, on the same log scale, so the comparison is fair.
+One number sharpens it. The remainder is the part that is supposed to hold nothing but the month-specific surprise, so the method that leaves the least in it has explained the most with its structure. Measure all three over the same decade, on the same log scale, so the comparison is fair.
 
 ```r title="Which method leaves the least in the remainder?"
 cl_log <- decompose(log(AirPassengers), type = "additive")
@@ -369,7 +369,7 @@ round(c(classical    = sd(win(cl_log$random)),
 
 A word on why this is a fair fight. `decompose(log(AirPassengers), type = "additive")` is the classical method run on the *log* scale, which (per the identity from section 2) is the same model that `stl()` fits, so all three remainders are in the same units. And `win()` restricts every one of them to 1950 to 1959, a stretch where classical has no `NA`s, so no method is being scored on months another one never saw.
 
-Classical leaves **0.0328**. STL with a fixed season leaves **0.0316**, slightly better. STL with a changing season leaves **0.0259**, about **21% smaller** than classical. That gap is the drifting July effect (and its eleven friends) moving out of the remainder, where it was masquerading as noise, and into the seasonal component, where it belongs.
+Classical leaves **0.0328**. STL with a fixed season leaves **0.0316**, slightly better. STL with a changing season leaves **0.0259**, about **21% smaller** than classical. That gap is the drifting July effect, and the matching drift in the other eleven months, moving out of the remainder and into the seasonal component where it belongs. In the classical fit that drift stayed in the remainder and enlarged it.
 
 ![A decision flow for choosing a decomposition method: use stl() if you need the recent trend or the seasonal pattern has changed, stl with robust = TRUE if there are one-off shocks, X-13ARIMA-SEATS for calendar effects, and decompose() when you want something simple and transparent.](screenshots/Time-Series-Decomposition-in-R-choose.webp)
 *Figure 3: How to choose. In practice the first question decides it most of the time, because the recent trend is almost always what you wanted.*
@@ -378,14 +378,14 @@ Classical leaves **0.0328**. STL with a fixed season leaves **0.0316**, slightly
 |---|---|---|
 | Trend estimator | 2x12 centred moving average | loess |
 | Ends of the series | 6 months lost at each end | kept, no `NA`s |
-| Seasonal pattern | one index, frozen for all years | can drift, controlled by `s.window` |
+| Seasonal pattern | one index, frozen for all years | can change, controlled by `s.window` |
 | Additive or multiplicative | both, via `type =` | additive only, use `log(y)` |
-| Outliers | drag the trend and contaminate every year's index | `robust = TRUE` contains them |
+| Outliers | distort the trend and every year's index | `robust = TRUE` limits them |
 | Control | none to speak of | `s.window`, `t.window`, `robust` |
 | Remainder sd here | 0.0328 | 0.0259 |
 | Best for | teaching, a quick look, an obviously stable series | essentially all real work |
 
-**The rule: reach for `stl()` by default.** It wins on the ends, it wins on changing seasonality, it can handle outliers, and it left 21% less in the remainder on this series. Use `decompose()` when you want to show someone what decomposition *is* (its four steps are legible in a way loess is not), or for a fast look at a short, stable, well-behaved series.
+**The rule: reach for `stl()` by default.** On this series it kept both ends, let the seasonal pattern change, stayed usable under outliers, and left 21% less in the remainder than classical. Use `decompose()` when you want to show someone what decomposition *is*, since its four steps are legible in a way loess is not, or for a fast look at a short and stable series.
 
 Two cases fall outside both. If you need calendar effects handled properly (trading days, moving holidays like Easter, leap years), you want **X-13ARIMA-SEATS**, the method national statistics agencies actually use, available through the [`seasonal`](https://cran.r-project.org/package=seasonal) package. And if your data is not monthly or quarterly but has multiple seasonal cycles at once, such as hourly data that repeats both daily and weekly, look at `forecast::mstl()`, which applies STL to several seasonal periods at the same time.
 
@@ -444,9 +444,9 @@ Both months sit below trend in raw terms (December and January are quiet months,
 
 ## When does decomposition mislead you?
 
-Decomposition is a description, not a truth serum, and there are four ways it will quietly hand you the wrong answer.
+Decomposition is a description, not a guarantee of the truth, and there are four ways it can give you the wrong answer.
 
-**One-off shocks contaminate other years.** This is the big one, and it is worth seeing rather than being told. Suppose a single month is wrong or extraordinary: a strike, a data-entry error, a pandemic. Watch what one bad month does to a month it has nothing to do with.
+**One-off shocks contaminate other years.** This is the big one, and it is worth seeing rather than being told. Suppose a single month is wrong or extraordinary (a strike, say, or a data-entry error). Watch what one bad month does to a month it has nothing to do with.
 
 ```r title="One bad month, and what it does to every other August"
 shock <- log(AirPassengers)
@@ -469,15 +469,15 @@ round(exp(fit_ch$time.series[92, "seasonal"]), 4)   # Aug 1956, from the clean d
 
 We doubled exactly one month, August 1955 (position 80), by adding `log(2)` on the log scale, which multiplies by 2 on the original scale. Then we asked all three fits about **August 1956** (position 92), a month we did not touch at all.
 
-The clean data says August 1956 is worth **1.2428**, about 24% above trend. That is the truth we are trying to recover. The non-robust fit says **1.3516**, about 35% above trend. It is wrong by eleven percentage points, on a month that never saw the shock, because the seasonal smoother pooled all the Augusts together and one doubled August dragged its neighbours up with it. The robust fit says **1.2391**, within a rounding error of the truth.
+The clean data says August 1956 is worth **1.2428**, about 24% above trend. That is the value we are trying to recover. The non-robust fit says **1.3516**, about 35% above trend, wrong by eleven percentage points on a month that never saw the shock. The reason is that the seasonal smoother pools all the Augusts together, so one doubled August raises the smoothed estimate for the neighbouring Augusts as well. The robust fit says **1.2391**, within a rounding error of the correct value.
 
-That is what `robust = TRUE` buys. It runs the fit, notices which points the model cannot explain, gives those points less weight, and refits. The outlier stays visible in the remainder, where you want it, instead of leaking into the seasonal component and quietly corrupting years it has nothing to do with. **If your series has any spikes at all, set `robust = TRUE`.** The cost is a little computation; the benefit is that one bad month stops rewriting your seasonal pattern.
+That is what `robust = TRUE` buys. It runs the fit, identifies the points the model cannot explain, gives those points less weight, and refits. The outlier then stays in the remainder, where you want it, instead of entering the seasonal component and changing the estimate for years it has nothing to do with. **If your series has any spikes at all, set `robust = TRUE`.** The cost is a little extra computation; the benefit is that one bad month no longer changes the seasonal pattern for the other years.
 
 **The ends are the least reliable part.** STL gives you a trend at the final month, which is a genuine improvement on `NA`. But that value is loess leaning on a one-sided window, so it is an extrapolation and it carries more uncertainty than the middle of the series. It will also be revised as new data arrives. Use the recent trend, but do not build a story on the exact value of the final point.
 
 **Decomposition is not a forecast.** Splitting a series into three parts describes what already happened. It does not predict. There is no mechanism in `stl()` for saying what the trend will do next, and extending the trend line by eye is how people talk themselves into forecasts the data never supported. Forecasting is a separate job with separate tools, though the components are genuinely useful inputs to it (`forecast::stlf()` seasonally adjusts, forecasts the adjusted series, then adds the season back).
 
-**No method here knows about the calendar.** Easter moves between March and April. Months have different numbers of trading days. February has a leap day. Both `decompose()` and `stl()` are blind to all of it and will dump those effects into the remainder. If they matter for your series, that is X-13ARIMA-SEATS territory.
+**No method here knows about the calendar.** Easter moves between March and April. Months have different numbers of trading days. February has a leap day. Both `decompose()` and `stl()` are blind to all of it and will put those effects into the remainder. If they matter for your series, that is X-13ARIMA-SEATS territory.
 
 One last thing that is not a limitation but is often mistaken for one: decomposition is not the same as differencing. If you arrived here from [Test Stationarity in R](Test-Stationarity-in-R.html), you have already met a different way to remove trend and seasonality. Both remove the same structure, but for different reasons. Differencing removes it to make the series stationary so a model like ARIMA can be fitted, and the result is not meant to be looked at. Decomposition removes it to let you *look* at the pieces separately, and every piece is meant to be interpreted. Same structure, opposite purposes.
 
@@ -513,16 +513,16 @@ We opened with a number, 622 in July 1960, and the question of whether it meant 
 
 | Idea | What to remember |
 |---|---|
-| The three components | Trend (where the series got to), seasonal (the repeating part), remainder (the only part carrying news) |
+| The three components | Trend (where the series got to), seasonal (the repeating part), remainder (the part specific to each month) |
 | Additive | \(y_t = T_t + S_t + R_t\); the seasonal swing is a fixed size |
 | Multiplicative | \(y_t = T_t \times S_t \times R_t\); the seasonal swing is a fixed percentage |
 | Choosing between them | Do the swings grow with the level? Compare the remainder early vs late |
 | The log trick | \(\log y_t = \log T_t + \log S_t + \log R_t\); `stl()` is additive-only, so feed it `log(y)` and `exp()` the components |
 | `decompose()` | 2x12 centred moving average, detrend, average each month, remainder. Rebuildable with `filter()` |
 | Classical limit 1 | Loses 6 months at each end. The recent trend, the one you want, is `NA` |
-| Classical limit 2 | One frozen seasonal index for every year. Real drift gets dumped in the remainder |
-| `stl()` | Loess-based. No `NA`s at the ends, seasonality can drift, tunable |
-| `s.window` | `"periodic"` freezes the season; a number lets it drift. Smaller is wigglier. `13` is a fair default |
+| Classical limit 2 | One frozen seasonal index for every year. Real drift ends up in the remainder |
+| `stl()` | Loess-based. No `NA`s at the ends, seasonality can change, tunable |
+| `s.window` | `"periodic"` freezes the season; a number lets it change. Smaller is wigglier. `13` is a fair default |
 | `robust = TRUE` | Use it whenever spikes exist. One doubled month moved another year's index from 1.24 to 1.35 |
 | `seasadj()` | Removes the season so months compare honestly. The +87 raw jump was really +17.7 |
 | The default | `stl()`, on `log(y)` if multiplicative, with `robust = TRUE` if there are shocks |
