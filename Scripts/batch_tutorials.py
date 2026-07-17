@@ -28,7 +28,15 @@ the -p prompt (broken on some CLI builds since 2.1.207, which silently drops the
 skill and free-chats), each phase INLINES the skill's SKILL.md into the prompt with
 the argument substituted. Robust on every CLI version; same skills, same content.
 """
-import os, sys, json, argparse, subprocess, datetime
+import os, sys, json, argparse, subprocess, datetime, time, urllib.request
+
+# Packages pre-warmed once at batch start with --prewarm-r, so writers and the gate
+# never stall on a mid-post CRAN install. Common tutorial set; anything missing still
+# installs lazily. Kept to CRAN packages that install without a build toolchain.
+PREWARM_PACKAGES = [
+    'forecast', 'tseries', 'zoo', 'xts', 'TTR', 'urca', 'lmtest', 'seasonal',
+    'quantmod', 'dplyr', 'tidyr', 'ggplot2', 'broom', 'car', 'sandwich',
+]
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 PROJECT_ROOT = os.path.dirname(ROOT)          # skills use selva86.github.io/... paths
@@ -152,6 +160,74 @@ def sync():
     subprocess.run([sys.executable, os.path.join('_build', 'sync_registries.py')], cwd=ROOT)
 
 
+def find_rscript():
+    import glob
+    cand = os.environ.get('RSCRIPT')
+    if cand and os.path.exists(cand):
+        return cand
+    for pat in (r'C:/Program Files/R/R-*/bin/Rscript.exe',
+                r'C:/Program Files/R/R-*/bin/x64/Rscript.exe'):
+        hits = sorted(glob.glob(pat))
+        if hits:
+            return hits[-1]
+    from shutil import which
+    return which('Rscript')
+
+
+def prewarm_r():
+    """Install the common tutorial package set once, before the batch, so no post
+    stalls on a mid-write CRAN install. Skips packages already present."""
+    rs = find_rscript()
+    if not rs:
+        print('  --prewarm-r: Rscript not found, skipping (packages install lazily).')
+        return
+    pkgs = ','.join('"%s"' % p for p in PREWARM_PACKAGES)
+    expr = ('p <- c(%s); m <- p[!(p %%in%% rownames(installed.packages()))]; '
+            'if (length(m)) install.packages(m, repos="https://cloud.r-project.org", quiet=TRUE) '
+            'else cat("all present\\n")') % pkgs
+    print('  --prewarm-r: ensuring %d common packages are installed...' % len(PREWARM_PACKAGES), flush=True)
+    subprocess.run([rs, '-e', expr], cwd=ROOT)
+
+
+def _prod_live(slug, timeout=15):
+    """True if the post's canonical page is actually served on prod (200 + the
+    page's own canonical URL present, so a 404 fallback does not count)."""
+    url = 'https://r-statistics.co/%s.html?v=%d' % (slug, int(time.time()))
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'batch-tut-verify'})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            if getattr(r, 'status', r.getcode()) != 200:
+                return False
+            body = r.read(300000).decode('utf-8', 'replace')
+            return ('%s.html' % slug) in body
+    except Exception:
+        return False
+
+
+def poll_prod_all(slugs, rounds=20, gap=20):
+    """Batch prod verification: poll all pushed slugs once at the end (CF deploys the
+    whole site in one build, so once one is live they generally all are). Shared
+    budget instead of a per-post 20-min wait."""
+    if not slugs:
+        return
+    print('\nProd verification (%d post(s)):' % len(slugs), flush=True)
+    pending = list(dict.fromkeys(slugs))
+    for _ in range(rounds):
+        pending = [s for s in pending if not _live_and_report(s)]
+        if not pending:
+            break
+        time.sleep(gap)
+    for s in pending:
+        print('  PENDING   https://r-statistics.co/%s.html  (pushed; deploy not live yet)' % s, flush=True)
+
+
+def _live_and_report(slug):
+    if _prod_live(slug):
+        print('  LIVE      https://r-statistics.co/%s.html' % slug, flush=True)
+        return True
+    return False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--id', action='append', help='curriculum id (e.g. 3.8.1); repeatable')
@@ -165,6 +241,9 @@ def main():
                          'overwrite the existing markdown instead of refusing the slug. '
                          'Use with explicit --id.')
     ap.add_argument('--sync-every', type=int, default=5)
+    ap.add_argument('--prewarm-r', action='store_true',
+                    help='install the common tutorial R packages once before the '
+                         'batch so no post stalls on a mid-write CRAN install')
     ap.add_argument('--claude', default='claude')
     ap.add_argument('--timeout', type=int, default=1800,
                     help='per-phase seconds before a worker is treated as hung (0 disables)')
@@ -195,7 +274,11 @@ def main():
             pass
     open(LOCK, 'w').close()
 
+    if args.prewarm_r:
+        prewarm_r()
+
     done = 0
+    done_slugs = []
     try:
         for i, cid in enumerate(targets, 1):
             e = entry_by_id(cid)
@@ -234,10 +317,13 @@ def main():
                 print('  review flagged manual_review: %s (see Scripts/tutorial-review.log)' % slug)
                 continue
 
-            # Phase 3: publish (skip the per-post registry sync; we sync periodically).
+            # Phase 3: publish. --skip-sync-registries (we sync periodically) and
+            # --no-prod-poll (the slow Cloudflare deploy-wait is verified once, for
+            # all posts, at the end - not on the per-post critical path).
             state[cid]['status'] = 'publishing'
             save_state(state)
-            if run_phase(args.claude, 'publish-tut', slug + ' --skip-sync-registries', args.timeout) != 0:
+            if run_phase(args.claude, 'publish-tut',
+                         slug + ' --skip-sync-registries --no-prod-poll', args.timeout) != 0:
                 state[cid]['status'] = 'publish_failed'
                 save_state(state)
                 print('  publish failed: %s' % slug)
@@ -246,6 +332,7 @@ def main():
             state[cid]['status'] = 'done'
             save_state(state)
             done += 1
+            done_slugs.append(slug)
             if args.sync_every and done % args.sync_every == 0:
                 sync()
         if args.sync_every != 0:
@@ -255,6 +342,8 @@ def main():
             os.remove(LOCK)
         except OSError:
             pass
+    # Verify every pushed post actually serves on prod, once, at the end.
+    poll_prod_all(done_slugs)
     print('Batch complete: %d published.' % done)
     return 0
 

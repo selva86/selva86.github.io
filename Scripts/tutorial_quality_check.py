@@ -250,7 +250,13 @@ def main():
             fail('Rscript not found (install R or pass --skip-execution consciously)')
         else:
             live_blocks = [b for _, b in live]
-            if live_blocks and run_chain(rscript, live_blocks, 'live-only chain') is None:
+            # The live-only chain proves the browser session (live blocks alone, in
+            # order) runs standalone - it catches a live block that secretly needs
+            # an object made only in a static block. That check is only meaningful
+            # when the post HAS static blocks; if every block is live, the full
+            # chain below IS the live-only chain, so running R twice is wasted work
+            # (the common case). Skip the redundant run on all-live posts.
+            if static and live_blocks and run_chain(rscript, live_blocks, 'live-only chain') is None:
                 pass  # fail already recorded
             outs = run_chain(rscript, blocks, 'full chain')
             if outs is not None:
