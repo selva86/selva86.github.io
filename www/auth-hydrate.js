@@ -65,6 +65,12 @@
         '</div>' +
       '</div>' +
       '<div class="udrop-sep"></div>' +
+      // Profile link: unhidden by fillAuthUser once /api/me supplies the
+      // user's handle (generated lazily server-side on first request).
+      '<a href="#" class="auth-profile-link" role="menuitem" hidden>' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' +
+        '<span>My profile</span>' +
+      '</a>' +
       '<a href="/dashboard.html" role="menuitem">' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 14 21 5"/><line x1="3" y1="20" x2="21" y2="20"/></svg>' +
         '<span>Dashboard</span>' +
@@ -193,6 +199,12 @@
     span.querySelectorAll('.auth-initials').forEach(el => { el.textContent = initials; });
     span.querySelectorAll('.auth-display-name').forEach(el => { el.textContent = display; });
     span.querySelectorAll('.auth-email').forEach(el => { el.textContent = user.email || ''; });
+    if (user.handle) {
+      span.querySelectorAll('.auth-profile-link').forEach(el => {
+        el.href = '/u/' + encodeURIComponent(user.handle);
+        el.hidden = false;
+      });
+    }
 
     const avatarBtn = span.querySelector('.masthead-avatar');
     const dropdown = span.querySelector('.masthead-udrop');

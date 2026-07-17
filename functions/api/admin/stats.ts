@@ -151,6 +151,83 @@ async function d1Stats(DB: D1Database, now: number, range: RangeKey) {
   };
 }
 
+// ------------------------------------------------------------ leaderboards
+
+interface LbRow {
+  email: string;
+  name: string | null;
+  handle: string | null;
+  pro: number; // 1 | 0
+  [k: string]: unknown;
+}
+
+async function leaderboards(DB: D1Database, now: number, range: RangeKey) {
+  const rs = rangeStart(now, range);
+  const proExpr = "CASE WHEN u.pro_until = -1 OR u.pro_until > ?2 THEN 1 ELSE 0 END AS pro";
+  const base = "u.email AS email, u.display_name AS name, u.handle AS handle, " + proExpr;
+
+  const [xp, solvers, active, readers, streaks, hotLeads, atRisk] = await Promise.all([
+    DB.prepare(
+      `SELECT ${base}, SUM(l.xp) AS xp, u.total_xp AS xp_all FROM xp_ledger l ` +
+      "JOIN users u ON u.id = l.user_id AND u.deleted_at IS NULL " +
+      "WHERE l.at >= ?1 GROUP BY l.user_id ORDER BY xp DESC LIMIT 10"
+    ).bind(rs, now).all<LbRow>(),
+    DB.prepare(
+      `SELECT ${base}, ` +
+      "COUNT(DISTINCT CASE WHEN a.passed = 1 THEN a.hub_slug || '|' || a.exercise_id END) AS solved, " +
+      "COUNT(*) AS attempts FROM exercise_attempts a " +
+      "JOIN users u ON u.id = a.user_id AND u.deleted_at IS NULL " +
+      "WHERE a.submitted_at >= ?1 GROUP BY a.user_id HAVING solved > 0 " +
+      "ORDER BY solved DESC, attempts ASC LIMIT 10"
+    ).bind(rs, now).all<LbRow>(),
+    DB.prepare(
+      `SELECT ${base}, COUNT(DISTINCT ev.day) AS days FROM (` +
+      "SELECT user_id, (at + 19800) / 86400 AS day FROM xp_ledger WHERE at >= ?1 " +
+      "UNION SELECT user_id, (submitted_at + 19800) / 86400 FROM exercise_attempts WHERE submitted_at >= ?1 " +
+      "UNION SELECT user_id, (read_at + 19800) / 86400 FROM reading_progress WHERE read_at >= ?1" +
+      ") ev JOIN users u ON u.id = ev.user_id AND u.deleted_at IS NULL " +
+      "GROUP BY ev.user_id ORDER BY days DESC LIMIT 10"
+    ).bind(rs, now).all<LbRow>(),
+    DB.prepare(
+      `SELECT ${base}, COUNT(*) AS pages, SUM(r.marked_read) AS finished FROM reading_progress r ` +
+      "JOIN users u ON u.id = r.user_id AND u.deleted_at IS NULL " +
+      "WHERE r.read_at >= ?1 GROUP BY r.user_id ORDER BY pages DESC LIMIT 10"
+    ).bind(rs, now).all<LbRow>(),
+    DB.prepare(
+      `SELECT ${base}, u.current_streak_days AS streak, u.longest_streak_days AS best FROM users u ` +
+      "WHERE u.current_streak_days > 0 AND u.deleted_at IS NULL " +
+      "ORDER BY u.current_streak_days DESC, u.longest_streak_days DESC LIMIT 10"
+    ).bind(0, now).all<LbRow>(),
+    // Hot leads: the most engaged FREE users in range - the conversion list.
+    DB.prepare(
+      "SELECT u.email AS email, u.display_name AS name, u.handle AS handle, 0 AS pro, " +
+      "u.created_at AS joined, SUM(l.xp) AS xp, u.total_xp AS xp_all FROM xp_ledger l " +
+      "JOIN users u ON u.id = l.user_id AND u.deleted_at IS NULL " +
+      "WHERE l.at >= ?1 AND (u.pro_until IS NULL OR (u.pro_until != -1 AND u.pro_until <= ?2)) " +
+      "GROUP BY l.user_id ORDER BY xp DESC LIMIT 10"
+    ).bind(rs, now).all<LbRow>(),
+    // At risk: paying users with ZERO recorded activity in the range.
+    DB.prepare(
+      "SELECT u.email AS email, u.display_name AS name, u.handle AS handle, 1 AS pro, " +
+      "u.total_xp AS xp_all, u.last_active_date AS last_active FROM users u " +
+      "WHERE (u.pro_until = -1 OR u.pro_until > ?2) AND u.deleted_at IS NULL " +
+      "AND u.id NOT IN (SELECT DISTINCT user_id FROM xp_ledger WHERE at >= ?1) " +
+      "AND u.id NOT IN (SELECT DISTINCT user_id FROM exercise_attempts WHERE submitted_at >= ?1) " +
+      "ORDER BY u.total_xp DESC LIMIT 10"
+    ).bind(rs, now).all<LbRow>(),
+  ]);
+
+  return {
+    xp: xp.results ?? [],
+    solvers: solvers.results ?? [],
+    active: active.results ?? [],
+    readers: readers.results ?? [],
+    streaks: streaks.results ?? [],
+    hot_leads: hotLeads.results ?? [],
+    at_risk: atRisk.results ?? [],
+  };
+}
+
 // ------------------------------------------------------------ CF plane
 
 interface CfEnv {
@@ -398,14 +475,18 @@ export const onRequestGet: PagesFunction<Env & CfEnv, string, RequestData> = asy
 
   const now = Math.floor(Date.now() / 1000);
   try {
-    const [d1, cf] = await Promise.all([
+    const [d1, cf, lb] = await Promise.all([
       d1Stats(context.env.DB, now, range),
       cfAnalytics(context.env, context.env.DB, now, range).catch((e: Error) => ({
         configured: true as const,
         error: String(e?.message || e),
       })),
+      leaderboards(context.env.DB, now, range).catch((e: Error) => ({
+        error: String(e?.message || e),
+        xp: [], solvers: [], active: [], readers: [], streaks: [], hot_leads: [], at_risk: [],
+      })),
     ]);
-    return json({ generated_at: now, range, d1, cf });
+    return json({ generated_at: now, range, d1, cf, leaderboards: lb });
   } catch (e) {
     return err500(`admin stats failed: ${String((e as Error)?.message || e)}`);
   }

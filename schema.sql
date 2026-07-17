@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS users (
   deleted_at    INTEGER                  -- GDPR soft-delete
 );
 CREATE INDEX IF NOT EXISTS idx_users_pro_until ON users(pro_until);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle ON users(handle);
+-- Existing-deploy migration for profiles (applied lazily by functions/_lib/profile.ts):
+--   ALTER TABLE users ADD COLUMN handle TEXT
+--   ALTER TABLE users ADD COLUMN public_profile INTEGER DEFAULT 1
 CREATE INDEX IF NOT EXISTS idx_users_country   ON users(country);
 
 -- ===== subscriptions (Paddle + Razorpay mirrored) =====

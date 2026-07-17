@@ -15,6 +15,7 @@ import type { Env, RequestData } from "../_middleware";
 import { json } from "../_lib/errors";
 import { getUserById, isProActive, recordNewsletterOptIn, upsertUserFromSupabase, type User } from "../_lib/db";
 import { notifyNewSignup } from "../_lib/notify";
+import { ensureHandle } from "../_lib/profile";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
   let u = context.data.user;
@@ -77,6 +78,18 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
         console.warn(`[api/me] newsletter opt-in sync failed: ${e}`),
       ),
     );
+  }
+
+  // Lazy handle generation (profiles feature): once per user, ever. Wrapped
+  // so a failure can never break sign-in hydration - the profile link in the
+  // dropdown simply stays hidden until a later request succeeds.
+  if (!u.handle) {
+    try {
+      const h = await ensureHandle(context.env.DB, u);
+      if (h) u = { ...u, handle: h };
+    } catch (e) {
+      console.warn(`[api/me] handle generation failed for ${u.id}: ${(e as Error).message}`);
+    }
   }
 
   return renderMe(u);
