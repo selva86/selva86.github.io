@@ -30,11 +30,25 @@ polish; do not copy its topic-specific choices.
 
 ## Gate 1 - PLAN (artifact required before authoring)
 
-Write `post_plans/<slug>_plan.md` first. No plan, no post. It must contain:
+Write `post_plans/<slug>_plan.md` first. No plan, no post. Before drafting a single
+sentence, decide HOW to teach this topic, not just what to cover. It must contain:
 
 - **Objectives** - 3 to 6 observable "by the end you can..." statements. MEASURE:
   each maps to (a) the H2 section that teaches it and (b) the code block or worked
   example where the reader sees it done (objective -> section -> payoff table).
+- **Pedagogy and sequencing** - the deliberate teaching plan, decided up front: the
+  simplest true path from zero to the objectives, and the order that lets a reader
+  build understanding with no gap and nothing used before it is explained. State in
+  2-4 sentences WHY this order (what must be understood before what, where the one
+  hard idea sits and how the sections before it make it easy). MEASURE: the concept
+  order and section arc below follow it; the judge checks the sequence has no leap.
+- **Reader questions, before and after** - list the questions a real reader brings
+  BEFORE reading (what is this, why do I need it, when do I use it, how is it
+  different from the obvious alternative) and the questions they will have AFTER
+  (edge cases, gotchas, common errors, "which option do I pick", "why did I get
+  this message"). MEASURE: every before-question is answered early in the body;
+  every after-question is answered by a later section or the FAQ. This list seeds
+  both the section arc and the FAQ.
 - **Entry bar** - what the reader is assumed to know (keep it to "basic R" plus at
   most 1-2 linked site posts). Everything above the bar is taught inline. MEASURE:
   stated explicitly; "from scratch" is judged relative to it.
@@ -108,17 +122,41 @@ Write `post_plans/<slug>_plan.md` first. No plan, no post. It must contain:
   nothing said about what it is. Voice: a patient, friendly teacher who anticipates
   exactly where the reader will get confused and never hand-waves. Abstract-first
   openings are defects, not style. MEASURE (judge).
-- **T13 As long as it takes (no cap, no floor games).** No word budget. Use as many
-  words and sections as a basic-R reader needs to understand everything in full
-  detail; never compress to hit a count, never pad to look thorough. A rich topic
-  taught properly runs long and that is correct. The only length defect is a
-  wall-of-text section (split THAT section, do not cut content). MEASURE (judge).
+- **T13 Complete first, concise second (no padding, no redundancy).** Completeness
+  of understanding is the top priority: when in doubt, explain MORE, never less;
+  over-explaining a point beats leaving the reader stuck on it. But completeness is
+  not repetition. Cover each idea ONCE, at the depth a basic-R reader needs, then
+  move on. The enemy is REDUNDANCY, not length: do not prove the same conclusion two
+  or three different ways when one clean proof plus a one-line confirmation lands it,
+  do not restate a point the previous paragraph already made, do not milk the running
+  example past the point where it still teaches something new. No word budget in
+  either direction - a rich topic taught properly runs long and that is correct, and
+  a post inflated by re-proving what the reader already accepted is bloated even when
+  every sentence is true. The cut test: remove a passage ONLY if the reader loses no
+  understanding they need; if it carries a new idea, a genuinely helpful new angle,
+  or a needed worked step, keep it even if the post is already long. Wall-of-text
+  sections remain a defect (split THAT section, do not cut content). MEASURE (judge):
+  no conclusion is proven more than once; every retained passage adds understanding
+  the reader does not already have.
 - **T14 Room to breathe (care over speed).** One new idea at a time: introduce it
   in plain words, show ONE concrete worked example, then move on. Readable R over
   clever golf (`ifelse()` and named intermediates, never `r * (tau - (r < 0))`);
   if a terse idiom is unavoidable, SHOW what it computes on a concrete value first.
   Never assert that a non-obvious line "does X": run it and show the result, then
   generalize. MEASURE (judge).
+- **T15 Literal and grounded, no dramatic flourish.** Describe what the code, the
+  numbers, and the method actually do, in plain literal language. Ban personification
+  and dramatic metaphor: a method does not "shrug" or give "an answer of NA with a
+  shrug", a frozen index is not a "rubber stamp", drift does not "masquerade as
+  noise" or "pretend to be" anything, one value does not "drag its neighbours", data
+  is not a "truth serum", an ACF does not "stop dead". These read as generated-copy
+  flourish and cost the reader precision. Real-world examples and analogies are
+  welcome, but ONLY when literally accurate and used to clarify a mechanism (a
+  centred average genuinely needs points on both sides, so "the window runs off the
+  end of the data" is fine - it is literally true); never reach for a vivid image
+  for its own sake. Given a plain sentence and a clever one that say the same thing,
+  write the plain one. MEASURE (judge): flag personified verbs and metaphor used for
+  colour rather than accuracy.
 
 ### Article furniture (the parts lessons do not have)
 
@@ -162,14 +200,15 @@ Write `post_plans/<slug>_plan.md` first. No plan, no post. It must contain:
 
 | Layer | Enforces |
 |---|---|
-| PLAN artifact | objectives <-> sections, entry bar, concept order, section arc, diagram plan, running example |
+| PLAN artifact | objectives <-> sections, pedagogy + sequencing, reader questions (before/after), entry bar, concept order, section arc, diagram plan, running example |
 | `tutorial_quality_check.py` (deterministic) | frontmatter completeness + lengths, T1 first-code payoff, T5 counts + self-containment + REAL execution, T6 diagram exists ([C]), T7/T8 banned strings + package fencing, references resolve, plan exists |
-| `/verify-tut` (fresh agent) | T2 no leaps, T3 depth ladder, T4 continuity, T12 grounded + warm, T13 nothing rushed, T14 care over speed, AI-tells, gap critique |
+| `/verify-tut` (fresh agent) | T2 no leaps, T3 depth ladder, T4 continuity, T12 grounded + warm, T13 complete-but-no-redundancy (no conclusion proven twice, no padding), T14 care over speed, T15 literal voice (no dramatic metaphor/personification), AI-tells, gap critique |
 | `/publish-tut` | build + registries + tracker update + live verification |
 
 ## Definition-of-done checklist
 
 - [ ] Plan artifact exists; every objective has a section + a payoff
+- [ ] Plan states the pedagogy/sequencing and the reader's before/after questions
 - [ ] Lead paragraph answers the title in 2-3 plain sentences
 - [ ] First runnable block pays off inside the first H2
 - [ ] Every term/symbol/function defined on first use; entry bar respected
@@ -178,6 +217,8 @@ Write `post_plans/<slug>_plan.md` first. No plan, no post. It must contain:
 - [ ] Every ```r block executes cleanly; every `#>` line is real output
 - [ ] Package fencing per the registry; no static-runnable or live-unrunnable blocks
 - [ ] [C]: at least one rendered diagram at the right concept
+- [ ] No conclusion proven more than once; no padding; every passage earns its place (T13)
+- [ ] Literal voice: no personification or dramatic metaphor for flourish (T15)
 - [ ] No em dashes, no AI-tell phrases, WebR never named
 - [ ] FAQ (4-6 real questions), Summary, References (5-10, resolving)
 - [ ] Gap critique done and fixes applied (verify-tut)
