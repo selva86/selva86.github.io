@@ -248,6 +248,22 @@ await setMode('hazard');
   ok((await page.textContent('#copybtn')).includes('Copied'), 'copy verdict confirms');
 }
 
+// ---- every internal link must resolve ------------------------------------
+// A hand-written href in the Go-deeper table is a guess until something checks
+// it. The first version of this page shipped /Survival-Analysis-With-R.html,
+// which does not exist: the page rendered perfectly and the link 404'd. Nothing
+// else in the gate suite looks at link targets.
+{
+  const hrefs = await page.$$eval('a[href^="/"]', as =>
+    [...new Set(as.map(a => a.getAttribute('href')))]);
+  const own = hrefs.filter(h => !/^\/(#|$)/.test(h));
+  for (const h of own) {
+    const r = await page.request.get(BASE + h);
+    ok(r.status() === 200, `internal link resolves: ${h}`, `HTTP ${r.status()}`);
+  }
+  ok(own.length >= 8, 'the page actually cross-links the survival material', `${own.length} links`);
+}
+
 // ---- accessibility / health ---------------------------------------------
 ok(await page.$('[aria-live]') !== null, 'aria-live region present');
 ok(await page.$('.forest[aria-label]') !== null, 'forest plot has an aria-label');
