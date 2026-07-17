@@ -781,29 +781,79 @@
 <!-- md2html:generated -->
 
 <h1>Time Series Decomposition in R: STL vs Classical</h1>
-<p class="lead"><a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">Time series decomposition</a> splits a series into three parts you can study on their own: a slow-moving trend, a seasonal pattern that repeats every year, and a remainder that holds whatever is left over. R gives you two functions for the job. <code>decompose()</code> runs the classical method, a moving average plus one fixed seasonal shape. <code>stl()</code> runs the modern method, built on loess, which keeps a trend value at every month and can let the seasonal shape change from year to year. This post runs both on real data and shows exactly when to reach for each.</p>
+<p class="lead"><a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">Time series decomposition</a> splits one messy series into three readable parts: a <strong>trend-cycle</strong> (the long-run level), a <strong>seasonal</strong> component (the pattern that repeats each cycle), and a <strong>remainder</strong> (whatever is left over). This tutorial builds both classical <code>decompose()</code> and <code>stl()</code> from scratch in base R, on real data, and shows you exactly when to reach for each. Nothing to install.</p>
 <div class="post-byline" style="color:#6b7280;font-size:14px;margin:2px 0 18px 0;line-height:1.5;">By <strong>Selva Prabhakaran</strong> &nbsp;&middot;&nbsp; Published July 18, 2026 &nbsp;&middot;&nbsp; Last updated July 18, 2026</div>
 
-<p>The whole post works with <code>AirPassengers</code>, a series that ships with R. It holds 144 numbers: the monthly total of international airline passengers, in thousands, from January 1949 to December 1960. If you have never met a <code>ts</code> object (a series stamped with a start date and a <code>frequency</code>, here 12 months per year), the <a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> post is the one-page primer. Everything else you need is defined as we go.</p>
+<h2>What is time series decomposition, and why split a series apart?</h2>
 
-<h2>Was July 1960 the airline's best month ever?</h2>
+<p>Picture monthly airline ticket sales. Three forces push the number around at the same time. The business is growing year over year, every summer brings a travel spike, and the odd month wanders off for no clear reason. Read together they blur into one jagged line. Decomposition pulls them apart so you can study each force on its own.</p>
 
-<p>July 1960 is the busiest month in the record: 622, meaning 622,000 passengers. That single number is the 139th value in the series, <code>AirPassengers[139]</code>. A fair question is how much of that 622 was real growth (a decade of the airline getting bigger), how much was simply that people fly in July, and how much was neither. Decomposition answers exactly that, by splitting the 622 into a trend part, a seasonal part, and a remainder part.</p>
+<p>R ships with the perfect example built in. <code>AirPassengers</code> records the monthly total of international airline passengers from 1949 to 1960. One function call, <code>decompose()</code>, splits it apart. Run this and watch what falls out.</p>
 
-<p>Here is the split, before any explanation of how it is computed. <code>stl()</code> builds the decomposition; it works on an additive scale, so we hand it <code>log(AirPassengers)</code> and read the parts back as multipliers with <code>exp()</code>. The next section makes the log step precise; for now, watch what comes out.</p>
-
-<div class="webr-container" data-block-title="Split the record month into its three parts">
+<div class="webr-container" data-block-title="Split the airline series in one call">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the record month into its three parts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># AirPassengers[139] is July 1960: 622 (thousand passengers),</span></span>
-<span class="cl"><span class="c1"># the largest month in the 1949 to 1960 record.</span></span>
-<span class="cl">fit <span class="o">&lt;-</span> <span class="nf">stl</span>(<span class="nf">log</span>(AirPassengers), s.window <span class="o">=</span> <span class="s">&quot;periodic&quot;</span>)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the airline series in one call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">components <span class="o">&lt;-</span> <span class="nf">decompose</span>(AirPassengers, type <span class="o">=</span> <span class="s">&quot;multiplicative&quot;</span>)</span>
+<span class="cl"><span class="nf">round</span>(components<span class="o">$</span>figure, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;  [1] 0.910 0.884 1.007 0.976 0.981 1.113 1.227 1.220 1.060 0.922 0.801 0.899</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those twelve numbers are the seasonal fingerprint of air travel, one factor per month from January to December. July sits at <code>1.227</code>, meaning traffic runs about 23 percent above the year's underlying level, while November's <code>0.801</code> is roughly 20 percent below it. In one line you have already learned when planes fill up. We passed <code>type = &quot;multiplicative&quot;</code> because this series' seasonal swing grows as the airline grows, and you will see exactly why in a moment.</p>
+
+<p><code>decompose()</code> gave back more than the seasonal shape. It also returns a trend-cycle and a remainder, and the clearest way to meet all three is to plot them together.</p>
+
+<p><img src="screenshots/Time-Series-Decomposition-in-R-components.webp" alt="How one observed series splits into its underlying parts." class="img-responsive img-zoomable" loading="lazy" width="1026" height="986" /></p>
+
+<p><em>Figure 1: One observed series splits into a trend-cycle, a seasonal component, plus a leftover remainder.</em></p>
+
+<div class="webr-container" data-block-title="Plot the four decomposition panels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the four decomposition panels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(components)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chart stacks four panels. The top one is the original tangled series. Below it sit the three parts decomposition pulled out: a smooth trend climbing from the late 1940s, the repeating seasonal wave, and a thin remainder of leftover noise. One jagged line has become three clean stories you can read separately. Everything that follows is about understanding those panels and choosing the right method to build them.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">ts object</a> already carries its own calendar.</strong> <code>AirPassengers</code> is stored as an R time series (a <code>ts</code> object) that knows it is monthly with 12 observations per cycle, so <code>decompose()</code> never has to be told the season length. When you build your own series with <code>ts(x, frequency = 12)</code>, that <code>frequency</code> argument is what makes seasonal decomposition possible.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>nottem</code> dataset holds 20 years of monthly air temperatures at Nottingham Castle. Plot it and see which of the three forces (trend, season, noise) your eye can spot.</p>
+<div class="webr-container" data-block-title="Your turn: plot the temperature series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: plot the temperature series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Plot the nottem temperature series</span></span>
+<span class="cl"><span class="c1"># your code here</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(fit<span class="o">$</span>time.series[<span class="m">139</span>, ]), <span class="m">4</span>)   <span class="c1"># the trend, seasonal and remainder for July 1960</span></span>
-<span class="cl"><span class="c1">#&gt;  seasonal     trend remainder</span></span>
-<span class="cl"><span class="c1">#&gt;    1.2416  474.0762    1.0567</span></span>
-<span class="cl"><span class="nf">prod</span>(<span class="nf">exp</span>(fit<span class="o">$</span>time.series[<span class="m">139</span>, ]))       <span class="c1"># multiply the three parts back together</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 622</span></span></div>
+<span class="cl"><span class="c1"># Goal: a chart with a strong yearly wave and little long-run trend</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Plot the nottem series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the nottem series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(nottem, ylab <span class="o">=</span> <span class="s">&quot;Temperature (F)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Nottingham monthly temperature&quot;</span>)</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -813,14 +863,21 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read it as a product. The trend was at 474.08 (thousand): that is where a decade of growth had carried the underlying level by mid-1960. The seasonal multiplier for July is 1.2416, so being July lifts the level by about 24 percent. The remainder is 1.0567, a further 5.7 percent that neither the trend nor the season accounts for. Multiply them, <code>474.08 * 1.2416 * 1.0567</code>, and you are back to the 622 you started with. Most of the record was the trend; July added roughly a quarter on top; a small amount was left unexplained.</p>
+<p><strong>Explanation:</strong> <code>nottem</code> shows a large, regular seasonal wave (hot summers, cold winters) but almost no upward or downward drift, so its trend is nearly flat. That contrast with <code>AirPassengers</code> matters later when we choose a model.</p>
 
-<p><code>fit$time.series</code> holds those three parts for every month, not just July. Plot the fitted object to see all four panels at once.</p>
+</details>
+</section>
 
-<div class="webr-container" data-block-title="The whole decomposition in four panels">
+<h2>What are the trend, seasonal, and remainder components?</h2>
+
+<p>You have met the seasonal factors already. The <code>components</code> object is a list, and the other two parts live in their own slots. Let's open them so the panels stop being abstract. First the trend-cycle, the smooth backbone left once the yearly wave and the noise are stripped away.</p>
+
+<div class="webr-container" data-block-title="Inspect the trend-cycle component">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The whole decomposition in four panels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(fit)   <span class="c1"># top: the data; then trend, seasonal, remainder (all in log units)</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the trend-cycle component</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(components<span class="o">$</span>trend, <span class="m">12</span>), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;        Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep   Oct   Nov   Dec</span></span>
+<span class="cl"><span class="c1">#&gt; 1949    NA    NA    NA    NA    NA    NA 126.8 127.2 128.0 128.6 129.0 129.8</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -830,29 +887,56 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>You get four stacked panels sharing one time axis: the original (logged) series on top, then the trend climbing steadily, then the seasonal pattern repeating with the same summer peak every year, then the remainder wobbling around zero. The grey bars on the right of each panel show the relative scale, so you can see at a glance that the trend and seasonal parts are large and the remainder is small.</p>
+<p>Two things stand out. The trend for 1949 rises gently from about 127 to 130, which is the underlying level once the summer spike is removed. And the first six months are <code>NA</code>. That is not a bug. Classical decomposition estimates the trend with a moving average that needs six months of data on each side, so it cannot reach the very start of the series. Hold that thought, it becomes a real limitation later.</p>
 
-<h2>Additive or multiplicative: which model fits?</h2>
+<p>Whatever the trend and season together cannot explain lands in the remainder.</p>
 
-<p>Before trusting any decomposition you have to settle one choice: do the three parts <strong>add</strong> together or <strong>multiply</strong> together? Written out, the two models are</p>
-
-<p>Additive: \( y_t = T_t + S_t + R_t \)</p>
-
-<p>Multiplicative: \( y_t = T_t \times S_t \times R_t \)</p>
-
-<p>where \( y_t \) is the observed value at month \( t \), \( T_t \) is the trend, \( S_t \) is the seasonal part, and \( R_t \) is the remainder. In the additive model the seasonal swing is a fixed <strong>size</strong> (say, always about 50 thousand above the trend in July). In the multiplicative model the swing is a fixed <strong>percentage</strong> (say, always about 24 percent above the trend), so the swing in passengers grows as the series grows.</p>
-
-<p>You can tell the two apart by eye, and with one line of code. If the size of the yearly up-and-down grows as the overall level rises, the series is multiplicative. Measure the swing directly as the gap between the busiest and quietest month within each year: <code>tapply()</code> splits the passenger counts into one group per calendar year and applies <code>max(x) - min(x)</code> to each group.</p>
-
-<div class="webr-container" data-block-title="Does the seasonal swing grow with the level?">
+<div class="webr-container" data-block-title="Inspect the remainder component">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Does the seasonal swing grow with the level?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">year  <span class="o">&lt;-</span> <span class="nf">floor</span>(<span class="nf">time</span>(AirPassengers))                       <span class="c1"># the calendar year of each month</span></span>
-<span class="cl">swing <span class="o">&lt;-</span> <span class="nf">tapply</span>(AirPassengers, year, <span class="kr">function</span>(x) <span class="nf">max</span>(x) <span class="o">-</span> <span class="nf">min</span>(x))</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the remainder component</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(components<span class="o">$</span>random, <span class="m">9</span>), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;        Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep</span></span>
+<span class="cl"><span class="c1">#&gt; 1949    NA    NA    NA    NA    NA    NA 0.952 0.953 1.002</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The remainder is centered near 1 in a multiplicative model. A value of <code>0.952</code> for July 1949 means that, after accounting for the trend and the usual July bump, actual traffic came in about 5 percent lower than expected. Small, patternless wobbles like these are exactly what you want here. Structure left behind in the remainder (a visible wave, a drift) is a warning that the model missed something.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The three components multiply back to the original series.</strong> In a multiplicative decomposition, trend times seasonal times remainder returns the exact observed value for every month that has a trend estimate. Decomposition does not throw information away, it only reorganizes it into parts you can read.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the busiest travel month by locating the largest seasonal factor. Use <code>which.max()</code> and translate the position into a month name with the built-in <code>month.abb</code> vector.</p>
+<div class="webr-container" data-block-title="Your turn: find the busiest month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the busiest month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Which month has the largest seasonal factor?</span></span>
+<span class="cl">ex_busiest <span class="o">&lt;-</span> <span class="kc">NULL</span>   <span class="c1"># replace NULL with which.max(components$figure)</span></span>
+<span class="cl">ex_busiest</span>
 <span class="cl"></span>
-<span class="cl">swing[<span class="nf">c</span>(<span class="s">&quot;1949&quot;</span>, <span class="s">&quot;1954&quot;</span>, <span class="s">&quot;1960&quot;</span>)]        <span class="c1"># within-year peak-to-trough, three sample years</span></span>
-<span class="cl"><span class="c1">#&gt; 1949 1954 1960</span></span>
-<span class="cl"><span class="c1">#&gt;   44  114  232</span></span></div>
+<span class="cl"><span class="c1"># Goal: month.abb[ex_busiest] should give &quot;Jul&quot;</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Find the busiest month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the busiest month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_busiest <span class="o">&lt;-</span> <span class="nf">which.max</span>(components<span class="o">$</span>figure)</span>
+<span class="cl">month.abb[ex_busiest]</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;Jul&quot;</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -862,21 +946,97 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>In 1949 the gap between the biggest and smallest month was 44 thousand passengers. By 1960 the same gap was 232 thousand, more than five times wider, even though the shape of the year (summer high, winter low) never changed. A swing that grows with the level is the signature of a multiplicative series, so <code>AirPassengers</code> is multiplicative.</p>
+<p><strong>Explanation:</strong> <code>which.max()</code> returns the position of the biggest value (7), and <code>month.abb[7]</code> maps that position to <code>&quot;Jul&quot;</code>. July is the peak of the summer travel season.</p>
 
-<p>That is why the opening block took a <code>log()</code>. Logging turns a product into a sum:</p>
+</details>
+</section>
 
-<p>\( \log y_t = \log T_t + \log S_t + \log R_t \)</p>
+<h2>Should you use an additive or multiplicative model?</h2>
 
-<p>so a multiplicative series becomes additive once you take logs. Any additive method, including <code>stl()</code>, then fits it correctly, and <code>exp()</code> converts the additive log-parts back into the multipliers we read earlier. The classical <code>decompose()</code> function has a multiplicative mode built in, so you can also ask for the seasonal effect directly as a set of monthly multipliers.</p>
+<p>Every decomposition rests on one modeling choice: how do the three parts combine? There are two answers. In an <strong>additive</strong> model the parts add up, and in a <strong>multiplicative</strong> model they multiply.</p>
 
-<div class="webr-container" data-block-title="The seasonal effect as monthly multipliers">
+<p>$$y_t = T_t + S_t + R_t \qquad \text{(additive)}$$</p>
+
+<p>$$y_t = T_t \times S_t \times R_t \qquad \text{(multiplicative)}$$</p>
+
+<p>Where $y_t$ is the observed value at time $t$, $T_t$ is the trend-cycle, $S_t$ is <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">the seasonal component</a>, and $R_t$ is the remainder. The practical difference is about the size of the seasonal swing. Additive says the swing is a fixed number of units every year. Multiplicative says the swing is a fixed percentage, so it grows in absolute size as the series climbs.</p>
+
+<p><img src="screenshots/Time-Series-Decomposition-in-R-additive-multiplicative.webp" alt="Choosing an additive or multiplicative model based on the seasonal swing." class="img-responsive img-zoomable" loading="lazy" width="930" height="1122" /></p>
+
+<p><em>Figure 2: Choosing an <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">additive or multiplicative</a> model.</em></p>
+
+<p>You do not have to guess. Measure the seasonal swing directly by taking, for each year, the gap between its highest and lowest month. If that gap grows over time, the series is multiplicative.</p>
+
+<div class="webr-container" data-block-title="Measure the yearly seasonal swing">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The seasonal effect as monthly multipliers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">decomp_m <span class="o">&lt;-</span> <span class="nf">decompose</span>(AirPassengers, type <span class="o">=</span> <span class="s">&quot;multiplicative&quot;</span>)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the yearly seasonal swing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">yearly <span class="o">&lt;-</span> <span class="nf">split</span>(<span class="nf">as.numeric</span>(AirPassengers), <span class="nf">rep</span>(<span class="m">1949</span><span class="o">:</span><span class="m">1960</span>, each <span class="o">=</span> <span class="m">12</span>))</span>
+<span class="cl">spread <span class="o">&lt;-</span> <span class="nf">sapply</span>(yearly, <span class="kr">function</span>(x) <span class="nf">max</span>(x) <span class="o">-</span> <span class="nf">min</span>(x))</span>
+<span class="cl"><span class="nf">round</span>(spread)</span>
+<span class="cl"><span class="c1">#&gt; 1949 1950 1951 1952 1953 1954 1955 1956 1957 1958 1959 1960</span></span>
+<span class="cl"><span class="c1">#&gt;   44   56   54   71   92  114  131  142  166  195  217  232</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The evidence is decisive. The distance between the busiest and quietest month of the year starts at 44 passengers in 1949 and grows to 232 by 1960, more than a fivefold increase. The seasonal wave is not a fixed height, it scales with the size of the airline. That is the fingerprint of a multiplicative series, which is why we chose <code>type = &quot;multiplicative&quot;</code> from the start.</p>
+
+<p>There is a neat trick for multiplicative series. Taking the logarithm turns multiplication into addition, because $\log(T_t \times S_t \times R_t) = \log T_t + \log S_t + \log R_t$. So a multiplicative series becomes a plain additive one on the log scale.</p>
+
+<div class="webr-container" data-block-title="Turn a multiplicative series additive with logs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn a multiplicative series additive with logs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">log_air <span class="o">&lt;-</span> <span class="nf">log</span>(AirPassengers)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(log_air, <span class="m">4</span>), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;       Jan   Feb   Mar   Apr</span></span>
+<span class="cl"><span class="c1">#&gt; 1949 4.718 4.771 4.883 4.860</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is more than a curiosity. The <code>stl()</code> function you meet shortly only does additive decomposition, so the standard way to run STL on a multiplicative series is to decompose <code>log(series)</code> and then exponentiate the parts to return to the original scale.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The wrong model leaks structure into the remainder.</strong> Fitting an additive model to <code>AirPassengers</code> forces a constant-height seasonal wave onto a series whose wave keeps growing, so the mismatch piles up in the remainder as a visible pattern. Always check the seasonal swing first, and if it grows with the level, go multiplicative or take logs.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the yearly-swing measurement on <code>nottem</code>, then decide whether temperature is additive or multiplicative.</p>
+<div class="webr-container" data-block-title="Your turn: classify the temperature series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify the temperature series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Measure the yearly swing for nottem</span></span>
+<span class="cl">ex_years <span class="o">&lt;-</span> <span class="nf">split</span>(<span class="nf">as.numeric</span>(nottem), <span class="nf">rep</span>(<span class="m">1920</span><span class="o">:</span><span class="m">1939</span>, each <span class="o">=</span> <span class="m">12</span>))</span>
+<span class="cl">ex_spread <span class="o">&lt;-</span> <span class="kc">NULL</span>   <span class="c1"># replace NULL with sapply(ex_years, function(x) max(x) - min(x))</span></span>
+<span class="cl">ex_spread</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">round</span>(decomp_m<span class="o">$</span>figure, <span class="m">2</span>)               <span class="c1"># one multiplier per month, January to December</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 0.91 0.88 1.01 0.98 0.98 1.11 1.23 1.22 1.06 0.92 0.80 0.90</span></span></div>
+<span class="cl"><span class="c1"># Goal: a spread that stays roughly flat over the years, so additive</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Classify the temperature series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify the temperature series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_years <span class="o">&lt;-</span> <span class="nf">split</span>(<span class="nf">as.numeric</span>(nottem), <span class="nf">rep</span>(<span class="m">1920</span><span class="o">:</span><span class="m">1939</span>, each <span class="o">=</span> <span class="m">12</span>))</span>
+<span class="cl">ex_spread <span class="o">&lt;-</span> <span class="nf">sapply</span>(ex_years, <span class="kr">function</span>(x) <span class="nf">max</span>(x) <span class="o">-</span> <span class="nf">min</span>(x))</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">range</span>(ex_spread), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 18.7 31.2</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -886,89 +1046,23 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Reading left to right, January is 0.91 (9 percent below the yearly trend), the July value (7th) is 1.23 (23 percent above, matching the 1.2416 from <code>stl()</code>), and November (11th) is 0.80 (20 percent below). Those twelve numbers are the seasonal shape.</p>
+<p><strong>Explanation:</strong> The yearly swing bounces between about 19 and 31 degrees with no upward march, because winters and summers are roughly the same distance apart every year regardless of the average. A constant-height swing means <code>nottem</code> is additive.</p>
 
-<p><img src="screenshots/Time-Series-Decomposition-in-R-anatomy.webp" alt="Diagram showing the record month 622 for July 1960 split into a trend of 474.08, a seasonal multiplier of 1.2416 and a remainder of 1.0567 that multiply back to 622, with a note that taking logs turns the multiplicative model into an additive one." class="img-responsive img-zoomable" loading="lazy" width="2248" height="906" /></p>
+</details>
+</section>
 
-<p><em>The three parts of one observed value, and why logging lets an additive method fit a multiplicative series.</em></p>
+<h2>How does classical decomposition work in R?</h2>
 
-<h2>How does classical decomposition work, and where does it break?</h2>
+<p>The word "classical" is not decoration. This method dates to the early 20th century, and <code>decompose()</code> follows its original three-step recipe. Understanding the recipe demystifies the whole function and, just as usefully, exposes exactly where it is weak.</p>
 
-<p><code>decompose()</code> is worth understanding step by step, because its two weaknesses fall straight out of how it is built. It runs four steps.</p>
+<p>Step one estimates the trend with a <strong><a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">centered moving average</a></strong>. For monthly data that means averaging a full year of values around each point, which smooths the seasonal wave and the noise away and leaves the backbone. Let's build that moving average by hand and prove it equals the trend <code>decompose()</code> gave us.</p>
 
-<ol>
-
-<li><strong>Estimate the trend</strong> with a <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">centred moving average</a> over a full year.</li>
-
-<li><strong>Detrend</strong> by dividing the data by the trend (or subtracting, if additive).</li>
-
-<li><strong>Build one seasonal figure</strong> by averaging all the Januarys together, all the Februarys together, and so on.</li>
-
-<li><strong>Take the remainder</strong> as whatever the trend and season do not explain.</li>
-
-</ol>
-
-<p>The one step that looks like a black box is the first. For monthly data the trend is a 2x12 centred moving average: average each month with the eleven months around it, but give the two end months half weight so the twelve-month window sits centred on a single month. In symbols,</p>
-
-<p>\( \hat T_t = \dfrac{\tfrac{1}{2} y_{t-6} + y_{t-5} + \cdots + y_{t+5} + \tfrac{1}{2} y_{t+6}}{12}. \)</p>
-
-<p>You can reproduce it by hand with <code>stats::filter()</code> and check it against what <code>decompose()</code> returned.</p>
-
-<div class="webr-container" data-block-title="Rebuild the classical trend by hand">
+<div class="webr-container" data-block-title="Rebuild the trend as a moving average">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebuild the classical trend by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">decomp <span class="o">&lt;-</span> <span class="nf">decompose</span>(AirPassengers)              <span class="c1"># additive model, the default</span></span>
-<span class="cl">w <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.5</span>, <span class="nf">rep</span>(<span class="m">1</span>, <span class="m">11</span>), <span class="m">0.5</span>) <span class="o">/</span> <span class="m">12</span>               <span class="c1"># the 2x12 centred moving-average weights</span></span>
-<span class="cl">trend_manual <span class="o">&lt;-</span> stats<span class="o">::</span><span class="nf">filter</span>(AirPassengers, w, sides <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">data.frame</span>(manual    <span class="o">=</span> <span class="nf">round</span>(<span class="nf">as.numeric</span>(trend_manual), <span class="m">1</span>),</span>
-<span class="cl">           decompose <span class="o">=</span> <span class="nf">round</span>(<span class="nf">as.numeric</span>(decomp<span class="o">$</span>trend), <span class="m">1</span>))[<span class="m">5</span><span class="o">:</span><span class="m">9</span>, ]</span>
-<span class="cl"><span class="c1">#&gt;   manual decompose</span></span>
-<span class="cl"><span class="c1">#&gt; 5     NA        NA</span></span>
-<span class="cl"><span class="c1">#&gt; 6     NA        NA</span></span>
-<span class="cl"><span class="c1">#&gt; 7  126.8     126.8</span></span>
-<span class="cl"><span class="c1">#&gt; 8  127.2     127.2</span></span>
-<span class="cl"><span class="c1">#&gt; 9  128.0     128.0</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>From month 7 on, the two columns agree to the decimal: <code>decompose()</code>'s trend is exactly that moving average, nothing hidden. The moving average also explains the <code>NA</code>s. The window needs six months on each side of the month it is centred on, and the first month of the series has nothing to its left, so no trend can be computed there. The same is true at the very end. That is limit one, and it is easy to see directly.</p>
-
-<div class="webr-container" data-block-title="The classical trend is undefined at both ends">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The classical trend is undefined at both ends</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">head</span>(decomp<span class="o">$</span>trend, <span class="m">8</span>)     <span class="c1"># first year: no trend for the first six months</span></span>
-<span class="cl"><span class="nf">tail</span>(decomp<span class="o">$</span>trend, <span class="m">8</span>)     <span class="c1"># last year: no trend for the last six months</span></span>
-<span class="cl"><span class="c1">#&gt;           Jan      Feb      Mar      Apr      May      Jun      Jul      Aug</span></span>
-<span class="cl"><span class="c1">#&gt; 1949       NA       NA       NA       NA       NA       NA 126.7917 127.2500</span></span>
-<span class="cl"><span class="c1">#&gt;           May      Jun      Jul      Aug      Sep      Oct      Nov      Dec</span></span>
-<span class="cl"><span class="c1">#&gt; 1960 472.7500 475.0417       NA       NA       NA       NA       NA       NA</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The trend is missing for the first six and last six months. Those <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are exactly why the opening section used <code>stl()</code> rather than <code>decompose()</code> to split July 1960: the classical method has no trend value there at all, because July 1960 is inside the last six months.</p>
-
-<p>The second limit comes from step 3. The seasonal figure is one set of twelve numbers, reused for every year, so a given month gets an identical seasonal effect in 1949 and in 1960.</p>
-
-<div class="webr-container" data-block-title="Every year gets the exact same seasonal figure">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Every year gets the exact same seasonal figure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">c</span>(Jul1949 <span class="o">=</span> decomp<span class="o">$</span>seasonal[<span class="m">7</span>], Jul1960 <span class="o">=</span> decomp<span class="o">$</span>seasonal[<span class="m">139</span>])</span>
-<span class="cl"><span class="c1">#&gt;  Jul1949  Jul1960</span></span>
-<span class="cl"><span class="c1">#&gt; 63.83081 63.83081</span></span>
-<span class="cl"><span class="nf">identical</span>(decomp<span class="o">$</span>seasonal[<span class="m">7</span>], decomp<span class="o">$</span>seasonal[<span class="m">139</span>])</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebuild the trend as a moving average</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">w <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">1</span><span class="o">/</span><span class="m">24</span>, <span class="nf">rep</span>(<span class="m">1</span><span class="o">/</span><span class="m">12</span>, <span class="m">11</span>), <span class="m">1</span><span class="o">/</span><span class="m">24</span>)</span>
+<span class="cl">ma <span class="o">&lt;-</span> stats<span class="o">::</span><span class="nf">filter</span>(AirPassengers, filter <span class="o">=</span> w, sides <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl"><span class="nf">all.equal</span>(<span class="nf">as.numeric</span>(ma), <span class="nf">as.numeric</span>(components<span class="o">$</span>trend))</span>
 <span class="cl"><span class="c1">#&gt; [1] TRUE</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -979,29 +1073,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>July 1949 and July 1960 are handed the same additive effect, +63.83 thousand, down to the last digit. If the seasonal pattern actually strengthened over the decade, classical decomposition cannot show it, because by construction the season is frozen. The centred moving average is covered on its own in <a href="Moving-Averages-in-R.html">Moving Averages in R</a>; here it is enough to know it is what produces the trend and the two <code>NA</code> ends.</p>
+<p><code>all.equal()</code> returns <code>TRUE</code>, so the trend panel you saw earlier is nothing more mysterious than this weighted average. The weights <code>c(1/24, 1/12, ..., 1/12, 1/24)</code> span 13 months. The two end months get half weight so that exactly 12 months of seasonal pattern are averaged out evenly, a construction known as a 2x12 moving average.</p>
 
-<p><img src="screenshots/Time-Series-Decomposition-in-R-classical-steps.webp" alt="Diagram of the four steps of classical decomposition: a 2x12 centred moving average for the trend which costs six months at each end, detrending, one reused seasonal index that cannot change across years, and the remainder." class="img-responsive img-zoomable" loading="lazy" width="1412" height="1774" /></p>
+<p>If you want the formula, here it is. Feel free to skip to the next block, the code above is the whole idea.</p>
 
-<p><em>The four steps of <code>decompose()</code>. The two side-costs, missing ends and a frozen season, are consequences of steps 1 and 3.</em></p>
+<p>$$\hat{T}_t = \frac{1}{12}\left(\tfrac{1}{2}y_{t-6} + y_{t-5} + \cdots + y_{t+5} + \tfrac{1}{2}y_{t+6}\right)$$</p>
 
-<h2>What does STL do differently?</h2>
+<p>Where $\hat{T}_t$ is the estimated trend at month $t$ and $y_{t\pm k}$ are the surrounding observations. Because the window reaches six months forward and back, there is no way to compute it for the first six or last six months. That is the source of those <code>NA</code> values.</p>
 
-<p>STL stands for "Seasonal and Trend decomposition using Loess". Instead of one moving average and one averaged seasonal figure, it estimates both the trend and the season with <strong>loess</strong>, a smoother that fits a small <a class="auto-link" href="Loess-Regression-With-R.html" title="Loess Regression with R">local regression</a> line through each neighbourhood of points and slides that window along. Two properties follow from that design, and both fix a classical limit. First, loess extends all the way to the edges of the data, so STL returns a trend at every month with no <code>NA</code> ends. Second, STL estimates the seasonal shape from a controllable number of years, so it can let that shape change.</p>
-
-<p>The <code>fit</code> object from section 1 is already an STL decomposition. Look inside it.</p>
-
-<div class="webr-container" data-block-title="Inside the STL object: three columns">
+<div class="webr-container" data-block-title="Count the trend values lost at the edges">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inside the STL object: three columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">head</span>(<span class="nf">round</span>(fit<span class="o">$</span>time.series, <span class="m">3</span>))   <span class="c1"># fit is the stl() result from section 1, in log units</span></span>
-<span class="cl"><span class="c1">#&gt;          seasonal trend remainder</span></span>
-<span class="cl"><span class="c1">#&gt; Jan 1949   -0.092 4.829    -0.019</span></span>
-<span class="cl"><span class="c1">#&gt; Feb 1949   -0.114 4.830     0.054</span></span>
-<span class="cl"><span class="c1">#&gt; Mar 1949    0.016 4.831     0.036</span></span>
-<span class="cl"><span class="c1">#&gt; Apr 1949   -0.014 4.833     0.040</span></span>
-<span class="cl"><span class="c1">#&gt; May 1949   -0.015 4.835    -0.025</span></span>
-<span class="cl"><span class="c1">#&gt; Jun 1949    0.110 4.838    -0.043</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the trend values lost at the edges</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">sum</span>(<span class="nf">is.na</span>(components<span class="o">$</span>trend))</span>
+<span class="cl"><span class="c1">#&gt; [1] 12</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1011,14 +1095,15 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The three columns are the seasonal, trend and remainder, in log units because we fitted the log of the data. STL is additive only, which is the reason for the log: on the log scale a multiplicative series is additive, so the additive method is the correct one, and <code>exp()</code> reads any component back as a multiplier. Now check the ends, where classical was undefined.</p>
+<p>Twelve months, six at each end, are simply gone. Step two of the recipe then detrends the series (dividing it by the trend, for a multiplicative model), and step three averages those detrended values by calendar month to get the seasonal factors. Because it averages across all years, classical decomposition produces one seasonal shape and reuses it for every cycle. Those 12 factors live in <code>components$figure</code>. The <code>components$seasonal</code> slot below holds the same numbers tiled across every month of the series.</p>
 
-<div class="webr-container" data-block-title="STL keeps a trend at the final months">
+<div class="webr-container" data-block-title="Show the seasonal shape is frozen">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">STL keeps a trend at the final months</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(<span class="nf">tail</span>(fit<span class="o">$</span>time.series[, <span class="s">&quot;trend&quot;</span>]), <span class="m">3</span>)    <span class="c1"># last six months, in log units</span></span>
-<span class="cl"><span class="c1">#&gt;        Jul   Aug   Sep   Oct   Nov   Dec</span></span>
-<span class="cl"><span class="c1">#&gt; 1960 6.161 6.170 6.179 6.188 6.196 6.205</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the seasonal shape is frozen</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">jan_1950 <span class="o">&lt;-</span> <span class="nf">window</span>(components<span class="o">$</span>seasonal, start <span class="o">=</span> <span class="nf">c</span>(<span class="m">1950</span>, <span class="m">1</span>), end <span class="o">=</span> <span class="nf">c</span>(<span class="m">1950</span>, <span class="m">1</span>))</span>
+<span class="cl">jan_1958 <span class="o">&lt;-</span> <span class="nf">window</span>(components<span class="o">$</span>seasonal, start <span class="o">=</span> <span class="nf">c</span>(<span class="m">1958</span>, <span class="m">1</span>), end <span class="o">=</span> <span class="nf">c</span>(<span class="m">1958</span>, <span class="m">1</span>))</span>
+<span class="cl"><span class="nf">identical</span>(<span class="nf">as.numeric</span>(jan_1950), <span class="nf">as.numeric</span>(jan_1958))</span>
+<span class="cl"><span class="c1">#&gt; [1] TRUE</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1028,22 +1113,36 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>There is a trend value for every one of the last six months. The July 1960 entry, 6.161, is <code>log(474.08)</code>: exponentiate it and you get the 474.08 that section 1 used for the record month, the value classical decomposition could not supply. STL also takes a <code>robust = TRUE</code> argument that downweights one-off spikes so they do not distort the trend or season; the FAQ says when to switch it on.</p>
+<p>The January factor in 1950 is byte-for-byte identical to the one in 1958. For a stable series that is fine. For one whose seasonal behavior evolves, it is too rigid.</p>
 
-<h2>Can the seasonal pattern change over time?</h2>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Classical decomposition has three built-in blind spots.</strong> It loses the trend at both ends of the series, it freezes the seasonal shape so it cannot change over the years, and a single <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> drags the moving average and every seasonal factor with it. These are exactly the gaps STL was designed to close.</div></div>
 
-<p>This is the one idea that most separates the two methods. With STL, the argument <code>s.window</code> sets how many years of data are used to estimate the seasonal value for each month. Pass <code>&quot;periodic&quot;</code> and the seasonal shape is held identical for every year, exactly like classical. Pass a small odd number and the shape is free to drift from year to year. Watch July's multiplier under each setting.</p>
-
-<div class="webr-container" data-block-title="Let the seasonal shape drift, or hold it fixed">
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a classical decomposition on the additive <code>nottem</code> series and plot the result.</p>
+<div class="webr-container" data-block-title="Your turn: decompose the temperature series">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let the seasonal shape drift, or hold it fixed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">periodic <span class="o">&lt;-</span> fit<span class="o">$</span>time.series[, <span class="s">&quot;seasonal&quot;</span>]                        <span class="c1"># s.window = &quot;periodic&quot; (section 1)</span></span>
-<span class="cl">evolving <span class="o">&lt;-</span> <span class="nf">stl</span>(<span class="nf">log</span>(AirPassengers), s.window <span class="o">=</span> <span class="m">13</span>)<span class="o">$</span>time.series[, <span class="s">&quot;seasonal&quot;</span>]</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: decompose the temperature series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Decompose nottem with an additive model, then plot</span></span>
+<span class="cl">ex_nottem <span class="o">&lt;-</span> <span class="kc">NULL</span>   <span class="c1"># replace NULL with decompose(nottem, type = &quot;additive&quot;)</span></span>
+<span class="cl">ex_nottem<span class="o">$</span>type</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(evolving[<span class="nf">cycle</span>(evolving) <span class="o">==</span> <span class="m">7</span>]), <span class="m">3</span>)   <span class="c1"># July multiplier, 1949 to 1960: free to drift</span></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">exp</span>(periodic[<span class="nf">cycle</span>(periodic) <span class="o">==</span> <span class="m">7</span>]), <span class="m">3</span>)   <span class="c1"># July multiplier, 1949 to 1960: held fixed</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 1.209 1.212 1.214 1.218 1.223 1.235 1.247 1.256 1.265 1.268 1.271 1.273</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 1.242 1.242 1.242 1.242 1.242 1.242 1.242 1.242 1.242 1.242 1.242 1.242</span></span></div>
+<span class="cl"><span class="c1"># Goal: four panels with a flat trend and a large repeating seasonal wave</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Decompose the temperature series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose the temperature series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_nottem <span class="o">&lt;-</span> <span class="nf">decompose</span>(nottem, type <span class="o">=</span> <span class="s">&quot;additive&quot;</span>)</span>
+<span class="cl"><span class="nf">plot</span>(ex_nottem)</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1053,25 +1152,73 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>cycle()</code> returns each month's position in the year (1 for January up to 12 for December), so <code>cycle(...) == 7</code> selects the twelve Julys. With <code>s.window = 13</code>, July's premium rises steadily from 1.209 in 1949 to 1.273 in 1960: air travel became a little more summer-heavy over the decade, and STL records that. With <code>&quot;periodic&quot;</code>, every July is pinned to 1.242, the same frozen behaviour classical gives you. A smaller <code>s.window</code> lets the season adapt faster; a larger one, or <code>&quot;periodic&quot;</code>, keeps it steadier. When you are unsure, start with <code>&quot;periodic&quot;</code> and only lower it if a <a class="auto-link" href="Visualize-Time-Series-in-R.html" title="Visualize Time Series in R: autoplot(), Seasonal, Lag Plots">seasonal plot</a> shows the shape genuinely changing.</p>
+<p><strong>Explanation:</strong> Temperature has a strong, constant-height seasonal wave and no real trend, so the additive model fits well and the remainder panel looks like flat noise.</p>
 
-<h2>How do you seasonally adjust a series?</h2>
+</details>
+</section>
 
-<p>Seasonal adjustment means removing <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">the seasonal component</a> so the trend and any real month-to-month movement are not hidden behind the yearly saw-tooth. It is the reason unemployment and retail-sales figures are reported "seasonally adjusted": nobody wants a December retail spike reported as economic growth. With the decomposition in hand, adjustment is one subtraction on the log scale, then <code>exp()</code> back to passengers.</p>
+<h2>How does STL decomposition work, and why is it more flexible?</h2>
 
-<div class="webr-container" data-block-title="Seasonally adjust: remove the seasonal component">
+<p>STL stands for <strong>Seasonal and Trend decomposition using Loess</strong>. Loess is a smoothing method that fits many tiny local regressions across the data instead of one rigid global average. Swapping the moving average for Loess is what gives STL its powers: the seasonal shape is allowed to drift over time, the trend reaches all the way to the edges, and an optional robust mode down-weights outliers.</p>
+
+<p>STL is additive only, so for the multiplicative airline series we run it on the log scale. The key argument is <code>s.window</code>, which controls how the seasonal component is allowed to change. Setting it to <code>&quot;periodic&quot;</code> forces a fixed seasonal shape, the same assumption classical decomposition makes.</p>
+
+<div class="webr-container" data-block-title="Run STL on the log airline series">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonally adjust: remove the seasonal component</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">adjusted <span class="o">&lt;-</span> <span class="nf">exp</span>(<span class="nf">log</span>(AirPassengers) <span class="o">-</span> fit<span class="o">$</span>time.series[, <span class="s">&quot;seasonal&quot;</span>])   <span class="c1"># take the season out</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run STL on the log airline series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">fit <span class="o">&lt;-</span> <span class="nf">stl</span>(<span class="nf">log</span>(AirPassengers), s.window <span class="o">=</span> <span class="s">&quot;periodic&quot;</span>)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(fit<span class="o">$</span>time.series, <span class="m">4</span>), <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt;          seasonal  trend remainder</span></span>
+<span class="cl"><span class="c1">#&gt; Jan 1949  -0.0916 4.8294   -0.0192</span></span>
+<span class="cl"><span class="c1">#&gt; Feb 1949  -0.1140 4.8304    0.0543</span></span>
+<span class="cl"><span class="c1">#&gt; Mar 1949   0.0159 4.8313    0.0356</span></span>
+<span class="cl"><span class="c1">#&gt; Apr 1949  -0.0140 4.8334    0.0405</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>stl()</code> returns the three components as columns in a matrix called <code>time.series</code>. Notice these are log-scale numbers (the trend sits near 4.83, which is <code>log</code> of about 125), and notice there are no <code>NA</code> values. STL estimates the trend for January 1949 where classical decomposition could not, because Loess can fit near the boundary. That alone is a meaningful upgrade.</p>
+
+<p>The real difference shows up when seasonality evolves. Replace <code>&quot;periodic&quot;</code> with an odd number and <code>s.window</code> becomes the number of years STL looks at when learning the seasonal shape, letting it change gradually. The <code>UKgas</code> dataset (quarterly UK gas consumption from 1960 to 1986) is perfect here, because central heating spread over those decades and the winter peak grew.</p>
+
+<div class="webr-container" data-block-title="Let the seasonal shape change over time">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let the seasonal shape change over time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">gfit <span class="o">&lt;-</span> <span class="nf">stl</span>(<span class="nf">log</span>(UKgas), s.window <span class="o">=</span> <span class="m">13</span>)</span>
+<span class="cl">gseas <span class="o">&lt;-</span> gfit<span class="o">$</span>time.series[, <span class="s">&quot;seasonal&quot;</span>]</span>
+<span class="cl">q1_1960 <span class="o">&lt;-</span> <span class="nf">window</span>(gseas, start <span class="o">=</span> <span class="nf">c</span>(<span class="m">1960</span>, <span class="m">1</span>), end <span class="o">=</span> <span class="nf">c</span>(<span class="m">1960</span>, <span class="m">1</span>))</span>
+<span class="cl">q1_1986 <span class="o">&lt;-</span> <span class="nf">window</span>(gseas, start <span class="o">=</span> <span class="nf">c</span>(<span class="m">1986</span>, <span class="m">1</span>), end <span class="o">=</span> <span class="nf">c</span>(<span class="m">1986</span>, <span class="m">1</span>))</span>
+<span class="cl"><span class="nf">c</span>(y1960 <span class="o">=</span> <span class="nf">round</span>(<span class="nf">as.numeric</span>(q1_1960), <span class="m">3</span>), y1986 <span class="o">=</span> <span class="nf">round</span>(<span class="nf">as.numeric</span>(q1_1986), <span class="m">3</span>))</span>
+<span class="cl"><span class="c1">#&gt; y1960 y1986</span></span>
+<span class="cl"><span class="c1">#&gt; 0.316 0.594</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The winter (first-quarter) seasonal factor nearly doubles, from <code>0.316</code> to <code>0.594</code> on the log scale. Converted back, that is roughly a 37 percent winter bump in 1960 growing to an 81 percent bump by 1986. Classical decomposition, and STL with <code>s.window = &quot;periodic&quot;</code>, would have averaged those two eras into one wrong number and hidden a real story about how Britain heats its homes.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Turn on robust mode when outliers are present.</strong> Passing <code>robust = TRUE</code> to <code>stl()</code> down-weights unusual observations so a one-off spike does not distort the trend and seasonal estimates. It is the STL equivalent of using a median instead of a mean, and it is cheap insurance for messy real-world data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run STL on the <code>co2</code> dataset (monthly atmospheric readings) with a periodic season, then look at the first few trend values.</p>
+<div class="webr-container" data-block-title="Your turn: run STL on the co2 series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: run STL on the co2 series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Fit STL to co2 with a fixed seasonal shape</span></span>
+<span class="cl">ex_fit <span class="o">&lt;-</span> <span class="kc">NULL</span>   <span class="c1"># replace NULL with stl(co2, s.window = &quot;periodic&quot;)</span></span>
+<span class="cl">ex_fit</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">window</span>(<span class="nf">cbind</span>(observed <span class="o">=</span> AirPassengers, adjusted <span class="o">=</span> adjusted), <span class="nf">c</span>(<span class="m">1949</span>, <span class="m">7</span>), <span class="nf">c</span>(<span class="m">1949</span>, <span class="m">12</span>)), <span class="m">1</span>)</span>
-<span class="cl"><span class="c1">#&gt;          observed adjusted</span></span>
-<span class="cl"><span class="c1">#&gt; Jul 1949      148    119.2</span></span>
-<span class="cl"><span class="c1">#&gt; Aug 1949      148    120.0</span></span>
-<span class="cl"><span class="c1">#&gt; Sep 1949      136    127.1</span></span>
-<span class="cl"><span class="c1">#&gt; Oct 1949      119    127.7</span></span>
-<span class="cl"><span class="c1">#&gt; Nov 1949      104    128.8</span></span>
-<span class="cl"><span class="c1">#&gt; Dec 1949      118    130.5</span></span></div>
+<span class="cl"><span class="c1"># Goal: head(ex_fit$time.series[, &quot;trend&quot;]) rises from about 315</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1080,16 +1227,16 @@
   </div>
   <div class="webr-plot-output"></div>
 </div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p><code>window()</code> here just slices the two series down to the second half of 1949 so the table is short enough to read. July and August 1949 were the summer peaks at 148, and adjustment pulls them down to about 119 and 120, because a large part of 148 was just the season. November, a low month at 104, is pushed up to 128.8. The adjusted column no longer swings with the calendar; it rises gently from 119 to 130 across the half-year, which is the underlying level once July-ness and November-ness are taken out. Plotting the two makes the effect obvious.</p>
-
-<div class="webr-container" data-block-title="Observed versus seasonally adjusted">
+<div class="webr-container" data-block-title="Run STL on the co2 series">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Observed versus seasonally adjusted</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">ts.plot</span>(AirPassengers, adjusted, col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;grey60&quot;</span>, <span class="s">&quot;firebrick&quot;</span>), lwd <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>),</span>
-<span class="cl">        ylab <span class="o">=</span> <span class="s">&quot;passengers (thousands)&quot;</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topleft&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;observed&quot;</span>, <span class="s">&quot;seasonally adjusted&quot;</span>),</span>
-<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;grey60&quot;</span>, <span class="s">&quot;firebrick&quot;</span>), lwd <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>), bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run STL on the co2 series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_fit <span class="o">&lt;-</span> <span class="nf">stl</span>(co2, s.window <span class="o">=</span> <span class="s">&quot;periodic&quot;</span>)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(ex_fit<span class="o">$</span>time.series[, <span class="s">&quot;trend&quot;</span>], <span class="m">4</span>), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;        Jan   Feb   Mar   Apr</span></span>
+<span class="cl"><span class="c1">#&gt; 1959 315.2 315.3 315.4 315.5</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1099,133 +1246,478 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The grey observed line keeps its yearly teeth; the red adjusted line follows the same overall climb but the teeth are gone, leaving a smooth rising level. If you use the <code>forecast</code> package, <code>seasadj(fit)</code> does this same subtraction for you in one call.</p>
+<p><strong>Explanation:</strong> <code>co2</code> is already additive, so no log is needed. STL returns a smooth trend that climbs from about 315 parts per million, and crucially it gives a value for January 1959, the very first month, with no <code>NA</code> gap.</p>
 
-<h2>STL vs classical: which should you use?</h2>
+</details>
+</section>
 
-<p>Everything above points to a short decision. Each row below rests on something already shown, not a new claim.</p>
+<h2>STL vs classical: which decomposition should you choose?</h2>
+
+<p>You now know both engines, so the choice comes down to a few honest trade-offs. Classical decomposition is fast, simple, and the textbook baseline everyone recognizes. STL is more flexible and more robust, at the cost of a couple of tuning knobs. Here is the head-to-head.</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Your situation</th>
-<th>Reach for</th>
-<th>Why (shown earlier)</th>
+<th>Question</th>
+<th>Classical <code>decompose()</code></th>
+<th>STL <code>stl()</code></th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>You need the trend at the most recent months</td>
-<td><code>stl()</code></td>
-<td>the classical trend is <code>NA</code> in the last six months</td>
+<td>Seasonal shape</td>
+<td>Frozen, identical every cycle</td>
+<td>Can change slowly over time</td>
 </tr>
 <tr>
-<td>The seasonal shape has changed over the years</td>
-<td><code>stl()</code> with a numeric <code>s.window</code></td>
-<td>classical reuses one frozen seasonal figure for every year</td>
+<td>Trend at the edges</td>
+<td>Lost (NA at both ends)</td>
+<td>Estimated everywhere</td>
 </tr>
 <tr>
-<td>The series has spikes, strikes or one-off shocks</td>
-<td><code>stl(robust = TRUE)</code></td>
-<td>otherwise an <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> leaks into every year's seasonal figure</td>
+<td>Outliers</td>
+<td>Sensitive</td>
+<td>Optional robust mode</td>
 </tr>
 <tr>
-<td>You want something simple and transparent</td>
-<td><code>decompose()</code></td>
-<td>four legible steps you can rebuild by hand</td>
+<td>Multiplicative data</td>
+<td>Built in via <code>type =</code></td>
+<td>Log-transform first</td>
 </tr>
 <tr>
-<td>You need trading-day or Easter calendar effects</td>
-<td>X-13ARIMA-SEATS (the <code>seasonal</code> package)</td>
-<td>calendar effects need a dedicated model neither function has</td>
+<td>Seasonal period</td>
+<td>Monthly or quarterly</td>
+<td>Any period you set</td>
 </tr>
 </tbody>
 </table>
 
-<p>For most modern work <code>stl()</code> is the safe default, and <code>decompose()</code> remains the clearest way to learn what a decomposition is. The full path is below.</p>
+<p><img src="screenshots/Time-Series-Decomposition-in-R-stl-vs-classical.webp" alt="Deciding between classical decompose() and stl()." class="img-responsive img-zoomable" loading="lazy" width="1014" height="1122" /></p>
 
-<p><img src="screenshots/Time-Series-Decomposition-in-R-choose.webp" alt="Decision flowchart for choosing a decomposition method: use stl when you need the recent trend or the season has changed, stl with robust for shocks, X-13ARIMA-SEATS for calendar effects, and decompose otherwise." class="img-responsive img-zoomable" loading="lazy" width="1666" height="3000" /></p>
+<p><em>Figure 3: Deciding between classical decompose() and stl().</em></p>
 
-<p><em>Choosing a method. <code>stl()</code> covers the common cases; <code>decompose()</code> is the teaching tool; specialist calendar effects need X-13ARIMA-SEATS.</em></p>
+<p>Whichever engine you pick, the single most common reason to decompose at all is <strong>seasonal adjustment</strong>: removing the seasonal component so the underlying signal is visible. When the news reports "seasonally adjusted unemployment," this is the operation behind it. With classical components it is one division, because the airline model is multiplicative.</p>
 
-<p>Decomposition is how you look at a series. When your next step is a model such as ARIMA that requires the trend and season <strong>removed</strong> rather than displayed, differencing is the usual tool, and <a href="Test-Stationarity-in-R.html">Test Stationarity in R</a> covers how to decide how much of it you need. For the plots that reveal trend and seasonality in the first place, see <a href="Visualize-Time-Series-in-R.html">Visualize Time Series in R</a>.</p>
+<div class="webr-container" data-block-title="Seasonally adjust with the classical components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonally adjust with the classical components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">sa_classical <span class="o">&lt;-</span> AirPassengers <span class="o">/</span> components<span class="o">$</span>seasonal</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(sa_classical, <span class="m">6</span>), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;        Jan   Feb   Mar   Apr   May   Jun</span></span>
+<span class="cl"><span class="c1">#&gt; 1949 123.0 133.5 131.0 132.2 123.3 121.3</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<h2>Frequently asked questions</h2>
+<p>Dividing out the seasonal factors leaves the trend and remainder combined, so the July spike and November dip flatten away and month-to-month changes become comparable. The STL version is the same idea, but its components are on the log scale, so we add the trend and remainder and then exponentiate.</p>
 
-<p><strong>Why is my trend column full of <code>NA</code> values?</strong> <code>decompose()</code> estimates the trend with a centred moving average, and the first and last six months of monthly data have no full window around them, so the trend is <code>NA</code> there. It is not an error. If you need a trend at the ends, use <code>stl()</code>, whose loess reaches the edges of the data.</p>
+<div class="webr-container" data-block-title="Seasonally adjust with the STL components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonally adjust with the STL components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">sa_stl <span class="o">&lt;-</span> <span class="nf">exp</span>(fit<span class="o">$</span>time.series[, <span class="s">&quot;trend&quot;</span>] <span class="o">+</span> fit<span class="o">$</span>time.series[, <span class="s">&quot;remainder&quot;</span>])</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(sa_stl, <span class="m">6</span>), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;        Jan   Feb   Mar   Apr   May   Jun</span></span>
+<span class="cl"><span class="c1">#&gt; 1949 122.7 132.3 129.9 130.8 122.8 121.0</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p><strong>Why does <code>stl()</code> only do additive decomposition?</strong> Loess adds a smooth curve to a series and has no multiplicative mode. For a multiplicative series (one whose swing grows with the level) you decompose <code>log(y)</code> instead: logs turn products into sums, so an additive fit on the log is a multiplicative fit on the original. Read the components back with <code>exp()</code> to see them as multipliers.</p>
+<p>The two adjusted series agree closely, within a passenger or two, because the airline's seasonality is stable enough that both engines see the same wave. That agreement is itself informative: when classical and STL disagree, it usually means the seasonal shape is shifting and STL is the one to trust.</p>
 
-<p><strong>What number should <code>s.window</code> be?</strong> It sets how many years STL uses to estimate each month's seasonal value. <code>&quot;periodic&quot;</code> holds the seasonal shape identical for all years; a small odd number such as 7, 11 or 13 lets it drift, with smaller values drifting faster. A sensible default is <code>&quot;periodic&quot;</code>, lowered only if the seasonal shape is visibly changing over time.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Seasonal adjustment is decomposition's number one job.</strong> Analysts rarely stop at the pretty four-panel chart. They pull out the seasonal component and remove it so trends and turning points stand clear of the yearly noise, which is what makes month-over-month comparisons meaningful.</div></div>
 
-<p><strong>When do I need <code>robust = TRUE</code>?</strong> Turn it on when the series has one-off shocks, such as a strike or a data glitch, that you do not want to bend the trend or contaminate the seasonal figure. The robust option downweights those outliers so they land in the remainder instead of leaking into the other components.</p>
+<section class="tryit-block">
+<p><strong>Try it:</strong> The STL trend of <code>AirPassengers</code> is on the log scale. Exponentiate it to read the underlying passenger level in plain numbers.</p>
+<div class="webr-container" data-block-title="Your turn: back-transform the STL trend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: back-transform the STL trend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Convert the log-scale STL trend back to passenger counts</span></span>
+<span class="cl">ex_trend <span class="o">&lt;-</span> <span class="kc">NULL</span>   <span class="c1"># replace NULL with exp(fit$time.series[, &quot;trend&quot;])</span></span>
+<span class="cl">ex_trend</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Goal: six values rising from about 125</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p><strong>Does a large remainder mean the decomposition failed?</strong> No. The remainder is only what the trend and season do not account for, so a noisy series will always leave a bigger remainder than a smooth one, and that is expected, not an error. What matters is whether the remainder still holds visible pattern: if you plot it and see leftover trend or a repeating seasonal shape, the model is wrong (often additive where it should be multiplicative, or a seasonal window that is too rigid). A remainder that looks like patternless scatter, even a sizeable one, is exactly what you want.</p>
+<div class="webr-container" data-block-title="Back-transform the STL trend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Back-transform the STL trend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_trend <span class="o">&lt;-</span> <span class="nf">exp</span>(fit<span class="o">$</span>time.series[, <span class="s">&quot;trend&quot;</span>])</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(ex_trend, <span class="m">6</span>), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;        Jan   Feb   Mar   Apr   May   Jun</span></span>
+<span class="cl"><span class="c1">#&gt; 1949 125.1 125.3 125.4 125.6 125.9 126.2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p><strong>Does decomposition need a stationary series?</strong> No. Decomposition is how you see the trend and seasonality; a <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">stationarity test</a> and differencing are how you remove them for a model like ARIMA. They are complementary steps, not alternatives.</p>
+<p><strong>Explanation:</strong> <code>exp()</code> undoes the earlier <code>log()</code>, returning the trend to its original units. The underlying level starts around 125 passengers and rises smoothly, with the summer spikes and noise already stripped out.</p>
 
-<p><strong>Can I decompose data with more than one seasonal period?</strong> Base <code>stl()</code> handles a single seasonal period. For data with several cycles at once, such as hourly readings that repeat both daily and weekly, use <code>forecast::mstl()</code> or a <code>tsibble</code> with <code>feasts::STL()</code>, specifying a window for each period.</p>
+</details>
+</section>
+
+<h2>Complete Example: Decompose the Mauna Loa CO2 record</h2>
+
+<p>Let's tie every step together on a fresh series, and deliberately pick one where classical decomposition is the right call. The <code>co2</code> dataset holds monthly atmospheric carbon dioxide measured at Mauna Loa from 1959 to 1997. It has a powerful upward trend and a gentle, unchanging annual cycle, the textbook case for an additive model.</p>
+
+<div class="webr-container" data-block-title="Look at the co2 series first">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look at the co2 series first</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">frequency</span>(co2)</span>
+<span class="cl"><span class="c1">#&gt; [1] 12</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(co2, <span class="m">6</span>), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;       Jan   Feb   Mar   Apr   May   Jun</span></span>
+<span class="cl"><span class="c1">#&gt; 1959 315.4 316.3 316.5 317.6 318.1 318.0</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The seasonal swing here is only a few parts per million and does not grow as the level climbs from 315 into the 360s, so it is a constant height. That is additive, and it is stable, so classical decomposition will do the job well. We run it and read the trend rise directly.</p>
+
+<div class="webr-container" data-block-title="Decompose co2 and measure the trend rise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose co2 and measure the trend rise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">co2_dec <span class="o">&lt;-</span> <span class="nf">decompose</span>(co2, type <span class="o">=</span> <span class="s">&quot;additive&quot;</span>)</span>
+<span class="cl">tr <span class="o">&lt;-</span> co2_dec<span class="o">$</span>trend</span>
+<span class="cl">rise <span class="o">&lt;-</span> tr[<span class="nf">max</span>(<span class="nf">which</span>(<span class="o">!</span><span class="nf">is.na</span>(tr)))] <span class="o">-</span> tr[<span class="nf">min</span>(<span class="nf">which</span>(<span class="o">!</span><span class="nf">is.na</span>(tr)))]</span>
+<span class="cl"><span class="nf">round</span>(rise, <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 47.9</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The trend climbed 47.9 parts per million across the record, the real signal underneath the annual wiggle. Now the seasonal figure, which tells us the shape of that yearly cycle in absolute units.</p>
+
+<div class="webr-container" data-block-title="Read the co2 seasonal cycle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the co2 seasonal cycle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">round</span>(co2_dec<span class="o">$</span>figure, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;  [1] -0.05  0.61  1.38  2.52  3.00  2.33  0.81 -1.25 -3.05 -3.25 -2.07 -0.97</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>CO2 peaks in May (<code>+3.00</code>) and bottoms out in October (<code>-3.25</code>), tracking the Northern Hemisphere growing season as plants pull carbon from the air in summer and release it in autumn. Because this is additive, seasonal adjustment is a subtraction.</p>
+
+<div class="webr-container" data-block-title="Seasonally adjust the co2 series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonally adjust the co2 series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">co2_sa <span class="o">&lt;-</span> co2 <span class="o">-</span> co2_dec<span class="o">$</span>seasonal</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">head</span>(co2_sa, <span class="m">6</span>), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;         Jan    Feb    Mar    Apr    May    Jun</span></span>
+<span class="cl"><span class="c1">#&gt; 1959 315.47 315.70 315.12 315.04 315.13 315.67</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With the yearly cycle removed, the adjusted values sit almost flat near 315 in early 1959 and then rise steadily, exposing the clean upward march. Finally, does STL do any better here? We compare how much variation each method leaves in the remainder, where smaller means a tighter fit.</p>
+
+<div class="webr-container" data-block-title="Compare classical and STL remainders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare classical and STL remainders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">co2_stl <span class="o">&lt;-</span> <span class="nf">stl</span>(co2, s.window <span class="o">=</span> <span class="s">&quot;periodic&quot;</span>)</span>
+<span class="cl"><span class="nf">c</span>(classical <span class="o">=</span> <span class="nf">round</span>(<span class="nf">sd</span>(co2_dec<span class="o">$</span>random, na.rm <span class="o">=</span> <span class="kc">TRUE</span>), <span class="m">3</span>),</span>
+<span class="cl">  stl       <span class="o">=</span> <span class="nf">round</span>(<span class="nf">sd</span>(co2_stl<span class="o">$</span>time.series[, <span class="s">&quot;remainder&quot;</span>]), <span class="m">3</span>))</span>
+<span class="cl"><span class="c1">#&gt; classical       stl</span></span>
+<span class="cl"><span class="c1">#&gt;     0.265     0.260</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The remainders are almost identical, <code>0.265</code> versus <code>0.260</code>. When the seasonal shape genuinely is constant, STL's flexibility buys you nothing, and the simpler classical method is the sensible choice. STL earns its keep on the harder cases (shifting seasonality, outliers, or values right at the edges), not on well-behaved series like this one.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For production <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a>, richer tools build on these same ideas.</strong> Packages like <code>forecast</code> and the tidyverts stack (<code>fable</code> and <code>feasts</code>) offer <code>mstl()</code> for multiple seasonal periods and helpers such as <code>seasadj()</code>, but they all rest on the trend, seasonal, and remainder logic you just built by hand.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<p>Time to combine the pieces. Each exercise uses distinct variable names so it will not clobber the tutorial's objects. Try it yourself before opening the solution.</p>
+
+<h3>Exercise 1: Find the warmest and coldest months</h3>
+
+<p>Decompose the additive <code>nottem</code> temperature series and use its seasonal figure to report the warmest and coldest calendar months, with their seasonal values.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Decompose nottem additively, then find the extreme months</span></span>
+<span class="cl"><span class="c1"># Hint: which.max() and which.min() on the $figure slot, plus month.abb</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Write your code below:</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Warmest and coldest months solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Warmest and coldest months solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_nottem <span class="o">&lt;-</span> <span class="nf">decompose</span>(nottem, type <span class="o">=</span> <span class="s">&quot;additive&quot;</span>)</span>
+<span class="cl"><span class="nf">cat</span>(<span class="s">&quot;Warmest:&quot;</span>, month.abb[<span class="nf">which.max</span>(my_nottem<span class="o">$</span>figure)], <span class="nf">round</span>(<span class="nf">max</span>(my_nottem<span class="o">$</span>figure), <span class="m">2</span>), <span class="s">&quot;\n&quot;</span>)</span>
+<span class="cl"><span class="nf">cat</span>(<span class="s">&quot;Coldest:&quot;</span>, month.abb[<span class="nf">which.min</span>(my_nottem<span class="o">$</span>figure)], <span class="nf">round</span>(<span class="nf">min</span>(my_nottem<span class="o">$</span>figure), <span class="m">2</span>), <span class="s">&quot;\n&quot;</span>)</span>
+<span class="cl"><span class="c1">#&gt; Warmest: Jul 12.97</span></span>
+<span class="cl"><span class="c1">#&gt; Coldest: Feb -9.9</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> July runs about 13 degrees above the annual mean and February about 10 below it. Because the model is additive, these are absolute temperature offsets, not percentages.</p>
+
+</details>
+
+<h3>Exercise 2: Prove the parts rebuild the whole</h3>
+
+<p>Confirm that the multiplicative components of <code>AirPassengers</code> multiply back to the original series. Rebuild trend times seasonal times remainder, and check equality on the months that have a trend estimate (skip the <code>NA</code> edges).</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Multiply the three components and compare to AirPassengers</span></span>
+<span class="cl"><span class="c1"># Hint: keep only positions where the reconstruction is not NA</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Write your code below:</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reconstruction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reconstruction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_recon <span class="o">&lt;-</span> components<span class="o">$</span>trend <span class="o">*</span> components<span class="o">$</span>seasonal <span class="o">*</span> components<span class="o">$</span>random</span>
+<span class="cl">my_idx <span class="o">&lt;-</span> <span class="o">!</span><span class="nf">is.na</span>(my_recon)</span>
+<span class="cl"><span class="nf">all.equal</span>(<span class="nf">as.numeric</span>(my_recon[my_idx]), <span class="nf">as.numeric</span>(AirPassengers)[my_idx])</span>
+<span class="cl"><span class="c1">#&gt; [1] TRUE</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For a multiplicative model, trend times seasonal times remainder reproduces the observed value exactly wherever the trend exists. Decomposition rearranges the data without losing any of it.</p>
+
+</details>
+
+<h3>Exercise 3: Seasonally adjust UK gas demand</h3>
+
+<p>Use STL on the log of <code>UKgas</code> to seasonally adjust the quarterly gas series, then compare the average of each quarter before and after adjustment. Does winter (Q1) still dominate once the seasonal cycle is removed?</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># STL-adjust UKgas (log scale) and compare quarterly averages</span></span>
+<span class="cl"><span class="c1"># Hint: seasonally adjusted = exp(trend + remainder); use tapply with cycle()</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Write your code below:</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="UK gas seasonal adjustment solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">UK gas seasonal adjustment solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_gas <span class="o">&lt;-</span> <span class="nf">stl</span>(<span class="nf">log</span>(UKgas), s.window <span class="o">=</span> <span class="s">&quot;periodic&quot;</span>)</span>
+<span class="cl">my_sa <span class="o">&lt;-</span> <span class="nf">exp</span>(my_gas<span class="o">$</span>time.series[, <span class="s">&quot;trend&quot;</span>] <span class="o">+</span> my_gas<span class="o">$</span>time.series[, <span class="s">&quot;remainder&quot;</span>])</span>
+<span class="cl"><span class="nf">rbind</span>(</span>
+<span class="cl">  raw <span class="o">=</span> <span class="nf">round</span>(<span class="nf">tapply</span>(<span class="nf">as.numeric</span>(UKgas), <span class="nf">cycle</span>(UKgas), mean), <span class="m">0</span>),</span>
+<span class="cl">  adjusted <span class="o">=</span> <span class="nf">round</span>(<span class="nf">tapply</span>(<span class="nf">as.numeric</span>(my_sa), <span class="nf">cycle</span>(my_sa), mean), <span class="m">0</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;            1   2   3   4</span></span>
+<span class="cl"><span class="c1">#&gt; raw      501 301 167 381</span></span>
+<span class="cl"><span class="c1">#&gt; adjusted 325 297 288 346</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Raw winter (Q1) demand of 501 far exceeds summer (Q3) demand of 167. After seasonal adjustment the four quarters sit close together (325, 297, 288, 346), because the seasonal cycle, not any underlying quarter effect, was driving the gap. That flattening is exactly what seasonal adjustment is for.</p>
+
+</details>
 
 <h2>Summary</h2>
+
+<p>Decomposition turns one hard-to-read line into three parts you can reason about, and the whole toolkit fits in a single picture.</p>
+
+<p><img src="screenshots/Time-Series-Decomposition-in-R-overview-mindmap.webp" alt="The whole decomposition toolkit at a glance." class="img-responsive img-zoomable" loading="lazy" width="1738" height="1050" /></p>
+
+<p><em>Figure 4: The whole decomposition toolkit at a glance.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Point</th>
+<th>Idea</th>
 <th>What to remember</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>The three parts</td>
-<td>An observed value is a trend, a seasonal part and a remainder, combined additively (<code>y = T + S + R</code>) or multiplicatively (<code>y = T x S x R</code>).</td>
+<td>Three components</td>
+<td>Every series splits into trend-cycle, seasonal, and remainder</td>
 </tr>
 <tr>
-<td>Choosing the model</td>
-<td>If the seasonal swing grows with the level, the series is multiplicative; decompose <code>log(y)</code> and read the parts back with <code>exp()</code>.</td>
+<td>Additive vs multiplicative</td>
+<td>Constant swing is additive; a swing that grows with the level is multiplicative (take logs)</td>
 </tr>
 <tr>
-<td><code>decompose()</code></td>
-<td>Classical: a 2x12 moving-average trend and one frozen seasonal figure. Simple and transparent, but the trend is <code>NA</code> at both ends and the season cannot change.</td>
+<td>Classical <code>decompose()</code></td>
+<td>Moving-average trend, frozen seasonal shape, <code>NA</code> at the edges, fast and simple</td>
 </tr>
 <tr>
-<td><code>stl()</code></td>
-<td>Loess-based: a trend at every month and a seasonal shape that <code>s.window</code> can hold fixed (<code>&quot;periodic&quot;</code>) or let drift (a numeric span). Additive only, so log a multiplicative series first.</td>
+<td>STL <code>stl()</code></td>
+<td>Loess-based, seasonal shape can change, no edge gaps, optional robust mode</td>
+</tr>
+<tr>
+<td><code>s.window</code></td>
+<td><code>&quot;periodic&quot;</code> freezes the season; an odd number lets it drift over that many cycles</td>
 </tr>
 <tr>
 <td>Seasonal adjustment</td>
-<td>Subtract the seasonal component (<code>exp(log(y) - seasonal)</code>) to see the underlying level without the yearly saw-tooth.</td>
+<td>Remove the seasonal part to expose the real trend, the top reason to decompose</td>
 </tr>
 <tr>
-<td>Default choice</td>
-<td>Reach for <code>stl()</code> in practice; keep <code>decompose()</code> for learning and for perfectly simple, stable seasonality.</td>
+<td>Choosing</td>
+<td>Stable, simple series go classical; shifting seasonality, outliers, or edge sensitivity go STL</td>
 </tr>
 </tbody>
 </table>
+
+<p>Start with a plot, decide additive or multiplicative from the seasonal swing, then pick the engine that matches how stable your seasonality really is. From here, decomposition feeds directly into forecasting, because cleaner components make cleaner predictions.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between STL and classical decomposition?</h3>
+
+<p>Classical <code>decompose()</code> estimates the trend with a centered moving average and then reuses one fixed seasonal shape for every cycle. STL fits the trend and seasonal parts with Loess (many small local regressions), so the seasonal shape can change over time, the trend reaches the edges of the series with no gaps, and an optional robust mode down-weights outliers. Classical is the simpler baseline; STL is the flexible workhorse.</p>
+
+<h3>How do I decide between an additive and a multiplicative model?</h3>
+
+<p>Look at whether the seasonal swing grows as the series climbs. If the gap between the yearly high and low stays about the same size, the series is additive. If that gap widens as the level rises, like airline traffic, the series is multiplicative, so pass <code>type = &quot;multiplicative&quot;</code> to <code>decompose()</code> or work on the <code>log()</code> scale for STL.</p>
+
+<h3>Why does decompose() return NA values at the start and end?</h3>
+
+<p>The classical trend is a centered moving average that needs half a season of data on each side. For monthly data that is six months, so the first six and last six trend values cannot be computed and come back as <code>NA</code>. STL does not have this gap because Loess can fit right up to the boundaries.</p>
+
+<h3>Can STL handle multiplicative seasonality?</h3>
+
+<p>Not directly, because <code>stl()</code> only does additive decomposition. The standard workaround is to decompose <code>log(series)</code>, which turns the multiplication into addition, then exponentiate the components with <code>exp()</code> to return to the original scale.</p>
+
+<h3>What does the s.window argument control?</h3>
+
+<p><code>s.window</code> sets how quickly the seasonal shape is allowed to change. Setting it to <code>&quot;periodic&quot;</code> freezes the shape so every cycle is identical, matching the classical assumption. Setting it to an odd number lets the seasonal pattern drift, using that many cycles of context to learn the shape at each point.</p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Hyndman, R.J. & Athanasopoulos, G., <em>Forecasting: Principles and Practice</em> (3rd ed.), <a href="https://otexts.com/fpp3/decomposition.html">Time series components</a>. The clearest free treatment of the trend/seasonal/remainder model.</li>
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. Chapter 3: Time series decomposition. <a href="https://otexts.com/fpp3/decomposition.html">Link</a></li>
 
-<li>Hyndman & Athanasopoulos, <a href="https://otexts.com/fpp3/stl.html">STL decomposition</a>. What loess is doing and how to choose the STL windows.</li>
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. Section 3.6: STL decomposition. <a href="https://otexts.com/fpp3/stl.html">Link</a></li>
 
-<li>Hyndman & Athanasopoulos, <a href="https://otexts.com/fpp3/classical-decomposition.html">Classical decomposition</a>. The moving-average method behind <code>decompose()</code>, and its known drawbacks.</li>
+<li>Cleveland, R.B., Cleveland, W.S., McRae, J.E. & Terpenning, I. STL: A Seasonal-Trend Decomposition Procedure Based on Loess. <em>Journal of Official Statistics</em>, 6(1), 3-73 (1990). <a href="https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf">Link</a></li>
 
-<li>R documentation, [<code>stl()</code>](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html). Every argument, including <code>s.window</code>, <code>t.window</code> and <code>robust</code>.</li>
+<li>R Core Team. <code>stl()</code>: Seasonal Decomposition of Time Series by Loess (stats package reference). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html">Link</a></li>
 
-<li>R documentation, [<code>decompose()</code>](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/decompose.html). The exact four-step classical algorithm used above.</li>
+<li>R Core Team. <code>decompose()</code>: Classical Seasonal Decomposition by Moving Averages. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/decompose.html">Link</a></li>
 
-<li>R documentation, [<code>AirPassengers</code>](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/AirPassengers.html). The dataset used throughout this post.</li>
-
-<li>Wikipedia, <a href="https://en.wikipedia.org/wiki/Decomposition_of_time_series">Decomposition of time series</a>. A concise overview of additive and multiplicative models and their history.</li>
+<li>NIST/SEMATECH. <em>e-Handbook of Statistical Methods</em>, Section 6.4.1: Introduction to time series decomposition. <a href="https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc41.htm">Link</a></li>
 
 </ol>
 
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Moving-Averages-in-R.html">Moving Averages in R</a>: the smoothing idea at the heart of classical decomposition, explained step by step.</li>
+
+<li><a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a>: how to build and index the <code>ts</code> objects that decomposition depends on.</li>
+
+<li><a href="ACF-and-PACF-in-R.html">ACF and PACF in R</a>: read the autocorrelation left in a remainder to check your decomposition captured the structure.</li>
+
+</ul>
+
 
 <aside class="continue-reading-block" data-continue-block><div class="cr-eyebrow">Continue Reading</div><a class="cr-link" data-continue-link href="#"></a></aside>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Choosing-a-Forecasting-Model-in-R.html"><span class="rt-title">Which Forecasting Model in R? A Decision Guide</span><span class="rt-meta">22 min read</span></a><a class="rt-card" href="Spectral-Analysis-in-R.html"><span class="rt-title">Spectral Analysis in R: Periodogram and Power Spectrum</span><span class="rt-meta">22 min read</span></a><a class="rt-card" href="Visualize-Time-Series-in-R.html"><span class="rt-title">Visualize Time Series in R: autoplot(), Seasonal, Lag Plots</span><span class="rt-meta">Time Series &middot; 24 min read</span></a><a class="rt-card" href="Test-Stationarity-in-R.html"><span class="rt-title">Test Stationarity in R: ADF, KPSS, and Differencing</span><span class="rt-meta">Time Series &middot; 22 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Time-Series-Objects-in-R.html"><span class="rt-title">Time Series Objects in R: ts, xts, zoo, or tsibble?</span><span class="rt-meta">Time Series &middot; 17 min read</span></a><a class="rt-card" href="Moving-Averages-in-R.html"><span class="rt-title">Moving Averages in R: Simple, Weighted, and Exponential</span><span class="rt-meta">Time Series &middot; 26 min read</span></a><a class="rt-card" href="Visualize-Time-Series-in-R.html"><span class="rt-title">Visualize Time Series in R: autoplot(), Seasonal, Lag Plots</span><span class="rt-meta">Time Series &middot; 24 min read</span></a><a class="rt-card" href="High-Frequency-Time-Series-in-R.html"><span class="rt-title">High-Frequency Time Series in R: Intraday xts and quantmod</span><span class="rt-meta">19 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="Moving-Averages-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Moving Averages</span></a>
 <a class="pn-link pn-next" href="ETS-Models-in-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">ETS Models</span></a>
