@@ -603,6 +603,12 @@ _TOOL_ICONS = {
         '<path d="M3.5 11.5L13 5"/>'
         '<path d="M3.5 9L13 2.5" opacity=".55"/>'
         '<path d="M3.5 14L13 7.5" opacity=".55"/></svg>',
+    # bayesian output: a posterior hump over a credible-interval bar with its point estimate
+    'bayesian-output-interpreter.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 9c2.2 0 2.6-6 6-6s3.8 6 6 6"/>'
+        '<path d="M4 13h8"/>'
+        '<circle cx="8" cy="13" r="1.35" fill="currentColor" stroke="none"/></svg>',
     # coxph: a stepped survival curve with a censoring tick
     'coxph-output-interpreter.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -871,6 +877,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Interpreters', 'slug': 'glm-output-interpreter.html',             'text': 'glm() Output'},
     {'group': 'Interpreters', 'slug': 'lmer-output-interpreter.html',            'text': 'lmer() Output'},
     {'group': 'Interpreters', 'slug': 'coxph-output-interpreter.html',           'text': 'coxph() Output'},
+    {'group': 'Interpreters', 'slug': 'bayesian-output-interpreter.html',        'text': 'brms / rstanarm Output'},
     {'group': 'Interpreters', 'slug': 'anova-output-interpreter.html',           'text': 'ANOVA Output'},
     {'group': 'Interpreters', 'slug': 'vif-interpreter.html',                    'text': 'VIF / Multicollinearity'},
     {'group': 'Interpreters', 'slug': 'confusion-matrix-interpreter.html',       'text': 'Confusion Matrix'},
