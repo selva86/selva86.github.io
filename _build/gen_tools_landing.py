@@ -17,7 +17,7 @@ CATEGORIES = [
     ('R Output Interpreters', ['lm-output-interpreter','glm-output-interpreter','anova-output-interpreter','diagnostic-plot-interpreter','vif-interpreter','confusion-matrix-interpreter']),
     ('Pickers and Decision Tools', ['statistical-test-chooser','normality-test-picker','nonparametric-test-picker','dag-confounder-picker']),
     ('Study Design and Power', ['power-analysis','survival-power-calculator','effect-size-converter','type-i-ii-error-visualizer']),
-    ('Specialized', ['ts-stationarity-calculator','outlier-detection-calculator','roc-auc-calculator','cronbachs-alpha-calculator','reprex-builder']),
+    ('Specialized', ['ts-stationarity-calculator','outlier-detection-calculator','roc-auc-calculator','cronbachs-alpha-calculator','meta-analysis-quick-tool','reprex-builder']),
 ]
 
 
@@ -146,6 +146,9 @@ C3META = {
  'survival-power-calculator': ('Survival Power', 'log-rank',
   'Events, sample size, or power for a log-rank test, with accrual, follow-up, and dropout built in.',
   '<path class="s" d="M6 5 V39 H40"/><path class="s" d="M6 8 H12 V16 H19 V24 H26 V32 H38"/><path class="a" d="M6 8 H15 V13 H23 V19 H31 V26 H38" fill="none"/>'),
+ 'meta-analysis-quick-tool': ('Meta-Analysis', 'pooled',
+  'Pool a handful of studies under both the fixed-effect and random-effects models, with a forest plot and the heterogeneity numbers in plain English.',
+  '<path class="s" d="M24 4 V30" stroke-dasharray="2.5 2.5"/><path class="s" d="M12 9 H31"/><rect class="af" x="20" y="6.5" width="5" height="5"/><path class="s" d="M17 16 H38"/><rect class="af" x="26" y="13.5" width="5" height="5"/><path class="s" d="M9 23 H27"/><rect class="af" x="16" y="20.5" width="5" height="5"/><path class="a" d="M13 36 L22 32 L31 36 L22 40 Z"/>'),
  'effect-size-converter': ('Effect Size Converter', 'd&harr;r',
   "Translate between Cohen's d, r, odds ratios, and eta-squared without hunting for the formula.",
   '<path class="s" d="M4 36 H40"/><path class="s" d="M4 36 C10 36 11 16 16 16 C21 16 22 36 28 36" fill="none"/><path class="a" d="M16 36 C22 36 23 16 28 16 C33 16 34 36 40 36" fill="none"/><path class="a" d="M16 9 H28" fill="none"/><path class="af" d="M16 9 L19.5 7 V11 Z M28 9 L24.5 7 V11 Z"/>'),
