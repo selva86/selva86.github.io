@@ -426,6 +426,14 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2.5 5.5h11M11 3l2.5 2.5L11 8"/>'
         '<path d="M13.5 10.5h-11M5 8l-2.5 2.5L5 13"/></svg>',
+    # Forest plot: three study whiskers with weight squares, then a pooled diamond.
+    'meta-analysis-quick-tool.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M8 1.5v10.5"/>'
+        '<path d="M3 3.5h5.5"/><rect x="5.4" y="2.9" width="1.2" height="1.2" fill="currentColor" stroke="none"/>'
+        '<path d="M6.5 6.5h6"/><rect x="9.3" y="5.9" width="1.2" height="1.2" fill="currentColor" stroke="none"/>'
+        '<path d="M4 9.5h4.5"/><rect x="6.1" y="8.9" width="1.2" height="1.2" fill="currentColor" stroke="none"/>'
+        '<path d="M5.5 14l2-1.4 2 1.4-2 1.4z" fill="currentColor" stroke="none"/></svg>',
     'power-analysis.html':
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg>',
@@ -809,6 +817,7 @@ COMPENDIUM_TOOLS = [
     {'group': 'Calculators', 'slug': 'margin-of-error-calculator.html',          'text': 'Margin of Error'},
     {'group': 'Calculators', 'slug': 'bootstrap-ci-calculator.html',             'text': 'Bootstrap CI'},
     {'group': 'Calculators', 'slug': 'effect-size-converter.html',               'text': 'Effect Size Converter'},
+    {'group': 'Calculators', 'slug': 'meta-analysis-quick-tool.html',            'text': 'Meta-Analysis'},
     {'group': 'Calculators', 'slug': 'power-analysis.html',                      'text': 'Power Analysis'},
     {'group': 'Calculators', 'slug': 'sample-size-calculator.html',              'text': 'Sample Size'},
     {'group': 'Calculators', 'slug': 'sample-size-t-test-calculator.html',       'text': 'Sample Size (t Tests)'},
