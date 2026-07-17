@@ -101,27 +101,34 @@ def compose_v4_prompt(cid, entry, rewrite, slug):
 
 
 def run_write_v4(cli, cid, entry, rewrite, slug, timeout):
-    """Spawn the v4 writer with the composed hybrid prompt (mirrors bt.run_phase's
-    spawn, but with a prebuilt prompt rather than a skill+arg)."""
-    print('+ [%s] %s %s | %s  (--model %s --effort %s)  [HYBRID]' %
+    """Spawn the v4 writer with the composed hybrid prompt.
+
+    The inlined v4 SKILL.md (679 lines) plus overrides is ~40k chars, which exceeds
+    the Windows command-line limit (~32,767). So the prompt is piped via STDIN
+    (`claude -p` reads stdin when given no positional prompt) instead of passed as a
+    `-p <arg>`. stdout/stderr inherit so the worker's output still reaches the log."""
+    print('+ [%s] %s %s | %s  (--model %s --effort %s)  [HYBRID, stdin]' %
           (datetime.datetime.now().strftime('%H:%M'), V4_WRITER, cid,
            entry.get('type', 'C'), bt.BATCH_MODEL, bt.BATCH_EFFORT), flush=True)
     prompt = compose_v4_prompt(cid, entry, rewrite, slug)
     try:
-        proc = subprocess.Popen([cli, '-p', prompt, '--dangerously-skip-permissions',
+        proc = subprocess.Popen([cli, '-p', '--dangerously-skip-permissions',
                                  '--model', bt.BATCH_MODEL, '--effort', bt.BATCH_EFFORT,
-                                 '--settings', bt.WRITER_SETTINGS], cwd=bt.PROJECT_ROOT)
+                                 '--settings', bt.WRITER_SETTINGS],
+                                stdin=subprocess.PIPE, cwd=bt.PROJECT_ROOT,
+                                text=True, encoding='utf-8')
     except FileNotFoundError:
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127
     try:
-        return proc.wait(timeout=timeout or None)
+        proc.communicate(input=prompt, timeout=timeout or None)
+        return proc.returncode
     except subprocess.TimeoutExpired:
         print('  TIMEOUT: %s produced no result in %ss - killing the hung worker.'
               % (V4_WRITER, timeout), flush=True)
         bt._kill_tree(proc.pid)
         try:
-            proc.wait(timeout=20)
+            proc.communicate(timeout=20)
         except Exception:
             pass
         return 124
