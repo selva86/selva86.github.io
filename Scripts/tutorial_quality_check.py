@@ -82,8 +82,11 @@ def run_chain(rscript, blocks, label):
             f.write(script)
             path = f.name
         try:
+            # cwd = a scratch dir so plot() side effects (Rplots.pdf) never
+            # land in the repo root.
             r = subprocess.run([rscript, '--vanilla', path], capture_output=True, text=True,
-                               timeout=600, encoding='utf-8', errors='replace')
+                               timeout=600, encoding='utf-8', errors='replace',
+                               cwd=tempfile.gettempdir())
         finally:
             try: os.unlink(path)
             except OSError: pass
@@ -169,7 +172,10 @@ def main():
             fail('image alt text contains a double quote (breaks the alt attribute): %s'
                  % am.group(1)[:80])
     first_el = next((l for l in prose.splitlines() if l.strip()), '')
-    if first_el.startswith(('#', '!', '>', '|', '<')):
+    # `<p class="lead">` IS the lead paragraph: build.py anchors the byline to it and the
+    # JSON-LD speakable selector targets it, so it is the required opening, not a violation.
+    # Any other markup (heading, image, callout, table, bare div) still is one.
+    if not re.match(r'<p class="lead"', first_el) and first_el.startswith(('#', '!', '>', '|', '<')):
         fail('body must open with the lead paragraph (plain text answering the title), '
              'not a heading/image/callout')
     triads = re.findall(r'\b(\w[\w() ]{2,30}), (\w[\w() ]{2,30}), (?:and |or )\w[\w() ]{2,30}[.!]',
