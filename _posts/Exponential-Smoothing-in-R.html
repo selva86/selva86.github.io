@@ -1,0 +1,798 @@
+---
+title: "Exponential Smoothing in R: ses() and the Alpha Parameter"
+description: "Simple exponential smoothing in R: how alpha controls forgetting, how ses() in the forecast package optimises it for you, and when SES is the wrong model."
+keywords: "exponential smoothing in R, simple exponential smoothing, ses function R, alpha parameter smoothing, forecast package R, SES forecast R, smoothing parameter alpha, holt winters R"
+mathjax: true
+webr: true
+curriculum_id: "3.8.7"
+post_type: "C"
+auto_link_terms: "exponential smoothing|simple exponential smoothing|exponential smoothing in R|SES|ses()|smoothing parameter|the alpha parameter|smoothing constant|flat forecast|forecast the level|level of a series|weighted average of past observations|Holt's method|holt()"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Exponential Smoothing"
+sidebar_order: "11"
+---
+<!-- md2html:generated -->
+
+<p class="lead">Simple exponential smoothing forecasts a series by taking a weighted average of everything you have seen so far, with the most recent observation weighted heaviest and older ones fading away geometrically. One number, <b>alpha</b>, controls how fast that fade happens: high alpha means the forecast chases the latest value, low alpha means it barely moves. In R, <code>ses()</code> from the forecast package fits the model and picks alpha for you by minimising squared forecast error. This post builds the whole method by hand in six lines, checks it against <code>ses()</code> to the last decimal, and shows you exactly what alpha is doing and when the method quietly stops working.</p>
+
+<p>Everything below uses one dataset, so you always have something concrete to picture.</p>
+
+<p><strong>Ridge Road Bakery</strong> sells sourdough loaves. Someone at the counter has written down the number of loaves sold each week for the last <strong>24 weeks</strong>. There is no yearly cycle in it (24 weeks is too short to see one) and no steady climb or decline. What there is, is a level that wanders: the bakery was selling around 120 loaves a week at the start, sagged to 103 in week 13 when a cafe opened down the road, and has clawed its way back to 123 by week 24.</p>
+
+<p>The bakery wants one number: <strong>how many loaves should they prep for week 25?</strong> Hold on to that question. Every section below is a different answer to it, and the last section is about the week when this method would give them a bad one.</p>
+
+<h2>What does exponential smoothing actually forecast?</h2>
+
+<p>Simple exponential smoothing (SES for short) answers the bakery's question by estimating one quantity: the <strong>level</strong> of the series, meaning the typical value the series is wandering around <em>right now</em>, at the end of the data. Not the average over all 24 weeks, and not last week's number, but a current best guess at where the series sits today. Once it has that, the forecast for week 25 is the level. The forecast for week 26 is also the level. So is week 30's. SES has no notion of the series going anywhere, so its forecast is a flat line.</p>
+
+<p>Here is the whole thing, working, before any explanation.</p>
+
+<div class="webr-container" data-block-title="Forecast the bakery&#x27;s next four weeks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the bakery&#x27;s next four weeks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(forecast))
+
+# Sourdough loaves sold per week at Ridge Road Bakery, weeks 1 to 24.
+loaves &lt;- c(117, 125, 116, 119, 119, 107, 110, 110, 110, 113, 108, 106,
+            103, 106, 106, 113, 115, 114, 124, 114, 115, 118, 127, 123)
+bakery &lt;- ts(loaves, start = 1)
+
+# Fit simple exponential smoothing and forecast the next 4 weeks.
+fit &lt;- ses(bakery, h = 4)
+fit
+#&gt;    Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 25       123.0575 116.2432 129.8718 112.6360 133.4790
+#&gt; 26       123.0575 115.0634 131.0516 110.8315 135.2834
+#&gt; 27       123.0575 114.0365 132.0784 109.2611 136.8539
+#&gt; 28       123.0575 113.1152 132.9998 107.8520 138.2629</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that line by line. The first line attaches the <code>forecast</code> package, which is where <code>ses()</code> lives. (<code>suppressMessages()</code> just keeps the package's startup chatter out of the way; the code works the same without it.) The next lines write the bakery's 24 numbers into a plain vector, then <code>ts()</code> turns that vector into a <strong>time series object</strong>, which is R's way of saying "these numbers are in time order, starting at time 1". If <code>ts()</code> is new to you, <a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> covers it properly; for this post all you need to know is that it labels the weeks 1 to 24 for us.</p>
+
+<p>Then the real line: <code>ses(bakery, h = 4)</code>. The <code>h</code> argument is the <strong>forecast horizon</strong>, meaning how many periods ahead you want. We asked for 4, so R gave us weeks 25, 26, 27, and 28.</p>
+
+<p>Now look at what it says. The <code>Point Forecast</code> column is the single best guess: <strong>123.06 loaves</strong>, and it is the same 123.06 for all four weeks. That is the flat line. The four other columns are <strong>prediction intervals</strong>: R is 80% confident week 25 will land between 116.24 and 129.87, and 95% confident it will land between 112.64 and 133.48. Notice those intervals get wider as you go further out (week 28's 95% interval spans 107.85 to 138.26, about 30 loaves, versus week 25's 21) even though the point forecast never changes. The best guess stays put; the uncertainty about it grows.</p>
+
+<p>So the bakery should prep about 123 loaves. Where did 123.06 come from? It is not the average of the 24 weeks, and it is not last week's number. It is a weighted average of all 24 weeks, and the rest of this post is about the weighting.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Ask the same model for a longer horizon and confirm the point forecast really is flat forever.</p>
+<div class="webr-container" data-block-title="Your turn: forecast further out">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast further out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_long &lt;- ses(bakery, h = 12)
+
+# 1. Print ex_long$mean and look at all twelve numbers
+# 2. Before you run it: how many DIFFERENT values do you expect to see?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Longer horizon solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Longer horizon solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_long &lt;- ses(bakery, h = 12)
+round(as.numeric(ex_long$mean), 4)
+#&gt;  [1] 123.0575 123.0575 123.0575 123.0575 123.0575 123.0575 123.0575 123.0575 123.0575 123.0575
+#&gt; [11] 123.0575 123.0575</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Twelve weeks out, the same 123.0575. SES will happily forecast a thousand weeks ahead and give you 123.0575 for every one of them. That is not a bug, it is the model's honest position: it has found no evidence the level is heading anywhere, so its best guess for any future week is wherever the level is now. Only the prediction intervals widen.</p>
+
+</details>
+</section>
+
+<h2>Why not just use the last value or the average?</h2>
+
+<p>Before accepting 123.06, it is worth seeing the two obvious alternatives fail, because SES is precisely the compromise between them.</p>
+
+<p>The first alternative is the <strong>naive forecast</strong>: use last week's number and be done. Week 24 sold 123 loaves, so predict 123. This takes the most recent information seriously, which is good, but it stakes everything on a single week. If week 24 happened to be a fluke (a festival, a rainy Saturday), the forecast inherits the fluke.</p>
+
+<p>The second alternative is the <strong>mean forecast</strong>: average all 24 weeks and predict that. This uses every observation, which is good, but it treats week 1 as exactly as relevant as week 24. For a series whose level has moved, that is a real problem: the bakery's slump around week 13 gets a full vote in a forecast for week 25, even though the slump is over.</p>
+
+<p>Here are all three side by side.</p>
+
+<div class="webr-container" data-block-title="Three candidate answers for week 25">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three candidate answers for week 25</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">candidates &lt;- c(naive   = tail(loaves, 1),
+                average = mean(loaves),
+                ses     = as.numeric(fit$mean[1]))
+round(candidates, 2)
+#&gt;   naive average     ses
+#&gt;  123.00  114.08  123.06
+
+plot(bakery, type = &quot;o&quot;, pch = 16, col = &quot;grey40&quot;, xlim = c(1, 28), ylim = c(100, 135),
+     xlab = &quot;week&quot;, ylab = &quot;loaves sold&quot;,
+     main = &quot;Ridge Road Bakery: three ways to guess week 25&quot;)
+abline(h = mean(loaves), col = &quot;steelblue&quot;, lwd = 2, lty = 2)
+lines(fit$mean, col = &quot;tomato&quot;, lwd = 3)
+legend(&quot;bottomleft&quot;, bty = &quot;n&quot;,
+       legend = c(&quot;weekly sales&quot;, &quot;mean forecast (114.08)&quot;, &quot;SES forecast (123.06)&quot;),
+       col = c(&quot;grey40&quot;, &quot;steelblue&quot;, &quot;tomato&quot;), lwd = c(1, 2, 3), lty = c(1, 2, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>candidates</code> vector holds the three answers. <code>tail(loaves, 1)</code> grabs the last element of the vector, which is week 24's 123 loaves. <code>mean(loaves)</code> averages all 24. <code>fit$mean</code> is where <code>ses()</code> stores its point forecasts, and <code>[1]</code> pulls out the first one (<code>as.numeric()</code> just strips the time-series labelling so the three numbers print in one tidy row).</p>
+
+<p>The plot draws the sales as connected dots, the mean forecast as a dashed blue horizontal line, and the SES forecast as a thick red line extending past week 24. You can see the problem with the blue line immediately: it sits at 114.08, well below where the series has been for the last six weeks. It is being dragged down by the slump around week 13, which is over. The red SES line sits at 123.06, up where the series actually is now.</p>
+
+<blockquote><p><strong>Note:</strong> The mean forecast is not always wrong. If the bakery's level truly never moved and every wobble were random noise, the mean would be the <em>best</em> possible forecast, and SES would agree with it. We will see exactly that happen in the last section. What makes the mean wrong <em>here</em> is that the level moved.</p></blockquote>
+
+<p>So SES landed at 123.06, close to the naive 123 but not identical to it. It is a compromise that happens to sit near the naive end of the scale for this data. What decides where on that scale it lands is alpha.</p>
+
+<h2>What is alpha actually doing?</h2>
+
+<p>Here is the entire model, in one line of arithmetic. Every week, SES updates its estimate of the level by blending the number that just came in with the estimate it already had:</p>
+
+<p>$$\ell_t = \alpha \, y_t + (1 - \alpha) \, \ell_{t-1}$$</p>
+
+<p>Take that apart symbol by symbol. \(y_t\) is the actual value observed at time \(t\), so \(y_{24} = 123\) loaves. \(\ell_t\) (a script letter L, for "level") is the model's estimate of the level after seeing week \(t\). \(\ell_{t-1}\) is what that estimate was a week earlier. And \(\alpha\) (alpha) is a single number between 0 and 1 that decides how much of each to use. The forecast for the next week is just the current level, \(\hat{y}_{t+1|t} = \ell_t\), where the notation \(\hat{y}_{t+1|t}\) reads as "the forecast for time \(t+1\), made using data up to time \(t\)".</p>
+
+<p>Because the two weights \(\alpha\) and \(1 - \alpha\) always add to 1, the new level is a genuine weighted average of exactly two things: the news, and everything you thought before the news. That is the whole model.</p>
+
+<p><img src="screenshots/Exponential-Smoothing-in-R-recursion.webp" alt="Diagram of one exponential smoothing step, where this week's actual value and last week's forecast are blended by weights alpha and one minus alpha into a new level, which becomes both the forecast and next week's input" class="img-responsive img-zoomable" loading="lazy" width="2248" height="746" /></p>
+
+<p><em>Figure 1: One step of simple exponential smoothing. The new observation and the old forecast are blended into a new level. That level is both the forecast for every future period and the input to next week's blend, which is what makes this a loop rather than a formula.</em></p>
+
+<p>Now, alpha in words. Set \(\alpha = 0.9\) and the new level is 90% this week's number: the model believes the news and nearly forgets what it thought before. Set \(\alpha = 0.1\) and the new level is 90% the old level: the model shrugs off the news and holds its position. Alpha is a <strong>forgetting dial</strong>.</p>
+
+<p>The best way to believe the formula is to run it. Below, we pull the fitted alpha out of the model R already gave us, run the one-line update by hand across all 24 weeks in a <code>for</code> loop, and check the result against <code>ses()</code>.</p>
+
+<div class="webr-container" data-block-title="The whole model, hand-rolled in six lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The whole model, hand-rolled in six lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">alpha &lt;- as.numeric(fit$model$par[&quot;alpha&quot;])   # the alpha ses() fitted
+l0    &lt;- as.numeric(fit$model$par[&quot;l&quot;])       # the level before week 1 (more on this soon)
+round(c(alpha = alpha, l0 = l0), 4)
+#&gt;    alpha       l0
+#&gt;   0.6134 118.8258
+
+level &lt;- numeric(24)
+prev  &lt;- l0
+for (t in 1:24) {
+  level[t] &lt;- alpha * loaves[t] + (1 - alpha) * prev   # the update rule, verbatim
+  prev     &lt;- level[t]
+}
+
+# The level after the last week IS the forecast for week 25.
+round(level[24], 4)
+#&gt; [1] 123.0575</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through it. <code>fit$model$par</code> is a named vector holding the parameters <code>ses()</code> estimated, so <code>[&quot;alpha&quot;]</code> gives us 0.6134 and <code>[&quot;l&quot;]</code> gives us 118.8258 (that is \(\ell_0\), the level the model reckons the series started at, just before week 1). We will come back to where both numbers came from in the next section; for now we are borrowing them to test the formula.</p>
+
+<p>Then the loop. <code>level</code> is an empty 24-slot vector waiting to be filled. <code>prev</code> starts at \(\ell_0\). Each pass through the loop does the update rule exactly as written above and then hands the result forward to become the next pass's <code>prev</code>. Six lines, no package.</p>
+
+<p>And the payoff: <code>level[24]</code> came out to <strong>123.0575</strong>, which is the number <code>ses()</code> printed in the very first code block. The hand-rolled loop and the package agree exactly, which means the one line of arithmetic above genuinely is the whole model.</p>
+
+<p>We can push the check further. <code>fitted(fit)</code> gives the model's one-step-ahead forecast for every week in the data, meaning what it would have predicted for week \(t\) knowing only weeks 1 to \(t-1\). By the rule \(\hat{y}_{t+1|t} = \ell_t\), that should be our <code>level</code> vector shifted forward by one, with \(\ell_0\) at the front.</p>
+
+<div class="webr-container" data-block-title="Check every fitted value, not just the last">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check every fitted value, not just the last</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mine &lt;- c(l0, level[1:23])   # forecast for week t is the level after week t-1
+
+round(head(mine, 6), 4)
+#&gt; [1] 118.8258 117.7059 122.1801 118.3892 118.7639 118.9087
+round(head(as.numeric(fitted(fit)), 6), 4)
+#&gt; [1] 118.8258 117.7059 122.1801 118.3892 118.7639 118.9087
+
+all.equal(as.numeric(fitted(fit)), mine)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mine</code> builds what our loop says the 24 one-step forecasts should be: \(\ell_0\) is the forecast for week 1 (nothing has been observed yet), the level after week 1 is the forecast for week 2, and so on. Printing the first six of ours and the first six of R's shows the same numbers. <code>all.equal()</code> is R's tolerant equality check, and it returned <code>TRUE</code>, meaning all 24 values match. Our six lines are <code>ses()</code>.</p>
+
+<h3>Why "exponential"?</h3>
+
+<p>The recursion explains the mechanics but hides the reason for the name. Unroll it. The level after week 24 uses week 24 and \(\ell_{23}\). But \(\ell_{23}\) was itself \(\alpha y_{23} + (1-\alpha)\ell_{22}\). Substitute all the way down and every past observation reappears, each with its own weight:</p>
+
+<p>$$\hat{y}_{T+1|T} = \alpha y_T + \alpha(1-\alpha) y_{T-1} + \alpha(1-\alpha)^2 y_{T-2} + \cdots + (1-\alpha)^{T} \ell_0$$</p>
+
+<p>Here \(T\) is the last week you have data for, so \(T = 24\) for the bakery and \(\hat{y}_{25|24}\) is the forecast for week 25. The observation \(j\) weeks back gets weight \(\alpha(1-\alpha)^{j}\). Each step further into the past multiplies the weight by \((1-\alpha)\) again, so the weights shrink geometrically. That decaying-by-a-constant-factor pattern is what "exponential" refers to. It is not that anything is raised to a power of \(e\); it is that the influence of the past decays exponentially.</p>
+
+<p>Those weights are not abstract. Let us just print them.</p>
+
+<div class="webr-container" data-block-title="How much does each past week actually count?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How much does each past week actually count?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">j &lt;- 0:9                      # 0 = this week, 1 = last week, ...
+w &lt;- alpha * (1 - alpha)^j    # the weight each one gets
+
+round(w, 4)
+#&gt;  [1] 0.6134 0.2371 0.0917 0.0354 0.0137 0.0053 0.0020 0.0008 0.0003 0.0001
+round(sum(w), 4)
+#&gt; [1] 0.9999
+round(cumsum(w), 3)
+#&gt;  [1] 0.613 0.851 0.942 0.978 0.991 0.997 0.999 1.000 1.000 1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>j</code> counts weeks into the past, <code>w</code> applies the weight formula to each, and the three prints ask three questions of it.</p>
+
+<p>First, the individual weights. Week 24 (the most recent) gets a weight of 0.6134. Week 23 gets 0.2371. Week 22 gets 0.0917. By ten weeks back the weight is 0.0001, which is to say that week has effectively no vote.</p>
+
+<p>Second, <code>sum(w)</code> is 0.9999, near enough to 1. The weights form a proper weighted average on their own, without needing the older terms. That is why SES can use "all the data" and still be nimble.</p>
+
+<p>Third, <code>cumsum(w)</code> is the running total, and it is the most useful line here. The three most recent weeks carry <strong>94.2%</strong> of the forecast between them. Six weeks carry 99.7%. With alpha at 0.6134, this model is effectively looking at the last month and a half of the bakery's life and ignoring the rest. That is why the slump in week 13 had no say in the 123.06.</p>
+
+<blockquote><p><strong>Watch out:</strong> "SES uses all past observations" is technically true and practically misleading. With a high alpha the effective memory is a handful of periods. If you have 500 observations and a fitted alpha of 0.6, you do not have a forecast built on 500 numbers; you have one built on about 5.</p></blockquote>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the same weights for a much lower alpha and see how far back the memory reaches.</p>
+<div class="webr-container" data-block-title="Your turn: the weights at alpha = 0.1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the weights at alpha = 0.1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alpha &lt;- 0.1
+
+# 1. Build the weights for j = 0:9 using ex_alpha, the same formula as above
+# 2. Look at cumsum() of them: how much of the forecast do ten weeks account for?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Low-alpha weights solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Low-alpha weights solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_w &lt;- ex_alpha * (1 - ex_alpha)^(0:9)
+round(ex_w, 4)
+#&gt;  [1] 0.1000 0.0900 0.0810 0.0729 0.0656 0.0590 0.0531 0.0478 0.0430 0.0387
+round(cumsum(ex_w), 3)
+#&gt;  [1] 0.100 0.190 0.271 0.344 0.410 0.469 0.522 0.570 0.613 0.651</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At alpha = 0.1 the weights barely decay: this week gets 0.1000 and nine weeks ago still gets 0.0387, well over a third of what this week gets. Ten weeks of data account for just 65.1% of the forecast, so the other 35% is coming from weeks 11 and older. Compare that with alpha = 0.6134, where ten weeks accounted for essentially 100%. Same model, same data, and the effective memory went from about six weeks to well past twenty-four.</p>
+
+</details>
+</section>
+
+<h2>How does R choose alpha for you?</h2>
+
+<p>We borrowed alpha = 0.6134 from <code>ses()</code> without asking where it came from. Here is the answer: R did not choose it by judgement or by rule of thumb. It <strong>fitted</strong> it, the same way <code>lm()</code> fits a slope, by finding the value that makes the model's past mistakes as small as possible.</p>
+
+<p>Define the mistake precisely. For each week \(t\), the model had a one-step-ahead forecast \(\hat{y}_{t|t-1}\) made without seeing week \(t\). The <strong>forecast error</strong> is the gap between what happened and what was predicted, \(e_t = y_t - \hat{y}_{t|t-1}\). Square each error (so that being 5 under and 5 over both count as mistakes) and add them all up:</p>
+
+<p>$$\text{SSE}(\alpha, \ell_0) = \sum_{t=1}^{T} \left( y_t - \hat{y}_{t|t-1} \right)^2$$</p>
+
+<p>That total is the <strong>sum of squared errors</strong>, or SSE. It depends on alpha, because a different alpha produces different forecasts and therefore different errors. It also depends on \(\ell_0\), the starting level, which is why <code>ses()</code> reported two numbers back in <code>fit$model$par</code>: both are estimated, together, to make SSE as small as possible. There is no closed-form answer, so R searches numerically.</p>
+
+<p>We can reproduce that search. Below we write SSE as a function of alpha, evaluate it across a grid of 99 candidate values, and see where it bottoms out.</p>
+
+<div class="webr-container" data-block-title="Reproduce R&#x27;s search for alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reproduce R&#x27;s search for alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sse &lt;- function(a) {
+  prev  &lt;- l0
+  total &lt;- 0
+  for (t in 1:24) {
+    total &lt;- total + (loaves[t] - prev)^2          # this week's squared error
+    prev  &lt;- a * loaves[t] + (1 - a) * prev        # then update the level
+  }
+  total
+}
+
+grid &lt;- seq(0.01, 0.99, by = 0.01)
+curve_sse &lt;- sapply(grid, sse)
+
+grid[which.min(curve_sse)]     # our best alpha
+#&gt; [1] 0.61
+round(min(curve_sse), 2)       # the SSE it achieves
+#&gt; [1] 622.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read <code>sse()</code> first. It walks the same loop as before, but with one addition: at each week, <em>before</em> updating the level, it records how badly the current level would have predicted this week, and squares that. Note the order matters. The prediction has to be made before the value is seen, otherwise the model would be marking its own homework.</p>
+
+<p>Then <code>seq(0.01, 0.99, by = 0.01)</code> makes 99 candidate alphas, <code>sapply()</code> runs <code>sse()</code> on each, <code>which.min()</code> finds the position of the smallest, and <code>grid[...]</code> reports which alpha that was.</p>
+
+<p>The grid's answer is <strong>0.61</strong>, achieving an SSE of 622.01. And <code>ses()</code> said 0.6134. The two agree to the resolution of our grid, which is the point: R's optimiser is doing exactly this search, just with a proper numerical routine instead of 99 guesses, so it can report the extra decimals.</p>
+
+<p>Plotting the curve makes the shape of the problem visible, and the shape is the interesting part.</p>
+
+<div class="webr-container" data-block-title="The SSE curve, and why the minimum is where it is">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The SSE curve, and why the minimum is where it is</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(grid, curve_sse, type = &quot;l&quot;, lwd = 3, col = &quot;steelblue&quot;,
+     xlab = &quot;alpha&quot;, ylab = &quot;sum of squared errors&quot;,
+     main = &quot;SSE across every alpha, for the bakery data&quot;)
+abline(v = alpha, col = &quot;tomato&quot;, lwd = 2, lty = 2)
+text(alpha, max(curve_sse) * 0.95, paste(&quot;ses() picked&quot;, round(alpha, 4)),
+     pos = 4, col = &quot;tomato&quot;)
+
+round(c(at_0.1 = sse(0.1), at_0.5 = sse(0.5), at_0.9 = sse(0.9)), 1)
+#&gt;  at_0.1  at_0.5  at_0.9
+#&gt; 1091.0   633.7   680.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot draws SSE against alpha, with a dashed red line marking where <code>ses()</code> landed. The curve comes down steeply from the left, flattens into a broad basin, and rises gently again toward alpha = 1. The red line sits at the bottom of the basin.</p>
+
+<p>The three numbers underneath quantify the shape. At alpha = 0.1 the SSE is 1091.0, badly worse than the best. At alpha = 0.5 it is 633.7, and at alpha = 0.9 it is 680.4, both within about 10% of the optimum of 622.01. So the penalty for being <em>too sluggish</em> is severe, while the basin between roughly 0.4 and 0.9 is almost flat. This is typical, and it is a useful thing to know: alpha is usually not estimated precisely, and any alpha in the basin would forecast about as well. What matters is not landing on the far left.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Your grid found 0.61 because that is the resolution you gave it. Make the grid finer and watch it converge on what <code>ses()</code> reported.</p>
+<div class="webr-container" data-block-title="Your turn: a finer grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a finer grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- seq(0.55, 0.70, by = 0.0001)
+
+# 1. Evaluate sse() over ex_grid with sapply(), as before
+# 2. Use which.min() to find the minimising alpha, and compare it with 0.6134</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Finer-grid solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finer-grid solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- seq(0.55, 0.70, by = 0.0001)
+ex_best &lt;- ex_grid[which.min(sapply(ex_grid, sse))]
+round(ex_best, 4)
+#&gt; [1] 0.6134</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With a grid step of 0.0001 the brute-force search returns 0.6134, matching <code>ses()</code> to four decimals. There is nothing hidden in the package: it minimises the same SSE our loop computes, over the same one parameter, and arrives where we did. (One difference worth naming: our <code>sse()</code> held \(\ell_0\) fixed at the value <code>ses()</code> had already fitted, while <code>ses()</code> optimises alpha and \(\ell_0\) jointly. On this data it changes nothing to four decimals.)</p>
+
+</details>
+</section>
+
+<h2>How do you read the ses() output?</h2>
+
+<p>You have now seen where every number in the model comes from, so the full model print should read as plain English rather than as a wall of statistics. Here it is.</p>
+
+<div class="webr-container" data-block-title="Every line of the fitted model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Every line of the fitted model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit$model
+#&gt; Simple exponential smoothing
+#&gt;
+#&gt; Call:
+#&gt;  ses(y = bakery, h = 4)
+#&gt;
+#&gt;   Smoothing parameters:
+#&gt;     alpha = 0.6134
+#&gt;
+#&gt;   Initial states:
+#&gt;     l = 118.8258
+#&gt;
+#&gt;   sigma:  5.3172
+#&gt;
+#&gt;      AIC     AICc      BIC
+#&gt; 160.3905 161.5905 163.9247</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Line by line. <strong><code>Simple exponential smoothing</code><strong> and </strong><code>Call</code><strong> just restate the model and the command that produced it. </strong><code>alpha = 0.6134</code><strong> is the forgetting dial, fitted by the SSE search from the previous section. </strong><code>l = 118.8258</code></strong> is \(\ell_0\), the estimated level just before week 1, fitted alongside alpha. It is not week 1's actual value (that was 117); it is the starting point that makes the whole 24-week run of forecasts as accurate as possible.</p>
+
+<p><strong><code>sigma: 5.3172</code></strong> is the estimated standard deviation of the one-step-ahead errors, in loaves. This is the number the prediction intervals in the first code block were built from: roughly, week 25's 95% interval is the point forecast plus or minus about two sigma, which is where 123.06 plus or minus 10.4 came from. It is also the single most useful line for the bakery, because it says something plain: even a correct model expects to be off by about 5 loaves in a typical week. Those intervals do rest on an assumption worth naming out loud: that the week-to-week errors are uncorrelated with each other and roughly bell-shaped. The <code>ACF1</code> line in the next code block is how you check the first half of that.</p>
+
+<p>**<code>AIC</code>, <code>AICc</code>, <code>BIC</code><em>* are model-comparison scores. Each one balances how well the model fits against how many parameters it used, and on all three, lower is better. They are meaningless on their own (160.39 is not good or bad) and only mean something when compared against another model fitted to </em>the same* series, which is what the last section does with <code>holt()</code>.</p>
+
+<p>For accuracy in units you can act on, <code>accuracy()</code> is the better tool.</p>
+
+<div class="webr-container" data-block-title="Error measures in loaves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Error measures in loaves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(fit), 4)
+#&gt;                  ME   RMSE    MAE    MPE   MAPE   MASE    ACF1
+#&gt; Training set 0.2874 5.0908 3.7527 0.1035 3.2629 0.8807 -0.0301</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Take the useful ones. <strong>ME</strong> (mean error) is 0.2874, the average signed miss. It is near zero, which is what you want; a large ME would mean the model is biased, consistently over- or under-forecasting. <strong>RMSE</strong> (root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>) is 5.0908 loaves, and <strong>MAE</strong> (<a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a>) is 3.7527 loaves, both plain-language answers to "how far off is this model typically?" MAE says the forecast misses by under 4 loaves in a typical week. <strong>MAPE</strong> (<a class="auto-link" href="yardstick-mape-in-R.html" title="yardstick mape() in R: Scale-Free Percentage Error">mean absolute percentage error</a>) says the same thing as a percentage: <strong>3.26%</strong>.</p>
+
+<p><strong>MASE</strong> is the one worth pausing on. It compares this model against the naive forecast: below 1 means you are beating naive, above 1 means you are losing to it. Ours is 0.8807, so SES is about 12% better than just using last week's number. Real, but modest, which is honest for a series this noisy. <strong>ACF1</strong> is the correlation between consecutive residuals, and at -0.0301 it is essentially zero. That is good news: it means the model has not left any obvious pattern behind in its errors. If ACF1 were large, the residuals would still contain structure the model failed to capture, which is the main symptom the last section is about.</p>
+
+<h2>What does changing alpha do to the forecast?</h2>
+
+<p>Alpha is fitted for you, so most of the time you never set it. But you should still know what it does, both to read someone else's fitted alpha and because <code>ses()</code> lets you fix it by hand when you have a reason to.</p>
+
+<p>The clean way to see it is to hold everything else constant and vary only alpha. Passing <code>alpha = </code> to <code>ses()</code> fixes the value instead of fitting it, and <code>initial = &quot;simple&quot;</code> tells R to start every model at \(\ell_0 = y_1\) (week 1's actual 117) rather than fitting a different \(\ell_0\) for each. Now alpha is genuinely the only thing that differs.</p>
+
+<div class="webr-container" data-block-title="Three alphas, everything else held fixed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three alphas, everything else held fixed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">alphas &lt;- c(0.1, 0.5, 0.9)
+fits   &lt;- lapply(alphas, function(a) ses(bakery, h = 4, alpha = a, initial = &quot;simple&quot;))
+
+sapply(fits, function(f) round(as.numeric(f$mean[1]), 3))
+#&gt; [1] 115.923 122.455 123.307</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lapply()</code> fits one model per alpha and keeps all three in a list; <code>sapply()</code> then pulls the week-25 point forecast out of each. The three answers are <strong>115.92, 122.46, and 123.31</strong>.</p>
+
+<p>Look at how they are spread. Remember from the second section that the mean forecast was 114.08 and the naive forecast was 123.00. The alpha = 0.1 model landed at 115.92, close to the mean. The alpha = 0.9 model landed at 123.31, close to naive. Alpha = 0.5 sits at 122.46, in between. Alpha slides the forecast along a spectrum whose two ends you already know:</p>
+
+<ul>
+
+<li><strong>alpha near 0</strong>: the level barely updates, and the forecast approaches the average of all the data.</li>
+
+<li><strong>alpha near 1</strong>: the level jumps straight to the newest value, and the forecast approaches last week's number.</li>
+
+</ul>
+
+<p>The naive forecast and the mean forecast were never really rivals to SES. They are its two endpoints, and fitting alpha is choosing the point between them that this particular series deserves.</p>
+
+<p>Watching the fitted levels track the data makes it obvious.</p>
+
+<div class="webr-container" data-block-title="How closely each alpha follows the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How closely each alpha follows the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(bakery, type = &quot;o&quot;, pch = 16, col = &quot;grey60&quot;, ylim = c(100, 135),
+     xlab = &quot;week&quot;, ylab = &quot;loaves sold&quot;,
+     main = &quot;The same data smoothed at three different alphas&quot;)
+cols &lt;- c(&quot;steelblue&quot;, &quot;darkgreen&quot;, &quot;tomato&quot;)
+for (i in seq_along(fits)) {
+  lines(fitted(fits[[i]]), col = cols[i], lwd = 2)
+}
+legend(&quot;bottomleft&quot;, legend = paste(&quot;alpha =&quot;, alphas),
+       col = cols, lwd = 2, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three smoothed lines are drawn through the grey data. The blue alpha = 0.1 line is almost straight: it drifts down slowly through the slump and has still not climbed back by week 24, because at that alpha the model needs many weeks to be persuaded of anything. The red alpha = 0.9 line is jagged and clings to the data, repeating almost every wobble one week late, which is what "trust the newest value" looks like. The green alpha = 0.5 line does what you actually want, following the slump and the recovery while ignoring the week-to-week noise.</p>
+
+<p>That picture is the trade-off in full. Low alpha is stable but slow to react to real change. High alpha reacts instantly but also faithfully reproduces every meaningless fluctuation. Fitting alpha by minimising SSE is how you let the data settle the argument instead of guessing.</p>
+
+<blockquote><p><strong>Note:</strong> A fitted alpha is worth reading as a diagnostic, not just a setting. An alpha near 1 says "the past is useless here, the series is close to a random walk". An alpha near 0 says "the level never moves, use the mean". Both are the model telling you something about your data, and both are cases where you should ask whether SES is what you want at all. The next section takes each in turn.</p></blockquote>
+
+<h2>When does SES break down?</h2>
+
+<p>SES models the level and nothing else. That single sentence is the source of every one of its failures. If your series has something in it that is not a level, SES cannot represent it and will not warn you.</p>
+
+<p>Take the low-alpha case first. Suppose the bakery's numbers had wobbled around a level that never actually moved, pure noise around 123 loaves.</p>
+
+<div class="webr-container" data-block-title="Failure 1: a level that never moves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Failure 1: a level that never moves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flat &lt;- ts(c(118, 124, 115, 131, 121, 109, 126, 122, 133, 117, 128, 119,
+             125, 136, 114, 123, 130, 120, 127, 116, 132, 122, 129, 121),
+           start = 1)
+fit_flat &lt;- ses(flat, h = 4)
+
+round(fit_flat$model$par, 4)
+#&gt;    alpha        l
+#&gt;   0.0001 123.2500
+round(c(ses_forecast = as.numeric(fit_flat$mean[1]), plain_mean = mean(flat)), 4)
+#&gt; ses_forecast   plain_mean
+#&gt;       123.25       123.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The optimiser drove alpha to <strong>0.0001</strong>, effectively zero, and the forecast came out at 123.25, which is exactly <code>mean(flat)</code> to four decimals. This is not a failure of the fitting; it is the fitting working perfectly and reporting that SES has nothing to add. When the level genuinely does not move, the best possible estimate of it is the average of everything, and SES says so by switching itself off. Read a near-zero alpha as "you could have used the mean".</p>
+
+<p>The other direction is worse, because the model gives you a confident answer that is wrong. Suppose Ridge Road had landed a contract supplying a cafe chain in week 1, and sales had climbed steadily ever since.</p>
+
+<div class="webr-container" data-block-title="Failure 2: a level that goes somewhere">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Failure 2: a level that goes somewhere</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">growth &lt;- ts(c(121, 110, 114, 118, 119, 121, 131, 130, 133, 144, 139, 151,
+               152, 147, 156, 153, 150, 155, 159, 165, 167, 169, 174, 166),
+             start = 1)
+fit_growth &lt;- ses(growth, h = 6)
+
+round(as.numeric(fit_growth$model$par[&quot;alpha&quot;]), 4)
+#&gt; [1] 0.8576
+round(as.numeric(fit_growth$mean), 2)
+#&gt; [1] 167.03 167.03 167.03 167.03 167.03 167.03</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This series climbs for 24 straight weeks: it averages about 116 loaves over the opening four weeks and about 169 over the closing four, which works out to growth of roughly 2.6 loaves a week. SES fitted alpha = 0.8576 (nearly 1, chasing the newest value, which is the only way a level-only model can keep up with a rising series at all) and then forecast <strong>167.03 for every one of the next six weeks</strong>.</p>
+
+<p>That forecast is flat. The series is not. The model is stating that a bakery which has grown every month for six months will sell the same amount in six weeks as it does today. Nothing in the output flags this: the point forecasts print in a tidy column, the intervals look reasonable, and the number is wrong. SES has no trend term, so it cannot extrapolate a trend, and a fitted alpha near 1 is the loudest hint you will get that it is straining.</p>
+
+<p>The fix is a model with a trend term. <strong>Holt's linear method</strong> adds a <a class="auto-link" href="lubridate-second-in-R.html" title="lubridate second() in R: Extract Seconds From Datetimes">second component</a>, a slope, updated by a second smoothing parameter (<code>beta</code>) in exactly the same weighted-average way. In the forecast package it is <code>holt()</code>, and the call is otherwise identical.</p>
+
+<div class="webr-container" data-block-title="Holt&#x27;s method: the same idea, plus a slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Holt&#x27;s method: the same idea, plus a slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_holt &lt;- holt(growth, h = 6)
+round(as.numeric(fit_holt$mean), 2)
+#&gt; [1] 176.64 179.29 181.93 184.58 187.22 189.87
+
+round(c(ses = accuracy(fit_growth)[, &quot;RMSE&quot;],
+        holt = accuracy(fit_holt)[, &quot;RMSE&quot;]), 3)
+#&gt;   ses  holt
+#&gt; 5.902 4.623</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Holt forecasts 176.64 for next week and keeps climbing to 189.87 by week 30, extrapolating the roughly 2.6-per-week slope it detected. That is a forecast that at least believes what the data has been saying for six months. Its RMSE on the training data is 4.623 loaves against SES's 5.902, so it also fits better by about 22%.</p>
+
+<p>The same logic extends once more. If the series also repeats on a fixed calendar cycle (a bakery selling more every weekend, or an airline busier every summer), you need a third component, and the method is <strong>Holt-Winters</strong>, <code>hw()</code>. And if you would rather not decide, <code>ets()</code> fits the whole family and selects between them using the <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> scores you met earlier.</p>
+
+<p><img src="screenshots/Exponential-Smoothing-in-R-method-choice.webp" alt="Decision diagram for choosing between ses, holt, hw and ets based on whether the series has a trend and whether it has a seasonal cycle" class="img-responsive img-zoomable" loading="lazy" width="1842" height="2344" /></p>
+
+<p><em>Figure 2: SES is the bottom-left corner of a family. Each question adds a component to the model, and each component brings its own smoothing parameter, fitted the same way alpha is. If you cannot answer the questions confidently, ets() answers them for you.</em></p>
+
+<p>So the honest scope of <code>ses()</code> is narrow: a series with no trend and no seasonality, where the level wanders. That is exactly Ridge Road Bakery's 24 weeks, which is why 123.06 was a reasonable answer there. Before reaching for it on your own data, plot the series and check that the two questions in the diagram both come back "no". <a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a> is the tool for answering them when the eye is not enough.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit both <code>ses()</code> and <code>holt()</code> to the <em>original</em> bakery data, which has no trend in it, then compare their AIC. Adding a trend component to a series that has no trend should not pay for itself.</p>
+<div class="webr-container" data-block-title="Your turn: does Holt help the original bakery?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: does Holt help the original bakery?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ses  &lt;- ses(bakery, h = 4)
+ex_holt &lt;- holt(bakery, h = 4)
+
+# 1. Compare ex_ses$model$aic with ex_holt$model$aic; lower is better
+# 2. Ask yourself what Holt spent its two extra parameters on</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AIC comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(ses = ex_ses$model$aic, holt = ex_holt$model$aic), 3)
+#&gt;     ses    holt
+#&gt; 160.391 164.575</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>SES scores 160.391 and Holt scores 164.575, so SES wins by about 4.2 AIC points. Holt had two extra parameters to play with and still could not justify them, because there is no trend in the bakery's 24 weeks for a trend component to capture. This is what the AIC line is for: not judging a model alone, but settling a question like this one. More components is not better, it is just more.</p>
+
+</details>
+</section>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good value for alpha in exponential smoothing?</strong> There is no universally good value, which is why R fits it. If you must set one by hand, alpha between 0.1 and 0.3 is a common default for series where the level moves slowly, and higher values suit series that shift quickly. Better advice: let <code>ses()</code> fit it, then read the result as a diagnostic. A fitted alpha near 0 says use the mean; near 1 says your series is close to a random walk or has a trend that SES cannot see.</p>
+
+<p><strong>What is the difference between <code>ses()</code> and <code>ets()</code>?</strong> <code>ses()</code> fits one specific model: level only, additive errors. <code>ets()</code> fits the whole exponential smoothing family (level, plus optional trend, plus optional seasonality, each <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">additive or multiplicative</a>) and picks the best member using AIC. <code>ses(y)</code> is close to <code>ets(y, model = &quot;ANN&quot;)</code>. Use <code>ses()</code> when you know the series has no trend or season; use <code>ets()</code> when you want the choice made for you.</p>
+
+<p><strong>Why is my exponential smoothing forecast a flat line?</strong> Because that is what SES does. It estimates the level and forecasts the level, so every horizon gets the same number and only the prediction intervals widen. If a flat forecast is obviously wrong for your series, that is a signal your series has a trend, and you want <code>holt()</code> or <code>ets()</code> instead.</p>
+
+<p>**Should I use <code>ses()</code> or a moving average?<em>* They answer different questions. A moving average describes the past: it smooths the series so you can </em>see* the shape. SES forecasts the future: it produces a level estimate plus prediction intervals. A moving average also weights every value in its window equally and has no notion of forecasting past the end of the data. See <a href="Moving-Averages-in-R.html">Moving Averages in R</a> for that side of the comparison.</p>
+
+<p><strong>Can SES handle seasonal data?</strong> No. It has no seasonal component, so it will average the seasonality away and forecast a flat line straight through your peaks and troughs. Use <code>hw()</code> (Holt-Winters) or <code>ets()</code>, or remove the seasonality first via decomposition and apply SES to the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonally adjusted</a> series.</p>
+
+<p><strong>What does <code>initial = &quot;simple&quot;</code> versus <code>initial = &quot;optimal&quot;</code> change?</strong> It decides where \(\ell_0\), the level before the first observation, comes from. <code>&quot;simple&quot;</code> sets it to the first observation. <code>&quot;optimal&quot;</code> (the default) fits it alongside alpha to minimise SSE. Optimal is almost always the better choice; <code>&quot;simple&quot;</code> is useful when you want to compare several fixed alphas with everything else held constant, which is exactly what we used it for above.</p>
+
+<h2>Summary</h2>
+
+<p>Ridge Road Bakery should prep about <strong>123 loaves</strong> for week 25, and expect to be off by about 5 either way. That number came from a model with exactly one parameter, which you have now built from nothing in six lines and then broken on purpose.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it means</th>
+<th>In R</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The model</td>
+<td>New level = alpha times this week + (1 - alpha) times old level</td>
+<td><code>ses(y, h = 4)</code></td>
+</tr>
+<tr>
+<td>The forecast</td>
+<td>The current level, repeated flat for every horizon</td>
+<td><code>fit$mean</code></td>
+</tr>
+<tr>
+<td>alpha</td>
+<td>Forgetting dial in [0, 1]; weight on the newest value</td>
+<td><code>fit$model$par[&quot;alpha&quot;]</code></td>
+</tr>
+<tr>
+<td>Exponential decay</td>
+<td>Observation j periods back gets weight alpha(1 - alpha)^j</td>
+<td><code>alpha * (1 - alpha)^(0:9)</code></td>
+</tr>
+<tr>
+<td>Fitting alpha</td>
+<td>Chosen to minimise the sum of squared one-step errors</td>
+<td>done automatically</td>
+</tr>
+<tr>
+<td>Initial level</td>
+<td>\(\ell_0\), fitted jointly with alpha</td>
+<td><code>fit$model$par[&quot;l&quot;]</code></td>
+</tr>
+<tr>
+<td>Typical error</td>
+<td>Standard deviation of one-step errors, in your units</td>
+<td><code>sigma</code> in <code>fit$model</code></td>
+</tr>
+<tr>
+<td>alpha near 0</td>
+<td>Level never moves; SES collapses to the mean</td>
+<td>consider <code>mean()</code></td>
+</tr>
+<tr>
+<td>alpha near 1</td>
+<td>Level moves constantly; often a hidden trend</td>
+<td>try <code>holt()</code></td>
+</tr>
+<tr>
+<td>Trend present</td>
+<td>SES forecasts flat through it and is wrong</td>
+<td><code>holt()</code></td>
+</tr>
+<tr>
+<td>Seasonality present</td>
+<td>SES averages it away</td>
+<td><code>hw()</code> or <code>ets()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The two things worth carrying away: the flat forecast is a feature, not a bug (SES has no opinion about where the series is going, so it says so), and the fitted alpha is a message about your data rather than just a setting. Read it every time.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed., section 8.1. The canonical treatment of SES, including the weighted-average and component forms used above. <a href="https://otexts.com/fpp3/ses.html">otexts.com/fpp3/ses.html</a></li>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed., chapter 8. Where SES sits in the full exponential smoothing family, through Holt and Holt-Winters to <code>ets()</code>. <a href="https://otexts.com/fpp3/expsmooth.html">otexts.com/fpp3/expsmooth.html</a></li>
+
+<li><code>ses()</code> reference manual, forecast package. The argument list, including <code>alpha</code>, <code>initial</code>, and <code>h</code>. <a href="https://pkg.robjhyndman.com/forecast/reference/ses.html">pkg.robjhyndman.com/forecast/reference/ses.html</a></li>
+
+<li><code>ets()</code> reference manual, forecast package. The automatic model-selection function this post points to when SES is not enough. <a href="https://pkg.robjhyndman.com/forecast/reference/ets.html">pkg.robjhyndman.com/forecast/reference/ets.html</a></li>
+
+<li>Hyndman, R. J. & Khandakar, Y. "Automatic Time Series Forecasting: The forecast Package for R." <em>Journal of Statistical Software</em> 27(3), 2008. The paper describing how the package fits and selects these models. <a href="https://www.jstatsoft.org/article/view/v027i03">jstatsoft.org/article/view/v027i03</a></li>
+
+<li>NIST/SEMATECH <em>e-Handbook of Statistical Methods</em>, section 6.4.3.1: Single Exponential Smoothing. A short, independent derivation of the same recursion. <a href="https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc431.htm">itl.nist.gov/div898/handbook/pmc/section4/pmc431.htm</a></li>
+
+<li>forecast package on CRAN. The version history and the full reference manual for every function used here. <a href="https://cran.r-project.org/package=forecast">cran.r-project.org/package=forecast</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Moving-Averages-in-R.html">Moving Averages in R</a>, the other way to smooth a series. It describes the past where SES forecasts the future, and its <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">exponential moving average</a> is the same weighting scheme seen from a different angle.</li>
+
+<li><a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a>, how to check the two questions in Figure 2 before choosing a method: does the series have a trend, and does it have a season?</li>
+
+<li><a href="Time-Series-Forecasting-With-R.html">Time Series Forecasting With R</a>, the wider tour of forecasting methods, including where the ARIMA family picks up problems the smoothing family cannot handle.</li>
+
+</ul>
+
