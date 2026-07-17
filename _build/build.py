@@ -1717,6 +1717,22 @@ def build_post(
         '<a class="cr-link" data-continue-link href="#"></a>'
         '</aside>'
     )
+    # Inject the page H1 from the title when the fragment has none. Built post
+    # fragments carry a `<p class="lead">` but no `<h1>` (md2html only emits one
+    # from a literal `# ` heading line), so the title previously lived only in
+    # `<title>`/OG. Place it immediately above the lead so the visible on-page
+    # heading matches the browser-tab title. Skip if a body H1 already exists
+    # (legacy posts) so we never emit two, and skip LESSON pages (the
+    # step-player owns the visible title; a content H1 there is unvalidated).
+    if '<h1' not in content and meta.get('post_type', '').strip() != 'LESSON':
+        h1_html = '<h1>%s</h1>' % _esc_html(title)
+        lead_for_h1 = re.search(r'<p class="lead"[^>]*>', content)
+        if lead_for_h1:
+            at = lead_for_h1.start()
+            content = content[:at] + h1_html + '\n' + content[at:]
+        else:
+            content = h1_html + '\n' + content
+
     # Inject author + dates byline.
     # Preferred placement: immediately after the first `<p class="lead">...</p>` block,
     # so the snippet-eligible answer sits right under the H1 with no metadata between.
