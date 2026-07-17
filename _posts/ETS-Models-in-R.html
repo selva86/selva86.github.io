@@ -1,0 +1,929 @@
+---
+title: "ETS Models in R: Error, Trend, and Seasonal Components"
+description: "ETS labels a forecast's error, trend and season as none, additive or multiplicative. Read all 30 models, let ets() choose, and know what each one implies."
+keywords: "ETS models in R, ets() R, error trend seasonal, ETS(M,A,M), exponential smoothing state space, automatic forecasting R, damped trend R, ETS model selection"
+mathjax: true
+webr: true
+curriculum_id: "3.8.9"
+post_type: "C"
+auto_link_terms: "ETS|ETS model|ETS models|ETS models in R|ets()|the ETS framework|ETS taxonomy|error, trend and season|multiplicative error|additive error|damped trend|automatic model selection|state space model|the three-letter taxonomy"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "ETS Models"
+sidebar_order: "13"
+---
+<!-- md2html:generated -->
+
+<p class="lead">ETS is a naming scheme for exponential smoothing models. It describes any of them with three letters, one per moving part: <b>E</b> for how the error behaves, <b>T</b> for the trend, <b>S</b> for the season. Each slot gets <b>N</b> (none), <b>A</b> (additive) or <b>M</b> (multiplicative), and the trend slot also allows damped versions, which is how the family reaches exactly 30 members. This post decodes the letters on one dataset, rebuilds a forecast by hand from the components they name, fits all 30 models so the count stops being a claim, and shows what R's <code>ets()</code> is really doing when it picks one for you.</p>
+
+<p>Everything below uses one dataset, the same one the last two posts used, so you always have something concrete to picture.</p>
+
+<p><strong>Ridge Road Bakery</strong> sells sourdough loaves. In <a href="Exponential-Smoothing-in-R.html">the exponential smoothing post</a> their weekly counts got a flat forecast, because simple exponential smoothing tracks only a level. In <a href="Holt-Winters-in-R.html">the Holt-Winters post</a> their <strong>monthly ledger, four full years of it, January 2022 through December 2025</strong>, got a forecast with a shape: December 2026 at about <strong>900 loaves</strong>. That post ended by mentioning that <code>ets()</code> looked at the same ledger and called its own model <strong>ETS(M,A,M)</strong>, then left the three letters unexplained and moved on.</p>
+
+<p>This post is those three letters. And there is a loose end worth naming now, because you will notice it in the first code block: <code>ets()</code> does not say 900. It says <strong>871</strong>. Same bakery, same four years, a 29-loaf gap. By the end you will know exactly which argument causes it, and which of the two numbers to trust.</p>
+
+<h2>What model does ets() choose for the bakery?</h2>
+
+<p><code>ets()</code> takes a series and hands back a fitted model with a name. No arguments beyond the data, no decisions asked of you. Here it is on the bakery's ledger, before any explanation of what the name means.</p>
+
+<div class="webr-container" data-block-title="Let ets() name and fit a model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let ets() name and fit a model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(forecast))
+
+# Ridge Road Bakery: sourdough loaves sold per month, Jan 2022 to Dec 2025.
+loaves &lt;- c(393, 392, 422, 429, 483, 448, 414, 408, 471, 498, 552, 686,
+            433, 409, 464, 479, 479, 476, 409, 415, 505, 525, 601, 723,
+            469, 447, 477, 503, 523, 508, 462, 454, 541, 563, 626, 770,
+            475, 463, 492, 559, 565, 530, 489, 500, 574, 597, 672, 848)
+
+# frequency = 12 tells R the season repeats every 12 observations.
+bakery &lt;- ts(loaves, start = c(2022, 1), frequency = 12)
+
+fit &lt;- ets(bakery)
+fit$method
+#&gt; [1] &quot;ETS(M,A,M)&quot;
+
+round(forecast(fit, h = 12)$mean)
+#&gt;      Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; 2026 514 494 539 570 595 567 511 513 605 629 707 871</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Take the code apart line by line. <code>library(forecast)</code> loads the package that supplies <code>ets()</code>, and <code>suppressMessages()</code> keeps its startup banner out of the output. <code>loaves</code> is the ledger read left to right, top to bottom, so entry 12 (686) is December 2022 and entry 48 (848) is December 2025. <code>ts(loaves, start = c(2022, 1), frequency = 12)</code> wraps the bare numbers into a time series object: <code>start = c(2022, 1)</code> says observation one is month one of 2022, and <code>frequency = 12</code> says the cycle is twelve observations long, which is the only thing telling R that entries 12, 24, 36 and 48 are all Decembers. (There is more on this in <a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a>.)</p>
+
+<p><code>ets(bakery)</code> is the whole fitting call. <code>fit$method</code> is the name it chose, and <code>forecast(fit, h = 12)$mean</code> holds the twelve monthly point forecasts, rounded here for readability.</p>
+
+<p>Two things came back. The name, <strong>ETS(M,A,M)</strong>, which is what this post is about. And a forecast with the bakery's own year in it: a February trough at 494, the summer dip at 511 and 513, then the climb to <strong>871</strong> in December. Nobody told <code>ets()</code> that December matters, that the bakery is growing, or that the seasonal swing is a percentage rather than a fixed number of loaves. It read all of that off 48 numbers and wrote its conclusion in three letters.</p>
+
+<p>Those letters are not a label R invented for display. They are the model. Printing the fitted object shows the parts they name.</p>
+
+<div class="webr-container" data-block-title="What the name is standing for">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What the name is standing for</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit
+#&gt; ETS(M,A,M) 
+#&gt; 
+#&gt; Call:
+#&gt; ets(y = bakery)
+#&gt; 
+#&gt;   Smoothing parameters:
+#&gt;     alpha = 0.0147 
+#&gt;     beta  = 2e-04 
+#&gt;     gamma = 0.0135 
+#&gt; 
+#&gt;   Initial states:
+#&gt;     l = 449.6068 
+#&gt;     b = 2.6447 
+#&gt;     s = 1.437 1.1705 1.0463 1.0106 0.8614 0.8609
+#&gt;            0.9608 1.0116 0.9734 0.9258 0.852 0.8898
+#&gt; 
+#&gt;   sigma:  0.0245
+#&gt; 
+#&gt;      AIC     AICc      BIC 
+#&gt; 442.1174 462.5174 473.9279</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read it top to bottom. The <strong>smoothing parameters</strong> are the three dials from the previous two posts: <code>alpha</code> for the level, <code>beta</code> for the trend, <code>gamma</code> for the season, each between 0 and 1, each saying how fast that component chases new data. The <strong>initial states</strong> are where the three components started in January 2022: a level <code>l</code> of 450 loaves, a trend <code>b</code> of 2.64 loaves per month, and twelve seasonal values <code>s</code>. <strong>sigma</strong> is the size of the model's error, and the fact that it reads 0.0245 rather than something in loaves is the first hint about the E slot. The three numbers at the bottom are information criteria, fit scores that let R rank one model against another. They are how <code>ets()</code> chose this model over the others, and the section on how it chooses comes back to them.</p>
+
+<blockquote><p><strong>Note:</strong> <code>alpha</code>, <code>beta</code> and <code>gamma</code> are the same dials <code>hw()</code> and <code>ses()</code> use, and they mean the same thing here. What ETS adds is not new dials, it is a naming scheme for which components exist at all and how they combine.</p></blockquote>
+
+<h2>What do the three letters mean?</h2>
+
+<p>The name has three slots, always in the same order: <strong>E</strong>rror, <strong>T</strong>rend, <strong>S</strong>eason. Each slot answers one question about the series with one letter.</p>
+
+<p><strong>N</strong> means none: the component is absent. <strong>A</strong> means additive: the component works by addition, in the units of the data. <strong>M</strong> means multiplicative: the component works by multiplication, as a percentage of whatever the series currently sits at. The trend slot has two extra options, <strong>Ad</strong> and <strong>Md</strong>, the damped versions, which bend the trend gradually toward flat instead of extrapolating it forever.</p>
+
+<p><img src="screenshots/ETS-Models-in-R-taxonomy.webp" alt="Flowchart of the three ETS slots, each with its options, multiplying out to 30 models" class="img-responsive img-zoomable" loading="lazy" width="2248" height="3236" /></p>
+
+<p><em>Figure 1: The three slots of an ETS model. Every model in the family is one choice from each column, which is why the count comes out at 2 x 5 x 3 = 30.</em></p>
+
+<p>So <strong>ETS(M,A,M)</strong> is a specific set of three claims about Ridge Road Bakery:</p>
+
+<ul>
+
+<li><strong>E = M</strong>: the error is multiplicative, so the bakery's unpredictability is a percentage of its size, not a fixed number of loaves.</li>
+
+<li><strong>T = A</strong>: the trend is additive, so growth is a fixed number of loaves added per month, a straight line rather than a compounding curve.</li>
+
+<li><strong>S = M</strong>: the season is multiplicative, so December is a multiplier on the level, not a fixed bonus of loaves.</li>
+
+</ul>
+
+<p>Those are claims you can check, because the fitted components are stored in the model. <code>fit$states</code> is a matrix with one row per time point; the last row is where every component ended up in December 2025.</p>
+
+<div class="webr-container" data-block-title="Where the components ended up">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Where the components ended up</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">states &lt;- fit$states[nrow(fit$states), ]
+round(states, 3)
+#&gt;       l       b      s1      s2      s3      s4      s5      s6      s7      s8      s9     s10 
+#&gt; 574.978   2.630   1.437   1.170   1.046   1.010   0.861   0.861   0.961   1.011   0.973   0.925 
+#&gt;     s11     s12 
+#&gt;   0.852   0.890</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>nrow(fit$states)</code> is the number of rows, so <code>fit$states[nrow(fit$states), ]</code> is the final row. It holds fourteen numbers: the level <code>l</code>, the trend <code>b</code>, and twelve seasonal values <code>s1</code> to <code>s12</code>.</p>
+
+<p>The level ended at <strong>574.98</strong> loaves, which is the bakery's underlying size in December 2025 with the season taken out. The trend ended at <strong>2.63</strong>, meaning the level is growing by about two and a half loaves per month. The twelve <code>s</code> values are the seasonal multipliers, and every one of them sits near 1: they multiply.</p>
+
+<p>The <code>s</code> numbering is the one genuinely confusing thing here, so do not guess at it. <strong><code>s1</code> is the most recent season, and they run backwards from there.</strong> The series ends in December 2025, so <code>s1</code> is December, <code>s2</code> is November, and <code>s12</code> is January. Relabelling them in calendar order makes them readable.</p>
+
+<div class="webr-container" data-block-title="The seasonal multipliers, in calendar order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The seasonal multipliers, in calendar order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">season &lt;- states[paste0(&quot;s&quot;, 1:12)]
+names(season) &lt;- month.abb[12:1]     # s1 is December, s2 November, ... s12 January
+
+round(season[month.abb], 3)
+#&gt;   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep   Oct   Nov   Dec 
+#&gt; 0.890 0.852 0.925 0.973 1.011 0.961 0.861 0.861 1.010 1.046 1.170 1.437
+
+# The same thing as percentages above or below a normal month.
+round(100 * (season[month.abb] - 1), 1)
+#&gt;   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep   Oct   Nov   Dec 
+#&gt; -11.0 -14.8  -7.5  -2.7   1.1  -3.9 -13.9 -13.9   1.0   4.6  17.0  43.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>paste0(&quot;s&quot;, 1:12)</code> builds the names <code>&quot;s1&quot;</code> through <code>&quot;s12&quot;</code> to pull those twelve entries out. <code>month.abb</code> is a vector built into R holding <code>&quot;Jan&quot;</code> through <code>&quot;Dec&quot;</code>, so <code>month.abb[12:1]</code> is that vector reversed, which is the order the <code>s</code> values are actually in. Indexing by <code>season[month.abb]</code> then puts them back into calendar order. Subtracting 1 and multiplying by 100 turns each multiplier into a percentage: 1.437 becomes +43.7%.</p>
+
+<p>Now check them against the ledger. February is the year's trough at 0.852, a February being about 15% below a normal month, and the raw ledger agrees (392, 409, 447, 463, the smallest number in every year). July and August both sit at 0.861, the summer dip. November is +17%, December is <strong>+43.7%</strong>. The model never saw a calendar. It recovered the bakery's year from the numbers alone, and expressed it exactly the way the S slot promised: as multipliers.</p>
+
+<p>Which means the December forecast is not a mystery. It is those components put back together, and you can do it by hand.</p>
+
+<div class="webr-container" data-block-title="Rebuild the December forecast from the components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebuild the December forecast from the components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">level    &lt;- unname(states[&quot;l&quot;])    # 574.978, the level in Dec 2025
+growth   &lt;- unname(states[&quot;b&quot;])    # 2.630 loaves added per month
+dec_mult &lt;- unname(states[&quot;s1&quot;])   # 1.437, December's multiplier
+
+# T = A: twelve months of trend get ADDED to the level.
+round(level, 2)
+#&gt; [1] 574.98
+round(level + 12 * growth, 2)
+#&gt; [1] 606.54
+
+# S = M: December's multiplier gets MULTIPLIED in.
+round((level + 12 * growth) * dec_mult, 2)
+#&gt; [1] 871.46
+
+# Which is exactly what forecast() said.
+round(forecast(fit, h = 12)$mean[12], 2)
+#&gt; [1] 871.46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>unname()</code> strips the names off, so the results print as plain numbers instead of carrying an <code>l</code> or <code>s1</code> label around. Then the arithmetic is the model, one slot at a time. Start at the level, 574.98. December 2026 is twelve months past the end of the data, and because <strong>T is additive</strong>, those twelve months are <code>12 * 2.630 = 31.6</code> loaves <em>added</em>, giving 606.54. Because <strong>S is multiplicative</strong>, December is not another addition but a <em>multiplication</em> by 1.437, giving <strong>871.46</strong>. And <code>forecast()</code> returns 871.46.</p>
+
+<p>That is the whole point of the taxonomy. The letters tell you which arithmetic assembles the forecast: A means you add that component, M means you multiply by it, N means it is not there at all. In general the point forecast \(h\) steps ahead of the end of an ETS(M,A,M) fit is</p>
+
+<p>\[ \hat{y}_{t+h} = (\ell_t + h \, b_t) \, s_{t+h-m} \]</p>
+
+<p>where \(\ell_t\) is the final level, \(b_t\) the final trend per period, \(m\) the season length (12 here), and \(s_{t+h-m}\) the seasonal multiplier for the month you are <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a>. Set \(h = 12\), \(\ell_t = 574.978\), \(b_t = 2.630\), \(s = 1.437\) and you get the 871.46 above.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rebuild July 2026 the same way. July is seven months past the end of the data, and its multiplier is <code>s6</code>. Work out the number before you run it: the summer dip is about 14% down, so expect something well below the level.</p>
+<div class="webr-container" data-block-title="Your turn: rebuild July by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rebuild July by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">jul_mult &lt;- unname(states[&quot;s6&quot;])
+
+# 1. Print jul_mult and check it against the calendar table above
+# 2. Apply the same recipe: (level + 7 * growth) * jul_mult
+# 3. Compare against forecast(fit, h = 12)$mean[7]
+# Expected: a number near 511, matching the forecast exactly</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="July-by-hand solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">July-by-hand solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">jul_mult &lt;- unname(states[&quot;s6&quot;])
+round(jul_mult, 3)
+#&gt; [1] 0.861
+
+round((level + 7 * growth) * jul_mult, 2)
+#&gt; [1] 510.86
+
+round(forecast(fit, h = 12)$mean[7], 2)
+#&gt; [1] 510.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Seven months of trend added to the level gives 593.39, and July's 0.861 multiplier pulls it down to <strong>510.86</strong>, which is exactly what <code>forecast()</code> returns for July 2026. The recipe did not change between December and July. Only the multiplier did, and <code>s6</code> is July because the <code>s</code> values count backwards from December.</p>
+
+</details>
+</section>
+
+<h2>Why are there exactly 30 models?</h2>
+
+<p>The count follows from the slots. Multiply the options together: <strong>2 errors x 5 trends x 3 seasons = 30</strong>.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Slot</th>
+<th>Options</th>
+<th>Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>E</strong>rror</td>
+<td>A, M</td>
+<td>2</td>
+</tr>
+<tr>
+<td><strong>T</strong>rend</td>
+<td>N, A, Ad, M, Md</td>
+<td>5</td>
+</tr>
+<tr>
+<td><strong>S</strong>eason</td>
+<td>N, A, M</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+
+<p>The error slot has no N, and that is not an oversight. A model with no error term would claim the bakery is perfectly predictable, which is not a forecasting model at all, so every ETS model has an error and the only question is whether it is <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">additive or multiplicative</a>. The trend slot has five because A and M each come in a damped variant, Ad and Md, and "no trend" is a real option. The season slot has three, with N covering every series that has no repeating cycle.</p>
+
+<p>Rather than take the multiplication on faith, build the list.</p>
+
+<div class="webr-container" data-block-title="Enumerate the whole family">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Enumerate the whole family</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">family &lt;- expand.grid(season = c(&quot;N&quot;, &quot;A&quot;, &quot;M&quot;),
+                      trend  = c(&quot;N&quot;, &quot;A&quot;, &quot;Ad&quot;, &quot;M&quot;, &quot;Md&quot;),
+                      error  = c(&quot;A&quot;, &quot;M&quot;),
+                      stringsAsFactors = FALSE)
+family$label &lt;- sprintf(&quot;ETS(%s,%s,%s)&quot;, family$error, family$trend, family$season)
+
+nrow(family)
+#&gt; [1] 30
+
+family$label
+#&gt;  [1] &quot;ETS(A,N,N)&quot;  &quot;ETS(A,N,A)&quot;  &quot;ETS(A,N,M)&quot;  &quot;ETS(A,A,N)&quot;  &quot;ETS(A,A,A)&quot;  &quot;ETS(A,A,M)&quot; 
+#&gt;  [7] &quot;ETS(A,Ad,N)&quot; &quot;ETS(A,Ad,A)&quot; &quot;ETS(A,Ad,M)&quot; &quot;ETS(A,M,N)&quot;  &quot;ETS(A,M,A)&quot;  &quot;ETS(A,M,M)&quot; 
+#&gt; [13] &quot;ETS(A,Md,N)&quot; &quot;ETS(A,Md,A)&quot; &quot;ETS(A,Md,M)&quot; &quot;ETS(M,N,N)&quot;  &quot;ETS(M,N,A)&quot;  &quot;ETS(M,N,M)&quot; 
+#&gt; [19] &quot;ETS(M,A,N)&quot;  &quot;ETS(M,A,A)&quot;  &quot;ETS(M,A,M)&quot;  &quot;ETS(M,Ad,N)&quot; &quot;ETS(M,Ad,A)&quot; &quot;ETS(M,Ad,M)&quot;
+#&gt; [25] &quot;ETS(M,M,N)&quot;  &quot;ETS(M,M,A)&quot;  &quot;ETS(M,M,M)&quot;  &quot;ETS(M,Md,N)&quot; &quot;ETS(M,Md,A)&quot; &quot;ETS(M,Md,M)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>expand.grid()</code> builds every combination of the vectors you hand it, one row per combination, which is exactly the multiplication done for you. <code>stringsAsFactors = FALSE</code> keeps the letters as text rather than factors, so <code>sprintf()</code> can paste them into the <code>ETS(x,y,z)</code> shape. There are <strong>30 rows</strong>, and printing <code>family$label</code> shows all 30 names.</p>
+
+<p>Several of them are already familiar under other titles. <code>ETS(A,N,N)</code> is simple exponential smoothing, the flat-line model from <a href="Exponential-Smoothing-in-R.html">the exponential smoothing post</a>. <code>ETS(A,A,N)</code> is Holt's linear trend method. <code>ETS(A,A,A)</code> is additive Holt-Winters and <code>ETS(M,A,M)</code> is the multiplicative one. The taxonomy is not a new set of models; it is a filing system that gives the methods you already know their coordinates, and fills in the gaps between them.</p>
+
+<p>And every one of the 30 is a real model that R will fit. Here is the whole family fitted to the bakery, scored and ranked.</p>
+
+<div class="webr-container" data-block-title="Fit all 30 to the bakery">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit all 30 to the bakery</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">family$aicc &lt;- NA_real_
+
+for (i in seq_len(nrow(family))) {
+  spec &lt;- paste0(family$error[i], substr(family$trend[i], 1, 1), family$season[i])
+  f &lt;- suppressWarnings(ets(bakery, model = spec, damped = grepl(&quot;d&quot;, family$trend[i]),
+                            allow.multiplicative.trend = TRUE, restrict = FALSE))
+  family$aicc[i] &lt;- round(f$aicc, 1)
+}
+
+ranked &lt;- family[order(family$aicc), c(&quot;label&quot;, &quot;aicc&quot;)]
+print(head(ranked, 5), row.names = FALSE)
+#&gt;        label  aicc
+#&gt;   ETS(A,M,M) 457.3
+#&gt;   ETS(M,M,M) 460.2
+#&gt;   ETS(A,A,M) 460.7
+#&gt;   ETS(M,A,M) 462.5
+#&gt;  ETS(A,Md,M) 473.9
+
+print(tail(ranked, 3), row.names = FALSE)
+#&gt;        label  aicc
+#&gt;   ETS(A,N,N) 621.4
+#&gt;  ETS(A,Ad,N) 628.4
+#&gt;  ETS(A,Md,N) 628.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the loop. <code>spec</code> builds the three-letter string <code>ets()</code> wants, and because that string has no room for the little <code>d</code>, damping is passed separately: <code>substr(family$trend[i], 1, 1)</code> takes just the first letter of <code>&quot;Ad&quot;</code>, and <code>grepl(&quot;d&quot;, family$trend[i])</code> is <code>TRUE</code> exactly when the trend was a damped one. The two arguments <code>allow.multiplicative.trend = TRUE</code> and <code>restrict = FALSE</code> open up combinations <code>ets()</code> will not consider on its own, which is what the section on how <code>ets()</code> chooses is about. <code>suppressWarnings()</code> keeps the optimiser's grumbles about the awkward fits out of the output. Printing with <code>row.names = FALSE</code> drops the row numbers R would otherwise put down the left edge, which here are just leftovers from the original ordering and mean nothing. <code>AICc</code> is a fit score where <strong>lower is better</strong>; the same section explains it.</p>
+
+<p>Look at what ranked where. Every model in the top five ends in <strong>M</strong>, a multiplicative season, which is the bakery's December spike being detected over and over by different models. Every model at the bottom ends in <strong>N</strong>, no season at all, and the gap between best and worst is about 170 AICc points, which is enormous. The single biggest thing about this series is that it has a season, and the taxonomy makes that visible as a pattern across the whole family rather than a single verdict.</p>
+
+<p>Note also that <code>ETS(M,A,M)</code>, the model <code>ets(bakery)</code> actually chose, sits <strong>fourth</strong> on this list. That is not a mistake, and it is not a contradiction. It is a consequence of what <code>ets()</code> will and will not consider, which is exactly what the section on how <code>ets()</code> chooses is for.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> How many of the 30 models could possibly apply to a series with no season at all, like the bakery's original 24 weekly counts?</p>
+<div class="webr-container" data-block-title="Your turn: count the non-seasonal models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the non-seasonal models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The season slot is fixed at N. The other two slots are still free.
+# Work it out from the table above, then check your arithmetic in R.
+# Expected: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Non-seasonal count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-seasonal count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 2 errors x 5 trends x 1 season (N)
+2 * 5 * 1
+#&gt; [1] 10
+
+# The same answer, read off the enumerated family:
+sum(family$season == &quot;N&quot;)
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fixing the season at N leaves 2 errors and 5 trends, so <strong>10</strong> of the 30 models remain, and counting the rows of the family where <code>season == &quot;N&quot;</code> confirms it. Those ten are the entire non-seasonal toolkit: <code>ETS(A,N,N)</code> is simple exponential smoothing, <code>ETS(A,A,N)</code> is Holt's method, <code>ETS(A,Ad,N)</code> is damped Holt, and so on. This is why the weekly slice in the exponential smoothing post had so few sensible options: with no season, five sixths of the family is off the table before you start.</p>
+
+</details>
+</section>
+
+<h2>What does the error slot actually change?</h2>
+
+<p>The T and S slots have visible jobs: they put the climb and the December spike into the forecast. The E slot is the one people skip, because its job is invisible in the point forecast. Look again at the point-forecast formula from earlier:</p>
+
+<p>\[ \hat{y}_{t+h} = (\ell_t + h \, b_t) \, s_{t+h-m} \]</p>
+
+<p>There is no error term in it. The level, the trend and the season are all there; the E slot is not. That is not sloppy notation. The error has an average of zero (additive) or an average of one as a multiplier (multiplicative), so when you forecast the <em>average</em> outcome, it drops out. The E slot does not tell you where the forecast points.</p>
+
+<p>What it tells you is <strong>how big the misses are, and whether that size depends on how big the bakery is</strong>. Written out, an additive-error model says each observation is the components plus a shock:</p>
+
+<p>\[ y_t = (\ell_{t-1} + b_{t-1}) \, s_{t-m} + \varepsilon_t \]</p>
+
+<p>and a multiplicative-error model says each observation is the components times a shock:</p>
+
+<p>\[ y_t = (\ell_{t-1} + b_{t-1}) \, s_{t-m} \, (1 + \varepsilon_t) \]</p>
+
+<p>In both, \(y_t\) is the loaves actually sold in month \(t\), \(\ell_{t-1}\) and \(b_{t-1}\) are the level and trend carried in from last month, \(s_{t-m}\) is the seasonal factor for this month from one cycle back, and \(\varepsilon_t\) is the random shock, averaging zero with standard deviation \(\sigma\).</p>
+
+<p>The difference is where \(\varepsilon_t\) attaches. In the additive form it is <strong>added in loaves</strong>, so \(\sigma\) is a count: a typical miss is 30 loaves, in February and in December alike. In the multiplicative form it is added to 1 and <strong>multiplied through</strong>, so \(\sigma\) is a <em>fraction</em>: a typical miss is 2.45% of whatever that month was heading for. That is why <code>sigma: 0.0245</code> printed as a decimal rather than a loaf count back in the very first printout. It was a percentage all along.</p>
+
+<p>That difference never shows up in the point forecast. It shows up entirely in the <strong>prediction interval</strong>, the range the model gives around each forecast. So compare the two.</p>
+
+<div class="webr-container" data-block-title="An additive error and a multiplicative error, side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An additive error and a multiplicative error, side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">add_err &lt;- forecast(ets(bakery, model = &quot;AAA&quot;), h = 12)   # additive error
+mul_err &lt;- forecast(ets(bakery, model = &quot;MAM&quot;), h = 12)   # multiplicative error
+
+# The 95% interval reaches this far either side of each point forecast.
+spread_add &lt;- (add_err$upper[, 2] - add_err$lower[, 2]) / 2
+spread_mul &lt;- (mul_err$upper[, 2] - mul_err$lower[, 2]) / 2
+
+compare &lt;- data.frame(
+  month    = month.abb,
+  add_fc   = round(as.numeric(add_err$mean)),
+  add_pm   = round(spread_add, 1),
+  add_pct  = round(100 * spread_add / as.numeric(add_err$mean), 1),
+  mult_fc  = round(as.numeric(mul_err$mean)),
+  mult_pm  = round(spread_mul, 1),
+  mult_pct = round(100 * spread_mul / as.numeric(mul_err$mean), 1)
+)
+print(compare, row.names = FALSE)
+#&gt;  month add_fc add_pm add_pct mult_fc mult_pm mult_pct
+#&gt;    Jan    519   29.9     5.8     514    24.7      4.8
+#&gt;    Feb    513   29.9     5.8     494    23.7      4.8
+#&gt;    Mar    553   30.0     5.4     539    25.9      4.8
+#&gt;    Apr    587   30.1     5.1     570    27.4      4.8
+#&gt;    May    602   30.2     5.0     595    28.6      4.8
+#&gt;    Jun    582   30.4     5.2     567    27.3      4.8
+#&gt;    Jul    543   30.7     5.7     511    24.5      4.8
+#&gt;    Aug    541   31.1     5.8     513    24.7      4.8
+#&gt;    Sep    623   31.6     5.1     605    29.1      4.8
+#&gt;    Oct    648   32.1     5.0     629    30.2      4.8
+#&gt;    Nov    713   32.8     4.6     707    34.0      4.8
+#&gt;    Dec    859   33.6     3.9     871    41.9      4.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ets(bakery, model = &quot;AAA&quot;)</code> forces additive error, additive trend, additive season, and <code>model = &quot;MAM&quot;</code> forces the multiplicative-error, multiplicative-season version; both keep the same additive trend, so the E and S slots are the only things moving. <code>$upper[, 2]</code> and <code>$lower[, 2]</code> are the 95% interval bounds (column 1 would be the 80% interval), so half their difference is how far the interval reaches either side of the point forecast. <code>add_pm</code> is that reach in loaves and <code>add_pct</code> is the same thing as a percentage of the forecast.</p>
+
+<p>Now read the two <code>pm</code> columns down the page, because this is the whole E slot in one table.</p>
+
+<p>The <strong>additive-error</strong> model's reach barely moves: 29.9 loaves in January, 33.6 in December. It is claiming that December, a 859-loaf month, is predictable to within about the same number of loaves as February, a 513-loaf month. As a percentage that means its confidence <em>improves</em> as the months get bigger, from 5.8% down to <strong>3.9%</strong>.</p>
+
+<p>The <strong>multiplicative-error</strong> model's reach grows with the month: 24.7 loaves in January, <strong>41.9</strong> in December. As a percentage it is 4.8% in January and 4.8% in December, and 4.8% in every other month too. Not approximately. Look at the whole <code>mult_pct</code> column: it is flat.</p>
+
+<p>That is the E slot, stated as plainly as it can be. <strong>Additive error means the misses are a constant number of loaves. Multiplicative error means the misses are a constant percentage.</strong> And you can see which one the bakery is by asking the owner a question they can actually answer: is a busy December as predictable as a quiet February to within 30 loaves either way, or is every month predictable to within about 5% of itself? For a business whose December is half again the size of its February, the percentage story is the honest one, and that is the M in the first slot.</p>
+
+<div class="webr-container" data-block-title="See the two error shapes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the two error shapes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(2, 1), mar = c(3, 4, 3, 1))
+
+plot(add_err, main = &quot;ETS(A,A,A): additive error, a constant band&quot;,
+     ylab = &quot;loaves&quot;, xlab = &quot;&quot;, fcol = &quot;steelblue&quot;, flwd = 2)
+plot(mul_err, main = &quot;ETS(M,A,M): multiplicative error, a band that flares in December&quot;,
+     ylab = &quot;loaves&quot;, xlab = &quot;&quot;, fcol = &quot;tomato&quot;, flwd = 2)
+
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>par(mfrow = c(2, 1))</code> stacks two plots vertically so the interval shapes line up for comparison, and <code>plot()</code> on a forecast object draws the history, the point forecast and the shaded intervals for free. In the top panel the shaded band keeps a near-constant width as it crosses the twelve months, including through the December spike. In the bottom panel the band is visibly narrow through the quiet months and flares out over November and December, tracking the size of what it is predicting.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> December's forecast is about 1.76 times February's. If the multiplicative-error interval really is a constant percentage, its December reach should be 1.76 times its February reach. Check it.</p>
+<div class="webr-container" data-block-title="Your turn: is the spread really proportional?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: is the spread really proportional?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># spread_mul holds the 12 half-widths; [12] is December, [2] is February.
+# 1. Compute the ratio of the December reach to the February reach
+# 2. Compute the ratio of the December forecast to the February forecast
+# 3. Compare the two ratios
+# Expected: both ratios are the same number</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Proportional-spread solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Proportional-spread solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(unname(spread_mul[12] / spread_mul[2]), 2)
+#&gt; [1] 1.76
+
+round(unname(mul_err$mean[12] / mul_err$mean[2]), 2)
+#&gt; [1] 1.76</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The December interval is 1.76 times as wide as February's, and December's forecast is 1.76 times February's. The two ratios are the same number because that is precisely what a multiplicative error means: the uncertainty is a fixed fraction of the level, so scaling the forecast scales the interval by the same amount. Run the same two lines on <code>spread_add</code> and <code>add_err</code> and the ratios come apart, because a constant band cannot track a growing forecast.</p>
+
+</details>
+</section>
+
+<h2>How does ets() choose one, and what does it skip?</h2>
+
+<p><code>ets()</code> fits a set of candidate models, scores each one, and keeps the best. The score is <strong>AICc</strong>, the corrected <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">Akaike Information Criterion</a>, and lower is better. It rewards a model for fitting the data and penalises it for every parameter it uses, so a model only earns its extra dials by fitting better than they cost. The correction is a small-sample adjustment, and with 48 observations the bakery counts as a small sample, which is why AICc rather than plain <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> is the default.</p>
+
+<p>The important thing is what the candidate set contains, because it is <strong>not</strong> all 30. Two defaults narrow it before scoring starts.</p>
+
+<p><code>allow.multiplicative.trend = FALSE</code> removes every model with an M or Md trend, which is 12 of the 30, leaving 18. <code>restrict = TRUE</code> then removes combinations that are numerically unstable, which for the remaining 18 means the three that pair an additive error with a multiplicative season. So the real search is 15 models.</p>
+
+<div class="webr-container" data-block-title="What ets() actually considers by default">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What ets() actually considers by default</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">default_space &lt;- expand.grid(season = c(&quot;N&quot;, &quot;A&quot;, &quot;M&quot;),
+                             trend  = c(&quot;N&quot;, &quot;A&quot;, &quot;Ad&quot;),
+                             error  = c(&quot;A&quot;, &quot;M&quot;),
+                             stringsAsFactors = FALSE)
+default_space$label &lt;- sprintf(&quot;ETS(%s,%s,%s)&quot;,
+                               default_space$error, default_space$trend, default_space$season)
+
+# Which of these will ets() actually fit with its default restrict = TRUE?
+default_space$allowed &lt;- vapply(seq_len(nrow(default_space)), function(i) {
+  spec &lt;- paste0(default_space$error[i], substr(default_space$trend[i], 1, 1),
+                 default_space$season[i])
+  f &lt;- try(suppressWarnings(ets(bakery, model = spec,
+                                damped = grepl(&quot;d&quot;, default_space$trend[i]))), silent = TRUE)
+  !inherits(f, &quot;try-error&quot;)
+}, logical(1))
+
+nrow(default_space)
+#&gt; [1] 18
+sum(default_space$allowed)
+#&gt; [1] 15
+default_space$label[!default_space$allowed]
+#&gt; [1] &quot;ETS(A,N,M)&quot;  &quot;ETS(A,A,M)&quot;  &quot;ETS(A,Ad,M)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>vapply()</code> runs a function over each row and insists the answer is a single logical each time, which is a safer <code>sapply()</code>. Inside, <code>try(..., silent = TRUE)</code> attempts the fit and captures the failure instead of stopping the script, and <code>inherits(f, &quot;try-error&quot;)</code> asks whether that attempt failed, so <code>allowed</code> ends up <code>TRUE</code> for the models <code>ets()</code> will fit and <code>FALSE</code> for the ones it refuses.</p>
+
+<p>Of the 18 models left once multiplicative trends are excluded, <strong>15</strong> fit and <strong>3</strong> are refused: <code>ETS(A,N,M)</code>, <code>ETS(A,A,M)</code> and <code>ETS(A,Ad,M)</code>. All three are the same idea, an additive error bolted onto a multiplicative season, and they are excluded because that pairing has no finite variance, so the model can produce forecasts that blow up. <code>restrict = TRUE</code> is R declining to hand you a model that is known to misbehave.</p>
+
+<p>This explains the fourth-place finish in the all-30 ranking above. On the full 30, <code>ETS(A,M,M)</code> scored 457.3, better than the 462.5 of the <code>ETS(M,A,M)</code> that <code>ets()</code> actually chose. But <code>ETS(A,M,M)</code> has a multiplicative trend and an additive error paired with a multiplicative season, so it is outside the default search twice over. <code>ets()</code> did not miss it. It refused it.</p>
+
+<blockquote><p><strong>Watch out:</strong> AICc measures fit to the 48 months you have. It says nothing about what happens at long horizons. A multiplicative trend compounds, so a model that fits slightly better in-sample can forecast a bakery selling absurd numbers of loaves a few years out. That is why <code>allow.multiplicative.trend</code> defaults to <code>FALSE</code>: the models it hides are dangerous more often than they are useful, and the default is protecting you rather than restricting you. Turn it on only if you have a reason to believe growth compounds, and check the long-horizon forecast when you do.</p></blockquote>
+
+<h2>How do you override the choice?</h2>
+
+<p>The <code>model</code> argument takes the three-letter string directly, so anything <code>ets()</code> chose is a suggestion you can overrule. The letters go in slot order, and <strong>Z</strong> means "choose this slot for me". <code>ets(bakery)</code> is really <code>ets(bakery, model = &quot;ZZZ&quot;)</code>: all three slots automatic. <code>model = &quot;MAM&quot;</code> fixes all three. <code>model = &quot;ZZM&quot;</code> would fix only the season as multiplicative and let R pick the error and trend.</p>
+
+<p>Damping does not fit in a three-letter string, so it rides along as the separate <code>damped</code> argument: <code>damped = TRUE</code> forces it, <code>damped = FALSE</code> forbids it, and <code>damped = NULL</code> (the default) lets <code>ets()</code> try both.</p>
+
+<div class="webr-container" data-block-title="Force a model, and force damping">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Force a model, and force damping</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Force the fully additive model, the same one hw(seasonal = &quot;additive&quot;) fits.
+forced_add &lt;- ets(bakery, model = &quot;AAA&quot;)
+forced_add$method
+#&gt; [1] &quot;ETS(A,A,A)&quot;
+round(forecast(forced_add, h = 12)$mean[12], 1)
+#&gt; [1] 858.9
+
+# Force a damped trend on the automatic winner.
+damped_fit &lt;- ets(bakery, model = &quot;MAM&quot;, damped = TRUE)
+damped_fit$method
+#&gt; [1] &quot;ETS(M,Ad,M)&quot;
+
+# Damping cost this series 13 AICc points, so ets() was right to skip it.
+round(c(straight = fit$aicc, damped = damped_fit$aicc), 1)
+#&gt; straight   damped 
+#&gt;    462.5    475.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ets(bakery, model = &quot;AAA&quot;)</code> fixes all three slots as additive; its December forecast is 858.9 loaves, about 13 below the automatic model's 871. <code>ets(bakery, model = &quot;MAM&quot;, damped = TRUE)</code> keeps the winning error and season but bends the trend, and <code>$method</code> confirms the middle slot became <code>Ad</code>. Comparing the two AICc values, damping scores 475.8 against the undamped 462.5, which is <strong>13 points worse</strong>. <code>ets()</code> tried the damped version during its search and rejected it for exactly this reason, and now you can see the number it rejected it on.</p>
+
+<p>Forcing a model is not a hack; it is a normal part of forecasting. Fix the slots when the mechanism is known (a holiday rush driven by percentages is multiplicative whatever four noisy years imply), when you need one specification across many series so the results compare, or when someone has to defend the model in a meeting. The automatic choice is the thing you check your reasoning against.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Force the simplest model in the family, <code>ETS(A,N,N)</code>, onto the bakery. It has no trend and no season, so predict what its twelve forecasts will look like before you run it.</p>
+<div class="webr-container" data-block-title="Your turn: force the simplest model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: force the simplest model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># model = &quot;ANN&quot; is simple exponential smoothing: level only.
+# 1. Fit it and print $method
+# 2. Print the February and December forecasts: forecast(flat, h = 12)$mean[c(2, 12)]
+# 3. Ask why the bakery's owner would find this forecast useless
+# Expected: both months identical, because a level-only model draws a flat line</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Simplest-model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simplest-model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flat &lt;- ets(bakery, model = &quot;ANN&quot;)
+flat$method
+#&gt; [1] &quot;ETS(A,N,N)&quot;
+
+round(forecast(flat, h = 12)$mean[c(2, 12)], 1)
+#&gt; [1] 800.6 800.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>February and December get the same number, <strong>800.6</strong>, because with N in both the trend and season slots there is nothing in the model that can tell one month from another. It is the flat line from the exponential smoothing post, and the number is useless in both directions at once: it would have the bakery over-produce by 300 loaves in February and under-produce by 70 in December. Worth noticing that it is the <em>December</em> level it settled near, because December's huge values drag the level up. A model with no season does not ignore the season; it smears it across every month.</p>
+
+</details>
+</section>
+
+<h2>Why did hw() say 900 when ets() says 871?</h2>
+
+<p>Now the loose end from the top of the post. The Holt-Winters post fit <code>hw(bakery, seasonal = &quot;multiplicative&quot;)</code> and forecast <strong>900</strong> loaves for December 2026. <code>ets(bakery)</code> fits ETS(M,A,M) and forecasts <strong>871</strong>. Multiplicative Holt-Winters <em>is</em> ETS(M,A,M), so the same model on the same data has produced two different numbers, and that deserves an answer rather than a shrug.</p>
+
+<p>The models are not different. The fitting is. <code>hw()</code> calls <code>ets()</code> internally with <code>model = &quot;MAM&quot;</code> and one argument changed: <code>opt.crit = &quot;mse&quot;</code>. That argument is the optimiser's target. <code>ets()</code> defaults to <code>opt.crit = &quot;lik&quot;</code>, which finds the parameters that make the observed data most likely under the state space model. <code>hw()</code> asks instead for the parameters that minimise the squared errors of the one-step-ahead fits. Two different questions, two different answers.</p>
+
+<div class="webr-container" data-block-title="The whole 29-loaf gap is one argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The whole 29-loaf gap is one argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">like_fit &lt;- ets(bakery, model = &quot;MAM&quot;)                    # default: opt.crit = &quot;lik&quot;
+mse_fit  &lt;- ets(bakery, model = &quot;MAM&quot;, opt.crit = &quot;mse&quot;)  # what hw() does internally
+
+round(forecast(like_fit, h = 12)$mean[12], 2)
+#&gt; [1] 871.46
+round(forecast(mse_fit,  h = 12)$mean[12], 2)
+#&gt; [1] 900.44
+
+# hw() from the previous post, for comparison:
+round(hw(bakery, seasonal = &quot;multiplicative&quot;, h = 12)$mean[12], 2)
+#&gt; [1] 900.44
+
+# The difference lives entirely in beta, the trend dial.
+round(c(lik = like_fit$par[&quot;beta&quot;], mse = mse_fit$par[&quot;beta&quot;]), 4)
+#&gt; lik.beta mse.beta 
+#&gt;   0.0002   0.0216</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Changing one argument reproduces the previous post's 900.44 exactly, to the decimal. The two fits are the same model form; only <code>beta</code> really moved, from <strong>0.0002</strong> to <strong>0.0216</strong>.</p>
+
+<p>That tiny number is the whole story. <code>beta</code> is how fast the trend chases new data. At <code>beta = 0.0002</code> the likelihood fit has essentially frozen the trend, leaving it near its initial 2.63 loaves per month for all four years. At <code>beta = 0.0216</code> the squared-error fit lets the trend drift upward, and by December 2025 it has reached 3.89 loaves per month. Extrapolate that difference twelve months and multiply by December's 1.44, and you have the 29 loaves.</p>
+
+<p>So which is right? The tempting move is to let AICc settle it, and that move is a trap worth naming. AICc is built out of the likelihood, and <code>like_fit</code> is by construction the fit that makes the likelihood as large as it can be, so it wins an AICc comparison against any other fit of the same model form automatically: 462.5 against the squared-error fit's 465.6. That is arithmetic, not evidence. Scoring a likelihood fit against a squared-error fit using a likelihood-based score is asking one of the contestants to referee. The comparison that would actually settle it is out-of-sample: fit both on the first three years, forecast 2025, and see which one landed closer to what the bakery really sold.</p>
+
+<p>What the two fits genuinely disagree about is the bakery, not the mathematics. <code>hw()</code> is the more optimistic of the two because it believes growth is accelerating; <code>ets()</code> believes growth is steady and the recent lift is seasonal noise. That is a question about the business. If you have outside reason to think growth really is accelerating, 900 is defensible; if you do not, 871 is the more conservative flour order. Either way, you now know it is <code>beta</code> you are betting on.</p>
+
+<blockquote><p><strong>Note:</strong> This is the most common way two "identical" R forecasts disagree, and it is almost never the model. Check <code>opt.crit</code>, check <code>initial</code>, check whether one function optimised the starting states and the other seeded them from a decomposition. Same equations, different objective, different answer.</p></blockquote>
+
+<h2>When does ETS break?</h2>
+
+<p>The taxonomy is tidy, which makes it easy to forget it has hard edges. Four are worth knowing before you trust an ETS forecast.</p>
+
+<p><strong>Some combinations are forbidden outright.</strong> You saw <code>restrict = TRUE</code> refuse the three additive-error, multiplicative-season models a moment ago. Ask for one by name and R says so plainly.</p>
+
+<p><strong>Multiplicative anything needs strictly positive data.</strong> A multiplicative season is a ratio, and there is no meaningful ratio to zero. If Ridge Road Bakery had closed for December 2022, that single zero would take every multiplicative model off the table.</p>
+
+<div class="webr-container" data-block-title="The two ways ETS refuses">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The two ways ETS refuses</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. A forbidden combination, asked for by name.
+forbidden &lt;- try(ets(bakery, model = &quot;AAM&quot;), silent = TRUE)
+cat(as.character(forbidden))
+#&gt; Error in ets(bakery, model = &quot;AAM&quot;) : Forbidden model combination
+
+# 2. A zero in the data: pretend the bakery closed for December 2022.
+closed_dec &lt;- loaves
+closed_dec[12] &lt;- 0
+closed &lt;- ts(closed_dec, start = c(2022, 1), frequency = 12)
+
+refused &lt;- try(ets(closed, model = &quot;MAM&quot;), silent = TRUE)
+cat(as.character(refused))
+#&gt; Error in ets(closed, model = &quot;MAM&quot;) : 
+#&gt;   Inappropriate model for data with negative or zero values
+
+# And left to choose, it abandons the season entirely.
+ets(closed)$method
+#&gt; [1] &quot;ETS(A,A,N)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>try(..., silent = TRUE)</code> captures each error instead of stopping the page, and <code>cat(as.character(...))</code> prints the message R produced. The first is a flat refusal of an unstable specification. The second is the positivity rule: one zero in 48 months and every multiplicative model is gone.</p>
+
+<p>The third result is the one to take seriously. Left to choose on a series with a single zero, <code>ets()</code> returned <strong>ETS(A,A,N)</strong>, a model with <strong>no season at all</strong>. One bad month did not merely downgrade the season from multiplicative to additive; it knocked the entire <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal component</a> out of the winning model, on a series whose defining feature is a December spike. A zero that is really a <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">closure</a>, a missing reading, or a data-entry slip should be <code>NA</code>, not <code>0</code>. Coding it as zero does not lose you one observation, it can lose you the shape of the year.</p>
+
+<p><strong>One seasonal period only.</strong> Every ETS model carries exactly one <code>m</code>. Daily data with both a weekly and a yearly cycle cannot be expressed in three letters, and neither <code>ets()</code> nor Holt-Winters will do it. That is where TBATS and seasonal ARIMA start.</p>
+
+<p><strong>Long seasons are impractical.</strong> <code>ets()</code> will not fit <code>m</code> above 24. A season of length 52 (weekly data) needs 52 seasonal states estimated from a handful of cycles, which is more parameters than the data can support. Fourier terms in a regression are the usual answer.</p>
+
+<h2>What does this look like in fable?</h2>
+
+<p>The forecast package is the older of Rob Hyndman's two toolkits. Its successor, <strong>fable</strong>, uses tsibbles and tidyverse verbs, and it names models with the same three-letter taxonomy, because the taxonomy is the theory, not the package. The function is <code>ETS()</code> with a capital E, and the letters are spelled out as terms: <code>error(&quot;M&quot;) + trend(&quot;A&quot;) + season(&quot;M&quot;)</code>, or left off entirely to get the automatic search.</p>
+
+<p>fable is not one of the packages this page can run in your browser, so the block below is for your own R session.</p>
+
+<pre><code class="language-r">library(fable)
+library(tsibble)
+library(dplyr)
+
+# fable wants a tsibble: a data frame with a declared time index.
+bakery_tbl &lt;- tsibble(month  = yearmonth(&quot;2022 Jan&quot;) + 0:47,
+                      loaves = loaves,
+                      index  = month)
+
+ets_fit &lt;- bakery_tbl |&gt; model(auto = ETS(loaves))
+ets_fit
+#&gt; # A mable: 1 x 1
+#&gt;           auto
+#&gt;        &lt;model&gt;
+#&gt; 1 &lt;ETS(M,A,M)&gt;
+
+ets_fit |&gt; forecast(h = 12) |&gt; as_tibble() |&gt; select(month, .mean) |&gt; tail(2)
+#&gt; # A tibble: 2 × 2
+#&gt;      month .mean
+#&gt;      &lt;mth&gt; &lt;dbl&gt;
+#&gt; 1 2026 Nov  707.
+#&gt; 2 2026 Dec  871.</code></pre>
+
+<p><code>tsibble()</code> builds fable's data structure, where <code>yearmonth(&quot;2022 Jan&quot;) + 0:47</code> generates the 48 monthly stamps and <code>index = month</code> declares which column is time. <code>model(auto = ETS(loaves))</code> fits the model and stores it in a mable, fable's table of models, and <code>forecast(h = 12)</code> produces a fable of forecasts, from which <code>.mean</code> is the point forecast.</p>
+
+<p>The answers are identical: <strong>ETS(M,A,M)</strong>, and 871 loaves for December 2026, the same number <code>ets()</code> gave. Different syntax, same 30 models, same winner. If you learn to read the letters here you can read them anywhere, which is the real reason the taxonomy is worth your time. A fuller treatment of the tidy workflow is its own topic.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does the ETS in ETS models stand for?</strong> Two things at once, which is deliberate. It is <strong>E</strong>rror, <strong>T</strong>rend, <strong>S</strong>eason, the three slots in the name. It also reads as <strong>E</strong>xponen<strong>T</strong>ial <strong>S</strong>moothing, the family of methods those slots describe. Hyndman chose the acronym so it would work both ways.</p>
+
+<p><strong>Is ETS the same as Holt-Winters?</strong> Holt-Winters is a small corner of ETS. Additive Holt-Winters is ETS(A,A,A) and multiplicative Holt-Winters is ETS(M,A,M), so those two methods are 2 of the 30 models. The taxonomy also covers everything with no trend, no season, damped trends, and multiplicative trends, plus the choice of error type that Holt-Winters never asks you about.</p>
+
+<p><strong>Why is there no ETS(N,...) model with no error?</strong> Because a model with no error term would be claiming the series is perfectly predictable from its components, which leaves nothing to forecast and no way to build a prediction interval. Every real series has noise, so the only question the E slot asks is what kind, which is why it has two options and not three.</p>
+
+<p><strong>Does the error slot change my point forecast?</strong> Barely, and not by design. The error averages out of the point forecast, so the E slot has no term in the forecast formula. It does change the fitting, so in practice the numbers differ a little: on the bakery, ETS(A,A,A) says 859 for December against ETS(M,A,M)'s 871. What the E slot really controls is the prediction interval: additive gives you a constant band in loaves, multiplicative gives you a constant percentage.</p>
+
+<p><strong>Why did ets() not pick the model with the best AICc?</strong> It picked the best AICc <em>among the models it searches</em>, which is 15 of the 30. Its defaults exclude multiplicative trends (<code>allow.multiplicative.trend = FALSE</code>) and unstable additive-error, multiplicative-season combinations (<code>restrict = TRUE</code>). Fit all 30 by hand and something outside that set can score better in-sample, as <code>ETS(A,M,M)</code> does on the bakery. That is usually the defaults doing their job, since multiplicative trends compound into unreasonable long-horizon forecasts.</p>
+
+<p><strong>How much data does ETS need?</strong> At least two full seasonal cycles for any model with a season, which is 24 months of monthly data, and that is the bare minimum rather than a comfortable amount, since each of the twelve seasonal states would rest on two observations. Three or four cycles is where the seasonal indices settle down. Non-seasonal models are far less demanding, and <code>ETS(A,N,N)</code> will fit a handful of points.</p>
+
+<p><strong>Can ETS handle daily data with weekly and yearly seasonality?</strong> No. Each ETS model carries exactly one seasonal period, and <code>ets()</code> refuses <code>m</code> above 24 anyway. Multiple or long seasonalities need TBATS, Fourier terms in a dynamic regression, or Prophet.</p>
+
+<h2>Summary</h2>
+
+<p><code>ets(bakery)</code> chose <strong>ETS(M,A,M)</strong> and forecast <strong>871</strong> loaves for December 2026. That name is a complete description of the model: the misses are a percentage of the month's size, growth is a fixed 2.63 loaves added per month, and December is a 1.437 multiplier on the level. Rebuild it as <code>(574.978 + 12 x 2.630) x 1.437</code> and 871.46 comes back out.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Slot</th>
+<th>Options</th>
+<th>What the choice means</th>
+<th>On the bakery</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>E</strong>rror</td>
+<td>A, M</td>
+<td>Constant misses in units, or misses as a constant percentage</td>
+<td><strong>M</strong>: about 4.8% every month</td>
+</tr>
+<tr>
+<td><strong>T</strong>rend</td>
+<td>N, A, Ad, M, Md</td>
+<td>Flat, straight line, flattening, compounding, or damped compounding</td>
+<td><strong>A</strong>: +2.63 loaves per month</td>
+</tr>
+<tr>
+<td><strong>S</strong>eason</td>
+<td>N, A, M</td>
+<td>No cycle, a fixed unit swing, or a percentage swing</td>
+<td><strong>M</strong>: December x 1.437</td>
+</tr>
+</tbody>
+</table>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Thing to remember</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2 x 5 x 3 = <strong>30 models</strong></td>
+<td>Errors x trends x seasons; the trend slot carries the damped variants</td>
+</tr>
+<tr>
+<td><code>ets()</code> searches <strong>15</strong>, not 30</td>
+<td>Multiplicative trends off by default; unstable A-error, M-season combos refused</td>
+</tr>
+<tr>
+<td><strong>AICc picks the winner</strong></td>
+<td>Lower is better; it scores in-sample fit, not long-horizon safety</td>
+</tr>
+<tr>
+<td>The <strong>E slot is about intervals</strong></td>
+<td>It is absent from the point-forecast formula and sets how uncertainty scales</td>
+</tr>
+<tr>
+<td><code>model = &quot;ZZZ&quot;</code>, <code>damped = NULL</code></td>
+<td>Z means "choose for me"; fix any slot by naming its letter</td>
+</tr>
+<tr>
+<td><code>opt.crit</code> explains <code>hw()</code> vs <code>ets()</code></td>
+<td>Same ETS(M,A,M); "mse" gives 900, "lik" gives 871</td>
+</tr>
+</tbody>
+</table>
+
+<p>The taxonomy is worth more than the automation it enables. Once the three letters mean something to you, <code>ets()</code> stops being a black box that returns a number and becomes a tool that hands you a testable description of your series, in a notation every serious forecasting package shares.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed., chapter 8. The canonical treatment of the ETS taxonomy and the table of all 30 models. <a href="https://otexts.com/fpp3/expsmooth.html">otexts.com/fpp3/expsmooth.html</a></li>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed., section 8.5. The innovations state space formulation, where the additive and multiplicative error equations come from. <a href="https://otexts.com/fpp3/ets.html">otexts.com/fpp3/ets.html</a></li>
+
+<li><code>ets()</code> reference manual, forecast package. Every argument used on this page, including <code>model</code>, <code>damped</code>, <code>restrict</code>, <code>opt.crit</code> and <code>allow.multiplicative.trend</code>. <a href="https://pkg.robjhyndman.com/forecast/reference/ets.html">pkg.robjhyndman.com/forecast/reference/ets.html</a></li>
+
+<li>Hyndman, R. J., Koehler, A. B., Snyder, R. D. & Grose, S. "A state space framework for automatic forecasting using exponential smoothing methods." <em>International Journal of Forecasting</em> 18(3), 2002. The paper that turned the methods into a model family and made automatic selection possible. <a href="https://robjhyndman.com/papers/ijf25.pdf">robjhyndman.com/papers/ijf25.pdf</a></li>
+
+<li>Hyndman, R. J. & Khandakar, Y. "Automatic Time Series Forecasting: The forecast Package for R." <em>Journal of Statistical Software</em> 27(3), 2008. Documents the AICc-based selection algorithm <code>ets()</code> runs. <a href="https://www.jstatsoft.org/article/view/v027i03">jstatsoft.org/article/view/v027i03</a></li>
+
+<li><code>ETS()</code> reference, fable package. The tidyverse spelling of the same taxonomy, with the <code>error()</code>, <code>trend()</code> and <code>season()</code> term syntax. <a href="https://fable.tidyverts.org/reference/ETS.html">fable.tidyverts.org/reference/ETS.html</a></li>
+
+<li>Hyndman, R. J., Koehler, A. B., Ord, J. K. & Snyder, R. D. <em>Forecasting with Exponential Smoothing: The State Space Approach</em>. Springer, 2008. The book-length treatment, including why the additive-error, multiplicative-season models are excluded. <a href="https://robjhyndman.com/expsmooth/">robjhyndman.com/expsmooth</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Exponential-Smoothing-in-R.html">Exponential Smoothing in R</a>, where the level and <code>alpha</code> come from. It builds ETS(A,N,N), the simplest of the 30, from scratch.</li>
+
+<li><a href="Holt-Winters-in-R.html">Holt-Winters in R</a>, the direct prequel. It builds the trend and season this post decodes, and its 900-loaf answer is the one this post reconciles.</li>
+
+<li><a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a>, for <code>ts</code>, <code>frequency</code>, and why getting the season length wrong silently ruins every model on this page.</li>
+
+<li><a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a>, which splits a series into trend and seasonal parts to look at rather than to forecast with. A useful check on the components ETS estimates.</li>
+
+</ul>
+
