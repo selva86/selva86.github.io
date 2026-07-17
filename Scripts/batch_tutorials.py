@@ -18,6 +18,7 @@ Usage:
   python Scripts/batch_tutorials.py --id 3.8.1 --id 3.8.2         # a specific list
   python Scripts/batch_tutorials.py --path /time-series/ --max 45 # a curriculum path
   python Scripts/batch_tutorials.py --regenerate                  # retry failed/manual_review
+  python Scripts/batch_tutorials.py --id 3.8.4 --rewrite          # redo a PUBLISHED post in place
   python Scripts/batch_tutorials.py --dry-run                     # plan only, no spawns
 Flags: --sync-every N (default 5; 0 = only the final sync), --claude <cli path>,
        --timeout <sec per phase, default 1800>.
@@ -158,6 +159,11 @@ def main():
     ap.add_argument('--max', type=int, default=0)
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--regenerate', action='store_true')
+    ap.add_argument('--rewrite', action='store_true',
+                    help='rewrite an ALREADY-PUBLISHED post in place (same slug/url). '
+                         'Bypasses the published-skip guard and tells write-tut to '
+                         'overwrite the existing markdown instead of refusing the slug. '
+                         'Use with explicit --id.')
     ap.add_argument('--sync-every', type=int, default=5)
     ap.add_argument('--claude', default='claude')
     ap.add_argument('--timeout', type=int, default=1800,
@@ -196,15 +202,20 @@ def main():
             if not e:
                 print('[%d/%d] %s not found in curriculum-status.json, skip' % (i, len(targets), cid))
                 continue
-            if e.get('status') == 'published' or state.get(cid, {}).get('status') == 'done':
-                print('[%d/%d] %s already published, skip' % (i, len(targets), cid))
+            if not args.rewrite and (e.get('status') == 'published'
+                                     or state.get(cid, {}).get('status') == 'done'):
+                print('[%d/%d] %s already published, skip (pass --rewrite to redo it)'
+                      % (i, len(targets), cid))
                 continue
-            print('[%d/%d] %s  %s' % (i, len(targets), cid, e.get('ctr_title', '')))
+            tag = ' [REWRITE]' if args.rewrite else ''
+            print('[%d/%d] %s  %s%s' % (i, len(targets), cid, e.get('ctr_title', ''), tag))
             state[cid] = {'status': 'writing', 'started': datetime.datetime.now().isoformat(timespec='minutes')}
             save_state(state)
 
             # Phase 1: write. The writer records the slug into curriculum-status.json.
-            rc = run_phase(args.claude, 'write-tut', cid, args.timeout)
+            # In --rewrite mode it overwrites the existing markdown for the same slug.
+            write_arg = cid + (' --rewrite' if args.rewrite else '')
+            rc = run_phase(args.claude, 'write-tut', write_arg, args.timeout)
             e = entry_by_id(cid) or {}
             slug = e.get('slug')
             md = os.path.join(ROOT, 'posts', '%s.md' % slug) if slug else None
