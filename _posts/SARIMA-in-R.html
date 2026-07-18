@@ -1,0 +1,1046 @@
+---
+title: "SARIMA in R: How to Fit Seasonal ARIMA Models"
+description: "Learn seasonal ARIMA (SARIMA) in R: what the (P,D,Q)[m] terms mean, how seasonal differencing works, and how to fit and forecast with Arima() and auto.arima()."
+keywords: "SARIMA in R, seasonal ARIMA, auto.arima seasonal, Arima function R, P D Q seasonal, seasonal differencing, AirPassengers forecast, time series forecasting, seasonal period"
+mathjax: true
+webr: true
+curriculum_id: "3.8.14"
+post_type: "C"
+auto_link_terms: "SARIMA|seasonal ARIMA|seasonal ARIMA model|SARIMA model|SARIMA in R|seasonal ARIMA in R|seasonal differencing|seasonal AR|seasonal MA|seasonal order|(P,D,Q)|airline model"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "SARIMA Models"
+sidebar_order: "15"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">SARIMA (Seasonal ARIMA) is an ARIMA model with an extra set of terms that repeat every season, written ARIMA(p, d, q)(P, D, Q)[m]. The lowercase part handles short-term structure; the uppercase part handles the pattern that returns every <code>m</code> steps (m = 12 for monthly data). In R you fit one with <code>Arima()</code> or <code>auto.arima()</code> from the forecast package.</p>
+
+<h2>What is a SARIMA model, and how does it extend ARIMA?</h2>
+
+<p>Sales jump every December. Temperatures climb every summer. Electricity demand peaks every weekday evening. A huge share of real time series repeat on a fixed calendar, and a plain ARIMA model cannot see that repeat. SARIMA fixes this by adding a second set of ARIMA terms that work at the seasonal lag instead of the neighbouring one. The fastest way to see it is to point R at a famously seasonal series and let it pick a model on its own.</p>
+
+<p>We will use the built-in <code>AirPassengers</code> series: monthly totals of international airline passengers from 1949 to 1960. Let's load the forecast package and ask <code>auto.arima()</code> to choose a model.</p>
+
+<div class="webr-container" data-block-title="Fit a seasonal model automatically">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a seasonal model automatically</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+library(ggplot2)
+air_fit &lt;- auto.arima(AirPassengers)
+air_fit
+#&gt; Series: AirPassengers 
+#&gt; ARIMA(2,1,1)(0,1,0)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2      ma1
+#&gt;       0.5960  0.2143  -0.9819
+#&gt; s.e.  0.0888  0.0880   0.0292
+#&gt; 
+#&gt; sigma^2 = 132.3:  log likelihood = -504.92
+#&gt; AIC=1017.85   AICc=1018.17   BIC=1029.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the model label: <code>ARIMA(2,1,1)(0,1,0)[12]</code>. That second bracket of numbers is new. A plain ARIMA gives you three numbers; a SARIMA gives you seven. R detected that this series is monthly, added a seasonal piece, and even chose to difference it once at the seasonal lag (the <code>1</code> in the middle of <code>(0,1,0)</code>). By the end of this tutorial you will be able to read every number in that label and fit a model like it yourself.</p>
+
+<p>If ARIMA on its own is still fuzzy, here is the one-line recap: an ARIMA(p, d, q) model predicts each value from its own recent values (the AR part, order <code>p</code>), works with changes instead of raw levels to remove trend (the I part, order <code>d</code>), and learns from its own recent forecast errors (the MA part, order <code>q</code>). Our <a href="ARIMA-in-R.html">ARIMA in R tutorial</a> walks through those three ideas from scratch if you want a refresher.</p>
+
+<p>SARIMA keeps all of that and adds three matching seasonal numbers plus the season length. Here is what all seven mean.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Part</th>
+<th>Symbol</th>
+<th>Name</th>
+<th>What it captures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Non-seasonal</td>
+<td>p, d, q</td>
+<td>AR, I, MA</td>
+<td>Month-to-month structure, same as ARIMA</td>
+</tr>
+<tr>
+<td>Seasonal</td>
+<td>P, D, Q</td>
+<td>Seasonal AR, I, MA</td>
+<td>The pattern that returns every season</td>
+</tr>
+<tr>
+<td>Period</td>
+<td>m</td>
+<td>Season length</td>
+<td>Steps in one full cycle (12 for monthly)</td>
+</tr>
+</tbody>
+</table>
+
+<p>The diagram below shows how the label splits into those three groups.</p>
+
+<p><img src="screenshots/SARIMA-in-R-notation.webp" alt="The SARIMA label splitting into non-seasonal, seasonal, and period parts" class="img-responsive img-zoomable" loading="lazy" width="1576" height="986" /></p>
+
+<p><em>Figure 1: The SARIMA label splits into a non-seasonal part, a seasonal part, and the period m.</em></p>
+
+<p>How did R know the season was 12 steps long? Because <code>AirPassengers</code> is stored as a monthly time series, and R reads its frequency directly.</p>
+
+<div class="webr-container" data-block-title="Check the series frequency and first year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the series frequency and first year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frequency(AirPassengers)
+head(AirPassengers, 12)
+#&gt; [1] 12
+#&gt;      Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; 1949 112 118 132 129 121 135 148 148 136 119 104 118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first line confirms the season is 12 observations long. The second shows the first twelve months of 1949, and you can already spot the shape: a rise into the summer, a dip in the autumn. That yearly rhythm repeats for every one of the twelve years in the data, and capturing it is exactly what the seasonal terms are for.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A SARIMA model is just ARIMA applied twice, once across neighbouring steps and once across seasons.</strong> Everything you already know about p, d, and q carries straight over to P, D, and Q. The only new idea is that the seasonal terms reach back a whole season (m steps) instead of a single step.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit an automatic model to the built-in <code>USAccDeaths</code> series (monthly accidental deaths in the US) and read off its <code>(P, D, Q)[m]</code> seasonal orders.</p>
+<div class="webr-container" data-block-title="Your turn: read the seasonal orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the seasonal orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit an automatic model to the monthly USAccDeaths series
+# and read its ARIMA(p,d,q)(P,D,Q)[m] label.
+# Swap AirPassengers for USAccDeaths, then run.
+ex_series &lt;- AirPassengers   # change to USAccDeaths
+auto.arima(ex_series)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Automatic SARIMA on USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Automatic SARIMA on USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auto.arima(USAccDeaths)
+#&gt; Series: USAccDeaths 
+#&gt; ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4303  -0.5528
+#&gt; s.e.   0.1228   0.1784
+#&gt; 
+#&gt; sigma^2 = 102860:  log likelihood = -425.44
+#&gt; AIC=856.88   AICc=857.32   BIC=863.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> R picks <code>ARIMA(0,1,1)(0,1,1)[12]</code>. The seasonal orders are <code>P = 0</code>, <code>D = 1</code>, <code>Q = 1</code>, and the period is 12. That <code>(0,1,1)[12]</code> seasonal part is so common it has a nickname you will meet later: the airline model.</p>
+
+</details>
+</section>
+
+<h2>Why does plain ARIMA fail on seasonal data?</h2>
+
+<p>Before adding seasonal terms, it helps to see what goes wrong without them. First, let's make the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> concrete by averaging every January together, every February together, and so on. If the series is truly seasonal, those monthly averages will differ a lot.</p>
+
+<div class="webr-container" data-block-title="Average passengers by calendar month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average passengers by calendar month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(tapply(AirPassengers, cycle(AirPassengers), mean))
+#&gt;   1   2   3   4   5   6   7   8   9  10  11  12 
+#&gt; 242 235 270 267 272 312 351 351 302 267 233 262 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numbers tell the story. July and August average 351 passengers, while November averages 233. That is a swing of about 50% driven purely by the month of the year. Any model that ignores the calendar is throwing away one of the strongest signals in the data.</p>
+
+<p>Now let's fit an ARIMA model that is forbidden from using seasonal terms, by passing <code>seasonal = FALSE</code>, and see how it copes.</p>
+
+<div class="webr-container" data-block-title="Fit ARIMA with seasonal terms switched off">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit ARIMA with seasonal terms switched off</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plain_fit &lt;- auto.arima(AirPassengers, seasonal = FALSE)
+plain_fit
+#&gt; Series: AirPassengers 
+#&gt; ARIMA(4,1,2) with drift 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2      ar3      ar4      ma1      ma2   drift
+#&gt;       0.2243  0.3689  -0.2567  -0.2391  -0.0971  -0.8519  2.6809
+#&gt; s.e.  0.1047  0.1147   0.0985   0.0919   0.0866   0.0877  0.1711
+#&gt; 
+#&gt; sigma^2 = 706.3:  log likelihood = -670.07
+#&gt; AIC=1356.15   AICc=1357.22   BIC=1379.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R uses four AR terms and two MA terms to approximate the yearly cycle with short-term memory. Notice <code>sigma^2 = 706.3</code> here versus <code>132.3</code> for the seasonal model in the first section. The error variance is more than five times larger. The non-seasonal model uses far more terms and still fits far worse.</p>
+
+<p>The clearest proof of failure is in the residuals, which are the leftover errors after the model has done its best. A good model leaves residuals that look like random noise. If the residuals still carry a yearly pattern, the model missed the season. The <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">Ljung-Box test</a> checks exactly this: a small <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> means significant leftover structure.</p>
+
+<div class="webr-container" data-block-title="Test the leftover residuals at the seasonal lag">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the leftover residuals at the seasonal lag</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Box.test(residuals(plain_fit), lag = 12, type = &quot;Ljung-Box&quot;)
+#&gt; 
+#&gt; 	Box-Ljung test
+#&gt; 
+#&gt; data:  residuals(plain_fit)
+#&gt; X-squared = 92.469, df = 12, p-value = 1.643e-14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is <code>1.643e-14</code>, which is essentially zero. That tiny number is strong evidence that the residuals still contain a clear pattern at the yearly lag. The non-seasonal model removed the trend but left the entire seasonal signal behind, which means its forecasts will miss every summer peak and every winter trough.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A non-seasonal model on seasonal data leaves the season stranded in the residuals.</strong> The fit will look plausible on a quick glance, but every forecast will be systematically wrong at the same months each year. Always check residuals at the seasonal lag before trusting a model.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Average the <code>USAccDeaths</code> series by calendar month to reveal its seasonal shape. Which months are highest?</p>
+<div class="webr-container" data-block-title="Your turn: find the seasonal shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the seasonal shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: average USAccDeaths by calendar month to see its shape.
+# Swap AirPassengers for USAccDeaths, then run.
+ex_series &lt;- AirPassengers   # change to USAccDeaths
+round(tapply(ex_series, cycle(ex_series), mean))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Monthly averages of USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monthly averages of USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(tapply(USAccDeaths, cycle(USAccDeaths), mean))
+#&gt;     1     2     3     4     5     6     7     8     9    10    11    12 
+#&gt;  8044  7284  8062  8275  9124  9595 10453  9749  8700  8990  8467  8721 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> July (month 7) is the deadliest with about 10,453 deaths, and February (month 2) is the lowest at about 7,284. The summer peak is a clear seasonal signal that a good model must capture.</p>
+
+</details>
+</section>
+
+<h2>What do the seasonal terms (P, D, Q)[m] mean?</h2>
+
+<p>The seasonal terms are the non-seasonal ones with a longer reach. Where p, d, and q look back one step, P, D, and Q look back one whole season. Let's take them one at a time, starting with the period that ties them together.</p>
+
+<p><strong>m is the season length</strong>, the number of steps in one full cycle. It is monthly data's 12, quarterly data's 4, and daily-with-weekly-pattern data's 7. You do not estimate <code>m</code>; you know it from the calendar and R usually reads it from the series frequency.</p>
+
+<p><strong>D is the number of seasonal differences.</strong> A seasonal difference replaces each value with the change from one season ago: this July minus last July, this August minus last August. That single operation cancels a stable yearly pattern, because the summer bump appears in both the current value and the value twelve months back, so subtracting removes it. Let's watch it work. The <code>nsdiffs()</code> function tells you how many seasonal differences a series needs, and <code>ndiffs()</code> does the same for ordinary differences.</p>
+
+<div class="webr-container" data-block-title="Ask R how much differencing is needed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ask R how much differencing is needed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(AirPassengers)
+nsdiffs(AirPassengers)
+#&gt; [1] 1
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R recommends one ordinary difference (<code>d = 1</code>) to remove the upward trend and one seasonal difference (<code>D = 1</code>) to remove the yearly cycle. Let's confirm the seasonal difference actually does its job by applying it and re-checking.</p>
+
+<div class="webr-container" data-block-title="One seasonal difference removes the season">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One seasonal difference removes the season</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air_sdiff &lt;- diff(AirPassengers, lag = 12)
+nsdiffs(air_sdiff)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After one seasonal difference (<code>lag = 12</code> means subtract the value twelve months ago), <code>nsdiffs()</code> returns <code>0</code>. The seasonality is gone, which is exactly what <code>D = 1</code> buys you inside a SARIMA model.</p>
+
+<p><strong>P is the seasonal AR order</strong> and <strong>Q is the seasonal MA order.</strong> They are the AR and MA ideas aimed at the seasonal lag. A seasonal AR term of order 1 says this July leans on last July's value. A seasonal MA term of order 1 says this July leans on last July's forecast error. Just like their lowercase cousins, you rarely need more than one or two of each.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You must know the season length before modelling; R cannot invent it.</strong> For the built-in monthly and quarterly datasets, the frequency is already stored, so <code>m</code> is set automatically. For data you import yourself, set it when you build the series, for example <code>ts(x, frequency = 12)</code> for monthly data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the seasonal period of the <code>UKgas</code> series (quarterly UK gas consumption). What value of <code>m</code> would a SARIMA model use for it?</p>
+<div class="webr-container" data-block-title="Your turn: find the seasonal period">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the seasonal period</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: how many observations are in one cycle of UKgas?
+# Replace AirPassengers with UKgas, then run.
+frequency(AirPassengers)   # change AirPassengers to UKgas</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal period of UKgas">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal period of UKgas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frequency(UKgas)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>UKgas</code> is quarterly, so it has 4 observations per cycle and a SARIMA model would use <code>m = 4</code>. The seasonal terms would then reach back 4 quarters (one year) instead of 12 months.</p>
+
+</details>
+</section>
+
+<h2>How do you find the right seasonal orders from ACF and PACF?</h2>
+
+<p>You have two families of numbers to pin down: the differencing orders (<code>d</code> and <code>D</code>) and the term orders (<code>p</code>, <code>q</code>, <code>P</code>, <code>Q</code>). Differencing comes first, because you can only read the term orders off a <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">stationary series</a>, one whose statistical behaviour no longer drifts over time.</p>
+
+<p>One quick preparation step matters for <code>AirPassengers</code>: the seasonal swings grow larger as the level rises. Taking a logarithm first stabilises that spread, turning a widening fan into an even band, which makes the model fit better. Let's find the differencing counts on the logged series.</p>
+
+<div class="webr-container" data-block-title="Differencing counts on the log series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Differencing counts on the log series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lair &lt;- log(AirPassengers)
+ndiffs(lair)
+nsdiffs(lair)
+#&gt; [1] 1
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So we need one ordinary difference and one seasonal difference, the same <code>d = 1, D = 1</code> as before. Now apply both and inspect the autocorrelation plots. The autocorrelation function (ACF) measures how each value correlates with values at earlier lags; the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">partial autocorrelation function</a> (PACF) does the same after removing the effect of the lags in between. <code>ggtsdisplay()</code> shows the differenced series alongside both plots at once.</p>
+
+<div class="webr-container" data-block-title="Plot ACF and PACF of the differenced series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot ACF and PACF of the differenced series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggtsdisplay(diff(diff(lair, 12)), main = &quot;After one ordinary and one seasonal difference&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Running that draws three panels. The differenced series at the top now hovers around a flat zero line with no drift and no obvious yearly wave, which confirms it is stationary. The ACF and PACF below it are where you read the seasonal orders, and there is a simple rule for that.</p>
+
+<p>Look only at the seasonal lags, the multiples of 12 (lag 12, 24, 36). Ignore everything in between when deciding the seasonal orders. Then apply the same logic you use for non-seasonal terms, just at those seasonal positions.</p>
+
+<ul>
+
+<li>A single spike in the <strong>ACF</strong> at lag 12 that then dies away, paired with a slow decay in the PACF at seasonal lags, points to a <strong>seasonal MA</strong> term (<code>Q = 1</code>).</li>
+
+<li>A single spike in the <strong>PACF</strong> at lag 12, paired with a slow decay in the ACF at seasonal lags, points to a <strong>seasonal AR</strong> term (<code>P = 1</code>).</li>
+
+</ul>
+
+<p>For the logged <code>AirPassengers</code>, the ACF shows one clean negative spike at lag 12 and the PACF tapers off across the seasonal lags, which is the signature of a seasonal MA term. That is <code>Q = 1</code>. The diagram below captures the rule so you can reuse it on any series.</p>
+
+<p><img src="screenshots/SARIMA-in-R-acf-pacf-rules.webp" alt="Reading seasonal AR versus seasonal MA from the ACF and PACF" class="img-responsive img-zoomable" loading="lazy" width="1006" height="1402" /></p>
+
+<p><em>Figure 2: Reading seasonal AR versus seasonal MA from the ACF and PACF at seasonal lags.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Let R choose the differencing, then confirm with the plots.</strong> The <code>ndiffs()</code> and <code>nsdiffs()</code> functions use formal unit-root tests to pick <code>d</code> and <code>D</code>, which is more reliable than eyeballing. Use the ACF and PACF to sanity-check the result and to read the term orders, not to guess the differencing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take one seasonal difference of <code>USAccDeaths</code> and confirm <code>nsdiffs()</code> drops to 0, proving one seasonal difference is enough.</p>
+<div class="webr-container" data-block-title="Your turn: confirm one seasonal difference is enough">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confirm one seasonal difference is enough</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: seasonally difference USAccDeaths, then check nsdiffs() is 0.
+# Fill in the seasonal lag (the number of months in a year).
+ex_sd &lt;- diff(USAccDeaths, lag = 1)   # change 1 to the seasonal lag
+nsdiffs(ex_sd)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal difference of USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal difference of USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sd &lt;- diff(USAccDeaths, lag = 12)
+nsdiffs(ex_sd)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>lag = 12</code> the seasonal difference cancels the yearly cycle, so <code>nsdiffs()</code> returns <code>0</code>. One seasonal difference is enough, which means <code>D = 1</code> for this series.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a SARIMA model in R with auto.arima() and Arima()?</h2>
+
+<p>You now have all the orders for <code>AirPassengers</code>: <code>d = 1, D = 1, Q = 1</code>, and the classic choice for this data adds one non-seasonal MA term (<code>q = 1</code>) too. That gives <code>ARIMA(0,1,1)(0,1,1)[12]</code>, the model so famous for this series that it is known as the airline model. Let's fit it by hand with <code>Arima()</code>.</p>
+
+<p>The <code>Arima()</code> function takes the non-seasonal orders in <code>order = c(p, d, q)</code> and the seasonal orders in <code>seasonal = list(order = c(P, D, Q), period = m)</code>. The <code>lambda = 0</code> argument tells R to fit on the log scale for us and back-transform automatically, so we do not have to log the data by hand.</p>
+
+<div class="webr-container" data-block-title="Fit the airline model by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the airline model by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">airline_fit &lt;- Arima(AirPassengers,
+                     order = c(0, 1, 1),
+                     seasonal = list(order = c(0, 1, 1), period = 12),
+                     lambda = 0)
+airline_fit
+#&gt; Series: AirPassengers 
+#&gt; ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; Box Cox transformation: lambda= 0 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4018  -0.5569
+#&gt; s.e.   0.0896   0.0731
+#&gt; 
+#&gt; sigma^2 = 0.001371:  log likelihood = 244.7
+#&gt; AIC=-483.4   AICc=-483.21   BIC=-474.77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model has two coefficients. <code>ma1 = -0.4018</code> is the ordinary moving-average term, correcting each month using last month's error. <code>sma1 = -0.5569</code> is the seasonal moving-average term, correcting each month using the error from twelve months ago. Those two numbers, plus the two differences, are the whole model.</p>
+
+<p>Now here is the satisfying part. Watch what <code>auto.arima()</code> picks when we give it the same log transform and let it search freely.</p>
+
+<div class="webr-container" data-block-title="Let auto.arima search on the log scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let auto.arima search on the log scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auto_fit &lt;- auto.arima(AirPassengers, lambda = 0)
+auto_fit
+#&gt; Series: AirPassengers 
+#&gt; ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; Box Cox transformation: lambda= 0 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4018  -0.5569
+#&gt; s.e.   0.0896   0.0731
+#&gt; 
+#&gt; sigma^2 = 0.001371:  log likelihood = 244.7
+#&gt; AIC=-483.4   AICc=-483.21   BIC=-474.77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It lands on exactly the same model, the airline model, coefficient for coefficient. Your hand-reasoning from the ACF and PACF and R's automatic search agree. We can confirm they score identically by comparing their AICc, an information criterion where lower means a better trade-off between fit and complexity.</p>
+
+<div class="webr-container" data-block-title="Compare the two models by AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the two models by AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(airline = airline_fit$aicc, auto = auto_fit$aicc), 2)
+#&gt; airline    auto 
+#&gt; -483.21 -483.21 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical scores, because they are the same model. This is the ideal outcome: you understand why the model has the terms it does, and you have an automatic tool that reproduces your reasoning and scales to series you have not studied by hand.</p>
+
+<p>Here is how the airline model looks as an equation, now that you have seen its coefficients. Each factor below is one of the four things we chose. If formulas are not your thing, skip to the next section; the code above is all you need to fit the model.</p>
+
+<p>$$(1 - B)(1 - B^{12})\, y_t = (1 + \theta_1 B)(1 + \Theta_1 B^{12})\, \varepsilon_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$B$ = the backshift operator, which steps back one period, so $B\,y_t = y_{t-1}$ and $B^{12} y_t = y_{t-12}$</li>
+
+<li>$(1 - <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">B)</a>$ = one ordinary difference, the <code>d = 1</code> part</li>
+
+<li>$(1 - B^{12})$ = one seasonal difference, the <code>D = 1</code> part</li>
+
+<li>$\theta_1$ = the non-seasonal MA coefficient, the <code>ma1</code> above</li>
+
+<li>$\Theta_1$ = the seasonal MA coefficient, the <code>sma1</code> above</li>
+
+<li>$\varepsilon_t$ = the unpredictable error at time $t$</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>AICc only compares models fitted to the same data and the same transform.</strong> Both models above use <code>lambda = 0</code>, so their scores are comparable. Never compare an AICc from a logged fit against one from an unlogged fit; the numbers live on different scales.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the airline model <code>ARIMA(0,1,1)(0,1,1)[12]</code> to <code>USAccDeaths</code> by hand with <code>Arima()</code> and confirm it matches the model <code>auto.arima()</code> chose in the first section.</p>
+<div class="webr-container" data-block-title="Your turn: fit the airline model by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit the airline model by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit ARIMA(0,1,1)(0,1,1)[12] to USAccDeaths with Arima().
+# Fill in the seasonal order c(P, D, Q).
+ex_air &lt;- Arima(USAccDeaths, order = c(0, 1, 1),
+                seasonal = c(0, 0, 0))   # change to c(0, 1, 1)
+ex_air</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Airline model on USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Airline model on USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_air &lt;- Arima(USAccDeaths, order = c(0, 1, 1), seasonal = c(0, 1, 1))
+ex_air
+#&gt; Series: USAccDeaths 
+#&gt; ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4303  -0.5528
+#&gt; s.e.   0.1228   0.1784
+#&gt; 
+#&gt; sigma^2 = 102860:  log likelihood = -425.44
+#&gt; AIC=856.88   AICc=857.32   BIC=863.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>seasonal = c(0, 1, 1)</code> shorthand fills in <code>(P, D, Q)</code> and R reads the period from the series. The coefficients match <code>auto.arima(USAccDeaths)</code> from the first exercise exactly, because it is the same model.</p>
+
+</details>
+</section>
+
+<h2>How do you check the model and forecast the future?</h2>
+
+<p>Fitting a model is only half the job. Before you forecast, you have to confirm the model is adequate, and the check is the same one we used to condemn the plain ARIMA earlier: the residuals should look like random noise with nothing left over. The <code>checkresiduals()</code> function runs a Ljung-Box test and draws the <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">residual diagnostics</a> in one call.</p>
+
+<div class="webr-container" data-block-title="Check the airline model residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the airline model residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(airline_fit)
+#&gt; 
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from ARIMA(0,1,1)(0,1,1)[12]
+#&gt; Q* = 26.446, df = 22, p-value = 0.233
+#&gt; 
+#&gt; Model df: 2.   Total lags used: 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is <code>0.233</code>, comfortably above <code>0.05</code>. Unlike the tiny p-value from the plain model, this one says we cannot reject the idea that the residuals are pure noise. The plot that accompanies this output shows residuals bouncing around zero, an ACF with no spikes poking past the blue bounds, and a roughly bell-shaped histogram. The model has captured the structure and left only randomness behind, so it is safe to forecast with.</p>
+
+<p>Now for the payoff. The <code>forecast()</code> function projects the model forward; here we ask for 24 months, two full years ahead, and plot the result with <code>autoplot()</code>.</p>
+
+<div class="webr-container" data-block-title="Forecast two years ahead and plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast two years ahead and plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air_fc &lt;- forecast(airline_fit, h = 24)
+autoplot(air_fc)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows the historical series in one colour, the forecast continuing its upward trend, and a shaded fan around the forecast that widens as we look further out. That widening fan reflects growing uncertainty: the further ahead you predict, the wider the interval around the forecast. Notice the forecast keeps the seasonal shape, peaking each summer and dipping each winter, which is the whole reason we used a SARIMA model. Let's print the point forecasts to see the actual numbers.</p>
+
+<div class="webr-container" data-block-title="Show the point forecasts by month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the point forecasts by month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(air_fc$mean)
+#&gt;      Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; 1961 450 426 479 492 509 583 670 667 558 497 430 477
+#&gt; 1962 496 469 527 542 560 642 738 734 615 547 473 525</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read across 1961: the model predicts the familiar summer peak (670 in July) and winter lull (426 in February), and read down and you see 1962 sitting higher than 1961, because the model also carried the long-run growth trend forward. Seasonality and trend, both projected in one model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A trustworthy SARIMA leaves residuals that look like white noise.</strong> If <code>checkresiduals()</code> returns a small p-value or shows a spike at the seasonal lag, the model is still missing structure, and the usual fix is to add a seasonal AR or seasonal MA term and refit. A clean residual check is your green light to forecast.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Forecast the next 12 months of <code>USAccDeaths</code> using the airline model and print the point forecasts.</p>
+<div class="webr-container" data-block-title="Your turn: forecast the next year of USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast the next year of USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit the airline model to USAccDeaths and forecast 12 months.
+ex_air2 &lt;- Arima(USAccDeaths, order = c(0, 1, 1), seasonal = c(0, 1, 1))
+ex_fc2 &lt;- forecast(ex_air2, h = 6)   # change 6 to 12
+round(ex_fc2$mean)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Twelve-month forecast for USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Twelve-month forecast for USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_air2 &lt;- Arima(USAccDeaths, order = c(0, 1, 1), seasonal = c(0, 1, 1))
+ex_fc2 &lt;- forecast(ex_air2, h = 12)
+round(ex_fc2$mean)
+#&gt;        Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep   Oct   Nov   Dec
+#&gt; 1979  8336  7532  8315  8617  9489  9860 10907 10087  9165  9384  8885  9377</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The forecast for 1979 mirrors the historical shape, peaking in July (10,907) and dipping in February (7,532). The SARIMA model projected the seasonal pattern one year forward.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: Forecast airline passengers and measure the error</h2>
+
+<p>Let's put every step together on a real <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> task and, crucially, measure how good the forecast actually is. The honest way to do that is to hide the last stretch of data, train the model on the rest, forecast the hidden part, and compare. We will train on everything through the end of 1958 and hold out 1959 and 1960 as a <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>.</p>
+
+<div class="webr-container" data-block-title="Split into training and test sets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split into training and test sets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bt_train &lt;- window(AirPassengers, end = c(1958, 12))
+bt_test  &lt;- window(AirPassengers, start = c(1959, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>window()</code> function slices a time series by date. With the split in place, we fit the airline model on the training data only, forecast 24 months to cover the test period, and score the result with <code>accuracy()</code>, which reports error metrics on both the training and test sets.</p>
+
+<div class="webr-container" data-block-title="Fit, forecast, and score against the held-out years">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit, forecast, and score against the held-out years</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bt_model &lt;- Arima(bt_train, order = c(0, 1, 1), seasonal = c(0, 1, 1), lambda = 0)
+bt_fc    &lt;- forecast(bt_model, h = 24)
+round(accuracy(bt_fc, bt_test), 3)
+#&gt;                  ME   RMSE    MAE    MPE  MAPE  MASE  ACF1 Theil's U
+#&gt; Training set -0.237  8.835  6.517 -0.075 2.638 0.228 0.042        NA
+#&gt; Test set     39.447 43.184 39.447  8.516 8.516 1.381 0.464     0.843</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Focus on the <code>MAPE</code> column, the <a class="auto-link" href="yardstick-mape-in-R.html" title="yardstick mape() in R: Scale-Free Percentage Error">mean absolute percentage error</a>. On the held-out years the model is off by about 8.5% on average, forecasting two full years into the future it had never seen. The <code>Test set</code> error is larger than the <code>Training set</code> error of 2.6%, which is completely normal: a model always looks better on data it learned from than on data it must predict. An 8.5% error two years out on a genuinely seasonal series is a strong result.</p>
+
+<p>For peace of mind, let's confirm the automatic search would have reached the same model on the training data.</p>
+
+<div class="webr-container" data-block-title="Confirm auto.arima agrees on the training data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm auto.arima agrees on the training data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auto.arima(bt_train, lambda = 0)
+#&gt; Series: bt_train 
+#&gt; ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; Box Cox transformation: lambda= 0 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.3424  -0.5405
+#&gt; s.e.   0.1009   0.0877
+#&gt; 
+#&gt; sigma^2 = 0.001432:  log likelihood = 197.51
+#&gt; AIC=-389.02   AICc=-388.78   BIC=-381</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same <code>ARIMA(0,1,1)(0,1,1)[12]</code> structure, with coefficients estimated from the shorter training window. That is the full SARIMA workflow start to finish: spot the season, difference it away, read or search for the orders, fit, check residuals, forecast, and measure the error.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between (p, d, q) and (P, D, Q)?</strong> They are the same three ideas at two different reaches. The lowercase <code>(p, d, q)</code> act on neighbouring steps: <code>p</code> looks back one step, <code>d</code> differences one step, <code>q</code> uses the last step's error. The uppercase <code>(P, D, Q)</code> do the identical jobs but reach back one whole season of <code>m</code> steps: for monthly data that is 12 months, so <code>P</code> looks back to the same month last year.</p>
+
+<p><strong>Do I need both a regular difference and a seasonal difference?</strong> Often yes, and they remove different things. A regular difference (<code>d = 1</code>) removes a trend that carries over month to month; a seasonal difference (<code>D = 1</code>) removes a pattern that repeats every year. <code>AirPassengers</code> has both a rising trend and a yearly cycle, so it needs <code>d = 1</code> and <code>D = 1</code>. Use <code>ndiffs()</code> for <code>d</code> and <code>nsdiffs()</code> for <code>D</code>, and rarely will either go above 1.</p>
+
+<p><strong>How do I set the season length m for my own data?</strong> R only reads <code>m</code> automatically when the series already carries a frequency, as the built-in datasets do. For data you import, set it when you build the series with <code>ts()</code>, for example <code>ts(x, frequency = 12)</code> for monthly data or <code>ts(x, frequency = 4)</code> for quarterly. If you leave the frequency at 1, R treats the data as non-seasonal and <code>auto.arima()</code> will never add seasonal terms.</p>
+
+<p><strong>When should I log the data before fitting a SARIMA model?</strong> Log the series when the seasonal swings grow wider as the level rises, as they do for <code>AirPassengers</code>. The <code>lambda = 0</code> argument does this for you: it fits on the log scale and back-transforms the forecast automatically, so you never work with logged numbers by hand. If the swings stay a roughly constant size over time, you do not need it.</p>
+
+<p><strong>auto.arima() did not add any seasonal terms. What went wrong?</strong> The most common cause is that the series does not carry a frequency above 1, so R has no season length to work with. Check <code>frequency(your_series)</code>; if it returns 1, rebuild the series with the correct <code>frequency</code> and refit. It is also worth setting <code>stepwise = FALSE</code> and <code>approximation = FALSE</code>, which make <code>auto.arima()</code> search more thoroughly at the cost of speed.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone exercises combine several steps from the tutorial. Each uses its own variable names so it will not collide with the code above. Try each one before opening the solution.</p>
+
+<h3>Exercise 1: Fit automatically and prove the residuals are clean</h3>
+
+<p>Fit an automatic seasonal model to <code>USAccDeaths</code>, then run a Ljung-Box test on its residuals at lag 24. Decide whether the residuals look like white noise.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: fit and test residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: fit and test residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit an automatic model to USAccDeaths.
+# 2. Run Box.test() on its residuals, lag = 24, type = &quot;Ljung-Box&quot;.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fit and check for white noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and check for white noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c1_fit &lt;- auto.arima(USAccDeaths)
+c1_fit
+#&gt; Series: USAccDeaths 
+#&gt; ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4303  -0.5528
+#&gt; s.e.   0.1228   0.1784
+#&gt; 
+#&gt; sigma^2 = 102860:  log likelihood = -425.44
+#&gt; AIC=856.88   AICc=857.32   BIC=863.11
+Box.test(residuals(c1_fit), lag = 24, type = &quot;Ljung-Box&quot;)
+#&gt; 
+#&gt; 	Box-Ljung test
+#&gt; 
+#&gt; data:  residuals(c1_fit)
+#&gt; X-squared = 26.094, df = 24, p-value = 0.3484</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value of <code>0.3484</code> is well above <code>0.05</code>, so we cannot reject white noise. The airline model captured the structure in <code>USAccDeaths</code>, leaving only random residuals, so it is safe to forecast with.</p>
+
+</details>
+
+<h3>Exercise 2: Backtest the model on held-out data</h3>
+
+<p>Split <code>USAccDeaths</code> so the <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> runs through December 1977 and the test set is all of 1978. Fit the airline model on the training set, forecast 12 months, and report the test-set RMSE and MAPE with <code>accuracy()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: split, fit, forecast, score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: split, fit, forecast, score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. train = USAccDeaths through Dec 1977; test = 1978.
+# 2. Fit ARIMA(0,1,1)(0,1,1)[12] on the training set.
+# 3. Forecast 12 months and compare to the test set with accuracy().
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Backtest the airline model on USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Backtest the airline model on USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c2_train &lt;- window(USAccDeaths, end = c(1977, 12))
+c2_test  &lt;- window(USAccDeaths, start = c(1978, 1))
+c2_model &lt;- Arima(c2_train, order = c(0, 1, 1), seasonal = c(0, 1, 1))
+c2_fc    &lt;- forecast(c2_model, h = 12)
+round(accuracy(c2_fc, c2_test), 3)
+#&gt;                  ME    RMSE     MAE   MPE  MAPE  MASE   ACF1 Theil's U
+#&gt; Training set 57.393 298.784 207.693 0.670 2.432 0.431 -0.032        NA
+#&gt; Test set     52.764 288.828 231.610 0.385 2.717 0.481  0.540     0.399</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The test-set RMSE is about 289 deaths and the MAPE is 2.72%, so the model predicts the unseen year to within about 3% on average. The low test error confirms the airline model generalises well to this series.</p>
+
+</details>
+
+<h3>Exercise 3: Prove that the seasonal terms actually help</h3>
+
+<p>Fit two automatic models to <code>USAccDeaths</code>, one with <code>seasonal = FALSE</code> and one with <code>seasonal = TRUE</code>, then compare their AICc values. Does the seasonal model win?</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter: does the season help?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter: does the season help?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit auto.arima with seasonal = FALSE, and again with seasonal = TRUE.
+# 2. Compare their AICc values ($aicc). Lower is better.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal versus non-seasonal AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal versus non-seasonal AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c3_ns &lt;- auto.arima(USAccDeaths, seasonal = FALSE)
+c3_s  &lt;- auto.arima(USAccDeaths, seasonal = TRUE)
+round(c(nonseasonal = c3_ns$aicc, seasonal = c3_s$aicc), 2)
+#&gt; nonseasonal    seasonal 
+#&gt;     1141.70      857.32 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The seasonal model scores <code>857.32</code> against the non-seasonal model's <code>1141.70</code>. Lower AICc is better, so the seasonal model wins by a wide margin, which is the numerical proof that the <code>(P, D, Q)</code> terms earn their place.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>SARIMA extends ARIMA with a matching set of terms that operate one full season back instead of one step back. You spot the season, difference it away, read or search for the orders, fit with <code>Arima()</code> or <code>auto.arima()</code>, check the residuals, and forecast. The diagram below recaps that flow.</p>
+
+<p><img src="screenshots/SARIMA-in-R-workflow.webp" alt="The six-step SARIMA workflow from plotting to forecasting" class="img-responsive img-zoomable" loading="lazy" width="2248" height="366" /></p>
+
+<p><em>Figure 3: The six-step SARIMA workflow from plot to forecast.</em></p>
+
+<p>Here is every SARIMA term in one place, with the R argument that controls it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+<th>Set in R with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>p, d, q</td>
+<td>Non-seasonal AR, differencing, MA</td>
+<td><code>order = c(p, d, q)</code></td>
+</tr>
+<tr>
+<td>P, D, Q</td>
+<td>Seasonal AR, differencing, MA</td>
+<td><code>seasonal = c(P, D, Q)</code></td>
+</tr>
+<tr>
+<td>m</td>
+<td>Season length (12 monthly, 4 quarterly)</td>
+<td>Read from the series frequency</td>
+</tr>
+<tr>
+<td>lambda = 0</td>
+<td>Fit on the log scale to stabilise variance</td>
+<td><code>lambda = 0</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The key takeaways to carry forward:</p>
+
+<ul>
+
+<li><strong>Seasonal data needs seasonal terms.</strong> A plain ARIMA leaves the yearly pattern stranded in the residuals, and a Ljung-Box test at the seasonal lag will expose it.</li>
+
+<li><strong>D removes the season, P and Q model what remains.</strong> One seasonal difference usually flattens a stable yearly cycle; then one seasonal AR or MA term captures the leftover seasonal correlation.</li>
+
+<li><strong>Read only the seasonal lags when picking P and Q.</strong> An ACF spike at lag m points to seasonal MA; a PACF spike at lag m points to seasonal AR.</li>
+
+<li><strong>auto.arima() is a reliable default,</strong> and when you understand the orders yourself, its output stops being a black box and becomes a confirmation.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em> (2nd ed), Section 8.9: Seasonal ARIMA models. <a href="https://otexts.com/fpp2/seasonal-arima.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em> (3rd ed), Section 9.9: Seasonal ARIMA models. <a href="https://otexts.com/fpp3/seasonal-arima.html">Link</a></li>
+
+<li>Hyndman, R.J. - forecast package: <code>Arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/Arima.html">Link</a></li>
+
+<li>Hyndman, R.J. - forecast package: <code>auto.arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/auto.arima.html">Link</a></li>
+
+<li>Box, G.E.P., Jenkins, G.M., Reinsel, G.C. & Ljung, G.M. - <em>Time Series Analysis: Forecasting and Control</em>, 5th Edition. Wiley (2015). The origin of the airline model.</li>
+
+<li>R Core Team - <code>stats::arima</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html">Link</a></li>
+
+<li>Nau, R. - <em>Seasonal ARIMA models</em> (Duke University). <a href="https://people.duke.edu/~rnau/seasarim.htm">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ARIMA-in-R.html">ARIMA in R: What AR, I, and MA Mean and How to Fit One</a> - the non-seasonal foundation that SARIMA builds on, explained from scratch.</li>
+
+<li><a href="How-to-Choose-ARIMA-Order-in-R.html">How to Choose ARIMA Order in R</a> - a deeper guide to reading ACF and PACF plots to pick p, d, and q.</li>
+
+<li><a href="ARIMA-Diagnostics-in-R.html">ARIMA Diagnostics in R</a> - how to interpret residual checks like the Ljung-Box test and fix a model that fails them.</li>
+
+</ul>
+
+{% endraw %}
