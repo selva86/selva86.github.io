@@ -1,0 +1,980 @@
+---
+title: "Dynamic Regression in R: Regression with ARIMA Errors"
+description: "Dynamic regression in R pairs linear regression with ARIMA errors to fix spurious results and give honest standard errors. Fit and forecast with auto.arima."
+keywords: "dynamic regression in R, regression with ARIMA errors, auto.arima xreg, spurious regression, time series regression, ARIMA errors, forecast package, dynamic regression model"
+mathjax: true
+webr: true
+curriculum_id: "FR-arim-2"
+post_type: "FR"
+auto_link_terms: "dynamic regression|dynamic regression in R|dynamic regression model|dynamic regression models|spurious regression|spurious regression in R|time series regression|regression with autocorrelated errors|autocorrelated errors|differencing in regression"
+auto_link_case_sensitive: false
+fr_parent: "SARIMA-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Dynamic regression is a <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> model that pairs an ordinary regression on outside predictors with ARIMA-modeled errors. In R you fit one by passing your predictors to the <code>xreg</code> argument of <code>auto.arima()</code> from the forecast package, which keeps your estimates honest where an ordinary regression would mislead.</p>
+
+<h2>Why does ordinary regression fail on a time series?</h2>
+
+<p><a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear regression</a> is the first tool most people reach for when one thing might explain another. On time series data it has a serious flaw: it reports strong relationships that are not real. Before we build anything, let's see the problem for ourselves on data where we already know the right answer.</p>
+
+<p>Here is the trap in eight lines. We create two series that have absolutely nothing to do with each other. Each one is a random walk: it starts at zero and takes random steps, like a coin-flip stroll. They are generated from separate random numbers, so any link between them is pure chance. Then we regress one on the other and read the result.</p>
+
+<div class="webr-container" data-block-title="Regress two unrelated random walks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regress two unrelated random walks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+library(ggplot2)
+
+set.seed(8)
+n &lt;- 200
+walk_x &lt;- cumsum(rnorm(n))
+walk_y &lt;- cumsum(rnorm(n))
+
+ols_spurious &lt;- lm(walk_y ~ walk_x)
+round(summary(ols_spurious)$coefficients, 4)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  -0.6505     0.4914 -1.3236   0.1872
+#&gt; walk_x        1.1294     0.0508 22.2360   0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the <code>walk_x</code> row. The slope is 1.13, its t value is 22.24, and the p value is 0.0000. In any statistics class, those numbers say the effect is real and "highly significant." Yet we know the truth, because we built the data. There is no relationship at all. The regression is confidently describing a link that does not exist.</p>
+
+<p>The R-squared makes it worse. It tells you what fraction of the movement in one series the other appears to explain.</p>
+
+<div class="webr-container" data-block-title="Check the R-squared of the spurious fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the R-squared of the spurious fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(summary(ols_spurious)$r.squared, 3)
+#&gt; [1] 0.714</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An R-squared of 0.714 says <code>walk_x</code> explains 71% of <code>walk_y</code>. That would be an excellent model in any other setting. Here it means nothing. This failure has a name, spurious regression, and it happens because both series drift over time, so they often wander in loosely similar ways and look related purely by chance.</p>
+
+<p><img src="screenshots/Dynamic-Regression-in-R-why-ols-fails.webp" alt="How autocorrelated errors let ordinary regression report spurious significance and understated standard errors" class="img-responsive img-zoomable" loading="lazy" width="2248" height="546" /></p>
+
+<p><em>Figure 1: How autocorrelated errors let ordinary regression report spurious significance and understated standard errors.</em></p>
+
+<p>The root cause is the regression's errors. Ordinary regression assumes its leftover errors are independent, one observation telling you nothing about the next. In a time series that assumption is almost never true: today's value is close to yesterday's, so the errors are autocorrelated. When the errors carry that hidden time structure, the significance test counts the same information many times over and reports far more certainty than it has earned.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Two independent series can look strongly related when both drift over time.</strong> Ordinary regression mistakes shared wandering for a real link, then reports a tiny p value because it wrongly assumes every observation is independent.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A different starting seed gives a different pair of unrelated walks, and the fake relationship shows up again. Run this and read the t value.</p>
+<div class="webr-container" data-block-title="Your turn: a second spurious pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a second spurious pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(15)
+ex_x &lt;- cumsum(rnorm(200))
+ex_y &lt;- cumsum(rnorm(200))
+round(summary(lm(ex_y ~ ex_x))$coefficients[&quot;ex_x&quot;, ], 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="A second spurious pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A second spurious pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(15)
+ex_x &lt;- cumsum(rnorm(200))
+ex_y &lt;- cumsum(rnorm(200))
+round(summary(lm(ex_y ~ ex_x))$coefficients[&quot;ex_x&quot;, ], 4)
+#&gt;   Estimate Std. Error    t value   Pr(&gt;|t|)
+#&gt;    -0.2003     0.0544    -3.6826     0.0003</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two brand new unrelated walks, and the slope is again "significant" at a p value of 0.0003. Spurious regression is not a one-off fluke of one seed, it is what ordinary regression does to trending series in general.</p>
+
+</details>
+</section>
+
+<h2>What is dynamic regression, and how does it fix this?</h2>
+
+<p>Dynamic regression fixes the trap without throwing away the regression you wanted in the first place. The idea is to give the model two jobs instead of one. The regression part still estimates how the predictor affects your series. A second part, an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA model</a>, is added to soak up the leftover time structure in the errors, so the errors the regression sees are finally the independent noise it always assumed.</p>
+
+<p>That is why the honest name for this model is "regression with ARIMA errors." Written out, it is an ordinary straight-line regression where the error term is not plain noise but follows its own ARIMA process.</p>
+
+<p>$$y_t = \beta_0 + \beta_1 x_t + n_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ is the value of your series at time $t$</li>
+
+<li>$\beta_0$ is the intercept, the baseline level</li>
+
+<li>$\beta_1$ is the effect of the predictor, the number you usually care about</li>
+
+<li>$x_t$ is the predictor at time $t$</li>
+
+<li>$n_t$ is the error, which follows an ARIMA model instead of being independent noise</li>
+
+</ul>
+
+<p>That last line is the whole trick. In an ordinary regression, $n_t$ is assumed independent. Dynamic regression lets $n_t$ carry the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">autocorrelation</a> that time series always have, so the ARIMA part explains the memory and the regression part is left with an honest effect. If the math is not your thing, skip it: the practical point is that R handles $n_t$ for you.</p>
+
+<p>Let's hand the exact same two random walks to a dynamic regression and see the fake relationship disappear. We use <code>auto.arima()</code> and pass the predictor through the <code>xreg</code> argument. That single argument is what turns <code>auto.arima()</code> from a plain forecaster into a dynamic regression.</p>
+
+<div class="webr-container" data-block-title="Fit a dynamic regression on the same walks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a dynamic regression on the same walks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dyn_walk &lt;- auto.arima(walk_y, xreg = walk_x)
+dyn_walk
+#&gt; Series: walk_y 
+#&gt; Regression with ARIMA(0,1,1) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1    xreg
+#&gt;       -0.1385  0.0107
+#&gt; s.e.   0.0641  0.0639
+#&gt; 
+#&gt; sigma^2 = 0.9473:  log likelihood = -275.98
+#&gt; AIC=557.96   AICc=558.09   BIC=567.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the <code>xreg</code> coefficient: 0.0107, with a standard error of 0.0639. The effect is smaller than its own standard error, meaning it is statistically indistinguishable from zero. The verdict flipped completely. Ordinary regression said 1.13 and "highly significant." Dynamic regression, once it accounts for the time structure, says "no reliable effect here." That is the correct answer, because we built the two series to be unrelated.</p>
+
+<p>Notice the label R printed, "Regression with ARIMA(0,1,1) errors." The <code>(0,1,1)</code> is the ARIMA model chosen for the errors, and the <code>1</code> in the middle is the key. It means the errors were differenced once, which is how the model stripped out the drift that fooled ordinary regression. We will unpack that middle number shortly.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This guide assumes you know the basics of ARIMA and its xreg argument.</strong> If AR, MA, or differencing are new, read <a href="ARIMA-in-R.html">ARIMA in R</a> first. For a mechanics-focused tour of <code>xreg</code> itself, <a href="ARIMAX-in-R.html">ARIMAX in R</a> is the companion to this page, which focuses on why dynamic regression matters.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A quick way to judge an effect is its t ratio, the coefficient divided by its standard error. A value near zero means "no signal." Compute it for the <code>xreg</code> coefficient above.</p>
+<div class="webr-container" data-block-title="Your turn: is the effect distinguishable from zero?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: is the effect distinguishable from zero?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(dyn_walk)[&quot;xreg&quot;] / sqrt(diag(vcov(dyn_walk)))[&quot;xreg&quot;], 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="The t ratio of the spurious effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The t ratio of the spurious effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(dyn_walk)[&quot;xreg&quot;] / sqrt(diag(vcov(dyn_walk)))[&quot;xreg&quot;], 3)
+#&gt;  xreg 
+#&gt; 0.168 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A t ratio of 0.168 is nowhere near the rough threshold of 2 that signals significance. Dynamic regression correctly reports the predictor as useless, exactly the opposite of the ordinary regression's t value of 22.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a dynamic regression in R?</h2>
+
+<p>Killing false signals is only half the value. Dynamic regression also measures real effects correctly, giving you the right slope with trustworthy uncertainty. To show this, we need data where a genuine relationship exists, so let's build one on purpose.</p>
+
+<p>Imagine a business tracking daily signups against how much it spends on ads. We make signups genuinely depend on ad spend: each unit of spend truly adds 1.5 signups, and we bury that signal under autocorrelated noise so it behaves like a real, sticky series. Because we set the true effect ourselves, we know a good model should recover a slope near 1.5.</p>
+
+<div class="webr-container" data-block-title="Build a series where the predictor truly matters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a series where the predictor truly matters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+m &lt;- 180
+ad_spend &lt;- 20 + 6 * sin(2 * pi * (1:m) / 20) + rnorm(m, 0, 2)
+signups  &lt;- 50 + 1.5 * ad_spend + as.numeric(arima.sim(model = list(ar = 0.7), n = m, sd = 4))
+
+ols_naive &lt;- lm(signups ~ ad_spend)
+round(summary(ols_naive)$coefficients, 4)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  49.0546     1.4344 34.1981        0
+#&gt; ad_spend      1.5335     0.0699 21.9313        0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ordinary regression estimates the slope at 1.5335, close to the true 1.5. So the point estimate is fine. The problem hides in the <code>Std. Error</code> column, 0.0699. Because the errors here are autocorrelated, that standard error is too small, and every conclusion about significance built on it is overconfident. Now fit the dynamic regression on the same data and watch the standard error tell the truth.</p>
+
+<div class="webr-container" data-block-title="Fit the dynamic regression with xreg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the dynamic regression with xreg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dyn_fit &lt;- auto.arima(signups, xreg = cbind(ad_spend = ad_spend))
+dyn_fit
+#&gt; Series: signups 
+#&gt; Regression with ARIMA(1,0,0) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1  intercept  ad_spend
+#&gt;       0.5588    47.6455    1.6057
+#&gt; s.e.  0.0631     1.8896    0.0893
+#&gt; 
+#&gt; sigma^2 = 14.17:  log likelihood = -492.67
+#&gt; AIC=993.34   AICc=993.57   BIC=1006.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope is 1.6057, again near the true 1.5. The model also found <code>ar1</code> of 0.56, which is the autocorrelation in the errors that ordinary regression ignored. The interesting comparison is the two standard errors side by side.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Name your xreg columns with cbind for readable output.</strong> Passing <code>cbind(ad_spend = ad_spend)</code> instead of a bare vector labels the coefficient <code>ad_spend</code> in the printout rather than the generic <code>xreg</code>, which pays off once you have several predictors to tell apart.</div></div>
+
+<div class="webr-container" data-block-title="Compare the two standard errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the two standard errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(OLS     = summary(ols_naive)$coefficients[&quot;ad_spend&quot;, &quot;Std. Error&quot;],
+        Dynamic = unname(sqrt(diag(vcov(dyn_fit)))[&quot;ad_spend&quot;])), 4)
+#&gt;     OLS Dynamic 
+#&gt;  0.0699  0.0893 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dynamic-regression standard error, 0.0893, is about 28% wider than the ordinary 0.0699. Both models agree the effect is near 1.5, but they disagree about how sure we should be. Ordinary regression treated 180 autocorrelated points as if they carried more independent evidence than they really do, so it understated the uncertainty. The dynamic regression gives the same slope with an honest margin around it.</p>
+
+<p>You do not have to let <code>auto.arima()</code> pick the error structure. When you want a specific ARIMA order, <code>Arima()</code> takes an <code>order</code> argument and the same <code>xreg</code>. Fitting the <code>(1, 0, 0)</code> structure by hand reproduces the automatic model exactly.</p>
+
+<div class="webr-container" data-block-title="Fit the same model with a chosen order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the same model with a chosen order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Arima(signups, order = c(1, 0, 0), xreg = cbind(ad_spend = ad_spend))
+#&gt; Series: signups 
+#&gt; Regression with ARIMA(1,0,0) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1  intercept  ad_spend
+#&gt;       0.5588    47.6455    1.6057
+#&gt; s.e.  0.0631     1.8896    0.0893
+#&gt; 
+#&gt; sigma^2 = 14.17:  log likelihood = -492.67
+#&gt; AIC=993.34   AICc=993.57   BIC=1006.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Your xreg rows must line up with the series and contain no gaps.</strong> Row 1 of <code>xreg</code> must be the predictor at the same time as the first value of your series, and <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> will break or bias the fit. Align by date and fill or drop <code>NA</code> values before fitting.</div></div>
+
+<p>The output is identical, which confirms <code>auto.arima()</code> chose <code>(1, 0, 0)</code> for us. In practice, let it choose unless you have a reason not to.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull the honest standard error of the <code>ad_spend</code> effect straight from the fitted model. This is the number you would report.</p>
+<div class="webr-container" data-block-title="Your turn: read the honest standard error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the honest standard error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sqrt(diag(vcov(dyn_fit)))[&quot;ad_spend&quot;], 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="The honest standard error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The honest standard error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sqrt(diag(vcov(dyn_fit)))[&quot;ad_spend&quot;], 4)
+#&gt; ad_spend 
+#&gt;   0.0893 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>vcov()</code> function returns the model's variance-covariance matrix; the square root of its diagonal gives each coefficient's standard error. For <code>ad_spend</code> that is 0.0893, the trustworthy figure to quote rather than the ordinary regression's 0.0699.</p>
+
+</details>
+</section>
+
+<h2>Why must the ARIMA errors be stationary?</h2>
+
+<p>You may have noticed the two models chose different middle numbers. The random-walk model differenced its errors, ARIMA(0,<strong>1</strong>,1), while the signups model did not, ARIMA(1,<strong>0</strong>,0). That middle number, the number of differences, is where dynamic regression does its most important work, so it is worth understanding.</p>
+
+<p>Differencing means replacing each value with the change from the previous value. It exists to make a series stationary, meaning its behaviour, its average level and its swings, stays steady over time instead of drifting. Dynamic regression needs the ARIMA error to be stationary. When your series trends, the leftover error trends too, so <code>auto.arima()</code> differences it away by choosing a middle number of 1. That single step removes the shared drift that caused the spurious result in the first place.</p>
+
+<p>R has a helper that reports how many differences a series needs. Run it on the random walk from the start of this tutorial.</p>
+
+<div class="webr-container" data-block-title="Ask how many differences the walk needs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ask how many differences the walk needs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(walk_y)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The answer is 1, which is exactly the middle number the dynamic regression chose for that series. This is not a coincidence: <code>auto.arima()</code> runs this same check internally and differences the errors accordingly. To see that differencing is what defused the spurious link, we can do it by hand. Regressing the change in one walk on the change in the other should show no relationship.</p>
+
+<div class="webr-container" data-block-title="Regress the changes instead of the levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regress the changes instead of the levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(summary(lm(diff(walk_y) ~ diff(walk_x)))$coefficients, 4)
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)   -0.0829     0.0696 -1.1915   0.2349
+#&gt; diff(walk_x)  -0.0020     0.0649 -0.0310   0.9753</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope is now -0.0020 with a p value of 0.9753, as unrelated as it should be. Differencing by hand reached the same honest verdict that dynamic regression reached automatically. The lesson is that the drift, not any true link, drove the original 1.13 slope, and removing the drift removes the illusion.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Differencing strips out the shared trend, and that is the engine under dynamic regression.</strong> You never difference the predictors by hand for <code>auto.arima()</code>; it detects the need, differences the series and its errors together, and reports the middle number so you can see it happened.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The honest signups series was built to be stationary, so it should need no differencing at all. Confirm it.</p>
+<div class="webr-container" data-block-title="Your turn: does the honest series need differencing?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: does the honest series need differencing?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(signups)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Differences needed by the stationary series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Differences needed by the stationary series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(signups)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The answer is 0, so no differencing is needed, which matches the ARIMA(1,0,0) the model chose. A <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">stationary series</a> keeps its middle number at 0; a drifting one gets differenced. Dynamic regression adapts to whichever you have.</p>
+
+</details>
+</section>
+
+<h2>How do you check the model and forecast?</h2>
+
+<p>Two jobs remain before you trust a dynamic regression: confirm the model is adequate, then forecast with it. Both are quick, and both have a catch worth knowing.</p>
+
+<p>Checking the model means confirming the errors are finally white noise, plain random static with no leftover pattern. If any structure remains, the ARIMA part did not fully do its job. The <code>checkresiduals()</code> function runs a <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">Ljung-Box test</a>, where a p value above 0.05 means the residuals look like clean noise.</p>
+
+<div class="webr-container" data-block-title="Check the residuals of the fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the residuals of the fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(dyn_fit)
+#&gt; 
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from Regression with ARIMA(1,0,0) errors
+#&gt; Q* = 7.4867, df = 9, p-value = 0.5866
+#&gt; 
+#&gt; Model df: 1.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p value is 0.5866, comfortably above 0.05, so the residuals pass. The autocorrelation the ordinary regression left behind has been absorbed by the ARIMA part, and what remains is the independent noise the regression needs. This diagnostic is your proof that the standard errors can be trusted.</p>
+
+<p>Now forecasting, and here is the catch. A dynamic regression cannot forecast on its own, because it needs the future values of its predictors. To predict signups next month, you must first tell the model what ad spend will be next month. You pass those future values through the same <code>xreg</code> argument, and the horizon is simply however many rows you supply.</p>
+
+<div class="webr-container" data-block-title="Forecast ahead with future ad spend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast ahead with future ad spend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+future_ad &lt;- 20 + 6 * sin(2 * pi * ((m + 1):(m + 12)) / 20) + rnorm(12, 0, 2)
+sign_fc &lt;- forecast(dyn_fit, xreg = cbind(ad_spend = future_ad))
+sign_fc
+#&gt;     Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 181       87.52832 82.70458 92.35206 80.15105 94.90559
+#&gt; 182       80.15196 74.62616 85.67775 71.70098 88.60293
+#&gt; 183       84.52641 78.79899 90.25383 75.76708 93.28574
+#&gt; 184       87.15217 81.36323 92.94111 78.29875 96.00559
+#&gt; 185       86.02709 80.21907 91.83511 77.14449 94.90969
+#&gt; 186       85.74052 79.92656 91.55449 76.84883 94.63221
+#&gt; 187       89.87808 84.06227 95.69390 80.98356 98.77261
+#&gt; 188       85.00289 79.18649 90.81928 76.10747 93.89830
+#&gt; 189       83.20220 77.38562 89.01878 74.30651 92.09789
+#&gt; 190       86.77839 80.96175 92.59502 77.88261 95.67416
+#&gt; 191       77.92087 72.10422 83.73753 69.02507 86.81668
+#&gt; 192       82.81660 76.99995 88.63326 73.92079 91.71241</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one future month. The Point Forecast is the single best guess, and the interval columns give ranges: the model is 80% sure the value falls between Lo 80 and Hi 80, and 95% sure between Lo 95 and Hi 95. The forecasts rise and fall because the future ad spend we supplied rises and falls, and the slope of 1.6 carries that pattern into signups. A picture makes it clearer, and <code>autoplot()</code> draws the history and forecast together.</p>
+
+<div class="webr-container" data-block-title="Plot the dynamic regression forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the dynamic regression forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(sign_fc) + ggtitle(&quot;Signups forecast driven by future ad spend&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A dynamic regression forecast is only as good as the future predictors you feed it.</strong> If you supply wrong future ad spend, the signups forecast will be wrong no matter how well the model fits. Use it freely when the future predictor is known (a scheduled budget, a holiday flag) and with care when it must itself be forecast.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Forecast a shorter horizon by supplying only 6 future values. The horizon follows the number of rows you pass.</p>
+<div class="webr-container" data-block-title="Your turn: forecast six periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast six periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+ex_future &lt;- 20 + 6 * sin(2 * pi * ((m + 1):(m + 6)) / 20) + rnorm(6, 0, 2)
+forecast(dyn_fit, xreg = cbind(ad_spend = ex_future))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="A six-period forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A six-period forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+ex_future &lt;- 20 + 6 * sin(2 * pi * ((m + 1):(m + 6)) / 20) + rnorm(6, 0, 2)
+forecast(dyn_fit, xreg = cbind(ad_spend = ex_future))
+#&gt;     Point Forecast    Lo 80    Hi 80    Lo 95     Hi 95
+#&gt; 181       80.36160 75.53786 85.18534 72.98433  87.73887
+#&gt; 182       83.40357 77.87777 88.92936 74.95259  91.85454
+#&gt; 183       91.88060 86.15318 97.60802 83.12127 100.63993
+#&gt; 184       91.57463 85.78569 97.36357 82.72121 100.42805
+#&gt; 185       93.98144 88.17342 99.78946 85.09884 102.86404
+#&gt; 186       87.35441 81.54045 93.16838 78.46272  96.24610</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Six future values means a six-row forecast. There is no separate horizon setting to remember; the number of rows in <code>xreg</code> is the horizon.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: A real relationship that survives</h2>
+
+<p>The random walks were rigged to show a fake relationship collapse. Real economic data is more interesting: sometimes the relationship is genuine, and dynamic regression confirms it while ordinary regression exaggerates it. Let's test a real question on real numbers. Does the personal savings rate move consumer spending? Common sense says when people save a larger share of income, they spend a smaller one, so we expect a negative link.</p>
+
+<p>The built-in <code>economics</code> dataset carries decades of monthly US figures, including <code>pce</code> (personal consumption expenditure, in billions of dollars) and <code>psavert</code> (the personal savings rate, in percent). We start with the naive approach, an ordinary regression of spending on the savings rate, and then inspect its residuals.</p>
+
+<div class="webr-container" data-block-title="Fit a naive regression on real macro data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a naive regression on real macro data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">econ &lt;- economics
+ols_econ &lt;- lm(pce ~ psavert, data = econ)
+round(summary(ols_econ)$coefficients, 3)
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 12970.705    277.154  46.800        0
+#&gt; psavert      -951.369     30.575 -31.116        0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ordinary regression reports a slope of -951, meaning each extra percentage point of savings rate is tied to $951 billion less spending, with a t value of -31. That is enormous and, taken at face value, decisive. But we have learned to be suspicious, so we check whether the residuals are autocorrelated, which would sink those standard errors.</p>
+
+<div class="webr-container" data-block-title="Inspect the residual autocorrelation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the residual autocorrelation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Acf(residuals(ols_econ), plot = FALSE)$acf[1:4], 3)
+#&gt; [1] 1.000 0.940 0.905 0.880</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first value is always 1, the residual's correlation with itself, so ignore it. The next values, 0.940 and 0.905, are enormous. The residuals are almost perfectly autocorrelated, which is a strong warning that the -951 slope is inflated by the shared trend of the two series, not a clean relationship. This is the same spurious regression from the opening, now inside real data, and dynamic regression fixes it here too.</p>
+
+<div class="webr-container" data-block-title="Fit the dynamic regression on the real data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the dynamic regression on the real data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dyn_econ &lt;- auto.arima(econ$pce, xreg = econ$psavert)
+dyn_econ
+#&gt; Series: econ$pce 
+#&gt; Regression with ARIMA(1,1,2) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1      ma1     ma2    drift      xreg
+#&gt;       0.9569  -0.9475  0.1154  20.3088  -11.6365
+#&gt; s.e.  0.0245   0.0467  0.0442   3.6251    1.2455
+#&gt; 
+#&gt; sigma^2 = 532.4:  log likelihood = -2609.27
+#&gt; AIC=5230.55   AICc=5230.7   BIC=5256.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model chose ARIMA(1,1,2) errors, so it differenced once to remove the shared trend. The honest <code>xreg</code> coefficient is -11.64, with a standard error of 1.25, giving a t value near -9. The relationship is real and clearly significant, but it is roughly 80 times smaller than the -951 ordinary regression claimed. Most of that giant number was the trend both series happened to share, not a true effect of saving on spending. Before quoting the number, confirm the residuals are clean.</p>
+
+<div class="webr-container" data-block-title="Check the residuals of the real-data model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the residuals of the real-data model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(dyn_econ)
+#&gt; 
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from Regression with ARIMA(1,1,2) errors
+#&gt; Q* = 9.9629, df = 7, p-value = 0.1907
+#&gt; 
+#&gt; Model df: 3.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Ljung-Box p value is 0.1907, above 0.05, so the residuals pass as white noise and the standard error can be trusted. Finally, pull the coefficient out for reporting.</p>
+
+<div class="webr-container" data-block-title="Extract the honest savings-rate effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the honest savings-rate effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(dyn_econ)[&quot;xreg&quot;], 2)
+#&gt;   xreg 
+#&gt; -11.64 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Report the honest coefficient, not the inflated one.</strong> Ordinary regression on trending series routinely produces effects that are too large and too significant. When a naive regression gives a huge slope and its residuals are strongly autocorrelated, treat the number as a warning sign, not a finding, and refit with dynamic regression.</div></div>
+
+<p>The pairing tells the whole story of this tutorial. A fake relationship, the two random walks, collapses to nothing under dynamic regression. A real relationship, savings against spending, survives but shrinks to its honest size. Ordinary regression cannot tell those two situations apart. Dynamic regression can.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is dynamic regression in one sentence?</strong> It is a linear regression whose error term is modeled as an ARIMA process, so the regression measures a predictor's effect while the ARIMA part absorbs the time structure that would otherwise corrupt the result.</p>
+
+<p><strong>How is it different from ARIMAX or "ARIMA with xreg"?</strong> In R's forecast package they use the same machinery: you pass predictors to <code>xreg</code> in <code>Arima()</code> or <code>auto.arima()</code>. "ARIMAX" usually emphasizes the mechanics of adding regressors to a forecaster, which <a href="ARIMAX-in-R.html">ARIMAX in R</a> covers in depth. This page emphasizes the why: dynamic regression is the principled framework that keeps regression honest on time series. R prints what it actually fits as "Regression with ARIMA errors."</p>
+
+<p><strong>Why not just use ordinary regression?</strong> Because ordinary regression assumes independent errors, and time series errors are autocorrelated. That assumption failure produces spurious significance and standard errors that are too small, as the random-walk example showed. Dynamic regression repairs both problems.</p>
+
+<p><strong>Do I need future values of the predictors to forecast?</strong> Yes, and this is the main practical catch. To forecast ahead you must supply the predictors' future values through <code>xreg</code>. If they are known in advance (a budget, a calendar effect) you are safe; if not, you must forecast the predictor first, and its uncertainty flows into your final forecast.</p>
+
+<p><strong>How do I know if I need to difference?</strong> You usually do not decide by hand. <code>auto.arima()</code> runs unit-root tests and differences the errors when needed, reporting the choice as the middle number of the ARIMA order. The <code>ndiffs()</code> function shows the same recommendation for a single series if you want to check yourself.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine ideas from across the tutorial. Each starter block runs as-is, so write your solution and then reveal ours to compare. The exercises use their own variable names so they will not clash with the code above.</p>
+
+<h3>Exercise 1: Expose and fix a spurious link</h3>
+
+<p>Build two independent random walks of length 250 with <code>set.seed(303)</code>. First show that ordinary regression finds a "significant" slope between them, then show that a dynamic regression with <code>xreg</code> neutralizes it.</p>
+
+<div class="webr-container" data-block-title="Your turn: expose then fix a spurious link">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: expose then fix a spurious link</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. set.seed(303); build ex1_x and ex1_y as random walks of length 250.
+# 2. Fit lm(ex1_y ~ ex1_x) and read the slope's significance.
+# 3. Fit auto.arima(ex1_y, xreg = ex1_x) and read the xreg coefficient and its SE.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ordinary regression finds a fake slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ordinary regression finds a fake slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+ex1_x &lt;- cumsum(rnorm(250))
+ex1_y &lt;- cumsum(rnorm(250))
+round(summary(lm(ex1_y ~ ex1_x))$coefficients, 4)
+#&gt;             Estimate Std. Error  t value Pr(&gt;|t|)
+#&gt; (Intercept)  10.9767     0.5174  21.2147        0
+#&gt; ex1_x        -1.3679     0.1115 -12.2634        0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Dynamic regression neutralizes it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dynamic regression neutralizes it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex1_dyn &lt;- auto.arima(ex1_y, xreg = ex1_x)
+round(c(coef = coef(ex1_dyn)[&quot;xreg&quot;], se = sqrt(diag(vcov(ex1_dyn)))[&quot;xreg&quot;]), 4)
+#&gt; coef.xreg   se.xreg 
+#&gt;   -0.1140    0.0649 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Ordinary regression reports a slope of -1.37 with a t value of -12, apparently rock solid. Dynamic regression shrinks the coefficient to -0.11 against a standard error of 0.06, so it is barely more than one standard error from zero. The "strong" relationship was an artifact of two shared drifts.</p>
+
+</details>
+
+<h3>Exercise 2: Recover a known effect and prove the model is adequate</h3>
+
+<p>Build a series <code>my_y</code> that truly depends on a predictor <code>my_x</code> with a slope of 0.8, plus autocorrelated noise, using <code>set.seed(101)</code> and length 300. Fit a dynamic regression, confirm it recovers the 0.8, and check that the residuals are white noise.</p>
+
+<div class="webr-container" data-block-title="Your turn: recover an effect and validate it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recover an effect and validate it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build my_x, then my_y = 100 + 0.8 * my_x + AR(1) noise (use ar = 0.85, sd = 4).
+# Hint: arima.sim(model = list(ar = 0.85), n = 300, sd = 4) makes the noise.
+# Fit auto.arima with xreg, read the my_x coefficient, then run checkresiduals().
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fit and recover the known slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and recover the known slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+mm &lt;- 300
+my_x &lt;- 15 + 4 * sin(2 * pi * (1:mm) / 18) + rnorm(mm, 0, 2)
+my_y &lt;- 100 + 0.8 * my_x + as.numeric(arima.sim(model = list(ar = 0.85), n = mm, sd = 4))
+my_dyn &lt;- auto.arima(my_y, xreg = cbind(my_x = my_x))
+round(coef(my_dyn)[&quot;my_x&quot;], 3)
+#&gt;  my_x 
+#&gt; 0.833 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Confirm the residuals are white noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the residuals are white noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(my_dyn)
+#&gt; 
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from Regression with ARIMA(1,0,1) errors
+#&gt; Q* = 8.9535, df = 8, p-value = 0.3462
+#&gt; 
+#&gt; Model df: 2.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The dynamic regression recovers a slope of 0.833, right on top of the true 0.8, and the Ljung-Box p value of 0.3462 confirms the residuals are clean noise. A recovered effect plus a passing residual check is exactly the evidence that your model is trustworthy.</p>
+
+</details>
+
+<h3>Exercise 3: Earn a second predictor with AICc</h3>
+
+<p>Using the <code>economics</code> data, fit a dynamic regression of <code>pce</code> on both <code>psavert</code> and <code>pop</code> (population). Compare its AICc to the single-predictor model <code>dyn_econ</code> from the Complete Example, then read the coefficients. Lower AICc is better.</p>
+
+<div class="webr-container" data-block-title="Your turn: does a second predictor earn its place?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: does a second predictor earn its place?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a two-column xreg from econ[, c(&quot;psavert&quot;, &quot;pop&quot;)].
+# Fit auto.arima(econ$pce, xreg = that matrix), call it dyn_two.
+# Compare c(one = dyn_econ$aicc, two = dyn_two$aicc), then read both coefficients.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Compare one predictor against two by AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare one predictor against two by AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X2 &lt;- as.matrix(econ[, c(&quot;psavert&quot;, &quot;pop&quot;)])
+dyn_two &lt;- auto.arima(econ$pce, xreg = X2)
+c(one = dyn_econ$aicc, two = dyn_two$aicc)
+#&gt;      one      two 
+#&gt; 5230.696 5216.135</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Read the two coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the two coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(dyn_two)[c(&quot;psavert&quot;, &quot;pop&quot;)], 4)
+#&gt;  psavert      pop 
+#&gt; -11.9310  -0.0358</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding population lowers AICc from 5230.7 to 5216.1, a drop of about 15, so the second predictor earns its place. The savings-rate effect holds steady near -12, while the population coefficient is a small partial effect you should not over-read on its own. Comparing AICc with and without a predictor is how you decide whether to keep it.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Dynamic regression is ordinary regression made safe for time series. You keep the regression that estimates your predictor's effect, and you add an ARIMA model for the errors so that autocorrelation and trend cannot corrupt the result. In R, one <code>xreg</code> argument turns <code>auto.arima()</code> into exactly this model.</p>
+
+<p><img src="screenshots/Dynamic-Regression-in-R-workflow.webp" alt="The dynamic regression workflow, from fitting with xreg to forecasting with future predictors" class="img-responsive img-zoomable" loading="lazy" width="2248" height="304" /></p>
+
+<p><em>Figure 2: The dynamic regression workflow, from fitting with xreg to forecasting with future predictors.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>How</th>
+<th>Key point</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit</td>
+<td><code>auto.arima(y, xreg = X)</code></td>
+<td>The <code>xreg</code> argument makes it a dynamic regression</td>
+</tr>
+<tr>
+<td>Control the order</td>
+<td><code>Arima(y, order, xreg = X)</code></td>
+<td>Set the ARIMA order for the errors by hand</td>
+</tr>
+<tr>
+<td>Handle trend</td>
+<td>Nothing extra</td>
+<td><code>auto.arima()</code> differences the errors for you</td>
+</tr>
+<tr>
+<td>Check</td>
+<td><code>checkresiduals(fit)</code></td>
+<td>Ljung-Box p above 0.05 means the errors are clean</td>
+</tr>
+<tr>
+<td>Forecast</td>
+<td><code>forecast(fit, xreg = future_X)</code></td>
+<td>You must supply future predictor values</td>
+</tr>
+<tr>
+<td>Read the effect</td>
+<td><code>coef(fit)[&quot;xreg&quot;]</code></td>
+<td>An honest slope with a trustworthy standard error</td>
+</tr>
+</tbody>
+</table>
+
+<p>Keep these takeaways close:</p>
+
+<ul>
+
+<li><strong>Ordinary regression lies on time series.</strong> Autocorrelated errors produce spurious significance and standard errors that are far too small.</li>
+
+<li><strong>Dynamic regression splits the work in two.</strong> A regression captures the predictor's effect, and an ARIMA model soaks up the leftover time structure.</li>
+
+<li><strong>Differencing removes the shared trend.</strong> <code>auto.arima()</code> decides how much to difference and applies it to the series and its errors together, so you never difference predictors by hand.</li>
+
+<li><strong>Always check the residuals.</strong> A passing Ljung-Box test is your proof that the standard errors, and therefore your conclusions, can be trusted.</li>
+
+<li><strong>Forecasting needs future predictors.</strong> Unlike a plain ARIMA, a dynamic regression cannot project its own inputs forward.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter 10: Dynamic regression models. <a href="https://otexts.com/fpp3/dynamic.html">Link</a></li>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 2nd edition. Section 9.2: Regression with ARIMA errors in R. <a href="https://otexts.com/fpp2/regarima.html">Link</a></li>
+
+<li>Hyndman, R.J., & Khandakar, Y. - "Automatic Time Series Forecasting: The forecast Package for R." <em>Journal of Statistical Software</em>, 27(3), 2008. <a href="https://www.jstatsoft.org/article/view/v027i03">Link</a></li>
+
+<li>Granger, C.W.J., & Newbold, P. - "Spurious regressions in econometrics." <em>Journal of Econometrics</em>, 2(2), 1974. <a href="https://doi.org/10.1016/0304-4076(74">Link</a>90034-7)</li>
+
+<li>forecast package - <code>auto.arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/auto.arima.html">Link</a></li>
+
+<li>forecast package - <code>Arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/Arima.html">Link</a></li>
+
+<li>ggplot2 - <code>economics</code> dataset reference. <a href="https://ggplot2.tidyverse.org/reference/economics.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ARIMAX-in-R.html">ARIMAX in R</a> - the companion page, covering the mechanics of the <code>xreg</code> argument in depth.</li>
+
+<li><a href="ARIMA-in-R.html">ARIMA in R</a> - the foundation this model builds on, covering what AR, I, and MA mean.</li>
+
+<li><a href="SARIMA-in-R.html">SARIMA in R</a> - the seasonal extension for series with a repeating yearly or weekly pattern.</li>
+
+<li><a href="ARIMA-Diagnostics-in-R.html">ARIMA Diagnostics in R</a> - go deeper on residual checks and the Ljung-Box test used here.</li>
+
+<li><a href="ACF-and-PACF-in-R.html">ACF and PACF in R</a> - the autocorrelation plots behind the <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">residual diagnostics</a> in this tutorial.</li>
+
+</ul>
+
+{% endraw %}
