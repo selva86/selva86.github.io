@@ -159,6 +159,9 @@
     renderCerts(certItems);
     renderSaved(saved);
     if(!pro)$('dh-upsell').innerHTML='<div class="upsell"><span class="ck">The Program</span><h3 class="disp">Get certified</h3><p>Unlock graded practice, every specialization section, and the projects that become your portfolio.</p><a href="/pricing.html">See the Program <span class="a">&rarr;</span></a></div>';
+    // Team card: a seat-holder sees their team here (admins get the manage link).
+    if(me.team){var tManage=me.team.role==='owner'||me.team.role==='admin';
+      $('dh-upsell').innerHTML='<div class="upsell"><span class="ck">Your team</span><h3 class="disp">'+(tManage?'Manage your team':'Team seat active')+'</h3><p>'+(tManage?'Invite people, manage seats, and see your team\'s progress.':'You have All-Access Pro through your team.')+'</p><a href="/team.html">Open team <span class="a">&rarr;</span></a></div>';}
   }
 
   // sidebar titles (non-blocking enrichment)
