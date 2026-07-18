@@ -1,0 +1,617 @@
+---
+title: "ARFIMA in R: Long-Memory Models with fracdiff"
+description: "Model long-memory time series in R with ARFIMA and the fracdiff package: estimate the fractional difference d, remove persistence, and forecast with real code."
+keywords: "ARFIMA in R, long memory, fracdiff, fractional differencing, ARFIMA model, fractionally integrated, long-memory time series, Geweke-Porter-Hudak, diffseries, fractional difference parameter"
+mathjax: true
+webr: true
+curriculum_id: "FR-arim-5"
+post_type: "FR"
+auto_link_terms: "ARFIMA|ARFIMA in R|ARFIMA model|long memory|long-memory process|long memory time series|fractional differencing|fractionally integrated|fracdiff|fracdiff package|fractional difference parameter|Geweke-Porter-Hudak|persistent time series"
+auto_link_case_sensitive: false
+fr_parent: "ARIMA-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">ARFIMA (AutoRegressive Fractionally Integrated <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">Moving Average</a>) is an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA model</a> whose differencing order <code>d</code> is allowed to be a fraction instead of a whole number. That single change lets it capture <em>long memory</em>: series whose autocorrelation fades so slowly that a standard ARIMA cannot describe it. In R you fit one with the <code>fracdiff</code> package.</p>
+
+<h2>What is long memory, and why does ARIMA miss it?</h2>
+
+<p>You already know ARIMA's <code>d</code> as a whole number: <code>d = 0</code> for a <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">stationary series</a>, <code>d = 1</code> when you difference once to kill a trend, <code>d = 2</code> for a doubly-integrated series. Long memory lives in the gap between those integers. Some real series, river levels, inflation, market volatility, network traffic, are not a random walk (<code>d = 1</code>), yet their shocks fade far too slowly for a short-memory model (<code>d = 0</code>). The clearest fingerprint is the <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">autocorrelation function</a> (ACF). Let's compare the exact ACF of a long-memory process against a short-memory AR(1) and watch the difference.</p>
+
+<p>For an ARFIMA(0, d, 0) process there is a closed-form autocorrelation at every lag, so we can compute it directly instead of simulating. We put it next to an AR(1) whose autocorrelation is simply the coefficient raised to the lag power.</p>
+
+<div class="webr-container" data-block-title="Compare long-memory and short-memory autocorrelation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare long-memory and short-memory autocorrelation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Theoretical autocorrelation of an ARFIMA(0, d, 0) process
+arfima_acf &lt;- function(k, d) {
+  exp(lgamma(k + d) + lgamma(1 - d) - lgamma(k - d + 1) - lgamma(d))
+}
+
+lags &lt;- c(1, 5, 10, 25, 50, 100)
+long_memory  &lt;- sapply(lags, arfima_acf, d = 0.4)   # ARFIMA, d = 0.4
+short_memory &lt;- 0.6 ^ lags                          # an AR(1) with coefficient 0.6
+
+rbind(lag = lags,
+      long_memory  = round(long_memory, 4),
+      short_memory = round(short_memory, 4))
+#&gt;                [,1]   [,2]    [,3]    [,4]   [,5]     [,6]
+#&gt; lag          1.0000 5.0000 10.0000 25.0000 50.000 100.0000
+#&gt; long_memory  0.6667 0.4864  0.4236  0.3527  0.307   0.2673
+#&gt; short_memory 0.6000 0.0778  0.0060  0.0000  0.000   0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read across the two bottom rows. Both processes start near 0.6 at lag 1, so at first glance they look similar. But by lag 10 the AR(1) has all but forgotten its past (autocorrelation 0.006), while the long-memory process is still strongly correlated at 0.42. At lag 100 the AR(1) autocorrelation is effectively zero, yet the long-memory process is still at 0.27. That very slow decay is exactly what "long memory" means.</p>
+
+<p>The reason ARIMA cannot capture this is structural. A short-memory ACF decays geometrically, like <code>0.6^k</code>, which drops to nothing within a handful of lags. A long-memory ACF decays much more slowly, at a hyperbolic (power-law) rate. In symbols, its tail behaves like this:</p>
+
+<p>$$\rho_k \sim c \, k^{2d - 1} \quad \text{as } k \to \infty$$</p>
+
+<p>Where $\rho_k$ is the autocorrelation at lag $k$, $c$ is a constant, and $d$ is the fractional differencing order. Because $2d - 1$ is negative for $d < 0.5$, the autocorrelation shrinks, but as a slow power of $k$ rather than a fast exponential. If you are not interested in the math, skip it: the practical point is in the table above.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Long memory means the autocorrelations sum to infinity.</strong> A short-memory series has autocorrelations that die geometrically, so they add up to a finite number; a long-memory series has autocorrelations that fade so slowly their total is unbounded. That single property is what a fractional <code>d</code> is built to model.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Weaker long memory means a smaller <code>d</code>. Use the <code>arfima_acf()</code> function above to compute the lag-50 autocorrelation for <code>d = 0.2</code> and see how much lower it is than the <code>d = 0.4</code> value of 0.307.</p>
+<div class="webr-container" data-block-title="Your turn: autocorrelation for a smaller d">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: autocorrelation for a smaller d</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># arfima_acf(k, d) is already defined above.
+# Compute the lag-50 autocorrelation for d = 0.2 and round it to 4 decimals.
+ex_d &lt;- 0.2
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lag-50 autocorrelation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lag-50 autocorrelation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(arfima_acf(50, d = 0.2), 4)
+#&gt; [1] 0.0243</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>d = 0.2</code> the lag-50 autocorrelation is 0.0243, far below the 0.307 we saw at <code>d = 0.4</code>. The memory is still longer than an AR(1) would give, but a smaller <code>d</code> means the past fades faster.</p>
+
+</details>
+</section>
+
+<h2>What does the "d" in ARFIMA(p, d, q) actually mean?</h2>
+
+<p>Ordinary differencing is the operation <code>y_t - y_{t-1}</code>. Written with the lag operator <code>L</code> (which just means "shift back one step", so <code>L y_t = y_{t-1}</code>), that is <code>(1 - L) y_t</code>. Differencing twice is <code>(1 - L)^2</code>. ARIMA only ever raises <code>(1 - L)</code> to a whole-number power. Fractional differencing asks a bolder question: what if the exponent could be any real number, like 0.4?</p>
+
+<p>The answer comes from the binomial series, which expands <code>(1 - L)^d</code> into an infinite sum of lag terms:</p>
+
+<p>$$(1 - L)^d = \sum_{k=0}^{\infty} \binom{d}{k} (-L)^k$$</p>
+
+<p>Where $L$ is the lag operator, $d$ is the (possibly fractional) differencing order, and $\binom{d}{k}$ is the generalized binomial coefficient. You never compute that by hand, because the coefficients follow a simple recursion: start at 1, then multiply by <code>(k - 1 - d) / k</code> for each new term. Let's turn that recursion into a function and look at the weights for <code>d = 0.4</code>.</p>
+
+<div class="webr-container" data-block-title="Fractional differencing weights for d = 0.4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fractional differencing weights for d = 0.4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Weights of the operator (1 - L)^d, one per lag
+diff_weights &lt;- function(d, n) {
+  w &lt;- numeric(n); w[1] &lt;- 1
+  for (k in 1:(n - 1)) w[k + 1] &lt;- w[k] * (k - 1 - d) / k
+  w
+}
+
+round(diff_weights(0.4, 8), 4)   # weight on y_t, y_{t-1}, y_{t-2}, ...
+#&gt; [1]  1.0000 -0.4000 -0.1200 -0.0640 -0.0416 -0.0300 -0.0230 -0.0184</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>These eight numbers are the recipe for fractional differencing. To fractionally difference a series, you take today's value with weight 1, subtract 0.4 times yesterday, subtract 0.12 times the day before, and so on down a slowly shrinking tail. Every past value contributes a little. Now compare that to ordinary first differencing, which is the same operator with <code>d = 1</code>.</p>
+
+<div class="webr-container" data-block-title="Ordinary first-difference weights for d = 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ordinary first-difference weights for d = 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(diff_weights(1.0, 8), 4)   # the familiar (1 - L)
+#&gt; [1]  1 -1  0  0  0  0  0  0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ordinary differencing keeps only two nonzero weights: weight 1 on today, weight -1 on yesterday, and exactly zero on everything older. It only ever looks one step back. Fractional differencing keeps a long, fading tail of weights instead, which is precisely how it removes long memory without throwing away the slow structure the way a full first difference would.</p>
+
+<p>This also explains where <code>d</code> sits on a spectrum. At <code>d = 0</code> there is no differencing at all (a short-memory ARMA series). As <code>d</code> grows toward 1 you approach a random walk. The interesting territory is in between.</p>
+
+<p><img src="screenshots/ARFIMA-in-R-differencing-spectrum.webp" alt="The differencing spectrum from short memory to a random walk" class="img-responsive img-zoomable" loading="lazy" width="1854" height="442" /></p>
+
+<p><em>Figure 1: The differencing spectrum. ARFIMA fills the gap between d = 0 (short memory) and d = 1 (a random walk); a fractional d between 0 and 0.5 gives a stationary long-memory process, while d from 0.5 up to 1 is long memory that is no longer stationary.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The value of d tells you the regime.</strong> For 0 < d < 0.5 the series is stationary with long memory, the sweet spot ARFIMA targets. For 0.5 <= d < 1 the series has long memory but is no longer stationary, and at d = 1 you are back to a plain random walk.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate the first 6 fractional differencing weights for <code>d = 0.5</code> with the <code>diff_weights()</code> function. The weights for a larger <code>d</code> fall off faster; notice which one first drops below 0.05 in size.</p>
+<div class="webr-container" data-block-title="Your turn: weights for d = 0.5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: weights for d = 0.5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># diff_weights(d, n) is defined above.
+# Print the first 6 weights for d = 0.5, rounded to 4 decimals.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weights for d = 0.5 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weights for d = 0.5 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(diff_weights(0.5, 6), 4)
+#&gt; [1]  1.0000 -0.5000 -0.1250 -0.0625 -0.0391 -0.0273</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first weight is always 1. The second is <code>-d</code>, here -0.5. From the fifth weight on (-0.0391) the values are below 0.05 in size, so a larger <code>d</code> still keeps a tail but that tail thins out faster than the <code>d = 0.4</code> case.</p>
+
+</details>
+</section>
+
+<h2>How do you simulate a long-memory series in R?</h2>
+
+<p>Fractional differencing has a mirror image called fractional integration, written <code>(1 - L)^(-d)</code>. Where differencing strips memory out, integration builds it in: it turns plain white noise into a long-memory series. The weights come from the same recursion with a flipped sign, so let's look at them for <code>d = 0.4</code>.</p>
+
+<div class="webr-container" data-block-title="Fractional integration weights for d = 0.4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fractional integration weights for d = 0.4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Weights of the operator (1 - L)^(-d): how far each past shock echoes
+int_weights &lt;- function(d, n) {
+  w &lt;- numeric(n); w[1] &lt;- 1
+  for (k in 1:(n - 1)) w[k + 1] &lt;- w[k] * (k - 1 + d) / k
+  w
+}
+
+round(int_weights(0.4, 8), 4)
+#&gt; [1] 1.0000 0.4000 0.2800 0.2240 0.1904 0.1676 0.1508 0.1379</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read these as an echo. A shock that hits the series today still contributes 0.14 of its size seven steps later, and the tail keeps going. That lingering influence is the mechanism behind long memory. To actually build a long-memory series, we filter a stream of random shocks through these weights.</p>
+
+<div class="webr-container" data-block-title="Build a long-memory series from white noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a long-memory series from white noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(20)
+n &lt;- 3000; L &lt;- 600; d &lt;- 0.4
+eps &lt;- rnorm(n + L)                                       # white-noise shocks
+y &lt;- as.numeric(filter(eps, int_weights(d, L),           # apply the echo weights
+                       method = &quot;convolution&quot;, sides = 1))
+y &lt;- y[(L + 1):(L + n)]                                   # drop the warm-up region
+
+round(acf(y, plot = FALSE, lag.max = 40)$acf[c(2, 3, 6, 11, 21, 41)], 3)
+#&gt; [1] 0.568 0.458 0.343 0.316 0.259 0.204</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those are the sample autocorrelations at lags 1, 2, 5, 10, 20, and 40. They start high and come down, but slowly: even 40 steps back the series is still correlated at 0.204. A short-memory series would have hit zero long before lag 40. We built genuine long memory out of nothing but random noise and a set of fading weights.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>You do not have to hand-roll the filter in practice.</strong> The fracdiff package ships a <code>fracdiff.sim()</code> function that generates the same kind of series in one call, and it can add AR and MA terms too. The manual version above is here to show what is happening under the hood.</div></div>
+
+<p>Here is the package doing it directly. This block, and every other block that uses the fracdiff package, is meant to run in your local R session (RStudio or the R console), not in the browser.</p>
+
+<pre><code class="language-r">library(fracdiff)
+set.seed(2026)
+ym &lt;- fracdiff.sim(n = 2000, ar = numeric(0), ma = numeric(0), d = 0.4)$series
+round(head(ym, 6), 4)
+#&gt; [1]  0.7490 -0.6585  0.0026 -0.0845 -0.7012 -2.8553</code></pre>
+
+<p>The <code>$series</code> element holds the simulated values (the function also returns the settings you gave it). We now have a 2000-point series <code>ym</code> with a known true <code>d</code> of 0.4, which is the perfect test case for estimating <code>d</code> back from data in the next section.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the base-R <code>int_weights()</code> function to simulate a weaker long-memory series with <code>d = 0.25</code> and <code>n = 1000</code>, then look at its autocorrelation at lags 1, 5, and 10. A smaller <code>d</code> should give faster decay.</p>
+<div class="webr-container" data-block-title="Your turn: simulate weaker long memory">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate weaker long memory</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># int_weights(d, n) is defined above.
+set.seed(99)
+ex_eps &lt;- rnorm(1000 + 400)
+# 1. filter ex_eps through int_weights(0.25, 400) with method = &quot;convolution&quot;, sides = 1
+# 2. drop the first 400 warm-up points, keep the next 1000
+# 3. print the ACF at lags 1, 5, 10
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weaker long-memory simulation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weaker long-memory simulation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_y &lt;- as.numeric(filter(ex_eps, int_weights(0.25, 400),
+                          method = &quot;convolution&quot;, sides = 1))
+ex_y &lt;- ex_y[401:1400]
+round(acf(ex_y, plot = FALSE, lag.max = 10)$acf[c(2, 6, 11)], 3)  # lags 1, 5, 10
+#&gt; [1] 0.287 0.105 0.058</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>d = 0.25</code> the <a class="auto-link" href="Autocorrelation-in-Residuals.html" title="Autocorrelation in Residuals: Durbin-Watson & Breusch-Godfrey Tests">lag-1 autocorrelation</a> is 0.287 and it decays to 0.058 by lag 10, much faster than the <code>d = 0.4</code> series but still slower than a short-memory process would.</p>
+
+</details>
+</section>
+
+<h2>How do you estimate d with the fracdiff package?</h2>
+
+<p>Simulating is the easy direction. The real job is the reverse: given a series, estimate <code>d</code>. The fracdiff package does this by maximum likelihood, which searches for the <code>d</code> that makes the observed data most probable. We call <code>fracdiff()</code> on our simulated series and ask for zero AR and zero MA terms, since we know it is a pure ARFIMA(0, d, 0).</p>
+
+<pre><code class="language-r">fit &lt;- fracdiff(ym, nar = 0, nma = 0)
+round(fit$d, 4)
+#&gt; [1] 0.3987
+summary(fit)
+#&gt;
+#&gt; Call:
+#&gt;   fracdiff(x = ym, nar = 0, nma = 0)
+#&gt;
+#&gt; Coefficients:
+#&gt;    Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; d 3.987e-01  2.945e-05   13539   &lt;2e-16 ***
+#&gt; sigma[eps] = 0.9779956
+#&gt; Log likelihood: -2794 ==&gt; AIC = 5592.108 [2 deg.freedom]</code></pre>
+
+<p>The estimate is <code>fit$d = 0.3987</code>, almost exactly the true value of 0.4. The <code>summary()</code> output adds the sort of table you expect from a regression: an estimate, a standard error, a z value, and a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>, plus the residual standard deviation <code>sigma[eps]</code> and an <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> for model comparison. On the surface, <code>d</code> looks extraordinarily precise.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not trust fracdiff's tiny standard errors.</strong> The standard error above (about 0.00003) and the z value of 13539 are not real precision. They come from a Hessian approximation that is well known to collapse toward zero for this model, so the printed <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a> is far too narrow. Treat <code>fit$d</code> as a good point estimate, but get your sense of uncertainty from a second method.</div></div>
+
+<p>That second method is a semiparametric estimator, which reads <code>d</code> off the shape of the series' spectrum (a frequency-based view of the series) rather than assuming a full model. The fracdiff package offers two: <code>fdGPH()</code> (the Geweke and Porter-Hudak estimator) and <code>fdSperio()</code> (a refinement by Reisen). Running both alongside the maximum-likelihood estimate gives you an honest spread.</p>
+
+<pre><code class="language-r">gph  &lt;- fdGPH(ym)      # Geweke and Porter-Hudak
+sper &lt;- fdSperio(ym)   # Reisen
+round(c(MLE = fit$d, GPH = gph$d, Sperio = sper$d), 4)
+#&gt;    MLE    GPH Sperio
+#&gt; 0.3987 0.4811 0.3623</code></pre>
+
+<p>The three estimates, 0.399, 0.481, and 0.362, straddle the true 0.4. That range is the real uncertainty in <code>d</code>, and it is far wider than the maximum-likelihood standard error suggested. When you report an ARFIMA fit, quoting all three numbers is more honest than quoting <code>fit$d</code> alone.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The estimated <code>d</code> is stored in <code>fit$d</code>. Print it rounded to 3 decimals so you have the value to two more digits than the summary table shows.</p>
+<pre><code class="language-r"># The fitted model object is called `fit`.
+# Pull out fit$d and round it to 3 decimal places.
+# your code here</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">round(fit$d, 3)
+#&gt; [1] 0.399</code></pre>
+
+<p><strong>Explanation:</strong> <code>fit$d</code> holds the maximum-likelihood estimate, 0.399, which rounds cleanly from the 0.3987 we saw earlier. Storing model results in a named object and pulling pieces out with <code>$</code> is the standard way to reuse a fit.</p>
+
+</details>
+</section>
+
+<h2>How do you undo long memory with fractional differencing?</h2>
+
+<p>Estimating <code>d</code> is only useful if you do something with it. The classic move is to fractionally difference the series by its own <code>d</code>, which strips out the long memory and leaves a short-memory series you can model with an ordinary ARMA. Let's first prove the idea with our base-R weights on the hand-built series <code>y</code>, then use the package function on <code>ym</code>.</p>
+
+<div class="webr-container" data-block-title="Fractionally difference the series by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fractionally difference the series by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wd &lt;- diff_weights(0.4, 300)                             # differencing weights
+yd &lt;- as.numeric(filter(y, wd, method = &quot;convolution&quot;, sides = 1))
+yd &lt;- yd[!is.na(yd)]                                     # drop the warm-up NAs
+
+round(acf(yd, plot = FALSE, lag.max = 40)$acf[c(2, 3, 6, 11, 21, 41)], 3)
+#&gt; [1] -0.015 -0.019 -0.032  0.028  0.011 -0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare this to the raw series, which had autocorrelations of 0.568 down to 0.204 across the same lags. After fractional differencing, every autocorrelation sits near zero: this is white noise. The long memory is gone. The package does the exact same thing with <code>diffseries()</code>, which takes the series and a value of <code>d</code> and applies the fractional-differencing filter for you.</p>
+
+<pre><code class="language-r">ym_d &lt;- diffseries(ym, d = fit$d)   # use the estimated d
+before &lt;- round(acf(ym,   plot = FALSE, lag.max = 50)$acf[c(2, 11, 26, 51)], 3)
+after  &lt;- round(acf(ym_d, plot = FALSE, lag.max = 50)$acf[c(2, 11, 26, 51)], 3)
+rbind(lag = c(1, 10, 25, 50), before = before, after = after)
+#&gt;         [,1]   [,2]   [,3]   [,4]
+#&gt; lag    1.000 10.000 25.000 50.000
+#&gt; before 0.572  0.239  0.171  0.127
+#&gt; after  0.010  0.001  0.013  0.009</code></pre>
+
+<p>The before-and-after table tells the whole story. Before differencing, the series is still correlated at 0.127 fifty lags back. After differencing by the estimated <code>d</code>, the autocorrelations collapse to near zero at every lag. You have separated the long-memory component (captured by <code>d</code>) from the short-memory dynamics (whatever is left in <code>ym_d</code>).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ARFIMA is a two-stage idea: fractionally difference, then fit ARMA to the remainder.</strong> The fractional <code>d</code> soaks up the slow, long-range structure that would otherwise wreck an ARMA fit. Once you difference it out, the leftover series is short-memory and easy to model the ordinary way.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> What happens if you difference by too much? Use <code>diffseries()</code> to fractionally difference <code>ym</code> with <code>d = 0.8</code>, well above the true 0.4, then look at the lag-1 autocorrelation. A negative value is the classic sign of over-differencing.</p>
+<pre><code class="language-r"># diffseries(x, d) applies fractional differencing.
+# Difference ym with d = 0.8, then print the lag-1 autocorrelation rounded to 3 decimals.
+# your code here</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ex_over &lt;- diffseries(ym, d = 0.8)
+round(acf(ex_over, plot = FALSE, lag.max = 1)$acf[2], 3)
+#&gt; [1] -0.275</code></pre>
+
+<p><strong>Explanation:</strong> Differencing by 0.8 when the true <code>d</code> is 0.4 removes too much, and the series swings the other way into negative correlation (-0.275 at lag 1). Matching <code>d</code> to the data, not overshooting it, is what leaves clean white noise behind.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast a long-memory series?</h2>
+
+<p>The payoff of fitting an ARFIMA model is <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a>, and long memory changes the shape of a forecast in a way worth seeing. The forecast package knows how to forecast a fracdiff object directly, so we hand it our fitted model and ask for eight steps ahead.</p>
+
+<pre><code class="language-r">library(forecast)
+fc &lt;- forecast(fit, h = 8)   # fit and ym are already in memory
+round(as.data.frame(fc), 4)
+#&gt;      Point Forecast   Lo 80  Hi 80   Lo 95  Hi 95
+#&gt; 2001        -0.5795 -1.8336 0.6745 -2.4974 1.3384
+#&gt; 2002        -0.5929 -1.9430 0.7571 -2.6577 1.4718
+#&gt; 2003        -0.5830 -1.9776 0.8116 -2.7158 1.5499
+#&gt; 2004        -0.5691 -1.9914 0.8533 -2.7444 1.6062
+#&gt; 2005        -0.5553 -1.9974 0.8867 -2.7607 1.6501
+#&gt; 2006        -0.5426 -1.9997 0.9145 -2.7711 1.6859
+#&gt; 2007        -0.5311 -2.0003 0.9381 -2.7780 1.7158
+#&gt; 2008        -0.5207 -1.9999 0.9585 -2.7830 1.7415</code></pre>
+
+<p>Look at the point forecasts drifting from -0.58 back toward -0.52 over eight steps. The series mean is about -0.05, so eight steps out the forecast has barely started returning to it. That is the signature of long memory: forecasts revert to the mean slowly, and the prediction intervals (the Lo and Hi columns) widen slowly too, because the distant past still carries information about the future. A short-memory AR model would have snapped back to the mean within a few steps.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Let forecast pick the orders when you are unsure.</strong> If you do not know how many AR and MA terms your series needs, <code>forecast::arfima()</code> will estimate <code>d</code> together with the AR and MA orders automatically, then you forecast the result the same way. It is the one-call convenience wrapper around the fracdiff machinery.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Forecast 12 steps ahead instead of 8 and compare the last point forecast to the series mean, <code>mean(ym)</code>. How far apart are they still?</p>
+<pre><code class="language-r"># fit and ym are already in memory.
+# Forecast 12 steps ahead, then compare the last point forecast to mean(ym).
+# your code here</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">ex_fc &lt;- forecast(fit, h = 12)
+round(c(last_forecast = tail(ex_fc$mean, 1), series_mean = mean(ym)), 4)
+#&gt; last_forecast   series_mean
+#&gt;        -0.488        -0.046</code></pre>
+
+<p><strong>Explanation:</strong> Even 12 steps out the forecast (-0.488) is nowhere near the series mean (-0.046). A long-memory process pulls back to its average at a crawl, which is why ARFIMA forecasts stay informative much farther into the future than short-memory ones.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone problems combine several steps from the tutorial. Each solution runs in your local R session. Try them before opening the solutions.</p>
+
+<h3>Exercise 1: A full ARFIMA workflow from scratch</h3>
+
+<p>Simulate a fresh long-memory series with <code>fracdiff.sim()</code> using <code>n = 1500</code> and <code>d = 0.3</code>. Estimate <code>d</code> two ways (maximum likelihood with <code>fracdiff()</code> and the GPH estimator with <code>fdGPH()</code>), then fractionally difference the series by the estimated <code>d</code> with <code>diffseries()</code> and confirm the result is white noise by checking the lag-1 autocorrelation of both the raw and the differenced series.</p>
+
+<pre><code class="language-r"># 1. set.seed(321), then simulate with fracdiff.sim(n = 1500, d = 0.3)
+# 2. estimate d with fracdiff() and with fdGPH()
+# 3. difference with diffseries() using the MLE estimate
+# 4. print the lag-1 ACF of the raw series and of the differenced series
+# your code here</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">set.seed(321)
+cap_y   &lt;- fracdiff.sim(n = 1500, d = 0.3)$series
+cap_fit &lt;- fracdiff(cap_y, nar = 0, nma = 0)
+cap_wn  &lt;- diffseries(cap_y, d = cap_fit$d)
+round(c(mle_d    = cap_fit$d,
+        gph_d    = fdGPH(cap_y)$d,
+        raw_acf1 = acf(cap_y,  plot = FALSE)$acf[2],
+        wn_acf1  = acf(cap_wn, plot = FALSE)$acf[2]), 4)
+#&gt;    mle_d    gph_d raw_acf1  wn_acf1
+#&gt;   0.2828   0.2766   0.3738   0.0048</code></pre>
+
+<p><strong>Explanation:</strong> Both estimators land near the true 0.3 (0.283 and 0.277). The raw series has a clear lag-1 autocorrelation of 0.374, and after differencing by the estimated <code>d</code> it drops to 0.005, essentially white noise. That end-to-end path, simulate, estimate, difference, verify, is the core ARFIMA workflow.</p>
+
+</details>
+
+<h3>Exercise 2: Does ARFIMA actually beat AR(1) here?</h3>
+
+<p>Using the simulated series <code>ym</code> from the tutorial, compare an ARFIMA(0, d, 0) fit against a plain AR(1) fit with <code>arima(ym, order = c(1, 0, 0))</code> by their AIC values (lower is better). The ARFIMA AIC is <code>-2 * fit$log.likelihood + 2 * 2</code> because the model spends two parameters. Which model does the data prefer?</p>
+
+<pre><code class="language-r"># ARFIMA AIC: -2 * fit$log.likelihood + 2 * 2
+# AR(1) AIC:  AIC(arima(ym, order = c(1, 0, 0)))
+# print both, rounded to 2 decimals
+# your code here</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">aic_arfima &lt;- -2 * fit$log.likelihood + 2 * 2
+aic_ar1    &lt;- AIC(arima(ym, order = c(1, 0, 0)))
+round(c(ARFIMA = aic_arfima, AR1 = aic_ar1), 2)
+#&gt;  ARFIMA     AR1
+#&gt; 5592.11 5746.82</code></pre>
+
+<p><strong>Explanation:</strong> The ARFIMA AIC (5592.11) is about 155 points below the AR(1) AIC (5746.82), a large gap. Because the data really does have long memory, the fractional model describes it far better than an AR(1) that can only see a few lags back. On a genuinely short-memory series the verdict would flip.</p>
+
+</details>
+
+<h3>Exercise 3: Write your own fractional-difference function</h3>
+
+<p>The <code>diffseries()</code> function is convenient, but the operation is just the weighted sum you have already seen. Write a function <code>my_fracdiff(x, d)</code> that mean-centers the series, builds the differencing weights with <code>diff_weights()</code>, applies them with <code>filter()</code>, and drops the warm-up <code>NA</code> values. Confirm it produces near-white-noise by checking the lag-1 autocorrelation on <code>ym</code> with <code>d = 0.4</code>.</p>
+
+<pre><code class="language-r"># diff_weights(d, n) is defined earlier in the tutorial.
+# 1. mean-center x
+# 2. build ~200 differencing weights
+# 3. apply with filter(..., method = &quot;convolution&quot;, sides = 1)
+# 4. drop NA values, then print the lag-1 ACF
+# your code here</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">my_fracdiff &lt;- function(x, d, trunc = 200) {
+  z &lt;- x - mean(x)
+  w &lt;- diff_weights(d, trunc)
+  out &lt;- as.numeric(filter(z, w, method = &quot;convolution&quot;, sides = 1))
+  out[!is.na(out)]
+}
+cap3 &lt;- my_fracdiff(ym, 0.4)
+round(acf(cap3, plot = FALSE, lag.max = 1)$acf[2], 3)
+#&gt; [1] 0.018</code></pre>
+
+<p><strong>Explanation:</strong> Your hand-built function reduces the lag-1 autocorrelation of <code>ym</code> to 0.018, matching what <code>diffseries()</code> achieves. Truncating the weights at 200 lags keeps the filter fast while still capturing the memory; the small <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">residual autocorrelation</a> comes from that truncation and the finite sample.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What range of d should I expect, and what does each value signal?</strong> For a stationary long-memory series, <code>d</code> falls between 0 and 0.5. Values from 0.5 up to 1 still show long memory but are no longer stationary, and <code>d = 0</code> means no long memory at all (a plain ARMA series). Negative <code>d</code> down to -0.5 is possible too and signals "anti-persistence", where the series tends to reverse itself.</p>
+
+<p><strong>How is ARFIMA different from ARIMA?</strong> They are the same model except for the differencing order. ARIMA forces <code>d</code> to be a whole number (0, 1, 2), so it can only remove trends in coarse, integer steps. ARFIMA lets <code>d</code> be a fraction, which is the only way to capture the slow, hyperbolic autocorrelation decay that defines long memory.</p>
+
+<p><strong>How much data do I need to estimate d reliably?</strong> Long memory is a property of the far tail of the autocorrelation, so short series make <code>d</code> hard to pin down. The examples here use 1500 to 2000 points and recover <code>d</code> well. With only a few hundred observations, expect the maximum-likelihood and semiparametric estimates to disagree more, which is exactly why cross-checking with <code>fdGPH()</code> and <code>fdSperio()</code> matters.</p>
+
+<p><strong>Should I use the fracdiff package or forecast::arfima()?</strong> They are the same engine. Use <code>fracdiff()</code> directly when you want full control over the model and access to the estimation internals. Use <code>forecast::arfima()</code> when you want the AR, MA, and <code>d</code> orders chosen for you and a forecast object ready to plot. The convenience wrapper calls fracdiff underneath.</p>
+
+<p><strong>Can I combine long memory with AR and MA terms?</strong> Yes. That is the general ARFIMA(p, d, q) model. Pass <code>nar</code> and <code>nma</code> to <code>fracdiff()</code> (or let <code>forecast::arfima()</code> select them) to add short-memory AR and MA dynamics on top of the fractional differencing, which handles both the slow long-range structure and the quick local structure in one model.</p>
+
+<h2>Summary</h2>
+
+<p>ARFIMA generalizes ARIMA by letting the differencing order <code>d</code> be a fraction, which is what lets it model long memory: autocorrelation that fades too slowly for any integer-<code>d</code> model to describe.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Long memory</td>
+<td>Autocorrelation decays as a slow power of the lag, not a fast exponential, so shocks persist for a long time</td>
+</tr>
+<tr>
+<td>The <code>d</code> parameter</td>
+<td>0 to 0.5 is stationary long memory; 0.5 to 1 is nonstationary long memory; 0 is short memory; 1 is a random walk</td>
+</tr>
+<tr>
+<td>Fractional differencing</td>
+<td>The operator <code>(1 - L)^d</code> expands into a slowly fading tail of weights that touches the whole past, unlike <code>(1 - L)</code> which only touches yesterday</td>
+</tr>
+<tr>
+<td><code>fracdiff()</code></td>
+<td>Estimates <code>d</code> by maximum likelihood; the point estimate is good but its standard errors are unreliable</td>
+</tr>
+<tr>
+<td><code>fdGPH()</code> and <code>fdSperio()</code></td>
+<td>Semiparametric estimators that give an honest sense of how uncertain <code>d</code> really is</td>
+</tr>
+<tr>
+<td><code>diffseries()</code></td>
+<td>Fractionally differences a series by a chosen <code>d</code>, turning long memory into modellable white noise</td>
+</tr>
+<tr>
+<td>Forecasting</td>
+<td>Long-memory forecasts revert to the mean slowly and keep informative prediction intervals far into the future</td>
+</tr>
+</tbody>
+</table>
+
+<p>The workflow is always the same: detect the slow decay, estimate <code>d</code>, difference it out, model the short-memory remainder, and forecast.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Maechler, M. (maintainer). <em>fracdiff: Fractionally Differenced ARIMA aka ARFIMA(p, d, q) Models</em>. CRAN. <a href="https://cran.r-project.org/package=fracdiff">Link</a></li>
+
+<li><em>fracdiff reference manual</em> (PDF), CRAN. <a href="https://cran.r-project.org/web/packages/fracdiff/fracdiff.pdf">Link</a></li>
+
+<li>fracdiff source repository, GitHub. <a href="https://github.com/mmaechler/fracdiff">Link</a></li>
+
+<li><em>diffseries: Fractionally Differentiate Data</em>, fracdiff reference. <a href="https://rdrr.io/cran/fracdiff/man/diffseries.html">Link</a></li>
+
+<li><em>fracdiff.sim: Simulate fractional ARIMA Time Series</em>, fracdiff reference. <a href="https://rdrr.io/cran/fracdiff/man/fracdiff.sim.html">Link</a></li>
+
+<li>Hyndman, R. J. <em>arfima: Fit a fractionally differenced ARFIMA model</em>, forecast package reference. <a href="https://pkg.robjhyndman.com/forecast/reference/arfima.html">Link</a></li>
+
+<li><em>Autoregressive fractionally integrated moving average</em>, Wikipedia. <a href="https://en.wikipedia.org/wiki/Autoregressive_fractionally_integrated_moving_average">Link</a></li>
+
+<li><em>Statistical Analysis of Autoregressive Fractionally Integrated Moving Average Models</em>, arXiv:1208.1728. <a href="https://arxiv.org/abs/1208.1728">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ARIMA-in-R.html">ARIMA in R</a>: the parent model. Understand what AR, I, and MA mean and how to fit one before adding a fractional <code>d</code>.</li>
+
+<li><a href="ACF-and-PACF-in-R.html">ACF and PACF in R</a>: the autocorrelation tools you used throughout this tutorial to spot long memory in the first place.</li>
+
+<li><a href="Test-Stationarity-in-R.html">Test for Stationarity in R</a>: how to check whether a series is stationary, the property that separates <code>d &lt; 0.5</code> long memory from a random walk.</li>
+
+</ul>
+
+{% endraw %}
