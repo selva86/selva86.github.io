@@ -1,0 +1,928 @@
+---
+title: "ARIMAX in R: ARIMA with External Regressors (xreg)"
+description: "Learn ARIMAX in R: add external regressors to an ARIMA model with the xreg argument, forecast using future predictors, and interpret the coefficients correctly."
+keywords: "ARIMAX in R, xreg, external regressors, auto.arima xreg, ARIMA with regressors, regression with ARIMA errors, forecast with xreg, time series forecasting"
+mathjax: true
+webr: true
+curriculum_id: "FR-arim-1"
+post_type: "FR"
+auto_link_terms: "ARIMAX|ARIMAX in R|ARIMAX model|ARIMAX models|external regressors|exogenous variables|exogenous regressors|xreg|xreg argument|ARIMA with external regressors|ARIMA with regressors"
+auto_link_case_sensitive: false
+fr_parent: "ARIMA-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">ARIMAX extends ARIMA by letting the model use outside predictors, like temperature, price, or a promotion flag, alongside a series' own past. In R you fit one by passing those predictors to the <code>xreg</code> argument of <code>Arima()</code> or <code>auto.arima()</code> from the forecast package.</p>
+
+<h2>Why add external regressors to an ARIMA model?</h2>
+
+<p>A plain ARIMA model forecasts a series using only its own past values and its own past errors. That is powerful, but it is also blind to things you already know. An ice-cream shop's sales climb when the weather is hot. Website traffic jumps during a sale. ARIMA cannot see any of that. ARIMAX can, because the X stands for eXternal: you hand the model one or more outside drivers and it uses them. Let's build a small daily-sales series that genuinely follows temperature, then watch <code>auto.arima()</code> pin the temperature effect down.</p>
+
+<p>First, we create 120 days of data. Sales are built as a baseline of 40, plus 3 units for every degree of temperature, plus some autocorrelated noise so it behaves like a real series. Because we made the data, we know the true answer in advance: the temperature effect is exactly 3.</p>
+
+<div class="webr-container" data-block-title="Build a daily sales series driven by temperature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a daily sales series driven by temperature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+library(ggplot2)
+
+set.seed(2024)
+n &lt;- 120
+temperature &lt;- as.numeric(20 + 8 * sin(2 * pi * (1:n) / 30) + rnorm(n, 0, 1.5))
+sales &lt;- 40 + 3 * temperature + as.numeric(arima.sim(model = list(ar = 0.6), n = n, sd = 4))
+
+head(data.frame(day = 1:n, temperature = round(temperature, 1), sales = round(sales, 1)), 6)
+#&gt;   day temperature sales
+#&gt; 1   1        23.1 107.1
+#&gt; 2   2        24.0 117.2
+#&gt; 3   3        24.5 113.5
+#&gt; 4   4        25.6 112.0
+#&gt; 5   5        28.7 125.2
+#&gt; 6   6        29.5 129.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one day with a temperature reading and a sales count. Now the payoff. We hand both series to <code>auto.arima()</code> and pass temperature through the <code>xreg</code> argument. The one extra touch is <code>cbind(temperature = temperature)</code>, which bundles the regressor into a named column so R labels its coefficient clearly.</p>
+
+<div class="webr-container" data-block-title="Fit an ARIMAX model with auto.arima">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit an ARIMAX model with auto.arima</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xreg_temp &lt;- cbind(temperature = temperature)
+cafe_fit &lt;- auto.arima(sales, xreg = xreg_temp)
+cafe_fit
+#&gt; Series: sales 
+#&gt; Regression with ARIMA(1,0,0) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1  intercept  temperature
+#&gt;       0.4997    40.2628       3.0892
+#&gt; s.e.  0.0794     2.1007       0.0996
+#&gt; 
+#&gt; sigma^2 = 14.5:  log likelihood = -329.35
+#&gt; AIC=666.7   AICc=667.05   BIC=677.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the coefficient row. The <code>temperature</code> coefficient is 3.0892, right next to the true effect of 3 that we built in. The <code>intercept</code> is 40.26, which recovers the baseline of 40. The <code>ar1</code> term of 0.50 is the model handling the <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">leftover autocorrelation</a> in the noise. In one line, ARIMAX separated the part of sales that temperature explains from the part that is pure time-series <a class="auto-link" href="Correspondence-Analysis-in-R.html" title="Correspondence Analysis in R: Visualise Categorical Associations in 2D Space">inertia</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This guide assumes you already know the basics of ARIMA.</strong> If terms like AR, <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a>, or AICc are new, read <a href="ARIMA-in-R.html">ARIMA in R</a> first, then come back. Here we focus only on what the <code>xreg</code> argument adds.</div></div>
+
+<p>Notice the label R printed: "Regression with ARIMA(1,0,0) errors," not "ARIMAX." That phrase is the honest description of what R fits, and we will unpack it later. For now, the mental model is simple. A plain ARIMA uses one input, the series itself. ARIMAX adds more input columns.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>Plain ARIMA</th>
+<th>ARIMAX</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Uses the series' own past</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Uses outside predictors</td>
+<td>No</td>
+<td>Yes, via <code>xreg</code></td>
+</tr>
+<tr>
+<td>Good when</td>
+<td>The series drives itself</td>
+<td>A known factor drives the series</td>
+</tr>
+<tr>
+<td>Needs future inputs to forecast</td>
+<td>No</td>
+<td>Yes, future <code>xreg</code> values</td>
+</tr>
+</tbody>
+</table>
+
+<p>The diagram below shows the same idea as a picture: the series' own AR, I, and MA structure enters the model, the external regressors enter alongside it, and the combined model produces both forecasts and effect estimates.</p>
+
+<p><img src="screenshots/ARIMAX-in-R-how-arimax-extends.webp" alt="How ARIMAX feeds external regressors in alongside a series' own structure" class="img-responsive img-zoomable" loading="lazy" width="1494" height="690" /></p>
+
+<p><em>Figure 1: ARIMAX feeds external regressors in alongside a series' own AR, I, and MA structure.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ARIMAX is not a new algorithm, it is ARIMA with extra input columns.</strong> Everything you know about choosing p, d, and q still applies. The <code>xreg</code> argument just lets the model borrow information from variables outside the series.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build your own sales series with a temperature effect you choose, then check that ARIMAX recovers it. Change the multiplier below and read the <code>ex_temp</code> coefficient.</p>
+<div class="webr-container" data-block-title="Your turn: recover a known temperature effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recover a known temperature effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: set an effect yourself, then recover it.
+# Change the 5 below to any number, run, and read the ex_temp coefficient.
+set.seed(11)
+ex_temp &lt;- 20 + 8 * sin(2 * pi * (1:100) / 30) + rnorm(100, 0, 1.5)
+ex_sales &lt;- 10 + 5 * ex_temp + as.numeric(arima.sim(model = list(ar = 0.5), n = 100, sd = 3))
+ex_fit &lt;- auto.arima(ex_sales, xreg = cbind(ex_temp = ex_temp))
+round(coef(ex_fit)[&quot;ex_temp&quot;], 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Recovering an effect of 5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recovering an effect of 5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_temp &lt;- 20 + 8 * sin(2 * pi * (1:100) / 30) + rnorm(100, 0, 1.5)
+ex_sales &lt;- 10 + 5 * ex_temp + as.numeric(arima.sim(model = list(ar = 0.5), n = 100, sd = 3))
+ex_fit &lt;- auto.arima(ex_sales, xreg = cbind(ex_temp = ex_temp))
+round(coef(ex_fit)[&quot;ex_temp&quot;], 3)
+#&gt; ex_temp 
+#&gt;   4.978 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> We built sales with an effect of 5 per degree, and ARIMAX estimated 4.978, off by a hair because of random noise in the sample. Try other multipliers and the coefficient will track them.</p>
+
+</details>
+</section>
+
+<h2>How do you fit an ARIMAX model with xreg?</h2>
+
+<p>The <code>xreg</code> argument takes a numeric matrix or vector of predictors that lines up with your series row for row. Row 1 of <code>xreg</code> is the value of the regressor at the same time as the first observation of your series (<code>y</code>), and so on. That alignment is the only rule you must respect. When you pass a single predictor, wrapping it in <code>cbind(name = predictor)</code> gives the coefficient a readable name instead of the generic label <code>xreg</code>.</p>
+
+<p><code>auto.arima()</code> chose the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">ARIMA orders</a> for us above. You can also fit a specific order by hand with <code>Arima()</code>, which is useful when you want control. Let's fit the same <code>(1, 0, 0)</code> structure manually and confirm we get the identical model.</p>
+
+<div class="webr-container" data-block-title="Fit the same ARIMAX model by hand with Arima">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the same ARIMAX model by hand with Arima</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cafe_manual &lt;- Arima(sales, order = c(1, 0, 0), xreg = xreg_temp)
+cafe_manual
+#&gt; Series: sales 
+#&gt; Regression with ARIMA(1,0,0) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1  intercept  temperature
+#&gt;       0.4997    40.2628       3.0892
+#&gt; s.e.  0.0794     2.1007       0.0996
+#&gt; 
+#&gt; sigma^2 = 14.5:  log likelihood = -329.35
+#&gt; AIC=666.7   AICc=667.05   BIC=677.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output is identical to the automatic fit, which confirms that <code>auto.arima()</code> picked <code>(1, 0, 0)</code> for the error structure. The <code>order = c(1, 0, 0)</code> argument is the familiar <code>c(p, d, q)</code>: one AR term, no differencing, no MA term. The <code>xreg</code> sits on top of that, unchanged.</p>
+
+<p>To pull just the temperature effect out of a fitted model, index the coefficient by its name. This is how you would grab the number for a report.</p>
+
+<div class="webr-container" data-block-title="Extract the temperature coefficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the temperature coefficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(cafe_fit)[&quot;temperature&quot;], 3)
+#&gt; temperature 
+#&gt;       3.089 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single number, 3.089, is the practical takeaway of the whole fit: each extra degree of temperature is associated with about 3.09 more sales, after the model has accounted for the day-to-day inertia in the series.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Your xreg rows must line up with y and contain no gaps.</strong> If <code>xreg</code> has a different length than <code>y</code>, or has <code>NA</code> values, the fit will fail or mislead. Line the predictor up with the series by date, and fill or drop <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> before fitting.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the model with two AR terms instead of one by changing the order to <code>c(2, 0, 0)</code>, then read the temperature coefficient. Does the effect estimate move much?</p>
+<div class="webr-container" data-block-title="Your turn: fit with a different AR order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit with a different AR order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change c(1, 0, 0) to c(2, 0, 0), run, and read the coefficient.
+ex_manual &lt;- Arima(sales, order = c(1, 0, 0), xreg = xreg_temp)
+round(coef(ex_manual)[&quot;temperature&quot;], 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Temperature effect under ARIMA(2,0,0) errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Temperature effect under ARIMA(2,0,0) errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_manual &lt;- Arima(sales, order = c(2, 0, 0), xreg = xreg_temp)
+round(coef(ex_manual)[&quot;temperature&quot;], 3)
+#&gt; temperature 
+#&gt;       3.081 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With a second AR term the temperature effect is 3.081, barely different from the 3.089 we saw before. A good regression effect is stable across sensible choices of the error structure, which is a reassuring sign here.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast with an ARIMAX model?</h2>
+
+<p>Here is the single most important difference between ARIMA and ARIMAX, and the mistake that trips up almost everyone the first time. To forecast ahead, an ARIMAX model needs the FUTURE values of its regressors. It cannot invent them. A plain ARIMA can project itself forward from its own past, but ARIMAX has to be told what temperature will be on each future day before it can forecast sales.</p>
+
+<p>So <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> is a two-part job: supply the future regressor values, then call <code>forecast()</code>. You pass those future values through the same <code>xreg</code> argument. There is no need to set <code>h</code> (the number of periods): the horizon is simply the number of rows in the future <code>xreg</code>. Let's forecast the next 14 days by giving the model 14 future temperatures.</p>
+
+<div class="webr-container" data-block-title="Forecast ahead by supplying future temperatures">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast ahead by supplying future temperatures</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+future_temp &lt;- 20 + 8 * sin(2 * pi * ((n + 1):(n + 14)) / 30) + rnorm(14, 0, 1.5)
+cafe_fc &lt;- forecast(cafe_fit, xreg = cbind(temperature = future_temp))
+cafe_fc
+#&gt;     Point Forecast    Lo 80    Hi 80     Lo 95    Hi 95
+#&gt; 121       106.9403 102.0602 111.8205  99.47676 114.4039
+#&gt; 122       118.3052 112.8495 123.7608 109.96150 126.6488
+#&gt; 123       120.1130 114.5228 125.7031 111.56361 128.6623
+#&gt; 124       125.5314 119.9082 131.1546 116.93143 134.1313
+#&gt; 125       124.3798 118.7483 130.0112 115.76723 132.9923
+#&gt; 126       130.8954 125.2619 136.5288 122.27968 139.5110
+#&gt; 127       122.1639 116.5299 127.7979 113.54746 130.7804
+#&gt; 128       126.0325 120.3984 131.6666 117.41584 134.6491
+#&gt; 129       126.2378 120.6036 131.8719 117.62109 134.8545
+#&gt; 130       130.1330 124.4988 135.7671 121.51626 138.7497
+#&gt; 131       106.7854 101.1512 112.4195  98.16865 115.4021
+#&gt; 132       115.4493 109.8151 121.0835 106.83260 124.0660
+#&gt; 133       111.4482 105.8140 117.0824 102.83148 120.0649
+#&gt; 134       107.0343 101.4002 112.6685  98.41763 115.6511</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one future day. The Point Forecast is the single best guess, and the four interval columns give ranges: the model is 80 percent sure the value lands between Lo 80 and Hi 80, and 95 percent sure between Lo 95 and Hi 95. Look down the point forecasts and you can see them rise and fall, from 106 up to 130 and back down. That wave is the temperature regressor at work: on warmer forecast days the model predicts more sales, exactly as the temperature coefficient says it should.</p>
+
+<p>A picture makes the pattern obvious. The <code>autoplot()</code> function draws the history and the forecast together, with the shaded fan showing the widening uncertainty.</p>
+
+<div class="webr-container" data-block-title="Plot the ARIMAX forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the ARIMAX forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(cafe_fc) + ggtitle(&quot;Sales forecast driven by future temperature&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An ARIMAX forecast is only as good as its future regressors.</strong> If you feed in wrong future temperatures, the forecast will be wrong no matter how well the model fits. When the future values are known (calendar effects, scheduled promotions), you are safe. When they are not, you must forecast the regressor too, and that extra uncertainty flows into your final forecast.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Forecast just 5 days ahead by building 5 future temperatures. Read the first point forecast.</p>
+<div class="webr-container" data-block-title="Your turn: forecast five days ahead">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast five days ahead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build 5 future temperatures, then forecast with them.
+set.seed(5)
+ex_future &lt;- cbind(temperature = 20 + 8 * sin(2 * pi * ((n + 1):(n + 5)) / 30) + rnorm(5, 0, 1.5))
+forecast(cafe_fit, xreg = ex_future)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Five-day ARIMAX forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Five-day ARIMAX forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ex_future &lt;- cbind(temperature = 20 + 8 * sin(2 * pi * ((n + 1):(n + 5)) / 30) + rnorm(5, 0, 1.5))
+forecast(cafe_fit, xreg = ex_future)
+#&gt;     Point Forecast    Lo 80    Hi 80     Lo 95    Hi 95
+#&gt; 121       105.5909 100.7107 110.4711  98.12731 113.0545
+#&gt; 122       119.6643 114.2087 125.1199 111.32062 128.0080
+#&gt; 123       111.3306 105.7405 116.9207 102.78127 119.8800
+#&gt; 124       121.0253 115.4021 126.6485 112.42535 129.6252
+#&gt; 125       131.5239 125.8925 137.1553 122.91136 140.1364</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The horizon is 5 because the <code>xreg</code> has 5 rows. The first day's point forecast is about 105.6, and every value reflects the specific future temperature we supplied for that day.</p>
+
+</details>
+</section>
+
+<h2>Does the external regressor actually improve the forecast?</h2>
+
+<p>Adding a regressor is only worth it if the regressor genuinely helps. The clean way to check is to fit a plain ARIMA on the same series and compare it to the ARIMAX by AICc, the small-sample information criterion where lower is better. Let's fit the plain model first.</p>
+
+<div class="webr-container" data-block-title="Fit a plain ARIMA for comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a plain ARIMA for comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cafe_plain &lt;- auto.arima(sales)
+cafe_plain
+#&gt; Series: sales 
+#&gt; ARIMA(1,0,0) with non-zero mean 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1      mean
+#&gt;       0.8816  102.5852
+#&gt; s.e.  0.0408    6.2959
+#&gt; 
+#&gt; sigma^2 = 76.05:  log likelihood = -429.9
+#&gt; AIC=865.79   AICc=866   BIC=874.16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the plain model's <code>ar1</code> is 0.88, much higher than the 0.50 the ARIMAX used. That is telling: without temperature to explain the swings in sales, the AR term has to absorb the temperature-driven movement itself, treating it as if it were inertia. The <code>sigma^2</code> (the residual variance) is 76.05 here versus 14.5 for the ARIMAX, so the plain model leaves far more unexplained. Now compare the two by AICc.</p>
+
+<div class="webr-container" data-block-title="Compare the two models by AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the two models by AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(ARIMA = cafe_plain$aicc, ARIMAX = cafe_fit$aicc)
+#&gt;    ARIMA   ARIMAX 
+#&gt; 866.0010 667.0485 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ARIMAX AICc of 667 is far below the plain ARIMA's 866. A gap that large is decisive: temperature carries real, useful information about sales, so the model that uses it wins easily. This will not always happen. Some candidate regressors add nothing, and then the plain model scores as well or better. That is exactly why you compare instead of assuming.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always earn your regressors with a comparison.</strong> Fit the model with and without the predictor and check AICc (or out-of-sample accuracy). Adding variables that do not help makes forecasts worse, not better, because the model spends effort estimating noise.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute how many AICc points ARIMAX saves over the plain model. Subtract the two values.</p>
+<div class="webr-container" data-block-title="Your turn: measure the AICc improvement">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure the AICc improvement</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Subtract the ARIMAX AICc from the plain ARIMA AICc.
+round(cafe_plain$aicc - cafe_fit$aicc, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="The AICc gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The AICc gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cafe_plain$aicc - cafe_fit$aicc, 2)
+#&gt; [1] 198.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ARIMAX is 198.95 AICc points better. As a rule of thumb, a difference of more than about 10 is strong evidence for the better model, so this is a landslide in favor of using temperature.</p>
+
+</details>
+</section>
+
+<h2>What is R actually fitting when you add xreg?</h2>
+
+<p>You may have noticed R never printed the word "ARIMAX." It printed "Regression with ARIMA errors." That wording is not an accident, and understanding it is what separates people who use <code>xreg</code> correctly from people who get confused by it. This short section is the theory; if you only want to use the tool, the practical code above is all you need.</p>
+
+<p>What R fits is a regression, plus a twist. It models your series as a straight-line effect of the regressors, and lets the leftover error follow an ARIMA process instead of being plain independent noise.</p>
+
+<p>$$y_t = \beta_0 + \beta_1 x_t + n_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = the observed value at time $t$ (sales today)</li>
+
+<li>$\beta_0$ = the intercept, the baseline level</li>
+
+<li>$\beta_1$ = the effect of the regressor, which is the <code>xreg</code> coefficient</li>
+
+<li>$x_t$ = the external regressor at time $t$ (temperature today)</li>
+
+<li>$n_t$ = the error term, which itself follows an ARIMA model rather than being pure noise</li>
+
+</ul>
+
+<p>That last line is the whole point. In an ordinary regression, the errors are assumed to be independent. In time-series data they almost never are: a busy day tends to be followed by another busy day. The ARIMA part of the model exists to soak up that autocorrelation in the errors, so the regression coefficient can be estimated honestly.</p>
+
+<p>To see why this matters, fit a plain regression of sales on temperature and look at its residuals. If the errors were independent, their autocorrelation would be near zero at every lag.</p>
+
+<div class="webr-container" data-block-title="Check whether plain regression residuals are autocorrelated">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check whether plain regression residuals are autocorrelated</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lm_fit &lt;- lm(sales ~ temperature)
+round(Acf(residuals(lm_fit), plot = FALSE)$acf[1:4], 3)
+#&gt; [1] 1.000 0.494 0.168 0.045</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first value is always 1 (the correlation of the residuals with themselves at lag 0), so ignore it. The next value, 0.494, is the <a class="auto-link" href="Autocorrelation-in-Residuals.html" title="Autocorrelation in Residuals: Durbin-Watson & Breusch-Godfrey Tests">lag-1 autocorrelation</a>, and it is large. Today's regression error is strongly related to yesterday's. That is precisely the structure the ARIMAX picked up as an AR(1) term of 0.50 in the first section. The two numbers, 0.494 from the residuals and 0.50 from the model, are the same fact seen from two angles.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The xreg coefficient is a plain regression slope, and the ARIMA part fixes the standard errors.</strong> A naive regression on time-series data reports standard errors that are too small, because it wrongly assumes independent errors and overcounts the information in autocorrelated data. Modeling the errors as ARIMA gives you the same interpretable slope with trustworthy uncertainty around it.</div></div>
+
+<p>The diagram below sums up the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">decomposition</a>: the regressors produce a regression effect, the leftover errors are modeled as ARIMA, and the two combine to explain the series.</p>
+
+<p><img src="screenshots/ARIMAX-in-R-regression-arima-errors.webp" alt="What R fits: a regression on the regressors plus ARIMA-modeled errors" class="img-responsive img-zoomable" loading="lazy" width="1408" height="690" /></p>
+
+<p><em>Figure 2: What R fits is a regression on the regressors plus ARIMA-modeled errors.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The name "ARIMAX" is used loosely across textbooks and blogs.</strong> Some authors mean this regression-with-ARIMA-errors setup, which is what <code>Arima()</code> and <code>auto.arima()</code> fit, and others mean a different formulation where lagged regressors enter the ARIMA equation directly. This tutorial uses the version R implements, where each coefficient is a clean, contemporaneous effect you can read off and explain.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the lag-1 and lag-2 autocorrelations of the regression residuals and connect them to the model's memory.</p>
+<div class="webr-container" data-block-title="Your turn: read the residual autocorrelation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the residual autocorrelation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Report the lag-1 and lag-2 autocorrelations (positions 2 and 3).
+round(Acf(residuals(lm_fit), plot = FALSE)$acf[2:3], 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lag-1 and lag-2 residual autocorrelation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lag-1 and lag-2 residual autocorrelation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Acf(residuals(lm_fit), plot = FALSE)$acf[2:3], 3)
+#&gt; [1] 0.494 0.168</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The lag-1 value 0.494 is the strong one, and it fades to 0.168 at lag 2. That decaying pattern is the fingerprint of AR(1) errors, which is exactly the error structure the ARIMAX chose.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: Measuring the UK seat belt law</h2>
+
+<p>Let's put it together on a famous real dataset and, along the way, meet the second big use of ARIMAX. So far we have used it to forecast. It is just as valuable for measuring the effect of a driver while accounting for the time-series structure around it.</p>
+
+<p>The built-in <code>Seatbelts</code> data records monthly UK road casualties from 1969 to 1984. Britain made front seat belts compulsory on 31 January 1983, and the dataset carries a <code>law</code> column that is 0 before the law and 1 after. We will model the number of drivers killed or seriously injured, using three external regressors: petrol price, distance driven, and the law flag. The <code>law</code> flag is the interesting one: a plain ARIMA could never use it, because it is information from outside the series.</p>
+
+<div class="webr-container" data-block-title="Load the Seatbelts data and its regressors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load the Seatbelts data and its regressors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(Seatbelts)
+drivers &lt;- Seatbelts[, &quot;drivers&quot;]
+regressors &lt;- cbind(
+  PetrolPrice = Seatbelts[, &quot;PetrolPrice&quot;],
+  kms         = Seatbelts[, &quot;kms&quot;] / 1000,
+  law         = Seatbelts[, &quot;law&quot;]
+)
+head(regressors, 4)
+#&gt;          PetrolPrice    kms law
+#&gt; Jan 1969   0.1029718  9.059   0
+#&gt; Feb 1969   0.1023630  7.685   0
+#&gt; Mar 1969   0.1020625  9.963   0
+#&gt; Apr 1969   0.1008733 10.955   0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>law</code> column is 0 in these early rows, as expected. We divide <code>kms</code> by 1000 only to keep its coefficient on a readable scale. Now fit a plain <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">seasonal ARIMA</a> and an ARIMAX with the three regressors, and compare them by AICc.</p>
+
+<div class="webr-container" data-block-title="Fit plain ARIMA and ARIMAX on the seat belt data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit plain ARIMA and ARIMAX on the seat belt data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sb_plain  &lt;- auto.arima(drivers)
+sb_arimax &lt;- auto.arima(drivers, xreg = regressors)
+c(ARIMA = sb_plain$aicc, ARIMAX = sb_arimax$aicc)
+#&gt;    ARIMA   ARIMAX 
+#&gt; 2299.007 2284.579 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ARIMAX is better by about 14 AICc points, so the regressors are pulling their weight. Let's look at the full ARIMAX to read the effects.</p>
+
+<div class="webr-container" data-block-title="Read the ARIMAX coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the ARIMAX coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sb_arimax
+#&gt; Series: drivers 
+#&gt; Regression with ARIMA(1,0,3)(0,1,1)[12] errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1      ma1     ma2      ma3     sma1    drift  PetrolPrice      kms
+#&gt;       0.9707  -0.6711  0.0075  -0.1754  -0.8873  -1.6751    -4856.583  28.5856
+#&gt; s.e.  0.0321   0.0788  0.0977   0.0842   0.0896   1.2933     1603.790  17.4566
+#&gt;             law
+#&gt;       -279.8613
+#&gt; s.e.    74.2319
+#&gt; 
+#&gt; sigma^2 = 16156:  log likelihood = -1131.64
+#&gt; AIC=2283.28   AICc=2284.58   BIC=2315.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The seasonal ARIMA orders on the left handle the strong monthly pattern in road casualties, and you can mostly leave them to <code>auto.arima()</code>. The three regressors on the right are what we came for. Focus on <code>law</code>: its coefficient is -279.86, with a standard error of 74.23. Because the coefficient is about 3.8 times its standard error, it is clearly different from zero.</p>
+
+<div class="webr-container" data-block-title="The estimated effect of the seat belt law">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The estimated effect of the seat belt law</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(sb_arimax)[&quot;law&quot;], 1)
+#&gt; law 
+#&gt; -279.9 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The reading is direct and striking: after accounting for seasonality, petrol price, and how far people drove, the seat belt law is associated with about 280 fewer drivers killed or seriously injured per month. That is the kind of question ARIMAX answers that plain ARIMA cannot even ask. Before trusting any model, though, check its residuals with <code>checkresiduals()</code>, which runs a <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">Ljung-Box test</a> for leftover structure.</p>
+
+<div class="webr-container" data-block-title="Check the residuals of the seat belt model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the residuals of the seat belt model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(sb_arimax)
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from Regression with ARIMA(1,0,3)(0,1,1)[12] errors
+#&gt; Q* = 31.3, df = 19, p-value = 0.03741
+#&gt; 
+#&gt; Model df: 5.   Total lags used: 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Real data is rarely perfectly clean, and this model shows it.</strong> The Ljung-Box <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> of 0.037 sits just below 0.05, hinting at a little leftover structure the model did not capture. The law effect is large and stable enough to trust for explanation, but you would refine the model further before betting high-stakes forecasts on it. This honest wrinkle is normal, and it is exactly why you run the diagnostic.</div></div>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between ARIMA and ARIMAX?</strong> ARIMA forecasts a series using only its own past values and errors. ARIMAX adds one or more external predictors through the <code>xreg</code> argument, so the model can also use known drivers like price, weather, or a policy change.</p>
+
+<p><strong>Do I need future values of the regressors to forecast?</strong> Yes. This is the key catch. To forecast <code>h</code> steps ahead, you must supply the regressors' values for those future periods via <code>xreg</code> in <code>forecast()</code>. If you do not know them, you either use known scheduled values (like holidays) or forecast the regressors separately first.</p>
+
+<p><strong>Is ARIMAX the same as regression with ARIMA errors?</strong> In R's forecast package, yes: <code>Arima()</code> and <code>auto.arima()</code> with <code>xreg</code> fit a regression with ARIMA errors, which R prints by that exact name. The term ARIMAX is used loosely elsewhere and sometimes means a slightly different model, so it helps to know which one you are running.</p>
+
+<p><strong>Can I use a 0/1 dummy variable as a regressor?</strong> Absolutely. The seat belt <code>law</code> flag above is a 0/1 dummy, and its coefficient measures the average shift in the series once the flag switches on. Dummies are how you model interventions, promotions, and policy changes.</p>
+
+<p><strong>How many regressors can I use?</strong> As many as the data supports, passed as columns of the <code>xreg</code> matrix with <code>cbind()</code>. Just remember every regressor you include for forecasting needs its own future values, and adding predictors that do not help will hurt the model, so compare by AICc.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each starter block runs as-is, so write your solution and then reveal ours to compare. The exercises use their own variable names so they will not clash with the code above.</p>
+
+<h3>Exercise 1: Recover a known effect from scratch</h3>
+
+<p>Build a series <code>my_y</code> that follows a regressor <code>my_x</code> with a true effect of 2.5, plus autocorrelated noise, then fit an ARIMAX and check that it recovers the 2.5. Use <code>set.seed(303)</code>.</p>
+
+<div class="webr-container" data-block-title="Your turn: simulate and recover an effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate and recover an effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build my_x, then my_y = 100 + 2.5 * my_x + AR(1) noise, fit ARIMAX, read the coefficient.
+# Hint: arima.sim(model = list(ar = 0.7), n = 150, sd = 3) makes the noise.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Simulate and recover the effect of 2.5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate and recover the effect of 2.5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+my_x &lt;- 20 + 5 * sin(2 * pi * (1:150) / 24) + rnorm(150, 0, 2)
+my_y &lt;- 100 + 2.5 * my_x + as.numeric(arima.sim(model = list(ar = 0.7), n = 150, sd = 3))
+my_fit &lt;- auto.arima(my_y, xreg = cbind(my_x = my_x))
+round(coef(my_fit)[&quot;my_x&quot;], 3)
+#&gt;  my_x 
+#&gt; 2.513 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ARIMAX estimated the effect at 2.513, right on top of the true 2.5. It also recovered the baseline near 100 and an AR(1) term near 0.70, matching every value we built into the data.</p>
+
+</details>
+
+<h3>Exercise 2: Compare a driver's effect across two series</h3>
+
+<p>Using the <code>Seatbelts</code> data, fit an ARIMAX to <code>front</code> (front-seat passengers killed or seriously injured) with the same three regressors, compare it to a plain ARIMA by AICc, and read the <code>law</code> coefficient. Is the drop bigger or smaller than the 280 we found for drivers?</p>
+
+<div class="webr-container" data-block-title="Your turn: the law effect on front-seat casualties">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the law effect on front-seat casualties</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit ARIMAX to Seatbelts[, &quot;front&quot;] with PetrolPrice, kms/1000, and law.
+# Compare AICc to a plain auto.arima(front), then read the law coefficient.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ARIMAX for front-seat casualties">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ARIMAX for front-seat casualties</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">front &lt;- Seatbelts[, &quot;front&quot;]
+front_reg &lt;- cbind(
+  PetrolPrice = Seatbelts[, &quot;PetrolPrice&quot;],
+  kms         = Seatbelts[, &quot;kms&quot;] / 1000,
+  law         = Seatbelts[, &quot;law&quot;]
+)
+front_arimax &lt;- auto.arima(front, xreg = front_reg)
+c(ARIMA = auto.arima(front)$aicc, ARIMAX = front_arimax$aicc)
+#&gt;    ARIMA   ARIMAX 
+#&gt; 2146.898 2106.101 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="The law effect on front-seat casualties">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The law effect on front-seat casualties</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(front_arimax)[&quot;law&quot;], 1)
+#&gt; law 
+#&gt; -201.7 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ARIMAX beats plain ARIMA by about 41 AICc points here, and the law is associated with roughly 202 fewer front-seat casualties per month. It is a large effect, as you would expect, since front-seat passengers were the ones the belt law directly targeted.</p>
+
+</details>
+
+<h3>Exercise 3: Forecast two temperature scenarios</h3>
+
+<p>Using the <code>cafe_fit</code> model from the tutorial, forecast the next 7 days under two scenarios: a heatwave where every day is 32 degrees, and a cold snap where every day is 12 degrees. Compare the first day's point forecast under each. This shows how the future regressor drives the forecast.</p>
+
+<div class="webr-container" data-block-title="Your turn: forecast a heatwave versus a cold snap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast a heatwave versus a cold snap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build two 7-row xreg matrices (all 32, and all 12), forecast each, compare the first point forecast.
+# Hint: forecast(cafe_fit, xreg = cbind(temperature = rep(32, 7)))$mean[1]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Heatwave versus cold snap first-day forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Heatwave versus cold snap first-day forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">heatwave &lt;- cbind(temperature = rep(32, 7))
+coldsnap &lt;- cbind(temperature = rep(12, 7))
+round(c(heatwave = as.numeric(forecast(cafe_fit, xreg = heatwave)$mean[1]),
+        coldsnap = as.numeric(forecast(cafe_fit, xreg = coldsnap)$mean[1])), 1)
+#&gt; heatwave coldsnap 
+#&gt;    141.4     79.6 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The heatwave forecast is 141.4 and the cold snap is 79.6, a gap of about 62 sales. That gap is the temperature effect of roughly 3 per degree times the 20-degree difference between the scenarios, which is ARIMAX doing exactly what we taught it.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>ARIMAX is ARIMA with extra input columns. You add known drivers through the <code>xreg</code> argument, and the model separates what the drivers explain from the series' own inertia. The workflow is short and always the same.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>How</th>
+<th>Key point</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Add a regressor</td>
+<td><code>xreg = cbind(name = x)</code></td>
+<td>One column per driver, aligned to <code>y</code></td>
+</tr>
+<tr>
+<td>Fit</td>
+<td><code>auto.arima(y, xreg = X)</code> or <code>Arima(y, order, xreg = X)</code></td>
+<td><code>auto.arima()</code> picks the error structure</td>
+</tr>
+<tr>
+<td>Forecast</td>
+<td><code>forecast(fit, xreg = future_X)</code></td>
+<td>You must supply future regressor values</td>
+</tr>
+<tr>
+<td>Compare</td>
+<td><code>c(plain$aicc, arimax$aicc)</code></td>
+<td>Only keep regressors that lower AICc</td>
+</tr>
+<tr>
+<td>Interpret</td>
+<td><code>coef(fit)[&quot;name&quot;]</code></td>
+<td>The coefficient is a contemporaneous effect</td>
+</tr>
+</tbody>
+</table>
+
+<p>Keep these takeaways close:</p>
+
+<ul>
+
+<li><strong>The X in ARIMAX means external, and it is just one more input column.</strong> Everything you know about p, d, and q still applies.</li>
+
+<li><strong>You must supply future regressor values to forecast.</strong> Unlike plain ARIMA, the model cannot project its own inputs.</li>
+
+<li><strong>Earn every regressor with a comparison.</strong> Check AICc with and without it, because useless predictors make forecasts worse.</li>
+
+<li><strong>What R fits is regression with ARIMA errors.</strong> The <code>xreg</code> coefficient is a clean regression slope, and the ARIMA part gives it trustworthy standard errors.</li>
+
+<li><strong>ARIMAX has two jobs.</strong> It sharpens forecasts when you know the drivers, and it measures a driver's effect (like the seat belt law) net of everything else.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter 10: Dynamic regression models. <a href="https://otexts.com/fpp3/dynamic.html">Link</a></li>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 2nd edition. Section 9.2: Regression with ARIMA errors in R. <a href="https://otexts.com/fpp2/regarima.html">Link</a></li>
+
+<li>Hyndman, R.J., & Khandakar, Y. - "Automatic Time Series Forecasting: The forecast Package for R." <em>Journal of Statistical Software</em>, 27(3), 2008. <a href="https://www.jstatsoft.org/article/view/v027i03">Link</a></li>
+
+<li>forecast package - <code>Arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/Arima.html">Link</a></li>
+
+<li>forecast package - <code>auto.arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/auto.arima.html">Link</a></li>
+
+<li>Nau, R. (Duke University) - Introduction to ARIMA models with regressors. <a href="https://people.duke.edu/~rnau/arimreg.htm">Link</a></li>
+
+<li>R Core Team - <code>Seatbelts</code> dataset, Road Casualties in Great Britain 1969-84. <a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/UKDriverDeaths.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ARIMA-in-R.html">ARIMA in R</a> - the foundation this guide builds on, covering what AR, I, and MA mean and how to fit and forecast one.</li>
+
+<li><a href="ARIMA-Diagnostics-in-R.html">ARIMA Diagnostics in R</a> - go deeper on residual checks and the Ljung-Box test you used to validate the seat belt model.</li>
+
+<li><a href="SARIMA-in-R.html">SARIMA in R</a> - the seasonal extension that handled the monthly pattern in the road-casualty data.</li>
+
+<li><a href="ACF-and-PACF-in-R.html">ACF and PACF in R</a> - the autocorrelation plots behind the residual checks in this tutorial.</li>
+
+</ul>
+
+{% endraw %}
