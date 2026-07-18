@@ -1,9 +1,9 @@
 ---
 title: "Time Series EDA in R: Trend, Seasonality, Autocorrelation"
 slug: "Time-Series-EDA-in-R"
-description: "Run a six-check EDA pass on any R time series: catch a broken index, decide additive vs multiplicative, decompose it, then read the leftover autocorrelation."
-keywords: "time series EDA in R, exploratory data analysis time series R, trend and seasonality R, autocorrelation R, stl decomposition R, additive vs multiplicative, seasonal strength R, Ljung-Box test R"
-auto_link_terms: "time series EDA|EDA for time series|exploratory data analysis of a time series|time series diagnostics|diagnosing a time series|additive or multiplicative|multiplicative seasonality|additive seasonality|seasonal strength|trend strength|strength of seasonality|Ljung-Box test|leftover autocorrelation|drifting seasonality"
+description: "A hands-on time series EDA workflow in R: plot it, measure the trend, detect seasonality, decompose with stl(), and read the ACF for leftover structure."
+keywords: "time series EDA in R, exploratory data analysis time series R, trend and seasonality R, autocorrelation ACF R, stl decompose R, additive vs multiplicative, seasonal strength, Ljung-Box test R"
+auto_link_terms: "time series EDA|EDA for time series|exploratory data analysis of a time series|time series diagnostics|trend and seasonality|additive or multiplicative|multiplicative seasonality|additive seasonality|seasonal strength|trend strength|autocorrelation function|ACF plot|Ljung-Box test|white noise series|time series decomposition"
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
@@ -14,458 +14,545 @@ fr_parent: "Visualize-Time-Series-in-R.html"
 difficulty: "Intermediate"
 ---
 
-<p class="lead">Exploratory analysis of a time series is not a pile of plots. It is an ordered pass of six checks, and it ends in a written verdict that decides what you model and how: is the index trustworthy, is there a trend, do the swings grow with the level, what is the seasonal shape, and is anything left over that a model could still use. This post runs that whole pass on one real series, in order, and shows you what each check answers and where each one will lie to you.</p>
+<p class="lead">Time series EDA is the set of checks you run before any forecasting: plot the series, measure its trend, detect its seasonality, split it into parts, then read the leftover autocorrelation to see what structure is still there. This guide runs that whole pass in R on real built-in datasets, one runnable step at a time.</p>
 
-Ordinary EDA on a `data.frame` is a scatter of habits: a `summary()`, some histograms, a correlation matrix. Time series EDA is different because the observations are not interchangeable. The order carries the information, so the questions come in a fixed order too, and each answer changes what the next question means. Decide the transform before you decompose, or the decomposition is answering the wrong question.
+Regular exploratory data analysis treats each row as a standalone observation. You compute a mean here, a histogram there, and the order of the rows does not matter. Time series data breaks that assumption completely. The rows arrive in a fixed order, and each value is tied to the one before it. That single fact, dependence over time, changes every question you ask of the data. This post walks the full EDA sequence for a time series in R, and you can run every block right here in the page.
 
-Our one series for the whole post is `JohnsonJohnson`, which ships with R in the `datasets` package: **quarterly Johnson & Johnson earnings per share, in US dollars, from 1960 Q1 to 1980 Q4.** That is 84 numbers, starting at $0.71 a share and ending at $16.20. It is small enough to print and real enough to surprise us, which it will, twice.
+## What makes a time series different from ordinary data?
 
-## What does an EDA pass tell you about a series you've never seen?
+The honest starting point is that you cannot shuffle a time series. In a normal table you could reorder the rows and lose nothing. Reorder a time series and you destroy the very thing you came to study: how today depends on yesterday. So the first job of time series EDA is to put the data on a proper time axis and look at it. We will use base R for the structure and the `forecast` package for a few convenient plots.
 
-Here is the whole pass, as one function, before any explanation. Read it as six questions asked in order. Each row of the answer is one check, and the six rows together are the verdict.
+Let's start with a series everyone can relate to: monthly totals of international airline passengers from 1949 to 1960. R stores it as a `ts` object, which is just a vector of numbers plus a calendar. Before plotting anything, it pays to ask three questions of that calendar: how often do observations arrive, when do they start, and how many are there?
 
-```r title="The six-check pass, end to end"
-jj <- JohnsonJohnson   # quarterly J&J earnings per share, US dollars, 1960-1980
-
-eda_report <- function(x) {
-  period <- frequency(x)
-  year   <- floor(time(x))
-  level  <- tapply(as.numeric(x), year, mean)   # how big is the series each year?
-  swing  <- tapply(as.numeric(x), year, sd)     # how wide is its wobble each year?
-  tracks <- summary(lm(swing ~ level))$r.squared
-
-  parts     <- stl(log(x), s.window = "periodic")$time.series
-  remainder <- parts[, "remainder"]
-  strength  <- function(part) round(max(0, 1 - var(remainder) / var(part + remainder)), 2)
-  leftover  <- Box.test(remainder, lag = 2 * period, type = "Ljung-Box")$p.value
-
-  data.frame(
-    check   = c("1 index", "2 trend", "3 multiplicative", "4 season", "5 remainder", "6 leftover"),
-    finding = c(
-      sprintf("%d obs, %d per year, %d-%d, %d missing",
-              length(x), period, min(year), max(year), sum(is.na(x))),
-      sprintf("strength %.2f, level %.2f -> %.2f", strength(parts[, "trend"]),
-              level[1], level[length(level)]),
-      sprintf("swing tracks level, R2 = %.2f", tracks),
-      sprintf("strength %.2f", strength(parts[, "seasonal"])),
-      sprintf("sd = %.3f on the log scale", sd(remainder)),
-      sprintf("Ljung-Box p = %.2g", leftover)
-    )
-  )
-}
-
-eda_report(jj)
-#>              check                                  finding
-#> 1          1 index 84 obs, 4 per year, 1960-1980, 0 missing
-#> 2          2 trend       strength 0.99, level 0.66 -> 14.62
-#> 3 3 multiplicative            swing tracks level, R2 = 0.88
-#> 4         4 season                            strength 0.61
-#> 5      5 remainder              sd = 0.077 on the log scale
-#> 6       6 leftover                    Ljung-Box p = 3.9e-14
+```r title="Load libraries and inspect the ts object"
+library(forecast)
+library(ggplot2)
+ap <- AirPassengers
+c(frequency = frequency(ap), start_year = start(ap)[1], months = length(ap))
+#>  frequency start_year     months 
+#>         12       1949        144 
 ```
 
-Six lines, and you already know more about this series than a `summary()` would ever tell you. Read them in order.
+The `frequency` is 12, which tells R that twelve observations make one natural cycle, a calendar year of months. The series starts in 1949 and holds 144 monthly readings. That `frequency` value is the single most important field in the object, because every seasonal tool below reads it to know how long one season lasts.
 
-**Row 1** says the index is sane: 84 observations, 4 per year (so the seasonal period is a quarter), spanning 1960 to 1980, with nothing missing. **Row 2** says there is a trend and it is overwhelming: the yearly average earnings went from $0.66 a share to $14.62, a 22-fold rise, and the trend accounts for essentially all of the series' movement (strength 0.99, on a 0-to-1 scale defined later). **Row 3** says the size of the quarterly wobble is strongly predicted by how big the series is that year (an R-squared of 0.88), which is the signature of *multiplicative* seasonality and the reason the function took `log(x)` before decomposing. **Row 4** says a real quarterly season exists but is much weaker than the trend (0.61). **Row 5** says that once trend and season are removed, what is left has a standard deviation of 0.077 on the log scale, which is roughly plus or minus 7.7% around the fitted value.
+[NOTE]
+**The frequency field defines what "seasonal" means for the series.** For monthly data set it to 12, for quarterly data 4, for weekly data 52. If you build a `ts` with the wrong frequency, decomposition and seasonal plots will look for a cycle of the wrong length and quietly return nonsense.
 
-**Row 6 is the one that should bother you.** The Ljung-Box p-value is 0.000000000000039. That test asks "is what is left over indistinguishable from random noise?", and a p-value that small is a flat no. Something structured is still sitting in the remainder. A good EDA pass is not one that comes back clean, it is one that tells you exactly where to look next. Check 6 is where we find out what that leftover is, and the answer turns out to be a real property of J&J's business.
+Now the payoff. The first thing to do with any time series is plot it against time and simply look. The `autoplot()` function from `forecast` draws a clean time plot straight from a `ts` object.
 
-That is the pass. Here is its map, which is worth keeping in view, because the arrows that go *backwards* are the whole reason the order matters.
-
-![Flowchart of the six-check time series EDA pass, from a new series through index, time plot, shape, decompose, season and remainder checks to a verdict](screenshots/Time-Series-EDA-in-R-workflow.webp)
-*Figure 1: The six-check pass. The solid path is the happy case. The two dashed arrows are the ones that make this a pass and not a checklist: a broken index sends you back to the data, and a season that leaks into the remainder sends you back to the decomposition.*
-
-Now we walk the six checks one at a time, on the same series.
-
-## Check 1: is the time index actually right?
-
-Before you plot anything, ask whether the *index* is real. This is the check people skip, because it feels like paperwork, and it is the one that silently ruins everything downstream. A series whose `frequency` is wrong will decompose into nonsense, and the decomposition will not complain: it will hand you a confident, meaningless seasonal component.
-
-Three things go wrong in practice. Let us build a series where all three have gone wrong, in view, then catch them. We take our real series and damage it deliberately.
-
-```r title="A series as it might arrive from a messy export"
-jj_messy <- jj
-jj_messy[30] <- NA                     # one quarter failed to import
-jj_messy[55] <- jj_messy[55] * 10      # one decimal point in the wrong place
-
-frequency(jj_messy)     # how many observations make up one year?
-#> [1] 4
-sum(is.na(jj_messy))    # any holes?
-#> [1] 1
-which(is.na(jj_messy))  # where?
-#> [1] 30
+```r title="Draw the first time plot"
+autoplot(ap) +
+  labs(title = "Monthly airline passengers, 1949-1960",
+       x = "Year", y = "Passengers (thousands)")
 ```
 
-`frequency()` returns the seasonal period: the number of observations that make up one full seasonal cycle. It is 4 here, meaning quarterly data, so R knows that observation 5 is the same quarter as observation 1. This number is not inferred from the data, it is a label you (or whoever built the object) attached to it, and if it is wrong nothing later can detect that. A monthly series read in with `frequency = 4` will happily produce a "quarterly season" that does not exist. `sum(is.na())` found the one hole we punched, and `which()` located it at observation 30. Worth knowing now: `stl()` refuses to run on a series with an `NA` in it, so a hole you did not know about becomes a confusing error message twenty minutes later.
+Even this first glance answers a lot. The line climbs steadily from bottom-left to top-right, so there is an upward trend. It also wiggles up and down in a repeating pattern within each year, so there is seasonality. And the size of that yearly wiggle grows as the line rises. Hold on to that last observation, it decides a key choice later. Everything that follows is just measuring, one at a time, the things your eye already spotted here.
 
-The typo is harder, because $1.65 mistyped as $16.50 is not missing and not obviously impossible. It is just wrong. You cannot catch it with a plain z-score across the whole series either, because this series *grows 22-fold*: the standard deviation of the raw values is dominated by the trend, so a big value near the end is completely normal. The trick is to look at *growth* instead of level. Quarter-on-quarter growth has no trend in it, so an outlier stands out.
+**Try it:** `co2` is another built-in monthly series, atmospheric carbon dioxide measured at Mauna Loa. Find its measurement frequency and how many months it covers.
 
-```r title="Catch the typo by scoring growth, not level"
-growth <- diff(log(jj_messy))     # quarter-on-quarter growth, on the log scale
-spread <- abs(growth - median(growth, na.rm = TRUE)) / mad(growth, na.rm = TRUE)
-
-which(spread > 5)                 # which growth steps are wildly unusual?
-#> [1] 54 55
-round(as.numeric(spread)[53:56], 1)
-#> [1]  0.1 11.6 12.8  0.3
-time(jj_messy)[55]                # what date is the culprit?
-#> [1] 1973.5
+```r title="Your turn: inspect the co2 series"
+# co2 is built in, so you can use it directly.
+# Fill in the two functions that report the season length and the count:
+# c(frequency = frequency(____), months = length(____))
+# target: frequency 12, months 468
 ```
 
-Walk through that. `diff(log(x))` gives the log growth from each quarter to the next, so a 10-fold jump becomes a large positive number and the trend cancels out. `median()` and `mad()` (median absolute deviation) are the robust cousins of `mean()` and `sd()`: they describe the typical growth without being dragged around by the very outlier we are hunting. Dividing the distance-from-median by the `mad` gives each growth step a robust score, in units of "typical deviations". Anything past 5 is a flag.
+<details>
+<summary>Click to reveal solution</summary>
 
-Two flags, at growth steps 54 and 55. That pairing is the tell: one bad observation creates **two** bad growth steps, and here is how to turn the pair back into the culprit. Growth step *k* is the move from observation *k* to observation *k+1*, so step 54 is the jump *up* into observation 55 (score 11.6) and step 55 is the jump back *down* out of observation 55 (score 12.8). The one observation both steps touch is number 55, and that is your suspect: two adjacent flags at *k* and *k+1* always accuse observation *k+1*. `time()` confirms it sits at 1973.5, meaning 1973 Q3. That is our planted typo. Real imports produce exactly this pattern, and once you have seen the paired-flag signature you never misread it as two separate problems.
-
-> **Watch out:** a `frequency` that is wrong is undetectable from the data alone. If a series arrives from someone else, verify the period against what you know about the world (12 for monthly, 4 for quarterly, 52 for weekly, 7 for daily-with-a-weekly-cycle) rather than trusting the object. If you are unsure how the four R time series classes store this, [Time Series Objects in R](Time-Series-Objects-in-R.html) walks through where each one keeps the index.
-
-We now drop `jj_messy` and go back to the real, clean series for the rest of the pass.
-
-## Check 2: what does the time plot say?
-
-With a trustworthy index, plot the thing. This is the highest-information-per-second act in all of time series analysis, and it takes one line.
-
-```r title="The plot you always draw first"
-plot(jj, main = "J&J quarterly earnings per share, 1960-1980",
-     ylab = "US dollars per share", xlab = "year")
-
-round(aggregate(jj, FUN = mean), 2)   # collapse each year to its mean
-#> Time Series:
-#> Start = 1960 
-#> End = 1980 
-#> Frequency = 1 
-#>  [1]  0.66  0.69  0.75  0.85  1.04  1.29  1.52  1.70  2.05  2.39  3.38  4.07  4.84  5.83  6.30  7.16
-#> [17]  7.94  9.52 11.25 12.96 14.62
+```r title="Inspect co2 solution"
+c(frequency = frequency(co2), months = length(co2))
+#> frequency    months 
+#>        12       468 
 ```
 
-The plot shows a line that climbs from under a dollar to sixteen dollars, with a visible sawtooth riding on top of it, and the teeth of the saw get bigger as the line gets higher. `aggregate(jj, FUN = mean)` collapses each year of four quarters into a single yearly mean, which is the numeric version of the same story: 0.66, 0.69, 0.75 in the early sixties, then 3.38 by 1970, then 14.62 by 1980. That is what "trend" means here, and having the numbers matters, because the eye is bad at telling a straight climb from an accelerating one.
+**Explanation:** `frequency()` reports 12 because `co2` is monthly, and `length()` counts 468 readings, which is 39 years of monthly data (39 times 12).
 
-Look at the ratios rather than the differences. From 1960 to 1970 the level went from 0.66 to 3.38, roughly 5-fold. From 1970 to 1980 it went from 3.38 to 14.62, roughly 4-fold. The *differences* over those two decades are wildly different ($2.72 vs $11.24), but the *ratios* are similar. A series that grows by a roughly constant percentage rather than a roughly constant amount is growing exponentially, and that is the first hint of what Check 3 is about to confirm.
+</details>
 
-Four things are worth naming, because they are what your eye should be hunting for on any time plot:
+## How do you spot and measure a trend?
 
-- **Trend**: a slow movement in the level that does not repeat. Here it dominates.
-- **Season**: a pattern that repeats on a *fixed, known* period. Here it is the sawtooth, repeating every 4 quarters.
-- **Level shift**: a sudden step to a new level that stays. There is none here.
-- **Outlier**: a single value off on its own. There is none here, because we cleaned it in Check 1.
+A trend is the slow, long-run drift in the level of a series, ignoring the short-term wiggles. Your eye already saw the airline series climbing. The next step is to measure that climb instead of guessing at it. The simplest possible measure is the average value in each calendar year: if the yearly averages keep rising, you have an upward trend.
 
-> **Note:** "season" means a cycle with a *fixed, known* period, tied to the calendar. A business cycle that runs "about every 7 to 10 years" is not a season, it is a cycle, and no seasonal method will catch it. The distinction matters because everything in Checks 4 and 5 depends on knowing the period in advance. For the full catalogue of plots that make each of these features pop, see [Visualize Time Series in R](Visualize-Time-Series-in-R.html).
-
-## Check 3: is the seasonality additive or multiplicative?
-
-The sawtooth teeth got bigger as the line got higher. That observation is the whole of Check 3, and it decides the transform, which decides everything after it. There are two models a decomposition can assume. In the **additive** model, the three parts are added:
-
-\[ y_t = T_t + S_t + R_t \]
-
-and in the **multiplicative** model they are multiplied:
-
-\[ y_t = T_t \times S_t \times R_t \]
-
-where \(y_t\) is the observed value at time \(t\), \(T_t\) is the trend (the slow level), \(S_t\) is the season (the fixed-period repeat), and \(R_t\) is the remainder, meaning everything the first two do not explain. The difference is not cosmetic. Under the additive model, a season worth \(+\$0.30\) adds thirty cents in 1960 and thirty cents in 1980. Under the multiplicative model, a season worth \(\times 1.10\) adds ten cents when the level is a dollar and a dollar-fifty when the level is fifteen. Real growth series are almost always the second kind, and J&J is a growth series.
-
-Here is the useful part: taking logs turns one into the other, because the logarithm of a product is the sum of the logarithms.
-
-\[ \log y_t = \log T_t + \log S_t + \log R_t \]
-
-So a multiplicative series *is* an additive series, once you look at it on the log scale. Every additive tool then works, and you convert back at the end.
-
-Do not decide this by eyeballing. Make it a number. If the seasonality is multiplicative, the size of each year's wobble should be predicted by that year's level. So measure both once per year, then regress one on the other.
-
-Two small tools do the grouping, and they recur for the rest of the post. `time(jj)` gives each observation's date as a decimal year, the same numbers we met in Check 1 (1973.5 meaning 1973 Q3), so `floor(time(jj))` throws the fraction away and leaves the plain year: 1960, 1960, 1960, 1960, 1961, and so on, one label per observation. `tapply(values, group, FUN)` then splits `values` into groups according to `group` and applies `FUN` to each group on its own, returning one number per group. So `tapply(as.numeric(jj), year, mean)` reads as "the mean of each year's four quarters" and gives back 21 numbers, one per year. The `as.numeric()` just strips the time series wrapper so that `tapply` sees a plain vector of values.
-
-```r title="Does the swing size track the level? (raw scale)"
-year  <- floor(time(jj))
-level <- tapply(as.numeric(jj), year, mean)   # each year's average level
-swing <- tapply(as.numeric(jj), year, sd)     # each year's spread across quarters
-
-plot(level, swing, pch = 19, col = "steelblue",
-     main = "Raw scale: the wobble grows with the level",
-     xlab = "that year's mean ($)", ylab = "that year's SD ($)")
-abline(lm(swing ~ level), col = "tomato", lwd = 2)
-
-raw_fit <- lm(swing ~ level)
-round(coef(raw_fit)[2], 4)               # dollars of swing per dollar of level
-#>  level 
-#> 0.1338 
-round(summary(raw_fit)$r.squared, 3)     # how much of the swing does level explain?
-#> [1] 0.875
+```r title="Average each year to expose the trend"
+yearly_mean <- tapply(ap, floor(time(ap)), mean)
+round(yearly_mean, 0)
+#> 1949 1950 1951 1952 1953 1954 1955 1956 1957 1958 1959 1960 
+#>  127  140  170  197  225  239  284  328  368  381  428  476 
 ```
 
-The points march up and to the right in a tight line. The slope says that for every extra dollar of average earnings, the within-year spread grows by about 13.4 cents, and the R-squared of **0.875** says the year's level alone explains 87.5% of how big that year's wobble is. That is not a subtle tendency. The swing is not a fixed number of dollars, it is a fixed *percentage*, so this series is multiplicative and needs a log.
+Here `time(ap)` gives the decimal year of every point (1949.0, 1949.083, and so on), `floor()` rounds each down to its whole year, and `tapply()` averages the twelve months inside each year. The averages rise from 127 up to 476, almost quadrupling over eleven years. That is the trend, now a number rather than an impression.
 
-Now repeat the identical measurement on the logged series. If the log fixed the problem, the relationship should vanish.
+Yearly averages are blunt, though. They collapse a whole year into one point, so you lose all the detail in between. A moving average keeps the monthly resolution while still smoothing away the seasonal bounce. It slides a window along the series and replaces each point with the average of the window around it. Choose a window as wide as one full season, twelve months here, and each window contains exactly one of every month, so the seasonal ups and downs cancel out and the trend is left behind.
 
-```r title="Does the swing size track the level? (log scale)"
-log_level <- tapply(as.numeric(log(jj)), year, mean)
-log_swing <- tapply(as.numeric(log(jj)), year, sd)
-
-plot(log_level, log_swing, pch = 19, col = "steelblue",
-     main = "Log scale: the relationship is gone",
-     xlab = "that year's mean log level", ylab = "that year's SD (log scale)")
-abline(lm(log_swing ~ log_level), col = "tomato", lwd = 2)
-
-log_fit <- lm(log_swing ~ log_level)
-round(coef(log_fit)[2], 4)
-#> log_level 
-#>   -0.0226 
-round(summary(log_fit)$r.squared, 3)
-#> [1] 0.185
+```r title="Smooth the series with a moving average"
+ap_trend <- ma(ap, order = 12)
+autoplot(ap, series = "Observed") +
+  autolayer(ap_trend, series = "12-month moving average") +
+  labs(title = "A 12-month moving average reveals the trend",
+       x = "Year", y = "Passengers (thousands)")
 ```
 
-The slope went from +0.1338 to **-0.0226**, which is near zero and, if anything, points very slightly the other way. The R-squared collapsed from **0.875 to 0.185**. On the log scale, how big a year's wobble is tells you almost nothing about how big that year was, which is exactly the property the additive model assumes. The log did its job. Everything from here on works on `log(jj)`.
+The `ma(ap, order = 12)` call computes the twelve-month moving average, and `autolayer()` draws it on top of the raw series. The jagged monthly line keeps its seasonal ups and downs, while the smooth line passes through the middle of them, tracing the underlying growth. That smooth line is your trend estimate at monthly resolution.
 
-> **Note:** the log only works if every value is strictly positive, because \(\log 0\) is undefined and the log of a negative number does not exist. Series with zeros or negatives (net profit, temperature in Celsius, anomalies) need a different tool: a Box-Cox transform with a suitable parameter, or `log1p()` for counts that touch zero. If the swing-versus-level plot is flat to begin with, your series is already additive and you should not transform it at all.
+[TIP]
+**Match the moving-average window to the seasonal period.** Averaging over a full cycle, order 12 for monthly data or order 4 for quarterly data, guarantees one of each season sits inside every window, so the seasonal swing cancels cleanly. A window shorter than one season leaves seasonal ripples in your trend line.
 
-## Check 4: what is the series actually made of?
+**Try it:** measure the trend in `co2` the same way, by comparing the mean of its first full year (1959) to the mean of its last full year (1997).
 
-We now know the model (additive, on logs) and can finally split the series into its parts. The tool is `stl()`, which stands for **Seasonal-Trend decomposition using Loess**. Loess is a local smoother: to estimate the trend at 1972, it fits a small regression using mostly the points near 1972 and largely ignores 1961. STL applies that idea repeatedly, peeling the season and the trend apart until they stop changing.
-
-```r title="Split the logged series into trend, season and remainder"
-fit_fixed <- stl(log(jj), s.window = "periodic")
-parts <- fit_fixed$time.series
-
-plot(fit_fixed, main = "STL decomposition of log(J&J earnings)")
-
-round(head(parts, 4), 3)
-#>         seasonal  trend remainder
-#> 1960 Q1   -0.003 -0.361     0.022
-#> 1960 Q2    0.034 -0.407    -0.088
-#> 1960 Q3    0.116 -0.452     0.173
-#> 1960 Q4   -0.147 -0.481    -0.193
+```r title="Your turn: measure the co2 trend"
+# Average the 12 months of 1959, then the 12 months of 1997:
+# round(c(first = mean(window(co2, c(1959, 1), c(1959, 12))),
+#         last  = mean(window(co2, c(1997, 1), c(1997, 12)))), 1)
+# target: first 315.8, last 363.8
 ```
 
-`stl()` returns an object whose `time.series` element is a matrix with one column per part. The four rows printed are 1960's quarters, on the log scale. Add the three numbers in any row and you get back `log(jj)` for that quarter exactly, because that is what an additive decomposition guarantees. Check the first row: -0.003 + -0.361 + 0.022 = -0.342, and `log(0.71)` is -0.342. The decomposition is not an approximation of the series, it is a re-expression of it. The plot stacks the four panels (the data, then the three parts) so you can see each one on its own.
+<details>
+<summary>Click to reveal solution</summary>
 
-The trend values are negative simply because they are logs of numbers below 1 (earnings were 71 cents in 1960, and `log(0.71)` is negative). Nothing is wrong.
-
-Now, how much does each part actually matter? Compare each one against the noise it sits next to. The **strength of the trend** is defined as
-
-\[ F_T = \max\left(0,\; 1 - \frac{\operatorname{Var}(R_t)}{\operatorname{Var}(T_t + R_t)}\right) \]
-
-and the strength of the season, \(F_S\), is the same formula with \(S_t\) in place of \(T_t\). Read it as a fraction. The denominator is how much the part and the noise wobble together; the numerator is how much the noise wobbles alone. If the part is huge next to the noise, the ratio is near 0 and the strength is near 1. If the part is pure noise, the ratio is near 1 and the strength is near 0. The `max(0, ...)` just stops tiny negative values from a part that explains nothing.
-
-```r title="How strong is each part?"
-rem_fixed <- parts[, "remainder"]
-strength  <- function(part) round(max(0, 1 - var(rem_fixed) / var(part + rem_fixed)), 3)
-
-c(trend = strength(parts[, "trend"]), season = strength(parts[, "seasonal"]))
-#>  trend season 
-#>  0.994  0.608 
+```r title="co2 trend solution"
+round(c(first_year = mean(window(co2, c(1959, 1), c(1959, 12))),
+        last_year  = mean(window(co2, c(1997, 1), c(1997, 12)))), 1)
+#> first_year  last_year 
+#>      315.8      363.8 
 ```
 
-A trend strength of **0.994** is about as strong as this measure gets: essentially all of the non-seasonal movement in J&J's earnings is the long climb, not noise. A seasonal strength of **0.608** is moderate. It is real and worth modelling, but it is not the story. These two numbers are what you would report if someone asked "what kind of series is this?": strongly trending, moderately seasonal. [Time Series Decomposition in R](Time-Series-Decomposition-in-R.html) goes deeper on how STL does the peeling, and on the classical alternative.
+**Explanation:** `window()` cuts the series down to a date range, and averaging each year shows carbon dioxide rising from 315.8 to 363.8 parts per million, a clear upward trend.
 
-## Check 4b: is the season really the same every year?
+</details>
 
-We just used `s.window = "periodic"`, and it is worth knowing what we agreed to. That setting tells STL that **the seasonal pattern is identical in every single year**: whatever Q3 does, it does the same forever. It is the default choice in most tutorials and it is an *assumption*, not a finding. Twenty-one years is a long time for a company's seasonal rhythm to hold perfectly still, so check it.
+## How do you detect seasonality, and is it additive or multiplicative?
 
-`s.window` controls how fast the season is allowed to drift. It is the width, in years, of the window used to smooth each quarter's seasonal value across time. A small number lets the season change quickly; a large number holds it nearly fixed; `"periodic"` is the extreme, meaning infinitely rigid. Set it to 9 and the season is estimated from a moving 9-year neighbourhood, so it can drift slowly but cannot jump.
+Seasonality is a pattern that repeats on a fixed calendar period: warmer summers every year, higher retail sales every December. The airline series has it, and the cleanest way to see the shape is to average each position within the season across all years. For monthly data, that means averaging all the Januarys, all the Februarys, and so on.
 
-```r title="Let the season drift, then measure how much it did"
-fit_flex  <- stl(log(jj), s.window = 9)
-seas_flex <- fit_flex$time.series[, "seasonal"]
-
-plot(seas_flex, main = "The seasonal component, allowed to drift",
-     ylab = "seasonal effect (log scale)", xlab = "year")
-
-# How wide is the seasonal swing within each year?
-round(tapply(as.numeric(seas_flex), floor(time(jj)), function(v) diff(range(v))), 2)
-#> 1960 1961 1962 1963 1964 1965 1966 1967 1968 1969 1970 1971 1972 1973 1974 1975 1976 1977 1978 1979 
-#> 0.43 0.41 0.40 0.36 0.28 0.21 0.20 0.21 0.19 0.16 0.14 0.16 0.17 0.20 0.22 0.25 0.28 0.30 0.31 0.32 
-#> 1980 
-#> 0.33 
+```r title="Average each month to expose the season"
+monthly_mean <- tapply(ap, cycle(ap), mean)
+round(monthly_mean, 0)
+#>   1   2   3   4   5   6   7   8   9  10  11  12 
+#> 242 235 270 267 272 312 351 351 302 267 233 262 
 ```
 
-`diff(range(v))` is the distance from the year's lowest seasonal effect to its highest, so it measures how *wide* that year's seasonal swing was. Read the numbers left to right and a real story appears. In 1960 the seasonal swing spanned 0.43 on the log scale, roughly a 54% gap between the best and worst quarter. It then narrowed steadily through the sixties to a minimum of **0.14 in 1970**, a third of what it had been. Then it widened again, reaching 0.33 by 1980, most of the way back to where it started.
+The `cycle()` function labels every observation with its position in the season, 1 through 12 for months, and `tapply()` averages within each label. The result is a clear seasonal fingerprint: travel dips in the winter months (February at 235) and peaks in July and August (both 351). That summer bump repeats every single year.
 
-That is not noise. The decline is steady (a single 0.01 tick up in 1967 is the only interruption) and the rise after 1970 gets wider in every single year without exception, and it is the second surprise this series had for us. J&J's earnings became markedly less seasonal through the 1960s and then more seasonal again through the 1970s. Whether that reflects the product mix, acquisitions or accounting practice is a question for someone who knows the company. What matters for us is that `s.window = "periodic"` claimed this variation does not exist, and it plainly does.
+A picture makes the repetition obvious. A seasonal plot draws one line per year, all stacked on the same twelve-month axis, so you can see whether every year follows the same shape.
 
-> **Watch out:** `s.window = "periodic"` is not a neutral default, it is a strong claim that the seasonal pattern never changes. On a series spanning decades that claim is usually false. The cost of being wrong is not a worse-looking plot: the seasonal variation the model refuses to fit does not disappear, it gets dumped into the remainder, where it masquerades as structure. Check 6 catches it.
-
-## Check 5: what is the seasonal shape?
-
-"There is a season, strength 0.61" is not yet useful. The shape is the useful part: **which quarter is high, which is low, and by how much.** A `monthplot()` answers this in one picture. Despite the name, it does not care about months: it groups by whatever the seasonal period is, which here is the quarter.
-
-```r title="The seasonal shape, as a picture and as percentages"
-monthplot(seas_flex, main = "Seasonal effect by quarter (each line drifts over 21 years)",
-          ylab = "seasonal effect (log scale)", xlab = "quarter")
-
-quarter_effect <- round(tapply(as.numeric(seas_flex), cycle(jj), mean), 4)
-quarter_effect                                  # average effect, log scale
-#>       1       2       3       4 
-#> -0.0035  0.0381  0.1039 -0.1417 
-round(100 * (exp(quarter_effect) - 1), 1)       # same thing, as percentages
-#>     1     2     3     4 
-#>  -0.3   3.9  10.9 -13.2 
+```r title="Overlay every year on one seasonal plot"
+ggseasonplot(ap, year.labels = TRUE) +
+  labs(title = "Each year traces the same summer-peaking shape",
+       x = "Month", y = "Passengers (thousands)")
 ```
 
-`monthplot()` draws one vertical group per quarter, so you see all 21 Q1s together, then all 21 Q2s, and so on, with a horizontal bar at each quarter's mean. It is the right plot for this question because it puts like with like: on an ordinary time plot the quarters are interleaved and you cannot see a quarter's own history.
+Every year's line has the same hump in the middle: the pattern is stable, only its size changes. And that change in size is the crucial detail. Look back at the raw plot, the summer peaks stretch further above the winter troughs as the years pass. When the seasonal swing grows with the level of the series, the seasonality is called multiplicative. When the swing stays the same size regardless of level, it is additive. We can settle the question by measuring the range (highest month minus lowest month) inside each year.
 
-`cycle(jj)` returns which quarter each observation belongs to (1, 2, 3, 4, 1, 2, ...), so `tapply(..., cycle(jj), mean)` averages the seasonal effect within each quarter across all 21 years. The result is on the log scale, which nobody thinks in, so we convert. Because the model is multiplicative, a log effect of \(s\) means a multiplier of \(e^{s}\), and \(100 \times (e^{s} - 1)\) turns that into "percent above or below the trend".
-
-Now the shape is in plain English. **Q3 runs about 10.9% above trend, Q4 about 13.2% below, Q2 is mildly high at +3.9%, and Q1 is essentially neutral at -0.3%.** The gap between the best and worst quarter is about 24 percentage points. In 1980, with earnings around $14.62 a share, that is roughly the difference between a $16 quarter and a $12.70 one. The Q4 dip is the strongest single feature of the season, which is a genuinely useful fact: any model that ignores seasonality will overpredict every Q4 for twenty-one years running.
-
-## Check 6: what is left in the remainder?
-
-The remainder is what trend and season could not explain. If the decomposition captured everything with a pattern, what is left should be noise: unpredictable, with no memory of itself. If instead the remainder still correlates with its own past, there is structure left that a model can exploit, and you want to know that before choosing one.
-
-The tool is the ACF (autocorrelation function). The autocorrelation at lag \(k\) is the correlation between the series and a copy of itself shifted \(k\) steps back:
-
-\[ r_k = \frac{\sum_{t=k+1}^{n} (x_t - \bar{x})(x_{t-k} - \bar{x})}{\sum_{t=1}^{n} (x_t - \bar{x})^2} \]
-
-where \(x_t\) is the value at time \(t\), \(\bar{x}\) is the mean of the series, \(n\) is its length, and \(k\) is the lag. An \(r_k\) near zero means "knowing the value 4 quarters ago tells you nothing about today". Anything else means it does.
-
-Recall the two decompositions we now have: `fit_fixed`, which forced an identical season every year, and `fit_flex`, which let it drift. Compare their remainders at lag 1 and at lag 4, the seasonal lag.
-
-```r title="The rigid fit versus the flexible fit, judged by their leftovers"
-rem_flex <- fit_flex$time.series[, "remainder"]
-
-par(mfrow = c(1, 2))
-acf(rem_fixed, lag.max = 12, main = "Remainder: s.window = periodic")
-acf(rem_flex,  lag.max = 12, main = "Remainder: s.window = 9")
-par(mfrow = c(1, 1))
-
-# autocorrelation at lag 1 and lag 4 (the seasonal lag)
-round(as.numeric(acf(rem_fixed, lag.max = 8, plot = FALSE)$acf)[c(2, 5)], 3)
-#> [1] -0.459  0.605
-round(as.numeric(acf(rem_flex,  lag.max = 8, plot = FALSE)$acf)[c(2, 5)], 3)
-#> [1] -0.351  0.006
+```r title="Check whether the seasonal swing grows"
+yearly_range <- tapply(ap, floor(time(ap)), function(x) max(x) - min(x))
+round(yearly_range, 0)
+#> 1949 1950 1951 1952 1953 1954 1955 1956 1957 1958 1959 1960 
+#>   44   56   54   71   92  114  131  142  166  195  217  232 
 ```
 
-Two mechanics before the finding. `par(mfrow = c(1, 2))` splits the drawing area into one row of two panels so the ACFs sit side by side for comparison, and the second `par()` call puts it back to one plot per figure. And `acf(...)$acf` starts at **lag 0**, not lag 1, whose autocorrelation is always exactly 1 because a series is perfectly correlated with an unshifted copy of itself. So element 2 is lag 1 and element 5 is lag 4, which is why the code asks for `[c(2, 5)]`. Passing `plot = FALSE` hands back the numbers instead of drawing the picture.
+The within-year range widens from 44 in 1949 to 232 in 1960. The swing is not constant, it scales up with the level, so this seasonality is multiplicative. In symbols, an additive series and a multiplicative series decompose differently:
 
-There is the answer to the mystery from the opening report. The rigid fit's remainder has an autocorrelation of **0.605 at lag 4**, which is enormous. Lag 4 is exactly one year on quarterly data, so that number says: *whatever this remainder did last Q3, it does again this Q3.* That is a seasonal pattern, sitting in the component that is supposed to hold no pattern at all. It is precisely the drifting seasonality we measured in Check 4b, refusing to vanish just because `s.window = "periodic"` declined to model it.
+$$y_t = T_t + S_t + R_t \qquad\text{(additive)}$$
 
-Let the season drift and the leak stops: the flexible fit's lag-4 autocorrelation is **0.006**, which is zero for practical purposes. The seasonal structure moved out of the remainder and into the seasonal component, where it belongs. This is the dashed feedback arrow in Figure 1, and it is why Check 6 sits after Check 4 rather than at the end of a checklist.
+$$y_t = T_t \times S_t \times R_t \qquad\text{(multiplicative)}$$
 
-Note what did *not* go away: the lag-1 autocorrelation of **-0.351**. That one is real, and it is not a decomposition artefact. A negative lag-1 correlation means an above-average quarter tends to be followed by a below-average one, a bounce. Let us test formally whether the remainder is noise. The Ljung-Box test asks one question about a whole *group* of lags at once, rather than running a separate eyeball test at each lag and collecting false alarms.
+Where $y_t$ is the observed value at time $t$, $T_t$ is the trend, $S_t$ is the seasonal component, and $R_t$ is the remainder. If formulas are not your thing, the practical point is all that matters: multiplicative means the parts multiply, so a percentage swing, not a fixed amount.
 
-```r title="Is the remainder noise? Ask all 8 lags at once"
-Box.test(rem_flex, lag = 8, type = "Ljung-Box")
+There is a simple trick that turns a multiplicative series into an additive one: take logarithms. Logs convert multiplication into addition, so a swing that grows in proportion to the level becomes a swing of constant size. We can confirm it by measuring the yearly range again on the logged series.
+
+```r title="Stabilise the swing with a log transform"
+lap <- log(ap)
+log_range <- tapply(lap, floor(time(ap)), function(x) max(x) - min(x))
+round(log_range, 2)
+#> 1949 1950 1951 1952 1953 1954 1955 1956 1957 1958 1959 1960 
+#> 0.35 0.40 0.32 0.35 0.41 0.47 0.45 0.42 0.44 0.49 0.49 0.47 
+```
+
+On the log scale the yearly range hovers around 0.4 the whole way through instead of growing. The swing is now roughly constant, which means the logged series is additive. That is why analysts so often model `log(AirPassengers)` rather than the raw counts: it lets them use the simpler additive machinery.
+
+[WARNING]
+**Choosing the wrong seasonal form warps every component.** If you force an additive decomposition onto a multiplicative series, the trend absorbs part of the seasonality and the remainder shows a fanning pattern instead of noise. Decide additive versus multiplicative first, either by eye or with the yearly-range check above, before you decompose.
+
+**Try it:** decide whether the seasonal swing in `co2` is additive or multiplicative by checking its per-year range early, midway, and late.
+
+```r title="Your turn: additive or multiplicative for co2"
+# Range = max - min within each calendar year:
+# ex_range <- tapply(co2, floor(time(co2)), function(x) max(x) - min(x))
+# round(ex_range[c(1, 20, 39)], 2)   # years 1959, 1978, 1997
+# target: 4.95, 5.46, 6.60
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="co2 additive check solution"
+ex_range <- tapply(co2, floor(time(co2)), function(x) max(x) - min(x))
+round(ex_range[c(1, 20, 39)], 2)
+#> 1959 1978 1997 
+#> 4.95 5.46 6.60 
+```
+
+**Explanation:** The range creeps from 4.95 to 6.60 over 39 years, tiny growth against a level that sits near 315 to 360. The swing is essentially constant, so `co2` is well described by an additive model.
+
+</details>
+
+## How do you split a series into trend, seasonality, and noise?
+
+So far you have measured the trend and the seasonality separately. Decomposition does both at once and hands you a third piece for free: the remainder, everything left after trend and season are removed. That leftover is where the real EDA payoff lives, as the next section shows. The diagram below is the mental model.
+
+![A time series splits into trend, seasonality, and a remainder to be checked for noise](screenshots/Time-Series-EDA-in-R-decomposition.webp)
+
+*Figure 1: A time series splits into a trend, a seasonal cycle, and a remainder; EDA asks whether that remainder is just noise.*
+
+The classic tool is `decompose()`, which estimates the trend with a moving average, averages the detrended series by season to get a fixed seasonal pattern, and calls the rest the remainder. Because we found the airline series to be multiplicative, we ask for a multiplicative decomposition.
+
+```r title="Run a classical decomposition"
+dec <- decompose(ap, type = "multiplicative")
+round(dec$figure, 3)
+#>  [1] 0.910 0.884 1.007 0.976 0.981 1.113 1.227 1.220 1.060 0.922 0.801 0.899
+```
+
+The `dec$figure` values are the twelve seasonal factors, one per month. Being multiplicative, they read as fractions of the trend: July and August sit at 1.227 and 1.220, meaning those months run about 22 percent above the yearly trend, while November at 0.801 runs about 20 percent below. This is the same summer-peaking story you saw earlier, now expressed as clean multipliers.
+
+[TIP]
+**Reach for STL when the seasonal pattern drifts.** Classical `decompose()` forces one fixed seasonal shape across the whole series. STL, in the `stl()` function, lets the seasonal pattern evolve slowly, handles any frequency, and is less affected by outliers. For most real series STL is the better default.
+
+STL (Seasonal and Trend decomposition using Loess) is the modern workhorse. It fits the trend and season with local regression, so both can bend over time. We run it on the logged series, `lap`, so the decomposition is additive and the components are easy to read.
+
+```r title="Decompose with STL on the log series"
+fit <- stl(lap, s.window = "periodic")
+autoplot(fit) +
+  labs(title = "STL decomposition of log(AirPassengers)")
+round(head(fit$time.series, 4), 3)
+#>          seasonal trend remainder
+#> Jan 1949   -0.092 4.829    -0.019
+#> Feb 1949   -0.114 4.830     0.054
+#> Mar 1949    0.016 4.831     0.036
+#> Apr 1949   -0.014 4.833     0.040
+```
+
+The `autoplot(fit)` call stacks four panels: the data, then the trend, seasonal, and remainder that sum back to it. The printed table shows the first four rows of those three components on the log scale. Add the three numbers in any row and you recover that month's logged value. The seasonal column repeats every year, the trend column drifts upward slowly, and the remainder is the small leftover.
+
+How strong are the trend and season, really? There is a tidy way to score each on a 0-to-1 scale. Compare the variance of the remainder alone to the variance of the remainder plus the component you care about. If adding the component barely changes the variance, the component is weak; if it dominates, the component is strong.
+
+$$F_T = \max\!\left(0,\; 1 - \frac{\operatorname{Var}(R_t)}{\operatorname{Var}(T_t + R_t)}\right) \qquad F_S = \max\!\left(0,\; 1 - \frac{\operatorname{Var}(R_t)}{\operatorname{Var}(S_t + R_t)}\right)$$
+
+Where $F_T$ is trend strength, $F_S$ is seasonal strength, and $T_t$, $S_t$, $R_t$ are the STL components. A value near 1 means that component explains almost all the variation; near 0 means it barely matters.
+
+```r title="Score the trend and seasonal strength"
+comp <- as.data.frame(fit$time.series)
+Ft <- max(0, 1 - var(comp$remainder) / var(comp$trend + comp$remainder))
+Fs <- max(0, 1 - var(comp$remainder) / var(comp$seasonal + comp$remainder))
+round(c(trend_strength = Ft, seasonal_strength = Fs), 3)
+#>    trend_strength seasonal_strength 
+#>             0.994             0.937 
+```
+
+Both scores are close to 1: trend strength 0.994 and seasonal strength 0.937. This series is dominated by a very strong trend and a strong season, exactly what the plots suggested, now confirmed with a single pair of numbers you can compare across series.
+
+[KEY INSIGHT]
+**Decomposition describes the past, it does not forecast the future.** Splitting a series into trend, season, and remainder is a lens, not a model. Its real value at EDA time is the remainder it isolates: once the obvious structure is stripped away, whatever is left tells you how much predictable signal a model could still capture.
+
+**Try it:** decompose `co2` with STL and compute its trend and seasonal strength.
+
+```r title="Your turn: co2 trend and seasonal strength"
+# ex_fit <- stl(co2, s.window = "periodic")
+# ex_c   <- as.data.frame(ex_fit$time.series)
+# Ft uses remainder vs (trend + remainder); Fs uses remainder vs (seasonal + remainder)
+# target: trend_strength 1.000, seasonal_strength 0.984
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="co2 strength solution"
+ex_fit <- stl(co2, s.window = "periodic")
+ex_c   <- as.data.frame(ex_fit$time.series)
+ex_Ft  <- max(0, 1 - var(ex_c$remainder) / var(ex_c$trend + ex_c$remainder))
+ex_Fs  <- max(0, 1 - var(ex_c$remainder) / var(ex_c$seasonal + ex_c$remainder))
+round(c(trend_strength = ex_Ft, seasonal_strength = ex_Fs), 3)
+#>    trend_strength seasonal_strength 
+#>             1.000             0.984 
+```
+
+**Explanation:** `co2` has an almost perfect trend (1.000) and a very strong season (0.984), which matches the steadily rising, cleanly cyclical shape of the Mauna Loa record.
+
+</details>
+
+## What is autocorrelation, and how do you read an ACF plot?
+
+Autocorrelation is the correlation of a series with a delayed copy of itself. Slide the series back by one step and correlate it with the original, and you get the lag-1 autocorrelation: how much this month resembles last month. Do it for lag 2, lag 3, and onward, and you get the autocorrelation function, or ACF. The formula is an ordinary correlation applied to the series and its own past:
+
+$$r_k = \frac{\sum_{t=k+1}^{T} (y_t - \bar{y})(y_{t-k} - \bar{y})}{\sum_{t=1}^{T} (y_t - \bar{y})^2}$$
+
+Where $r_k$ is the autocorrelation at lag $k$, $y_t$ is the value at time $t$, $\bar{y}$ is the series mean, and $T$ is the number of observations. You never compute this by hand, `acf()` does it, but it helps to see that a lag is just a shift and an autocorrelation is just a correlation.
+
+```r title="Compute the autocorrelation function"
+acf_raw <- acf(ap, plot = FALSE, lag.max = 12)
+round(as.numeric(acf_raw$acf), 3)
+#>  [1] 1.000 0.948 0.876 0.807 0.753 0.714 0.682 0.663 0.656 0.671 0.703 0.743
+#> [13] 0.760
+```
+
+The first value is always 1 (a series is perfectly correlated with itself at lag 0). After that the autocorrelations start high at 0.948 and fade slowly, then curl back upward toward lag 12 (0.760). Those two features are diagnostic. A slow, gradual decay is the signature of a trend: because the series is drifting, any two nearby points are similar simply because both are near the current level. The rise back up toward lag 12 is the signature of seasonality: a value is extra similar to the value one full year earlier.
+
+The plotted version makes the pattern easier to scan and adds a significance band.
+
+```r title="Plot the ACF with a significance band"
+ggAcf(ap) +
+  labs(title = "ACF of AirPassengers: slow decay plus a seasonal echo")
+```
+
+The dashed blue lines are the band inside which an autocorrelation is indistinguishable from zero. Bars that poke outside the band are real correlation; bars inside it are noise. For the airline series almost every bar clears the band, because trend and season leave strong autocorrelation everywhere. To see the opposite case, compare against a series with no structure at all: pure random noise.
+
+```r title="Contrast with a white-noise series"
+set.seed(11)
+wn <- ts(rnorm(144), frequency = 12)
+round(as.numeric(acf(wn, plot = FALSE, lag.max = 12)$acf), 3)
+#>  [1]  1.000 -0.100 -0.015  0.165 -0.024 -0.047  0.095 -0.059  0.022  0.018
+#> [11]  0.033  0.057 -0.024
+```
+
+Apart from the mandatory 1.000 at lag 0, every autocorrelation is tiny and hovers around zero. This is what "no structure left" looks like in an ACF: small bars, no decay, no seasonal echo. That contrast is the whole point of the ACF as an EDA tool. A structured series shows big, patterned bars; a random one shows nothing.
+
+[WARNING]
+**A slowly decaying ACF means the trend is still in the data.** When the ACF fades gradually across many lags, do not read the individual bars as meaningful relationships. The trend is inflating all of them. Difference the series or remove the trend first, then re-read the ACF to see the genuine short-lag structure underneath.
+
+**Try it:** read the first few autocorrelations of `co2` and say what the pattern implies.
+
+```r title="Your turn: co2 autocorrelation"
+# round(as.numeric(acf(co2, plot = FALSE, lag.max = 6)$acf), 3)
+# target: 1.000 0.991 0.978 0.964 0.951 0.941 0.934
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="co2 autocorrelation solution"
+round(as.numeric(acf(co2, plot = FALSE, lag.max = 6)$acf), 3)
+#> [1] 1.000 0.991 0.978 0.964 0.951 0.941 0.934
+```
+
+**Explanation:** The autocorrelations barely fall, from 0.991 at lag 1 to 0.934 at lag 6. That extremely slow decay is the fingerprint of a dominant trend, exactly the near-perfect trend strength the decomposition reported for `co2`.
+
+</details>
+
+## How do you check whether the leftover is just noise?
+
+This is the finish line of a time series EDA. After you have described the trend and the season, the question is whether anything predictable remains. If the remainder is pure random noise, you have captured all the structure. If it is not, there is still signal a forecasting model could use. The formal version of "is this just noise?" is the Ljung-Box test. It looks at a batch of autocorrelations at once and asks whether they are jointly close enough to zero to be random. A high p-value (above 0.05) means yes, it is noise; a low p-value means no, structure remains.
+
+Start with the white-noise series from the last section, which we know is structureless by construction. It should pass.
+
+```r title="Ljung-Box on a genuine white-noise series"
+Box.test(wn, lag = 24, type = "Ljung-Box")
 #> 
 #> 	Box-Ljung test
 #> 
-#> data:  rem_flex
-#> X-squared = 23.081, df = 8, p-value = 0.003262
+#> data:  wn
+#> X-squared = 14.858, df = 24, p-value = 0.9249
 ```
 
-The null hypothesis is "the first 8 autocorrelations are all zero", meaning the remainder is noise. The p-value of **0.0033** rejects it: the remainder is not noise, even after we fixed the seasonal leak. It went from 3.9e-14 (catastrophic) to 0.0033 (real but modest), and the residual signal is that lag-1 bounce.
+The p-value is 0.9249, far above 0.05, so the test cannot reject randomness. This is what "just noise" looks like on the test: a large p-value. Now run the same test on the remainder from our STL decomposition of the airline series. If the trend-and-season split captured everything, this remainder should also pass.
 
-This is a good finding, not a failure. It says a model has something left to work with. The remainder is not white noise, so an ARIMA term can earn its keep on this series after the trend and season are handled. For how to read the ACF alongside the PACF to turn that into an actual order, see [ACF and PACF in R](ACF-and-PACF-in-R.html).
-
-## How do six checks become one verdict?
-
-The point of the pass is a verdict, so write it down. One more number is needed first: how much differencing does the series need to be stationary (roughly, to have a stable mean and variance)? `ndiffs()` and `nsdiffs()` from the `forecast` package answer that by running the standard tests for you.
-
-```r title="How much differencing does it need?"
-library(forecast)
-
-ndiffs(log(jj))    # ordinary differences needed
-#> [1] 1
-nsdiffs(log(jj))   # seasonal differences needed
-#> [1] 1
+```r title="Ljung-Box on the STL remainder"
+remainder <- fit$time.series[, "remainder"]
+Box.test(remainder, lag = 24, type = "Ljung-Box")
+#> 
+#> 	Box-Ljung test
+#> 
+#> data:  remainder
+#> X-squared = 170.99, df = 24, p-value < 2.2e-16
 ```
 
-One ordinary difference and one seasonal difference. Ordinary differencing (subtracting the previous quarter) removes the trend; seasonal differencing (subtracting the same quarter last year) removes the season. Both are needed here, which is exactly what you would expect from a series that Check 4 called strongly trending and moderately seasonal. The mechanics of these tests are in [Test Stationarity in R](Test-Stationarity-in-R.html).
+The p-value is essentially zero, so the remainder fails the white-noise test decisively. Even after stripping out a smooth trend and a repeating seasonal pattern, the leftover still has autocorrelation the simple decomposition did not catch. That is not a failure of your EDA, it is the most useful finding in it.
 
-Now the verdict, six checks in six lines:
+[KEY INSIGHT]
+**A failed white-noise test at EDA time is good news, not bad.** It tells you there is still predictable structure in the series that a proper model, an ARIMA or an exponential-smoothing model, can exploit. If the remainder had already been pure noise, no model could beat the plain decomposition. The leftover autocorrelation is the signal your forecasting method will use.
 
-| Check | Finding | What it forces |
-|---|---|---|
-| 1 Index | 84 quarters, 1960-1980, period 4, no gaps or outliers | Safe to proceed |
-| 2 Time plot | Level climbs 22-fold; sawtooth grows with it | Expect a transform |
-| 3 Shape | Swing tracks level, R2 0.875 raw vs 0.185 logged | **Model `log(jj)`, not `jj`** |
-| 4 Decompose | Trend strength 0.994, season 0.608 | Trend dominates; season is real |
-| 4b Drift | Seasonal width 0.43 -> 0.14 -> 0.33 | **Use `s.window = 9`, not `"periodic"`** |
-| 5 Season | Q3 +10.9%, Q4 -13.2%, spread ~24pp | Any model must be seasonal |
-| 6 Remainder | Lag-4 leak fixed; lag-1 -0.351, Ljung-Box p = 0.0033 | Structure remains; ARIMA has work to do |
+That leftover structure usually has a name: the series is non-stationary, meaning its statistical behaviour changes over time. Most forecasting methods want a stationary series first, and the standard fix is differencing, replacing each value with its change from the previous period. Two helper functions estimate how many differences you need: `ndiffs()` for ordinary differencing and `nsdiffs()` for seasonal differencing.
 
-In one paragraph: *J&J quarterly earnings, 1960-1980, is a strongly trending, moderately seasonal, multiplicative series with no data-quality problems and a seasonal pattern that narrows through the sixties and re-widens through the seventies. Model it on the log scale. It needs one ordinary and one seasonal difference. Q4 runs 13% below trend and any non-seasonal model will overpredict it every year. After trend and season are removed a lag-1 bounce of -0.35 remains, so a seasonal ARIMA on the logs is the natural first candidate, and a non-seasonal model on the raw scale is ruled out twice over.*
-
-That paragraph is the deliverable. Notice that two of the six checks *overturned a default*: Check 3 vetoed modelling the raw series, and Check 4b vetoed the standard `"periodic"` decomposition. Skip the pass and you would have made both mistakes silently, and neither would have announced itself.
-
-## Where does time series EDA mislead you?
-
-Each check has a failure mode. These are the four that catch people.
-
-**1. The ACF of a trending series tells you nothing except that it trends.** Run an ACF on a series before removing the trend and you get a wall of huge, slowly decaying bars. It looks like profound memory. It is not.
-
-```r title="The trend trap: a meaningless ACF that looks meaningful"
-round(as.numeric(acf(jj, lag.max = 6, plot = FALSE)$acf)[2:7], 3)
-#> [1] 0.925 0.888 0.833 0.824 0.764 0.718
-round(2 / sqrt(length(jj)), 3)   # the significance band
-#> [1] 0.218
+```r title="Estimate how many differences are needed"
+c(seasonal_diffs = nsdiffs(ap), first_diffs = ndiffs(ap))
+#> seasonal_diffs    first_diffs 
+#>              1              1 
 ```
 
-Every bar from lag 1 to lag 6 sits between 0.72 and 0.93, and the band is only 0.218, so all of them are "significant" by a mile. This says nothing about J&J's business. It is a mechanical consequence of the fact that a series which climbs steadily is always near where it was recently. Any trending series produces this picture. Run the ACF on the *remainder*, as Check 6 does, or on the differenced series, never on the raw trending one.
+Both come back as 1: take one seasonal difference and one ordinary difference to flatten the airline series. We can confirm that this actually produces stationarity with the KPSS test, whose null hypothesis is that the series is stationary. A p-value below 0.05 rejects stationarity; a high p-value is consistent with it. Run it on the logged series and again after differencing.
 
-**2. Short series cannot see anything.** The significance band is roughly \(\pm 2/\sqrt{n}\), so it shrinks slowly.
-
-```r title="Why a short series is nearly blind"
-round(2 / sqrt(c(20, 84, 400)), 3)
-#> [1] 0.447 0.218 0.100
+```r title="Confirm stationarity before and after differencing"
+suppressMessages(library(tseries))
+stationary <- diff(diff(lap), lag = 12)
+kpss_raw  <- kpss.test(lap)$p.value
+kpss_diff <- kpss.test(stationary)$p.value
+round(c(kpss_p_raw = kpss_raw, kpss_p_differenced = kpss_diff), 3)
+#>         kpss_p_raw kpss_p_differenced 
+#>               0.01               0.10 
 ```
 
-With 20 observations the band is **plus or minus 0.447**. An autocorrelation of 0.4, which is a strong real relationship, would not clear it. With our 84 it is 0.218, and at 400 it is 0.100. "Not significant" on a short series does not mean "not there", it means "this data cannot tell". Our lag-1 finding of -0.351 clears the 0.218 band at n = 84; on 20 quarters the identical fact would have been invisible.
+The `diff(diff(lap), lag = 12)` line does both differences in one step: the inner `diff(lap)` replaces each month with its change from the previous month (the ordinary difference), and the outer `diff(..., lag = 12)` then replaces each of those with its change from twelve months earlier (the seasonal difference). Before differencing the p-value is 0.01, so KPSS rejects stationarity: the raw logged series drifts, as expected. After one ordinary and one seasonal difference the p-value climbs to 0.10, so the test can no longer reject stationarity. The differenced series is stable enough to model. R also prints a "p-value smaller/greater than printed p-value" note here, which is normal: it just means the statistic fell past the ends of the test's lookup table.
 
-**3. One outlier can fake or hide any of this.** A single bad value inflates the variance, which drags down every strength measure, and can flip a swing-versus-level slope on its own. This is why Check 1 comes first rather than whenever you get around to it.
+[NOTE]
+**Pair KPSS with the ADF test, and know they ask opposite questions.** The augmented Dickey-Fuller test (`adf.test()` in tseries) has a null of non-stationarity, the reverse of KPSS, and it always fits a trend term, so it tests trend-stationarity specifically. Running both and comparing verdicts is more reliable than trusting either one alone.
 
-**4. A strength number is not a significance test.** A seasonal strength of 0.608 says the season is large relative to the remainder in *this* series. It carries no p-value and no confidence interval, and comparing 0.608 against another series' 0.55 is not a hypothesis test. Treat strengths as descriptions, not evidence.
+**Try it:** run the white-noise test on the STL remainder of `co2` (reuse `ex_fit` from the strength exercise). Is anything left to model?
 
-## FAQ
+```r title="Your turn: is co2's remainder white noise"
+# Box.test(ex_fit$time.series[, "remainder"], lag = 24, type = "Ljung-Box")
+# target: p-value < 2.2e-16 (not white noise)
+```
 
-**How is EDA for a time series different from EDA for a normal data frame?**
-The order of the rows is the data. Shuffle a `data.frame` and every histogram, mean and correlation survives; shuffle a time series and you have destroyed everything worth knowing. So the usual tools (`summary()`, histograms, a correlation matrix) all silently throw away the one dimension that matters. Time series EDA replaces them with tools that read the ordering: the time plot, the seasonal plot, decomposition and the ACF.
+<details>
+<summary>Click to reveal solution</summary>
 
-**Do I have to do the checks in this order?**
-Checks 1 and 3 must come where they are. Check 1 is first because an outlier or a wrong period corrupts every number after it. Check 3 must precede Check 4 because the transform decides what the decomposition is decomposing; decompose first and you have answered the wrong question and will not notice. Checks 5 and 6 can swap freely. Check 2 could in principle move, but you would be giving up your cheapest look at the data.
+```r title="co2 white-noise test solution"
+Box.test(ex_fit$time.series[, "remainder"], lag = 24, type = "Ljung-Box")
+#> 
+#> 	Box-Ljung test
+#> 
+#> data:  ex_fit$time.series[, "remainder"]
+#> X-squared = 411.49, df = 24, p-value < 2.2e-16
+```
 
-**How do I know whether to log the series or not?**
-Run the Check 3 measurement rather than eyeballing it. Regress each year's standard deviation on that year's mean. A clear positive slope with a high R-squared (0.875 here) means multiplicative, so log it; a flat scatter means additive, so leave it alone. Then repeat on the logged series and confirm the relationship is gone (R-squared fell to 0.185 here). If your series has zeros or negative values a log is impossible, and you need a Box-Cox transform instead.
+**Explanation:** Like the airline series, `co2`'s remainder fails the white-noise test, so a simple trend-plus-season split leaves autocorrelation behind. That leftover is what a model such as ARIMA would go on to capture.
 
-**What is a good value for `s.window`?**
-There is no universal answer, which is the honest reason to check rather than default. `"periodic"` asserts the season never changes; a number, in years, is how long a window is used to let it drift. Start with `"periodic"`, then look at the remainder's ACF at the seasonal lag (4 for quarterly, 12 for monthly). If that bar is large, as our 0.605 was, the season is drifting and the window is too rigid. Loosen it until the seasonal lag is quiet, as our 0.006 was, and no further; an over-loose window lets the season absorb noise and steal real signal from the remainder.
+</details>
 
-**My Ljung-Box p-value is tiny. Is that bad?**
-No, and it is often good news at the EDA stage. A tiny p-value on a *remainder* means predictable structure is still there, which is what a model is for. It is only bad news when you run it on a fitted model's **residuals**, where leftover structure means the model missed something. During EDA it is a to-do item; after fitting it is a defect.
+## Practice Exercises
 
-**Can I run this pass with tidyverts (tsibble, feasts, fable) instead of base R?**
-Yes, and the checks are identical. `feasts::features(x, feat_stl)` returns the trend and seasonal strengths computed with the same formula used here, `gg_season()` and `gg_subseries()` replace `monthplot()`, and `model(STL(...))` replaces `stl()`. The base R version is used here because it needs no installs and the objects print small enough to read. The six questions do not change with the dialect.
+These combine several steps of the EDA pass on series you have not seen yet. Each uses its own variable names so it will not disturb the airline session above. Try each before opening the solution.
+
+### Exercise 1: Profile the seasonality of nottem
+
+The built-in `nottem` series holds twenty years of monthly average air temperatures at Nottingham Castle. Find its warmest and coolest months from the monthly means, then decide whether its seasonal swing is additive or multiplicative by checking the per-year range in three different years.
+
+```r title="Exercise 1: nottem seasonality"
+# Step 1: average by month with cycle() to find the peak and trough month.
+# Step 2: range = max - min per year; compare years 1920, 1929, 1939.
+# Write your code below.
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 1 solution"
+round(tapply(nottem, cycle(nottem), mean), 1)
+#>    1    2    3    4    5    6    7    8    9   10   11   12 
+#> 39.7 39.2 42.2 46.3 52.6 58.0 61.9 60.5 56.5 49.5 42.6 39.5 
+nott_range <- tapply(nottem, floor(time(nottem)), function(x) max(x) - min(x))
+round(nott_range[c(1, 10, 20)], 1)
+#> 1920 1929 1939 
+#> 18.7 31.2 24.0 
+```
+
+**Explanation:** July is warmest (61.9) and February coolest (39.2), a clean summer-peaking season. The per-year range wobbles between about 19 and 31 with no upward drift, so the swing is roughly constant and `nottem` is additive. That makes sense physically, temperatures do not swing by a larger number of degrees just because the average is slightly higher.
+
+</details>
+
+### Exercise 2: Measure structure in a quarterly series
+
+The `UKgas` series records quarterly UK gas consumption. Quarterly data has a different season length from monthly data, so start by confirming the frequency, then decompose the logged series with STL and score its trend and seasonal strength.
+
+```r title="Exercise 2: UKgas structure"
+# Step 1: c(frequency = frequency(UKgas), quarters = length(UKgas))
+# Step 2: stl(log(UKgas), s.window = "periodic"), then compute Ft and Fs.
+# Write your code below.
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 2 solution"
+c(frequency = frequency(UKgas), quarters = length(UKgas))
+#> frequency  quarters 
+#>         4       108 
+gas_fit <- stl(log(UKgas), s.window = "periodic")
+gas_c   <- as.data.frame(gas_fit$time.series)
+gas_Ft  <- max(0, 1 - var(gas_c$remainder) / var(gas_c$trend + gas_c$remainder))
+gas_Fs  <- max(0, 1 - var(gas_c$remainder) / var(gas_c$seasonal + gas_c$remainder))
+round(c(trend_strength = gas_Ft, seasonal_strength = gas_Fs), 3)
+#>    trend_strength seasonal_strength 
+#>             0.935             0.845 
+```
+
+**Explanation:** The frequency is 4 because the data is quarterly, so one season is four points, not twelve. Both strength scores are high (trend 0.935, season 0.845), telling you `UKgas` is driven by a strong upward trend and a strong winter-heating season, the same profile you would confirm by eye on a time plot.
+
+</details>
+
+### Exercise 3: Close the loop on nottem
+
+Run the full white-noise check on `nottem`: decompose it with STL, pull out the remainder, and test it with Ljung-Box. Decide whether a simple trend-and-season split leaves anything for a model to capture.
+
+```r title="Exercise 3: nottem white-noise check"
+# Step 1: nott_fit <- stl(nottem, s.window = "periodic")
+# Step 2: Box.test on nott_fit$time.series[, "remainder"] with lag = 24.
+# Write your code below.
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 3 solution"
+nott_fit <- stl(nottem, s.window = "periodic")
+Box.test(nott_fit$time.series[, "remainder"], lag = 24, type = "Ljung-Box")
+#> 
+#> 	Box-Ljung test
+#> 
+#> data:  nott_fit$time.series[, "remainder"]
+#> X-squared = 61.818, df = 24, p-value = 3.521e-05
+```
+
+**Explanation:** The p-value is 0.0000352, well below 0.05, so even the tidy Nottingham temperature series leaves autocorrelated structure in its remainder. Month-to-month weather persistence is real, so consecutive residuals are related, and a model could still improve on the plain decomposition.
+
+</details>
+
+## Frequently asked questions about time series EDA
+
+**What is the difference between `decompose()` and `stl()`?** `decompose()` estimates one fixed seasonal shape with a moving average and holds that shape constant across the whole series. `stl()` fits the trend and season with local regression, so the seasonal pattern can change slowly over time. It also works with any frequency and is less affected by outliers. Use `stl()` as your default and keep `decompose()` for a quick look at a short, stable series.
+
+**How do I decide between an additive and a multiplicative model?** Check whether the size of the seasonal swing grows as the level of the series rises. Compute the within-year range (the largest month minus the smallest) for several years: if that range grows with the level, the series is multiplicative, and if it stays about constant, the series is additive. Taking logs of a multiplicative series turns it into an additive one.
+
+**Do I need to remove the trend before reading the ACF?** Yes, whenever the ACF decays slowly across many lags. A strong trend inflates every autocorrelation at once, so the individual bars stop being meaningful until you difference or detrend the series and plot the ACF again. On a trend-free series the bars show the genuine short-lag structure.
+
+**What does a very small Ljung-Box p-value mean?** A p-value below 0.05 says the values you tested still carry autocorrelation, so the series or its remainder is not white noise. At EDA time that is a useful finding, not a problem: it means a forecasting model still has predictable structure to capture. A large p-value means the leftover is indistinguishable from random noise.
+
+**Which R packages do I need for time series EDA?** Base R already provides `ts` objects plus `decompose()`, `stl()`, `acf()`, and `Box.test()`. The `forecast` package adds the tidier plots used here (`autoplot()`, `ggseasonplot()`, `ggAcf()`) and helpers such as `ma()`, `ndiffs()`, and `nsdiffs()`. The `tseries` package supplies the KPSS and ADF stationarity tests.
 
 ## Summary
 
-| Check | Question | Tool | Our answer |
-|---|---|---|---|
-| 1 Index | Is the index trustworthy? | `frequency()`, `is.na()`, robust growth score | Clean: 84 obs, period 4, no gaps |
-| 2 Time plot | What is visibly there? | `plot()`, `aggregate()` | Trend dominates; season rides on it |
-| 3 Shape | Additive or multiplicative? | SD-vs-mean regression by year | Multiplicative (R2 0.875 -> 0.185 logged) |
-| 4 Decompose | What is it made of? | `stl()` + strengths | Trend 0.994, season 0.608 |
-| 4b Drift | Is the season fixed? | seasonal width by year | No: 0.43 -> 0.14 -> 0.33, use `s.window = 9` |
-| 5 Season | What is the shape? | `monthplot()`, `cycle()` | Q3 +10.9%, Q4 -13.2% |
-| 6 Remainder | Is anything left? | `acf()`, `Box.test()` | Lag-1 -0.351, p = 0.0033: yes |
+A time series EDA is a short, repeatable pass. You plot the series, measure the trend, characterise the season, split the parts, then interrogate the leftover. The workflow below is the order to run it in, and the table maps each step to its R tool.
 
-The three habits worth keeping from this post:
+![The time series EDA workflow from first plot to white-noise test](screenshots/Time-Series-EDA-in-R-workflow.webp)
 
-- **Check the index before you look at a single plot.** A wrong `frequency` and an unspotted outlier both produce confident, wrong answers with no error message.
-- **Decide additive versus multiplicative with a number, not an eyeball.** It determines the transform, and the transform determines every result after it.
-- **Judge a decomposition by its remainder.** A big autocorrelation at the seasonal lag means the season leaked, and the fix is to loosen `s.window`, not to accept it.
+*Figure 2: The EDA pass, from the first plot to the white-noise test.*
 
-The pass ends where modelling begins. You now have the transform, the differencing orders, the seasonal shape and an honest statement of what structure remains: everything a model choice needs.
+| Step | Question it answers | R tool |
+|---|---|---|
+| Plot the series | What does it look like over time? | `autoplot()` |
+| Spot the trend | Is the level drifting? | yearly means, `ma()` |
+| Detect seasonality | Is there a fixed-period cycle, additive or multiplicative? | `cycle()`, `ggseasonplot()` |
+| Decompose the parts | How big are trend and season? | `decompose()`, `stl()`, strength scores |
+| Read the ACF | What autocorrelation is present? | `acf()`, `ggAcf()` |
+| Test the leftover | Is the remainder just noise, and is it stationary? | `Box.test()`, `ndiffs()`, `kpss.test()` |
+
+The single most important idea is the last one. Decomposition and the ACF describe what is there; the Ljung-Box test tells you what is left. When the remainder fails the white-noise test, as it did for every real series here, you have found the predictable structure that a forecasting model will turn into forecasts.
 
 ## References
 
-1. Hyndman, R. J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd ed., ch. 2 "Time series graphics". [otexts.com/fpp3/graphics.html](https://otexts.com/fpp3/graphics.html). The canonical treatment of what to look for on a time plot, and free.
-2. Hyndman & Athanasopoulos, ch. 3.1 "Transformations and adjustments". [otexts.com/fpp3/transformations.html](https://otexts.com/fpp3/transformations.html). Why and when to log, plus the Box-Cox alternative for series with zeros.
-3. Hyndman & Athanasopoulos, ch. 3.6 "STL decomposition". [otexts.com/fpp3/stl.html](https://otexts.com/fpp3/stl.html). The clearest short explanation of what `s.window` actually controls.
-4. Hyndman & Athanasopoulos, ch. 4.3 "STL features". [otexts.com/fpp3/stlfeatures.html](https://otexts.com/fpp3/stlfeatures.html). The source of the trend and seasonal strength formulas used in Check 4.
-5. Cleveland, R. B., Cleveland, W. S., McRae, J. E. & Terpenning, I. "STL: A Seasonal-Trend Decomposition Procedure Based on Loess." *Journal of Official Statistics* 6(1), 1990. [scb.se](https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf). The original paper, readable, and the definitive word on the seasonal window.
-6. R Core Team. `stl()` reference manual. [stat.ethz.ch](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html). Every argument, including the robustness options for series with outliers.
-7. R Core Team. `Box.test()` reference manual. [stat.ethz.ch](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/box.test.html). Note the `fitdf` argument, which you need when testing model residuals rather than a remainder.
-8. Hyndman, R. J. `ndiffs()` and `nsdiffs()` reference. [pkg.robjhyndman.com](https://pkg.robjhyndman.com/forecast/reference/ndiffs.html). Which stationarity test each one runs by default, and how to change it.
-9. R Core Team. `JohnsonJohnson` dataset documentation. [stat.ethz.ch](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/JohnsonJohnson.html). The provenance of the series used throughout this post.
+1. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd edition. Chapter 3: Time series decomposition. [Link](https://otexts.com/fpp3/decomposition.html)
+2. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 2nd edition. Chapter 2.8: Autocorrelation. [Link](https://otexts.com/fpp2/autocorrelation.html)
+3. Cleveland, R.B., Cleveland, W.S., McRae, J.E. & Terpenning, I. STL: A Seasonal-Trend Decomposition Procedure Based on Loess. *Journal of Official Statistics*, 6(1), 3-73 (1990). [Link](https://www.wessa.net/download/stl.pdf)
+4. R Core Team. `stl()` reference, R stats package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html)
+5. R Core Team. `decompose()` reference, R stats package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/decompose.html)
+6. Hyndman, R.J. et al. `forecast`: Forecasting Functions for Time Series and Linear Models. CRAN. [Link](https://pkg.robjhyndman.com/forecast/)
+7. Ljung, G.M. & Box, G.E.P. On a Measure of Lack of Fit in Time Series Models. *Biometrika*, 65(2), 297-303 (1978). [Link](https://doi.org/10.1093/biomet/65.2.297)
+8. Kwiatkowski, D., Phillips, P.C.B., Schmidt, P. & Shin, Y. Testing the null hypothesis of stationarity. *Journal of Econometrics*, 54, 159-178 (1992). [Link](https://doi.org/10.1016/0304-4076(92)90104-Y)
 
 ## Continue Learning
 
-- [Visualize Time Series in R](Visualize-Time-Series-in-R.html), the full catalogue of plots behind Checks 2 and 5, including seasonal and lag plots this post did not use.
-- [Time Series Decomposition in R](Time-Series-Decomposition-in-R.html), a deeper look at Check 4: how STL peels the parts apart and how classical decomposition differs.
-- [ACF and PACF in R](ACF-and-PACF-in-R.html), the next step after Check 6: turning leftover autocorrelation into an ARIMA order.
-- [Test Stationarity in R](Test-Stationarity-in-R.html), the tests behind `ndiffs()` and `nsdiffs()`, and what differencing actually does.
+- [Visualize Time Series in R: autoplot(), Seasonal, Lag Plots](Visualize-Time-Series-in-R.html) - the parent guide to every diagnostic plot for time series, in more depth than the plots used here.
+- [ACF and PACF in R: How to Read the Plots for ARIMA Orders](ACF-and-PACF-in-R.html) - the next step once the ACF shows structure, turning those plots into model orders.
+- [Moving Averages in R: Simple, Weighted, and Exponential](Moving-Averages-in-R.html) - a closer look at the smoothing tool used to expose the trend in this post.
