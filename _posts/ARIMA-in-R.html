@@ -1,0 +1,1372 @@
+---
+title: "ARIMA in R: What AR, I, and MA Mean and How to Fit One"
+description: "Learn what AR, I, and MA mean in an ARIMA model, how differencing and ACF/PACF pick p, d, q, and how to fit and forecast with Arima() and auto.arima() in R."
+keywords: "ARIMA in R, auto.arima, Arima function, AR I MA, forecast package, time series forecasting, ACF PACF, differencing, stationarity, seasonal ARIMA"
+mathjax: true
+webr: true
+curriculum_id: "3.8.10"
+post_type: "C"
+auto_link_terms: "ARIMA|ARIMA model|ARIMA in R|ARIMA models|auto.arima|autoregressive integrated moving average|autoregressive model|moving average model|ARIMA(p,d,q)|seasonal ARIMA|SARIMA|differencing a time series"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "ARIMA Models"
+sidebar_order: "14"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">ARIMA is a <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> model that combines three simple ideas: it learns from a series' own recent values (the AR part), it removes trends by working with changes instead of raw levels (the I part), and it learns from its own recent forecast errors (the MA part). You write it as ARIMA(p, d, q), and in R you fit one with <code>Arima()</code> or <code>auto.arima()</code> from the forecast package.</p>
+
+<h2>What is an ARIMA model, and what do p, d, and q mean?</h2>
+
+<p>The fastest way to see what ARIMA does is to point it at a real series and let it work. The built-in <code>WWWusage</code> series counts internet users connected to a server, once a minute, for 100 minutes. Let's load the forecast package and ask it to find a model on its own.</p>
+
+<div class="webr-container" data-block-title="Fit an ARIMA model automatically">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit an ARIMA model automatically</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+library(ggplot2)
+auto.arima(WWWusage)
+#&gt; Series: WWWusage 
+#&gt; ARIMA(1,1,1) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ma1
+#&gt;       0.6504  0.5256
+#&gt; s.e.  0.0842  0.0896
+#&gt; 
+#&gt; sigma^2 = 9.995:  log likelihood = -254.15
+#&gt; AIC=514.3   AICc=514.55   BIC=522.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In one line, R chose a model and called it <code>ARIMA(1,1,1)</code>. That label is the whole game: the three numbers are <code>p</code>, <code>d</code>, and <code>q</code>. By the end of this tutorial you will be able to read that label, understand why each number was chosen, and fit and trust a model like it yourself.</p>
+
+<p>Here is what each of the three numbers controls. Keep this table nearby; every section below unpacks one row of it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Letter</th>
+<th>Name</th>
+<th>Order</th>
+<th>What it captures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AR</td>
+<td>Autoregressive</td>
+<td>p</td>
+<td>How many past values the model leans on</td>
+</tr>
+<tr>
+<td>I</td>
+<td>Integrated</td>
+<td>d</td>
+<td>How many times we difference to remove the trend</td>
+</tr>
+<tr>
+<td>MA</td>
+<td>Moving average</td>
+<td>q</td>
+<td>How many past forecast errors the model leans on</td>
+</tr>
+</tbody>
+</table>
+
+<p>So <code>ARIMA(1,1,1)</code> means: use 1 past value, difference the series once, and use 1 past error. The diagram below shows how the three pieces feed one model that then produces forecasts.</p>
+
+<p><img src="screenshots/ARIMA-in-R-components.webp" alt="The three parts of ARIMA feeding into one model" class="img-responsive img-zoomable" loading="lazy" width="1576" height="986" /></p>
+
+<p><em>Figure 1: The three parts of ARIMA combine into one ARIMA(p, d, q) model that produces forecasts.</em></p>
+
+<p>Before we take it apart, let's glance at the raw numbers so you can picture the data behind that model.</p>
+
+<div class="webr-container" data-block-title="Peek at the WWWusage series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Peek at the WWWusage series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(as.numeric(WWWusage), 12)
+#&gt; [1] 88 84 85 85 84 85 83 85 88 89 91 99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The counts drift upward and downward over time rather than bouncing around a fixed level. That drift is exactly what the <code>d</code> part exists to handle, and it is why R chose <code>d = 1</code> above.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ARIMA is not one exotic method, it is three plain ideas put together.</strong> Once you understand autoregression, differencing, and forecast-error correction on their own, reading any ARIMA(p, d, q) label becomes routine.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit an automatic model to the built-in <code>lh</code> series (a set of hormone measurements) and read off its (p, d, q).</p>
+<div class="webr-container" data-block-title="Your turn: fit ARIMA to the lh series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit ARIMA to the lh series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit an automatic model to lh and read its (p, d, q).
+# Swap AirPassengers below for lh, then run.
+ex_series &lt;- AirPassengers   # change AirPassengers to lh
+auto.arima(ex_series)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Automatic ARIMA on lh">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Automatic ARIMA on lh</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auto.arima(lh)
+#&gt; Series: lh 
+#&gt; ARIMA(1,0,0) with non-zero mean 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1    mean
+#&gt;       0.5739  2.4133
+#&gt; s.e.  0.1161  0.1466
+#&gt; 
+#&gt; sigma^2 = 0.2061:  log likelihood = -29.38
+#&gt; AIC=64.76   AICc=65.3   BIC=70.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For <code>lh</code>, R picks <code>ARIMA(1,0,0)</code>, which is a pure autoregressive model of order 1. The <code>d = 0</code> tells you this series did not need differencing, and <code>q = 0</code> tells you no error terms were used.</p>
+
+</details>
+</section>
+
+<h2>What does the AR (autoregressive) part do?</h2>
+
+<p>The "autoregressive" idea is the most intuitive of the three: tomorrow tends to look like today. A busy web server this minute is probably busy the next minute too. AR captures that <a class="auto-link" href="Correspondence-Analysis-in-R.html" title="Correspondence Analysis in R: Visualise Categorical Associations in 2D Space">inertia</a> by predicting each value from the value or values just before it.</p>
+
+<p>An AR model of order 1, written AR(1), predicts today from yesterday using a single coefficient. In equation form it looks like this.</p>
+
+<p>$$y_t = c + \phi\, y_{t-1} + \varepsilon_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = the value at time $t$ (what we want to predict)</li>
+
+<li>$c$ = a constant baseline</li>
+
+<li>$\phi$ = the AR coefficient, how strongly the last value pulls on this one</li>
+
+<li>$y_{t-1}$ = the previous value</li>
+
+<li>$\varepsilon_t$ = a random shock we cannot predict</li>
+
+</ul>
+
+<p>A $\phi$ near 1 means strong memory (values change slowly), while a $\phi$ near 0 means almost no memory. Let's see this by building a series with a known coefficient of 0.8 and asking R to recover it. The <code>arima.sim()</code> function generates data from a model we specify, and <code>Arima()</code> fits a model back to that data.</p>
+
+<div class="webr-container" data-block-title="Simulate and fit an AR(1) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate and fit an AR(1) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+ar_series &lt;- arima.sim(model = list(ar = 0.8), n = 200)
+Arima(ar_series, order = c(1, 0, 0), include.mean = FALSE)
+#&gt; Series: ar_series 
+#&gt; ARIMA(1,0,0) with zero mean 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1
+#&gt;       0.7765
+#&gt; s.e.  0.0441
+#&gt; 
+#&gt; sigma^2 = 0.941:  log likelihood = -277.66
+#&gt; AIC=559.32   AICc=559.39   BIC=565.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We built the data with $\phi = 0.8$, and R estimated <code>ar1 = 0.7765</code>, close to the truth. The small gap is sampling noise from having only 200 points. The <code>order = c(1, 0, 0)</code> argument is <code>c(p, d, q)</code>, so it says "fit one AR term, no differencing, no MA term."</p>
+
+<p>Plotting the series makes the inertia visible: values wander in slow runs rather than jumping around.</p>
+
+<div class="webr-container" data-block-title="Plot the simulated AR(1) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the simulated AR(1) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(ar_series) + ggtitle(&quot;AR(1): each value is pulled toward the last&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That estimated coefficient of about 0.78 is the practical takeaway of the AR part. It says roughly 78 percent of a value's deviation from the mean carries over to the next step, which is why the line moves in smooth stretches.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate 300 points of an AR(1) with a coefficient of 0.5, then fit an AR(1) and check that the estimate lands near 0.5.</p>
+<div class="webr-container" data-block-title="Your turn: recover an AR(1) coefficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recover an AR(1) coefficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: simulate an AR(1) with coefficient 0.5, then fit it back.
+# Change the ar value below, then run.
+set.seed(7)
+ex_ar &lt;- arima.sim(model = list(ar = 0.2), n = 300)   # change 0.2 to 0.5
+Arima(ex_ar, order = c(1, 0, 0), include.mean = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fit the AR(1) with coefficient 0.5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the AR(1) with coefficient 0.5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_ar &lt;- arima.sim(model = list(ar = 0.5), n = 300)
+Arima(ex_ar, order = c(1, 0, 0), include.mean = FALSE)
+#&gt; Series: ex_ar 
+#&gt; ARIMA(1,0,0) with zero mean 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1
+#&gt;       0.5941
+#&gt; s.e.  0.0464
+#&gt; 
+#&gt; sigma^2 = 0.9666:  log likelihood = -420.31
+#&gt; AIC=844.62   AICc=844.66   BIC=852.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The estimate <code>ar1 = 0.5941</code> sits near the true 0.5, off by a bit because of random noise in the sample.</p>
+
+</details>
+</section>
+
+<h2>What does the MA (moving average) part do?</h2>
+
+<p>The MA part is the least intuitive name in all of ARIMA, so let's be precise. The moving average here has nothing to do with smoothing a series by averaging nearby points. Instead, it means the model corrects itself using its own recent forecast errors.</p>
+
+<p>Picture forecasting the weather. If you predicted 20 degrees and it came in at 25, you were 5 degrees too low, and a smart forecaster nudges tomorrow's prediction up a little because of that miss. That "learn from the last surprise" behavior is exactly what an MA term does.</p>
+
+<p>An MA model of order 1, written MA(1), adjusts today's value using the previous shock.</p>
+
+<p>$$y_t = c + \varepsilon_t + \theta\, \varepsilon_{t-1}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\varepsilon_t$ = the current random shock</li>
+
+<li>$\theta$ = the MA coefficient, how much the last shock feeds into today</li>
+
+<li>$\varepsilon_{t-1}$ = the previous shock (the error we just made)</li>
+
+</ul>
+
+<p>Let's simulate an MA(1) with a known coefficient of 0.7 and recover it, the same way we did for AR.</p>
+
+<div class="webr-container" data-block-title="Simulate and fit an MA(1) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate and fit an MA(1) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(202)
+ma_series &lt;- arima.sim(model = list(ma = 0.7), n = 200)
+Arima(ma_series, order = c(0, 0, 1), include.mean = FALSE)
+#&gt; Series: ma_series 
+#&gt; ARIMA(0,0,1) with zero mean 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ma1
+#&gt;       0.7073
+#&gt; s.e.  0.0577
+#&gt; 
+#&gt; sigma^2 = 1.003:  log likelihood = -283.98
+#&gt; AIC=571.95   AICc=572.01   BIC=578.55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>order = c(0, 0, 1)</code> means no AR term, no differencing, one MA term. R estimated <code>ma1 = 0.7073</code>, right next to the 0.7 we used to build the data. The value tells us how strongly the previous minute's surprise shapes this minute's value.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The MA in ARIMA is not moving-average smoothing.</strong> A <a href="Moving-Averages-in-R.html">moving average</a> in the everyday sense averages neighboring data points to smooth a line, but the MA term in ARIMA is a weighted sum of past forecast errors. Same two words, completely different idea.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate an MA(1) with a coefficient of -0.6 and recover it. Negative coefficients are common and perfectly valid.</p>
+<div class="webr-container" data-block-title="Your turn: recover an MA(1) coefficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recover an MA(1) coefficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: simulate an MA(1) with coefficient -0.6 and fit it back.
+# Change the ma value below, then run.
+set.seed(8)
+ex_ma &lt;- arima.sim(model = list(ma = 0.3), n = 300)   # change 0.3 to -0.6
+Arima(ex_ma, order = c(0, 0, 1), include.mean = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fit the MA(1) with coefficient -0.6">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the MA(1) with coefficient -0.6</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(8)
+ex_ma &lt;- arima.sim(model = list(ma = -0.6), n = 300)
+Arima(ex_ma, order = c(0, 0, 1), include.mean = FALSE)
+#&gt; Series: ex_ma 
+#&gt; ARIMA(0,0,1) with zero mean 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1
+#&gt;       -0.7011
+#&gt; s.e.   0.0402
+#&gt; 
+#&gt; sigma^2 = 0.99:  log likelihood = -424.01
+#&gt; AIC=852.03   AICc=852.07   BIC=859.44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The estimate <code>ma1 = -0.7011</code> recovers the negative sign and a magnitude close to 0.6, again with a little sampling wobble.</p>
+
+</details>
+</section>
+
+<h2>What does the I (integrated) part do, and when should you difference?</h2>
+
+<p>Both the AR and MA parts assume the series is stationary, which means its behavior does not change over time: a roughly constant average level, a roughly constant amount of wobble, and no trend heading steadily up or down. A series with a clear trend breaks that assumption, and this is the problem the I part solves.</p>
+
+<p>The fix is differencing: instead of modeling the raw values, we model the change from one step to the next. If levels keep climbing, the changes usually hover around a stable level, which is stationary again.</p>
+
+<p>$$y'_t = y_t - y_{t-1}$$</p>
+
+<p>The <code>d</code> in ARIMA(p, d, q) is simply how many times we apply this. Most series need <code>d = 0</code> or <code>d = 1</code>, and only rarely <code>d = 2</code>.</p>
+
+<p>To see differencing rescue a trending series, look at a random walk, which is the textbook non-stationary series. We can test for stationarity with the <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">Augmented Dickey-Fuller</a> test from the tseries package. Its <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> is "non-stationary," so a small p-value (below 0.05) is evidence that the series IS stationary.</p>
+
+<div class="webr-container" data-block-title="Test a random walk for stationarity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test a random walk for stationarity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(55)
+rw &lt;- ts(cumsum(rnorm(200)))
+library(tseries)
+adf.test(rw)
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  rw
+#&gt; Dickey-Fuller = -2.8127, Lag order = 5, p-value = 0.2357
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value of 0.2357 is well above 0.05, so we cannot call the raw random walk stationary. Now watch what one round of differencing does. The <code>diff()</code> function turns levels into step-to-step changes.</p>
+
+<div class="webr-container" data-block-title="Difference the random walk and re-test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Difference the random walk and re-test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adf.test(diff(rw))
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  diff(rw)
+#&gt; Dickey-Fuller = -5.8066, Lag order = 5, p-value = 0.01
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value drops to 0.01, so the differenced series passes the test. That single difference is what <code>d = 1</code> means in practice. R even notes the true p-value is smaller than the 0.01 it prints, which is a good sign.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Differencing removes trend so the AR and MA machinery has something stable to work with.</strong> You are not throwing information away, you are changing the question from "what is the level?" to "how much did it change?", which is usually the more forecastable quantity.</div></div>
+
+<p>Now back to real data. The <code>WWWusage</code> series trends, so the same test should flag it as non-stationary.</p>
+
+<div class="webr-container" data-block-title="Test the WWWusage series for stationarity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the WWWusage series for stationarity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adf.test(WWWusage)
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  WWWusage
+#&gt; Dickey-Fuller = -2.6421, Lag order = 4, p-value = 0.3107
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value of 0.3107 confirms it is non-stationary, matching the drift we saw in the raw counts earlier. Rather than eyeball tests, you can let the forecast package pick the differencing order for you with <code>ndiffs()</code>, which runs a stationarity test repeatedly.</p>
+
+<div class="webr-container" data-block-title="Ask ndiffs how many differences are needed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ask ndiffs how many differences are needed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(WWWusage)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It returns 1, which is exactly the <code>d</code> that <code>auto.arima()</code> chose at the top of this tutorial. If you want a deeper treatment of these tests, see the dedicated guide on <a href="Test-Stationarity-in-R.html">testing stationarity in R</a>.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>ndiffs()</code> to find how many (non-seasonal) differences the <code>AirPassengers</code> series needs.</p>
+<div class="webr-container" data-block-title="Your turn: how many differences for AirPassengers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: how many differences for AirPassengers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: use ndiffs() to see how many differences AirPassengers needs.
+# Replace the series below, then run.
+ndiffs(WWWusage)   # change WWWusage to AirPassengers</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Differences needed for AirPassengers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Differences needed for AirPassengers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(AirPassengers)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>AirPassengers</code> also needs one ordinary difference to remove its upward trend. It has seasonality on top of that, which we handle separately later with seasonal differencing.</p>
+
+</details>
+</section>
+
+<h2>How do you read ACF and PACF to choose p and q?</h2>
+
+<p>Once a series is stationary, two plots tell you how many AR and MA terms it likely needs. They are the autocorrelation function (ACF) and the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">partial autocorrelation function</a> (PACF), and you can think of them as fingerprints of the model behind the data. If these are new to you, the <a href="ACF-and-PACF-in-R.html">ACF and PACF guide</a> covers them in depth; here we focus on the reading rules for ARIMA.</p>
+
+<p>The ACF measures how correlated the series is with itself at each lag (1 step back, 2 steps back, and so on). The PACF measures the same thing but strips out the influence of the shorter lags in between. The reading rules are short and worth memorizing.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Pattern in the plots</th>
+<th>Suggests</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PACF cuts off sharply after lag p, ACF fades gradually</td>
+<td>AR(p)</td>
+</tr>
+<tr>
+<td>ACF cuts off sharply after lag q, PACF fades gradually</td>
+<td>MA(q)</td>
+</tr>
+<tr>
+<td>Both fade gradually</td>
+<td>A mix of AR and MA</td>
+</tr>
+</tbody>
+</table>
+
+<p>Let's confirm the rules on the pure series we simulated earlier. For our AR(1) series, the PACF should show one clear spike at lag 1 and then almost nothing.</p>
+
+<div class="webr-container" data-block-title="PACF of the AR(1) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PACF of the AR(1) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Pacf(ar_series, plot = FALSE)$acf[1:5], 3)
+#&gt; [1]  0.776 -0.055 -0.068  0.062  0.111</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One big value (0.776) at lag 1, then a drop to near zero, is the AR(1) signature: the PACF cuts off after lag 1, so p is 1. Now the MA(1) series, whose ACF should spike once and then cut off.</p>
+
+<div class="webr-container" data-block-title="ACF of the MA(1) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ACF of the MA(1) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Acf(ma_series, plot = FALSE)$acf[1:5], 3)
+#&gt; [1] 1.000 0.507 0.041 -0.022 0.025</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first value (1.000) is always the correlation of the series with itself at lag 0, so ignore it. The next value (0.507) is the lag-1 spike, and everything after is near zero. That cut-off after lag 1 is the MA(1) fingerprint, so q is 1.</p>
+
+<p>For a real series you look at both plots together on the DIFFERENCED data, since that is what the AR and MA parts see. The <code>ggtsdisplay()</code> helper shows the series together with its ACF and PACF in one shot.</p>
+
+<div class="webr-container" data-block-title="Show the series with its ACF and PACF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the series with its ACF and PACF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggtsdisplay(diff(WWWusage))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The diagram below sums up the decision.</p>
+
+<p><img src="screenshots/ARIMA-in-R-acf-pacf.webp" alt="Reading ACF and PACF plots to pick orders" class="img-responsive img-zoomable" loading="lazy" width="846" height="978" /></p>
+
+<p><em>Figure 2: The PACF suggests the AR order p; the ACF suggests the MA order q.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Treat ACF and PACF as a starting point, not a verdict.</strong> Real plots are rarely as clean as textbook ones, so use them to shortlist a few candidate orders, then let <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> and residual checks (both coming up) pick the winner.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate an AR(2) series and look at its PACF. How many spikes stick out before it fades?</p>
+<div class="webr-container" data-block-title="Your turn: count the PACF spikes of an AR(2)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the PACF spikes of an AR(2)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: simulate an AR(2) and inspect its PACF.
+set.seed(9)
+ex_ar2 &lt;- arima.sim(model = list(ar = c(0.5, 0.3)), n = 300)
+ggPacf(ex_ar2)   # how many bars clearly stick out past the blue band?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="PACF values of the AR(2) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PACF values of the AR(2) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Pacf(ex_ar2, plot = FALSE)$acf[1:5], 3)
+#&gt; [1]  0.684  0.222  0.067  0.062 -0.030</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first two values (0.684 and 0.222) stand out, then the rest fade toward zero. Two meaningful PACF spikes point to an AR order of 2, which matches how we built the series.</p>
+
+</details>
+</section>
+
+<h2>How do you fit an ARIMA model with Arima() and auto.arima()?</h2>
+
+<p>You now know what p, d, and q mean and how to guess them. Time to fit real models two ways: by hand when you want control, and automatically when you want speed.</p>
+
+<p>To fit a specific model, pass the order you want to <code>Arima()</code>. Let's fit the <code>ARIMA(1,1,1)</code> we saw at the start and read its output.</p>
+
+<div class="webr-container" data-block-title="Fit ARIMA(1,1,1) by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit ARIMA(1,1,1) by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_manual &lt;- Arima(WWWusage, order = c(1, 1, 1))
+fit_manual
+#&gt; Series: WWWusage 
+#&gt; ARIMA(1,1,1) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ma1
+#&gt;       0.6504  0.5256
+#&gt; s.e.  0.0842  0.0896
+#&gt; 
+#&gt; sigma^2 = 9.995:  log likelihood = -254.15
+#&gt; AIC=514.3   AICc=514.55   BIC=522.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficients are the AR and MA weights, and the numbers to compare across models are the information criteria near the bottom. AICc (a small-sample-corrected version of AIC) balances fit against complexity, and lower is better. Let's line up three candidate orders and compare their AICc.</p>
+
+<div class="webr-container" data-block-title="Compare candidate orders by AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare candidate orders by AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(
+  &quot;ARIMA(1,1,1)&quot; = Arima(WWWusage, order = c(1, 1, 1))$aicc,
+  &quot;ARIMA(2,1,0)&quot; = Arima(WWWusage, order = c(2, 1, 0))$aicc,
+  &quot;ARIMA(0,1,1)&quot; = Arima(WWWusage, order = c(0, 1, 1))$aicc
+)
+#&gt; ARIMA(1,1,1) ARIMA(2,1,0) ARIMA(0,1,1) 
+#&gt;     514.5521     522.4308     549.9305 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Among these three, <code>ARIMA(1,1,1)</code> has the lowest AICc (514.55), so it is the best of the bunch. Trying orders by hand is fine for a few candidates, but it does not scale. That is what <code>auto.arima()</code> is for: it searches many orders and returns the best by AICc.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use Arima() from the forecast package, not the base arima() function.</strong> They fit the same models, but <code>Arima()</code> handles a constant or drift term more gracefully and works cleanly with the rest of the forecast tools you will use for checking and plotting.</div></div>
+
+<p>The default <code>auto.arima()</code> uses a fast stepwise search. For a final model it is worth running the fuller search by turning off the shortcuts with <code>stepwise = FALSE</code> and <code>approximation = FALSE</code>.</p>
+
+<div class="webr-container" data-block-title="Run the thorough automatic search">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the thorough automatic search</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best_fit &lt;- auto.arima(WWWusage, stepwise = FALSE, approximation = FALSE)
+best_fit
+#&gt; Series: WWWusage 
+#&gt; ARIMA(3,1,0) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1      ar2     ar3
+#&gt;       1.1513  -0.6612  0.3407
+#&gt; s.e.  0.0950   0.1353  0.0941
+#&gt; 
+#&gt; sigma^2 = 9.656:  log likelihood = -252
+#&gt; AIC=511.99   AICc=512.42   BIC=522.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The thorough search landed on <code>ARIMA(3,1,0)</code>, a different model from the quick <code>ARIMA(1,1,1)</code> we started with. Its AICc of 512.42 beats that model's 514.55, which is why the deeper search preferred it. This is the workhorse of the whole toolkit: <code>auto.arima()</code> handles the differencing test and the order search, then fits the model, all in one call.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for auto.arima() first, then sanity-check it.</strong> Let it propose a model, but always read the <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">residual diagnostics</a> (next section) before you trust its forecasts, and remember that stepwise = FALSE often squeezes out a slightly better fit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>ARIMA(2,1,2)</code> to <code>WWWusage</code> and read its AICc. Is it below the 512.42 that <code>ARIMA(3,1,0)</code> scored?</p>
+<div class="webr-container" data-block-title="Your turn: try another order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: try another order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit ARIMA(2,1,2) to WWWusage and read its AICc.
+# Change the order below, then run.
+Arima(WWWusage, order = c(1, 1, 0))$aicc   # change c(1,1,0) to c(2,1,2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AICc of ARIMA(2,1,2)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AICc of ARIMA(2,1,2)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Arima(WWWusage, order = c(2, 1, 2))$aicc
+#&gt; [1] 518.0056</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ARIMA(2,1,2)</code> scores 518.01, which is higher (worse) than the 512.42 of <code>ARIMA(3,1,0)</code>. More terms did not help here, which is exactly why AICc penalizes needless complexity.</p>
+
+</details>
+</section>
+
+<h2>How do you check the model and make forecasts?</h2>
+
+<p>A model is only worth forecasting from if it has squeezed out all the structure it can, leaving behind residuals (the leftover errors) that look like pure random noise. If a pattern remains in the residuals, the model missed something. The <code>checkresiduals()</code> function runs the key test and draws the diagnostic plots.</p>
+
+<div class="webr-container" data-block-title="Check the residuals of the fitted model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the residuals of the fitted model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(best_fit)
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from ARIMA(3,1,0)
+#&gt; Q* = 4.4913, df = 7, p-value = 0.7218
+#&gt; 
+#&gt; Model df: 3.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printout is a <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">Ljung-Box test</a>, whose null hypothesis is "the residuals are just noise." Here we WANT a large p-value, because a large value means we cannot find leftover structure. At 0.7218 the residuals look like white noise, so the model is trustworthy. The plots it draws, a residual time series next to its ACF and a histogram, should show no obvious patterns.</p>
+
+<p>With the model validated, forecasting is one call. The <code>forecast()</code> function projects ahead by the number of steps you pass to <code>h</code>, and it returns both point forecasts and prediction intervals.</p>
+
+<div class="webr-container" data-block-title="Forecast ten periods ahead">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast ten periods ahead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc &lt;- forecast(best_fit, h = 10)
+fc
+#&gt;     Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 101       219.6608 215.6785 223.6431 213.5704 225.7512
+#&gt; 102       219.2299 209.7822 228.6775 204.7810 233.6788
+#&gt; 103       218.2766 203.6141 232.9391 195.8522 240.7009
+#&gt; 104       217.3484 198.0261 236.6707 187.7975 246.8992
+#&gt; 105       216.7633 192.9165 240.6100 180.2928 253.2337
+#&gt; 106       216.3785 187.8975 244.8595 172.8205 259.9365
+#&gt; 107       216.0062 182.8589 249.1535 165.3118 266.7006
+#&gt; 108       215.6326 177.9269 253.3383 157.9667 273.2984
+#&gt; 109       215.3175 173.1999 257.4351 150.9042 279.7308
+#&gt; 110       215.0749 168.6692 261.4807 144.1035 286.0464</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one future minute. The Point Forecast is the single best guess, and the four interval columns give ranges: the model is 80 percent sure the value lands between the Lo 80 and Hi 80 columns, and 95 percent sure between Lo 95 and Hi 95. Notice the intervals widen further out, because uncertainty compounds the further ahead you look. A picture makes that fan of uncertainty obvious.</p>
+
+<div class="webr-container" data-block-title="Plot the forecast with its intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the forecast with its intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(fc)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Forecast <code>WWWusage</code> five periods ahead from <code>best_fit</code> and read the first point forecast.</p>
+<div class="webr-container" data-block-title="Your turn: forecast five periods ahead">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast five periods ahead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: forecast WWWusage 5 periods ahead from best_fit.
+# Change h below, then run.
+forecast(best_fit, h = 3)   # change h = 3 to h = 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Five-step forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Five-step forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">forecast(best_fit, h = 5)
+#&gt;     Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 101       219.6608 215.6785 223.6431 213.5704 225.7512
+#&gt; 102       219.2299 209.7822 228.6775 204.7810 233.6788
+#&gt; 103       218.2766 203.6141 232.9391 195.8522 240.7009
+#&gt; 104       217.3484 198.0261 236.6707 187.7975 246.8992
+#&gt; 105       216.7633 192.9165 240.6100 180.2928 253.2337</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first row is period 101 with a point forecast of about 219.66, and its 95 percent interval runs from roughly 213.6 to 225.8.</p>
+
+</details>
+</section>
+
+<h2>How do you model seasonal data with seasonal ARIMA?</h2>
+
+<p>Many real series repeat on a calendar: retail sales peak every December, airline traffic swells every summer. ARIMA handles this with a seasonal extension, often called SARIMA, that adds a second set of terms operating at the seasonal lag. The full notation is ARIMA(p, d, q)(P, D, Q)[m], where the second bracket is the seasonal AR, differencing, and MA orders, and <code>m</code> is the number of periods in one cycle (12 for monthly data).</p>
+
+<p>The good news is that <code>auto.arima()</code> handles all of this for you when the series carries a frequency. The classic <code>AirPassengers</code> series records monthly airline passengers and has strong yearly seasonality.</p>
+
+<div class="webr-container" data-block-title="Fit a seasonal ARIMA automatically">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a seasonal ARIMA automatically</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air_fit &lt;- auto.arima(AirPassengers)
+air_fit
+#&gt; Series: AirPassengers 
+#&gt; ARIMA(2,1,1)(0,1,0)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2      ma1
+#&gt;       0.5960  0.2143  -0.9819
+#&gt; s.e.  0.0888  0.0880   0.0292
+#&gt; 
+#&gt; sigma^2 = 132.3:  log likelihood = -504.92
+#&gt; AIC=1017.85   AICc=1018.17   BIC=1029.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the label in two halves. The non-seasonal part <code>(2,1,1)</code> works step-to-step (here month-to-month), and the seasonal part <code>(0,1,0)[12]</code> says: take one seasonal difference at lag 12, comparing each month to the same month last year, with no seasonal AR or MA terms. That single seasonal difference is what strips out the repeating yearly pattern.</p>
+
+<p>Forecasting works exactly as before, and the plot shows the seasonal shape continuing into the future.</p>
+
+<div class="webr-container" data-block-title="Forecast two years of airline traffic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast two years of airline traffic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(forecast(air_fit, h = 24))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Seasonal ARIMA is the same three ideas, repeated at the seasonal lag.</strong> Everything you learned about AR, I, and MA applies to the (P, D, Q) block too, just measured across whole seasons instead of single steps.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>nsdiffs()</code> to find how many SEASONAL differences <code>AirPassengers</code> needs.</p>
+<div class="webr-container" data-block-title="Your turn: seasonal differencing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: seasonal differencing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: use nsdiffs() to count the seasonal differences AirPassengers needs.
+# Change the function below, then run.
+ndiffs(AirPassengers)   # change ndiffs to nsdiffs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal differences for the airline data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal differences for the airline data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nsdiffs(AirPassengers)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>nsdiffs()</code> returns 1, which matches the seasonal <code>D = 1</code> that <code>auto.arima()</code> chose. It measures seasonal (year-over-year) differencing, while <code>ndiffs()</code> measures the ordinary kind.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: Forecasting the Nile end to end</h2>
+
+<p>Let's put every step together on a fresh series. The built-in <code>Nile</code> series records the annual flow of the river from 1871 to 1970. We will plot the series, make it stationary, fit and check a model, then forecast, reusing the full workflow you will apply to any series.</p>
+
+<p>First, plot the raw data to get a feel for it.</p>
+
+<div class="webr-container" data-block-title="Plot the Nile flow series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the Nile flow series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(Nile) + ggtitle(&quot;Annual flow of the Nile, 1871 to 1970&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Next, ask how many differences it needs, then let <code>auto.arima()</code> build the model.</p>
+
+<div class="webr-container" data-block-title="Find the differencing order for Nile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the differencing order for Nile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(Nile)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Fit and inspect the Nile model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and inspect the Nile model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_fit &lt;- auto.arima(Nile)
+nile_fit
+#&gt; Series: Nile 
+#&gt; ARIMA(1,1,1) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1      ma1
+#&gt;       0.2544  -0.8741
+#&gt; s.e.  0.1194   0.0605
+#&gt; 
+#&gt; sigma^2 = 20177:  log likelihood = -630.63
+#&gt; AIC=1267.25   AICc=1267.51   BIC=1275.04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R chose <code>ARIMA(1,1,1)</code>: one difference, one AR term, one MA term. Before trusting it, check the residuals.</p>
+
+<div class="webr-container" data-block-title="Check the Nile model residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the Nile model residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(nile_fit)
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from ARIMA(1,1,1)
+#&gt; Q* = 9.7056, df = 8, p-value = 0.2863
+#&gt; 
+#&gt; Model df: 2.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Ljung-Box p-value of 0.2863 is comfortably above 0.05, so the residuals pass as noise. Now forecast the next ten years and plot the result.</p>
+
+<div class="webr-container" data-block-title="Forecast the next ten years of flow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the next ten years of flow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_fc &lt;- forecast(nile_fit, h = 10)
+nile_fc
+#&gt;      Point Forecast    Lo 80     Hi 80    Lo 95    Hi 95
+#&gt; 1971       816.1813 634.1427  998.2199 537.7773 1094.585
+#&gt; 1972       835.5596 640.8057 1030.3136 537.7091 1133.410
+#&gt; 1973       840.4889 641.5646 1039.4132 536.2604 1144.717
+#&gt; 1974       841.7428 640.0639 1043.4217 533.3015 1150.184
+#&gt; 1975       842.0617 637.9589 1046.1645 529.9134 1154.210
+#&gt; 1976       842.1429 635.7158 1048.5699 526.4399 1157.846
+#&gt; 1977       842.1635 633.4558 1050.8712 522.9727 1161.354
+#&gt; 1978       842.1687 631.2096 1053.1279 519.5345 1164.803
+#&gt; 1979       842.1701 628.9843 1055.3558 516.1306 1168.210
+#&gt; 1980       842.1704 626.7813 1057.5595 512.7613 1171.580</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Visualize the Nile forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualize the Nile forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(nile_fc)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The point forecasts settle near 842, which is sensible for a differenced series with no trend: once past the last observations, the best guess is a stable level, and the honest widening of the intervals shows how uncertainty grows over a ten-year horizon.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between ARIMA and ARMA?</strong> ARMA models a stationary series directly with AR and MA terms. ARIMA adds the "I" step, differencing the series first so that trending, non-stationary data becomes stationary. In R, <code>ARIMA(p, 0, q)</code> is just an ARMA(p, q).</p>
+
+<p><strong>Should I use auto.arima() or choose the order myself?</strong> Start with <code>auto.arima()</code>; it is fast and reliable. Choose orders yourself when you have domain knowledge to test a specific structure, or when you want to compare a handful of candidates by AICc. Always validate whichever you pick with residual checks.</p>
+
+<p><strong>What is a good AIC or AICc value?</strong> There is no universal threshold; these numbers only mean something in comparison. Fit several models to the same series and prefer the one with the lowest AICc. Comparing AICc across different series is meaningless.</p>
+
+<p><strong>My residuals fail the Ljung-Box test. What now?</strong> A small p-value means leftover structure. Try adding an AR or MA term, check whether you need another difference, and for calendar data confirm you captured the seasonality. Re-run <code>checkresiduals()</code> until the p-value clears 0.05.</p>
+
+<p><strong>Can ARIMA use other predictors like promotions or weather?</strong> Yes. Pass extra regressors to the <code>xreg</code> argument of <code>Arima()</code> or <code>auto.arima()</code> to fit a regression model with ARIMA errors, sometimes called ARIMAX.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each starter block runs as-is so you can experiment; write your solution, then reveal ours to compare. The exercises use their own variable names so they will not clash with the code above.</p>
+
+<h3>Exercise 1: Manual versus automatic on lh</h3>
+
+<p>Fit the <code>lh</code> series two ways, as a manual <code>ARIMA(1,0,0)</code> and with a thorough <code>auto.arima()</code>, then compare their AICc values. Which model does the search prefer, and by how much?</p>
+
+<div class="webr-container" data-block-title="Your turn: two fits for lh">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two fits for lh</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit lh as a manual AR(1) and with a thorough auto.arima, then compare AICc.
+# Hint: use Arima(lh, order = c(1, 0, 0))$aicc and
+#       auto.arima(lh, stepwise = FALSE, approximation = FALSE)$aicc
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Comparing the two lh fits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Comparing the two lh fits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_manual &lt;- Arima(lh, order = c(1, 0, 0))
+cap_auto &lt;- auto.arima(lh, stepwise = FALSE, approximation = FALSE)
+c(manual_AR1 = cap_manual$aicc, auto_search = cap_auto$aicc)
+#&gt;  manual_AR1 auto_search 
+#&gt;    65.30378    63.99079 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The manual AR(1) scores 65.30, but the thorough search finds a better model at 63.99. That better model is an <code>ARIMA(0,0,2)</code>, a pure MA(2), which fits <code>lh</code> slightly better than the AR(1) does.</p>
+
+</details>
+
+<h3>Exercise 2: Read a forecast interval</h3>
+
+<p>Forecast the <code>lh</code> series eight periods ahead with <code>auto.arima()</code>, then report the 95 percent prediction interval (the Lo 95 and Hi 95 columns) of the FIRST forecast row.</p>
+
+<div class="webr-container" data-block-title="Your turn: forecast lh eight steps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast lh eight steps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast lh 8 periods ahead with auto.arima, then read the 95% interval
+# (Lo 95 and Hi 95) of the first forecast row.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Eight-step forecast for lh">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Eight-step forecast for lh</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">forecast(auto.arima(lh), h = 8)
+#&gt;    Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 49       2.692626 2.110858 3.274394 1.802889 3.582364
+#&gt; 50       2.573609 1.902834 3.244384 1.547747 3.599470
+#&gt; 51       2.505301 1.807689 3.202912 1.438396 3.572205
+#&gt; 52       2.466097 1.759869 3.172325 1.386014 3.546179
+#&gt; 53       2.443597 1.734553 3.152640 1.359208 3.527985
+#&gt; 54       2.430683 1.720715 3.140651 1.344880 3.516486
+#&gt; 55       2.423271 1.712999 3.133544 1.337003 3.509540
+#&gt; 56       2.419018 1.708645 3.129391 1.332596 3.505439</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first row (period 49) has a point forecast near 2.69, with a 95 percent interval running from about 1.80 to 3.58. The interval widens in later rows as uncertainty grows.</p>
+
+</details>
+
+<h3>Exercise 3: A seasonal model from scratch</h3>
+
+<p>Fit a seasonal ARIMA to the monthly <code>USAccDeaths</code> series (accidental deaths in the US) with <code>auto.arima()</code>, identify its seasonal (P, D, Q)[12] part, then forecast the next 12 months.</p>
+
+<div class="webr-container" data-block-title="Your turn: seasonal ARIMA for USAccDeaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: seasonal ARIMA for USAccDeaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a seasonal ARIMA to USAccDeaths with auto.arima, read the seasonal
+# part in the second bracket, then forecast 12 months ahead.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seasonal ARIMA on monthly accident deaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal ARIMA on monthly accident deaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_season &lt;- auto.arima(USAccDeaths)
+cap_season
+#&gt; Series: USAccDeaths 
+#&gt; ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4303  -0.5528
+#&gt; s.e.   0.1228   0.1784
+#&gt; 
+#&gt; sigma^2 = 102860:  log likelihood = -425.44
+#&gt; AIC=856.88   AICc=857.32   BIC=863.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Forecast twelve months of accident deaths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast twelve months of accident deaths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">forecast(cap_season, h = 12)
+#&gt;          Point Forecast     Lo 80     Hi 80    Lo 95     Hi 95
+#&gt; Jan 1979       8336.061  7924.712  8747.410 7706.957  8965.166
+#&gt; Feb 1979       7531.829  7058.464  8005.194 6807.880  8255.778
+#&gt; Mar 1979       8314.644  7786.496  8842.792 7506.911  9122.377
+#&gt; Apr 1979       8616.869  8039.109  9194.629 7733.261  9500.477
+#&gt; May 1979       9488.913  8865.476 10112.349 8535.449 10442.376
+#&gt; Jun 1979       9859.757  9193.770 10525.745 8841.218 10878.297
+#&gt; Jul 1979      10907.470 10201.492 11613.448 9827.770 11987.171
+#&gt; Aug 1979      10086.508  9342.686 10830.331 8948.930 11224.086
+#&gt; Sep 1979       9164.959  8385.127  9944.791 7972.309 10357.609
+#&gt; Oct 1979       9384.259  8570.009 10198.510 8138.971 10629.548
+#&gt; Nov 1979       8884.974  8037.702  9732.246 7589.183 10180.765
+#&gt; Dec 1979       9376.574  8497.519 10255.628 8032.176 10720.971</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The model is <code>ARIMA(0,1,1)(0,1,1)[12]</code>. The seasonal part <code>(0,1,1)[12]</code> takes one seasonal difference and adds one seasonal MA term (<code>sma1</code>), and the forecast faithfully repeats the summer peak and winter dip you would expect from accident data.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>ARIMA is three plain ideas combined, and reading an <code>ARIMA(p, d, q)</code> label is just naming each one. The workflow below is the same every time: understand the series, make it stationary, pick and fit a model, check it, then forecast.</p>
+
+<p><img src="screenshots/ARIMA-in-R-workflow.webp" alt="The end-to-end ARIMA modeling workflow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="336" /></p>
+
+<p><em>Figure 3: The end-to-end ARIMA modeling workflow, from plotting to forecasting.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Key function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AR (p)</td>
+<td>Learns from past values</td>
+<td><code>Arima(order = c(p, 0, 0))</code></td>
+</tr>
+<tr>
+<td>I (d)</td>
+<td>Differences away the trend</td>
+<td><code>diff()</code>, <code>ndiffs()</code></td>
+</tr>
+<tr>
+<td>MA (q)</td>
+<td>Learns from past errors</td>
+<td><code>Arima(order = c(0, 0, q))</code></td>
+</tr>
+<tr>
+<td>Choose orders</td>
+<td>Reads the fingerprints</td>
+<td><code>ggtsdisplay()</code>, <code>Acf()</code>, <code>Pacf()</code></td>
+</tr>
+<tr>
+<td>Fit</td>
+<td>Estimates the model</td>
+<td><code>Arima()</code>, <code>auto.arima()</code></td>
+</tr>
+<tr>
+<td>Check</td>
+<td>Confirms residuals are noise</td>
+<td><code>checkresiduals()</code></td>
+</tr>
+<tr>
+<td>Forecast</td>
+<td>Projects ahead with intervals</td>
+<td><code>forecast()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Keep these takeaways close:</p>
+
+<ul>
+
+<li><strong>AR uses past values, MA uses past errors, I differences away the trend.</strong> The three orders p, d, q say how many of each.</li>
+
+<li><strong>Difference until stationary.</strong> Use <code>ndiffs()</code> for the ordinary order and <code>nsdiffs()</code> for the seasonal one, rather than guessing.</li>
+
+<li><strong>Let auto.arima() do the search, then verify.</strong> Add <code>stepwise = FALSE</code> for the final model, and never forecast before <code>checkresiduals()</code> clears.</li>
+
+<li><strong>Seasonal ARIMA is the same idea at the seasonal lag.</strong> The (P, D, Q)[m] block handles calendar cycles automatically.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter 9: ARIMA models. <a href="https://otexts.com/fpp3/arima.html">Link</a></li>
+
+<li>Hyndman, R.J., & Khandakar, Y. - "Automatic Time Series Forecasting: The forecast Package for R." <em>Journal of Statistical Software</em>, 27(3), 2008. <a href="https://www.jstatsoft.org/article/view/v027i03">Link</a></li>
+
+<li>forecast package - <code>auto.arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/auto.arima.html">Link</a></li>
+
+<li>forecast package - <code>Arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/Arima.html">Link</a></li>
+
+<li>Box, G.E.P., Jenkins, G.M., Reinsel, G.C., & Ljung, G.M. - <em>Time Series Analysis: Forecasting and Control</em>, 5th edition. Wiley (2015).</li>
+
+<li>R Core Team - <em>An Introduction to R</em>, Time Series section. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ACF-and-PACF-in-R.html">ACF and PACF in R</a> - go deeper on the autocorrelation plots you use to pick p and q.</li>
+
+<li><a href="Test-Stationarity-in-R.html">Test Stationarity in R</a> - the full set of unit-root and stationarity tests behind differencing.</li>
+
+<li><a href="ETS-Models-in-R.html">ETS Models in R</a> - <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a>, the other major forecasting family and a natural comparison to ARIMA.</li>
+
+</ul>
+
+{% endraw %}
