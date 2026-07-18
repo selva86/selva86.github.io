@@ -1,453 +1,591 @@
 ---
 title: "Spectral Analysis in R: Periodogram and Power Spectrum"
 slug: "Spectral-Analysis-in-R"
-description: "Learn spectral analysis in R: read a periodogram, build the power spectrum with fft(), smooth it, and filter a cycle out. Runnable code with real output."
-keywords: "spectral analysis R, periodogram R, power spectrum R, spec.pgram, fft in R, frequency domain R, Fourier analysis R, smoothing periodogram"
+description: "Learn spectral analysis in R: read a periodogram, find the dominant cycle with fft() and spec.pgram(), smooth the power spectrum, and remove a seasonal cycle."
+keywords: "spectral analysis R, periodogram R, power spectrum R, spec.pgram, fft in R, frequency domain, dominant cycle, Fourier analysis R, spectral density"
 auto_link_terms: "spectral analysis|spectral analysis in R|periodogram|periodograms|power spectrum|spectral density|frequency domain|Fourier frequency|Fourier frequencies|Nyquist frequency|spec.pgram|discrete Fourier transform|dominant cycle"
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
-date: "2026-07-17"
+date: "2026-07-18"
 curriculum_id: "FR-foun-3"
 post_type: "FR"
 fr_parent: "Test-Stationarity-in-R.html"
 difficulty: "Intermediate"
 ---
 
-<p class="lead">Spectral analysis answers one question about a time series: which cycle lengths account for its ups and downs, and how strongly? The periodogram is the chart that answers it, turning a series of numbers over time into a plot of power against cycle length, where a tall spike means a strong repeating cycle. This post builds that chart in R from the ground up, checks it against a series whose cycles we planted ourselves, and then uses it on real data.</p>
+<p class="lead">Spectral analysis rewrites a time series as a mix of repeating waves and measures how strong each one is. The periodogram is the chart that shows which cycle dominates, so you can spot a hidden 12-month season or an 11-year sunspot rhythm at a glance. Every example here is base R and runs right in your browser.</p>
 
-## What does a periodogram tell you?
+## What does spectral analysis tell you about a time series?
 
-Meet the running example for this post: **Bluebird Bakery**, which has recorded how many loaves it sold every day for two years. We are going to build those 728 days of sales ourselves, out of ingredients we choose, so that we know the right answer before we start. That is the only honest way to judge a method you have not used before.
+A line chart shows a series wiggling up and down, but it rarely tells you how long one full up-and-down cycle takes, or whether two cycles are stacked on top of each other. Spectral analysis answers exactly that. Let us plant a cycle whose length we already know, bury it in random noise, and watch a single function recover it.
 
-The bakery's sales have three ingredients. A baseline of about 200 loaves a day. A **weekly** rhythm: weekends are busy, Tuesdays are dead, and that pattern repeats every 7 days. A **yearly** rhythm: summer tourists lift sales for months at a time, repeating every 364 days. On top of all that, random day-to-day noise (a rainy morning, a coach party, a broken oven).
+We will build 144 points made of one clean wave that repeats every 12 steps, plus a generous helping of noise. Then we hand the whole thing to `spectrum()` and ask it a simple question: which cycle length carries the most energy? The answer should come back as 12, even though the noise makes the raw series look messy.
 
-So we know, by construction, that this series contains cycles of length 7 and 364. Now watch the periodogram find the 7 without being told.
-
-```r title="728 days of loaf sales, and the periodogram that finds the weekly cycle"
-set.seed(42)
-day    <- 1:728
-weekly <- 40 * sin(2 * pi * day / 7)      # busy weekends: repeats every 7 days
-yearly <- 25 * sin(2 * pi * day / 364)    # summer tourists: repeats every 364 days
-noise  <- rnorm(728, mean = 0, sd = 12)   # rain, coach parties, broken ovens
-loaves <- round(200 + weekly + yearly + noise)
-bakery <- ts(loaves)
-
-head(loaves, 14)   # the first two weeks of sales
-#>  [1] 248 233 223 192 168 170 221 234 267 221 203 194 158 203
-
-# The periodogram: how much of the variation sits at each cycle length?
-pg <- spec.pgram(bakery, taper = 0, detrend = FALSE, fast = FALSE, plot = FALSE)
-
-peak <- which.max(pg$spec)   # the frequency holding the most power
-pg$freq[peak]                # measured in cycles per day
-#> [1] 0.1428571
-1 / pg$freq[peak]            # flip it over to get days per cycle
-#> [1] 7
-```
-
-Read what just happened, because it is the whole idea of this post in one block. We handed `spec.pgram()` a bare vector of 728 daily sales counts. We did not tell it that bakeries have weekends. We did not tell it to look for a 7. It came back and said: the strongest repeating pattern in this series happens `0.1428571` times per day, which is once every **7 days**.
-
-Line by line. `set.seed(42)` fixes the random noise so your numbers match the ones printed here exactly. `day` is just the day counter, 1 to 728. The `sin(2 * pi * day / 7)` term is the standard way to write a wave that completes one full cycle every 7 days: as `day` advances by 7, the quantity inside `sin()` advances by \(2\pi\), which is one full turn. Multiplying by 40 makes that wave swing 40 loaves either side of the baseline. The `yearly` line is the same trick with a 364-day turn and a gentler 25-loaf swing. `ts()` labels the vector as a time series.
-
-Then the two pieces of the returned object that matter. `spec.pgram()` hands back a list, and `pg$spec` is the **power** at each frequency: a vector of 364 numbers, one per frequency the data can resolve. `pg$freq` holds the matching frequencies, in the same order. `which.max()` finds where the power is greatest, and `1 / frequency` converts a frequency back into a cycle length. That reciprocal is the single most useful reflex in spectral analysis: **frequency and period are the same fact written two ways.**
-
-The three arguments `taper = 0`, `detrend = FALSE`, and `fast = FALSE` switch off three conveniences that `spec.pgram()` normally applies for you. They are switched off here so this first calculation is the raw, textbook definition and nothing else. Each one gets turned back on later, with a reason, in the section on those knobs. `plot = FALSE` just says "return the numbers, do not draw yet".
-
-Now let us draw it. The picture is what makes the idea stick.
-
-```r title="The series on top, its periodogram underneath"
-par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
-
-plot(bakery, main = "Bluebird Bakery: daily loaf sales",
-     xlab = "day", ylab = "loaves", col = "steelblue")
-
-plot(pg$freq, pg$spec, type = "h", log = "y", col = "steelblue",
-     main = "Periodogram: power at each frequency",
-     xlab = "frequency (cycles per day)", ylab = "power (log scale)")
-abline(v = 1/7, col = "tomato", lty = 2)
-text(1/7, max(pg$spec), "1/7 = weekly", pos = 4, col = "tomato")
-
-par(mfrow = c(1, 1))
-```
-
-The top panel is what you would normally stare at: a thick blue band of daily sales that wobbles a lot, with a slow summer swell you can just about make out. The weekly cycle is in there, but 728 days squeezed onto one axis turns it into a solid smear. Your eye cannot pull it out.
-
-The bottom panel is the same data with nothing added and nothing removed, just re-expressed. Almost every frequency sits near the bottom of the log scale, and one spike towers over everything at the red dashed line where frequency equals 1/7. There is a second spike jammed against the left edge, at the very lowest frequencies, which is the yearly cycle. The periodogram has taken a pattern your eye could not see and made it the tallest thing on the chart.
-
-> **Note:** `type = "h"` draws each frequency as its own vertical spike rather than joining them into a line, which is the honest way to show a periodogram: the values at neighbouring frequencies are separate estimates, not a smooth curve. The `log = "y"` scale is near-compulsory here, because the peak is over 15,000 times taller than a typical noise frequency and a linear axis would flatten everything else to zero.
-
-## What are frequency, period, and the Fourier grid?
-
-We have used "frequency" and "period" loosely. Pin them down now, because every argument in this post is measured in one of those units.
-
-The **period** of a cycle is how long one full repetition takes: 7 days for the bakery's weekly rhythm. The **frequency** is how many repetitions fit into one time unit: 1/7 of a cycle per day, or about 0.1429. They are reciprocals, \(f = 1/T\), so a long period means a low frequency and a short period means a high frequency. Spectral analysis works in frequency; humans think in periods; `1/f` is the bridge you walk back and forth across.
-
-The frequencies you can actually estimate are not arbitrary. With \(n\) observations, the periodogram is evaluated on a fixed grid called the **Fourier frequencies**:
-
-\[ f_j = \frac{j}{n}, \qquad j = 1, 2, \ldots, \frac{n}{2} \]
-
-Two facts fall straight out of that formula, and both have practical bite.
-
-```r title="The grid of frequencies your data can resolve"
-length(bakery)     # n
-#> [1] 728
-
-head(pg$freq, 3)   # the first three Fourier frequencies: 1/728, 2/728, 3/728
-#> [1] 0.001373626 0.002747253 0.004120879
-
-1 / 728            # the spacing between neighbours: the resolution
-#> [1] 0.001373626
-
-max(pg$freq)       # the highest frequency: the Nyquist frequency
-#> [1] 0.5
-
-length(pg$freq)    # so there are n/2 of them
-#> [1] 364
-```
-
-The first fact is **resolution**. The grid spacing is \(1/n\), so the only way to tell two nearby frequencies apart is to collect more data. With 728 days we can distinguish frequencies 0.00137 apart, and nothing finer. This is why a short series cannot separate a 30-day cycle from a 31-day one: both land on the same grid point, and they merge into a single peak.
-
-The second fact is the **Nyquist frequency**, the 0.5 above. It is the highest frequency the grid reaches, and it means one cycle every 2 days. That is a hard physical limit, not an R quirk: you need at least two observations per cycle (one up, one down) to see a cycle at all. With daily data you can never detect a twice-daily rhythm. If the bakery has a morning rush and an afternoon lull, daily totals have thrown that away before the analysis starts. **The sampling interval decides what is knowable.** No method recovers it later.
-
-Now that the units are clear, let us ask the periodogram for the top two peaks rather than just the winner, and check both against what we planted.
-
-```r title="The two tallest peaks, against the two cycles we built in"
-top <- order(pg$spec, decreasing = TRUE)[1:2]
-
-data.frame(freq        = round(pg$freq[top], 6),
-           period_days = round(1 / pg$freq[top], 1),
-           power       = round(pg$spec[top]))
-#>       freq period_days  power
-#> 1 0.142857           7 285231
-#> 2 0.002747         364 113919
-```
-
-Both planted cycles come back exactly: 7 days and 364 days. `order(..., decreasing = TRUE)[1:2]` grabs the positions of the two largest power values, and we print the frequency, its reciprocal, and the power side by side.
-
-The two peaks land on exact integers here for a reason worth knowing. We chose 728 days, and 728 = 104 x 7 = 2 x 364, so both true cycles fall precisely on a Fourier frequency (104/728 and 2/728). Real series are rarely so tidy. When a true cycle falls between two grid points, its power gets split across the neighbours and smeared into the frequencies around them, an effect called **leakage**. Tapering, later in this post, is the standard defence.
-
-Notice also that the weekly peak carries about 2.5 times the power of the yearly peak, which matches how we built the series: the weekly wave had amplitude 40, the yearly one amplitude 25, and power scales with the square of amplitude. \(40^2 / 25^2 = 2.56\). The periodogram is not just locating cycles, it is measuring how big they are.
-
-## How is the periodogram actually computed?
-
-So far `spec.pgram()` has been a black box that returns the right answer. Open it. The whole calculation is three lines of base R, and understanding them means you will never be confused by a spectral argument again.
-
-The tool underneath is the **discrete Fourier transform** (DFT). The DFT compares your series against a pure wave at each Fourier frequency and reports how strongly the two match. For frequency \(f_j\), it computes
-
-\[ X_j = \sum_{t=1}^{n} x_t \, e^{-2\pi i f_j t} \]
-
-where \(x_t\) is the observation at time \(t\), \(n\) is the series length, and \(i\) is the imaginary unit, the number whose square is -1. If that exponential is unfamiliar, here is all you need: \(e^{-2\pi i f_j t}\) is a compact way of writing a sine and cosine wave at frequency \(f_j\) at the same time, and the sum measures how much of that wave is present in your data. Each \(X_j\) is a complex number holding two facts: how strongly the wave is present, and where its peaks sit in time.
-
-The periodogram throws away the second fact and keeps the first, squared:
-
-\[ I(f_j) = \frac{1}{n} \left| X_j \right|^2 \]
-
-The vertical bars mean the **modulus**: the size of the complex number, which R computes with `Mod()`. Squaring it turns "how strongly present" into power, and dividing by \(n\) keeps the scale comparable across series of different lengths. That is the entire definition.
-
-![Flowchart of the periodogram calculation from 728 daily loaf counts through centring, fft, and Mod squared over n, to the peak at 7 days](screenshots/Spectral-Analysis-in-R-dft.webp)
-*Figure 1: The periodogram in four steps. Centre the series, transform it with `fft()`, square the size of each complex number, and read off the frequency with the tallest bar. The transform moves the same information from the time domain to the frequency domain; it does not add or remove anything.*
-
-Now build it by hand and check it against R's version.
-
-```r title="The periodogram in three lines, matched against spec.pgram"
-n       <- length(bakery)
-centred <- bakery - mean(bakery)   # remove the 200-loaf baseline
-X       <- fft(centred)            # one complex number per frequency
-power   <- Mod(X)^2 / n            # size squared, scaled by n
-
-# fft() returns n values; the second half mirrors the first, so keep n/2
-manual <- power[2:(n/2 + 1)]
-
-head(round(manual, 2), 3)     # our hand-built version
-#> [1]     18.61 113918.63     50.56
-head(round(pg$spec, 2), 3)    # R's spec.pgram
-#> [1]     18.61 113918.63     50.56
-
-all.equal(manual, as.numeric(pg$spec))
-#> [1] TRUE
-```
-
-Every number agrees. `all.equal()` compares two numeric vectors allowing for tiny floating-point differences, and it returned `TRUE`, meaning our three lines reproduced `spec.pgram()` across all 364 frequencies.
-
-Walk the four steps. We subtract the mean first, because a series sitting at 200 is mostly a constant, and a constant is a cycle of infinite length that would otherwise dominate the low frequencies and drown out real structure. `fft()` is R's fast Fourier transform: it computes every \(X_j\) at once, and "fast" refers to the algorithm being clever about it, not to any approximation. The result is exact. `Mod(X)^2 / n` applies the definition above verbatim. Finally we keep elements 2 through `n/2 + 1`: element 1 is frequency zero (the mean, which we already removed), and the second half of an `fft()` result on real data is a mirror image of the first, carrying no new information.
-
-The limit worth knowing: the periodogram is only the whole story for a series built from fixed sine waves plus noise, which is exactly what we constructed. For series whose "cycles" drift in length or amplitude (most economic and biological data), a peak is a summary rather than a law, and it can move if you rerun on a different window of the same process. That is not a flaw in the computation, it is a statement about what the model assumes.
-
-## Why is the raw periodogram so noisy?
-
-Look again at the bottom panel of the periodogram we drew in the first section. Away from the two towers, the values scatter wildly from one frequency to the next. It is tempting to assume more data would tidy that up. It will not, and the reason is the single most important fact about the raw periodogram.
-
-Here is the demonstration. Take pure random noise, which by definition has **no** cycles, so its true spectrum is a flat horizontal line. Compute the periodogram at two very different sample sizes and measure how jagged each one is, using the ratio of the standard deviation of the values to their mean.
-
-```r title="Ten times more data, exactly as jagged"
-set.seed(1)
-wn200  <- spec.pgram(ts(rnorm(200)),  taper = 0, detrend = FALSE, fast = FALSE, plot = FALSE)
-wn2000 <- spec.pgram(ts(rnorm(2000)), taper = 0, detrend = FALSE, fast = FALSE, plot = FALSE)
-
-round(sd(wn200$spec)  / mean(wn200$spec),  3)    # n = 200
-#> [1] 1.005
-round(sd(wn2000$spec) / mean(wn2000$spec), 3)    # n = 2000
-#> [1] 1.018
-```
-
-Ten times as much data, and the scatter is identical. This surprises nearly everyone, because every other estimator you have met gets more precise as \(n\) grows. The periodogram does not. In the language of statistics it is **inconsistent**: its variance does not shrink towards zero as the sample grows.
-
-The reason is a counting argument. When you add more observations, you do not get more precise estimates at the frequencies you already had. You get **more frequencies**, each still estimated from effectively the same tiny amount of information: one sine and one cosine coefficient. Two numbers, forever, no matter how long the series.
-
-"Two numbers" has a formal name, and R will tell you it outright.
-
-```r title="Two degrees of freedom, and what that costs you"
-pg$df          # degrees of freedom behind each estimate
-#> [1] 2
-
-pg$bandwidth   # the frequency width each estimate represents
-#> [1] 0.0003965318
-
-# A 95% interval for the true power, as a multiple of the estimate
-round(pg$df / qchisq(c(0.975, 0.025), pg$df), 4)
-#> [1]  0.2711 39.4979
-```
-
-Read that last line slowly, because it is alarming and it is correct. Each periodogram value follows a chi-squared distribution with **2 degrees of freedom**, scaled by the true power. Inverting that gives a 95% confidence interval running from **0.27 times** the estimate to **39.5 times** it. If a raw periodogram shows a value of 100, the truth is somewhere between 27 and 3,950.
-
-That is a factor of 145 from end to end, and it does not improve with more data. So the raw periodogram is an unbiased but hopelessly imprecise estimate of the spectrum at any single frequency. It found the bakery's weekly cycle only because that peak is more than 15,000 times the surrounding noise, which is far too big for even a 39x interval to explain away. For anything subtler, a raw periodogram will happily show you a "peak" that is pure chance.
-
-> **Watch out:** Never read a bump in a raw periodogram as a real cycle. With 364 frequencies, each carrying a 39x upper interval, some of them will look impressive for no reason at all. Smooth first, then interpret.
-
-## How do you smooth the periodogram?
-
-If the problem is that each estimate rests on 2 degrees of freedom, the fix follows directly: pool neighbouring frequencies. Averaging \(k\) adjacent values gives roughly \(2k\) degrees of freedom instead of 2, and the estimate steadies.
-
-You buy that precision with resolution. Pooling neighbours means you can no longer tell them apart, so peaks get wider and two close cycles can blur into one. This is the central trade of spectral estimation, and there is no way around it: **variance down, resolution down, together.** Your job is to pick where on that line to sit.
-
-In R the knob is `spans`, which sets the width of a modified Daniell smoother (a moving average across frequencies, with half-weight at its two end points). Passing two values applies the smoother twice, which is standard practice because it gives a gentler shape than one wide pass.
-
-```r title="Smoothing: trade resolution for a steadier estimate"
-sm <- spec.pgram(bakery, spans = c(5, 5), taper = 0, detrend = FALSE,
-                 fast = FALSE, plot = FALSE)
-
-sm$df           # degrees of freedom: was 2
-#> [1] 12.68111
-
-sm$bandwidth    # frequency width: was 0.0003965318
-#> [1] 0.002412009
-
-# The 95% interval, now as a multiple of the estimate
-round(sm$df / qchisq(c(0.975, 0.025), sm$df), 4)
-#> [1] 0.5220 2.6341
-
-round(1 / sm$freq[which.max(sm$spec)], 2)   # is the weekly peak still there?
-#> [1] 7
-```
-
-That is the trade, priced exactly. Degrees of freedom rose from 2 to **12.7**, and the 95% interval shrank from `[0.27x, 39.5x]` to `[0.52x, 2.63x]`. A factor of 145 became a factor of 5. In exchange, the bandwidth grew about six-fold, from 0.0004 to 0.0024, so each estimate now speaks for a wider slice of frequency and genuinely close cycles would merge. The weekly peak survives at exactly 7 days, because a spike that dominant is not going anywhere.
-
-```r title="Raw against smoothed, same data"
-par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
-
-plot(pg$freq, pg$spec, type = "h", log = "y", col = "grey60",
-     main = "Raw (df = 2)", xlab = "frequency", ylab = "power")
-
-plot(sm$freq, sm$spec, type = "l", log = "y", col = "steelblue", lwd = 1.5,
-     main = "Smoothed, spans = c(5, 5)", xlab = "frequency", ylab = "power")
-
-par(mfrow = c(1, 1))
-```
-
-Side by side the difference is obvious. The raw panel is a dense grey thicket of spikes with two towers in it. The smoothed panel is a readable curve: a broad hump at the low-frequency end for the yearly cycle, a clean peak at 1/7, and an otherwise flat noise floor. The flat floor is the real prize, because now a bump that rises above it means something.
-
-**Try it:** Run the smoothing again with `spans = c(3, 3)` and with `spans = c(15, 15)`, and compare `sm$df` and `sm$bandwidth` each time. You are watching the trade move in one direction and then the other.
-
-<details><summary>Click to reveal what you should see</summary>
-
-`spans = c(3, 3)` gives fewer degrees of freedom than `c(5, 5)` and a narrower bandwidth: less smoothing, a jumpier curve, sharper peaks. `spans = c(15, 15)` gives many more degrees of freedom and a much wider bandwidth: a very smooth curve, but the weekly peak is now a broad hill rather than a spike, and the yearly peak has been smeared into the low-frequency corner. Both are correct spectra. They answer the same question at different resolutions, which is why `spans` is a choice you make rather than a value you look up.
-
-</details>
-
-## What do detrend, taper, and fast actually do?
-
-Time to turn back on the three conveniences we disabled in the very first block. Each defends against a specific failure, and you now know enough for each to make sense.
-
-**`detrend = TRUE` (the R default)** fits a straight line through the series and subtracts it before transforming. Why it matters: a trend is a piece of a cycle so long that the data never sees it repeat. The transform has no category for "goes up forever", so it does the best it can by dumping enormous power into the lowest frequencies, which then leaks sideways and can bury real peaks. The bakery has no trend, which is why leaving it off changed nothing. Real data usually does. The next section shows exactly how bad this gets.
-
-**`taper = 0.1` (the R default)** gently fades the first and last 10% of the series towards its mean before transforming. Why it matters: the DFT implicitly assumes your series wraps around, with the last day sitting next to the first. If the two ends do not match, that artificial jump is a sharp discontinuity, and a sharp edge is broadband: it sprays power across every frequency. This is the **leakage** mentioned earlier. Fading the ends removes the jump. The cost is that you have slightly softened your data, so the effective sample is a touch smaller.
-
-**`fast = TRUE` (the R default)** pads the series with zeros up to a length that factorises into small primes, because the FFT algorithm runs much faster on such lengths. Why it matters: padding changes \(n\), which changes the frequency grid \(j/n\), which moves where your peaks land.
-
-```r title="What padding does to the answer"
-nextn(728)   # the length spec.pgram pads 728 up to
-#> [1] 729
-
-# The default call, with padding switched back on
-pgt <- spec.pgram(bakery, taper = 0, detrend = FALSE, plot = FALSE)
-round(1 / pgt$freq[which.max(pgt$spec)], 3)
-#> [1] 7.01
-```
-
-There it is. With padding on, the weekly peak reads **7.01 days** instead of 7. Nothing is broken, and nothing is being hidden: 728 is not a nice FFT length, so R pads it to 729, the grid becomes \(j/729\) instead of \(j/728\), and the exact weekly frequency no longer has a grid point sitting precisely on it. The nearest one is at 7.01.
-
-This is why the first block used `fast = FALSE`: it kept the arithmetic honest so the peak could read exactly 7. In everyday work leave `fast = TRUE` on and remember that a periodogram peak is always "the nearest grid point to the truth", never the truth itself. If a peak position matters to you, read it as \(7.01 \pm\) half a grid step rather than as a precise measurement.
-
-> **Note:** A useful habit for real work is `spec.pgram(x, spans = c(5, 5))` and nothing else: that keeps the sensible defaults for `detrend`, `taper`, and `fast`, and adds the smoothing that the defaults do not give you. The explicit `taper = 0, detrend = FALSE, fast = FALSE` in this post is a teaching setting, not a recommendation. And if you have met `spectrum(x)` in a textbook, that is this same calculation wearing a different name: `spectrum()` is a thin wrapper that calls `spec.pgram()` and returns identical numbers. Its one extra trick is `method = "ar"`, which fits an autoregressive model and draws that model's smooth spectrum instead of estimating each frequency separately.
-
-## Does this work on real data?
-
-The bakery was built to be found. Real data is the actual test, so use `AirPassengers`, the monthly total of international airline passengers from 1949 to 1960 that ships with R. It has a strong upward trend and an obvious yearly holiday cycle, and it is the same series used in [Test Stationarity in R](Test-Stationarity-in-R.html), so you may already know its shape.
-
-First, a unit trap that catches everyone exactly once.
-
-```r title="A ts object carries its own frequency, and spec.pgram uses it"
-frequency(AirPassengers)   # 12 observations per year
+```r title="Plant a cycle and recover it"
+set.seed(101)
+n <- 144
+tt <- 1:n
+y <- 3 * sin(2 * pi * tt / 12) + rnorm(n, sd = 2)
+sp <- spectrum(y, plot = FALSE)
+dominant_period <- 1 / sp$freq[which.max(sp$spec)]
+dominant_period
 #> [1] 12
-
-# Detrending OFF, to see what the trend does to the answer
-ap_no <- spec.pgram(AirPassengers, taper = 0, detrend = FALSE,
-                    fast = FALSE, plot = FALSE)
-
-i <- which.max(ap_no$spec)
-round(ap_no$freq[i], 4)      # cycles per YEAR, not per month
-#> [1] 0.0833
-round(12 / ap_no$freq[i], 1) # months per cycle
-#> [1] 144
 ```
 
-Two lessons in six lines. The first is units: because `AirPassengers` is a `ts` with `frequency = 12`, `spec.pgram()` reports frequency in **cycles per year**, not per month. So `1/f` gives years, and you multiply by 12 for months. The bakery was `frequency = 1`, so its frequencies were per day and `1/f` was already days. Whenever a spectral answer looks off by a factor of 12 or 365, this is why. Check `frequency()` first.
+Here is what each line did. We seeded the random generator so you get the same numbers, built a sine wave that completes one cycle every 12 steps, and added `rnorm()` noise so the pattern is not obvious to the eye. `spectrum()` computed how much power sits at each frequency and stored the result in `sp`, with the tested frequencies in `sp$freq` and their power in `sp$spec`. `which.max(sp$spec)` found the position of the strongest peak, and dividing 1 by the frequency at that position converted it into a period. The result is 12, the exact cycle we planted.
 
-The second lesson is the serious one. With detrending off, the dominant "cycle" is **144 months**, which is 12 years, which is the entire length of the series. That is not a cycle. Nobody has ever observed it repeat. It is the upward trend, which the transform can only express as a very long wave, and it has taken over the spectrum. This is the failure `detrend = TRUE` exists to prevent.
+That is the whole promise of spectral analysis. You give it a noisy series, and it hands back the length of the strongest repeating cycle. The rest of this tutorial unpacks how that number is computed, how to read the full picture instead of just the top peak, and how to trust the result on real data.
 
-Turn the defaults back on and ask again.
+[KEY INSIGHT]
+**Any wiggly series can be rebuilt from simple sine and cosine waves added together.** Spectral analysis is the recipe card: it lists which wave lengths are in the mix and how much of each you need, so a strong cycle shows up as a tall peak no matter how much noise sits on top.
 
-```r title="AirPassengers with the defaults doing their job"
-ap <- spec.pgram(AirPassengers, taper = 0.1, detrend = TRUE,
-                 fast = FALSE, plot = FALSE)
+**Try it:** Change the planted cycle so it repeats every 24 steps instead of 12, then recover it the same way. You should get a period near 24.
 
-t3 <- order(ap$spec, decreasing = TRUE)[1:3]
-data.frame(cycles_per_year = round(ap$freq[t3], 3),
-           period_months   = round(12 / ap$freq[t3], 2),
-           power           = round(ap$spec[t3], 1))
-#>   cycles_per_year period_months  power
-#> 1           1.000         12.00 5666.8
-#> 2           2.000          6.00 1550.7
-#> 3           0.917         13.09  829.9
+```r title="Your turn: recover a period-24 cycle"
+set.seed(7)
+ex_y <- 3 * sin(2 * pi * (1:144) / 24) + rnorm(144, sd = 2)
+# your code: run spectrum(ex_y, plot = FALSE),
+# find the tallest peak, and convert its frequency to a period
 ```
 
-Now it is right, and it is interesting. The top peak is at exactly 1 cycle per year: a **12-month** cycle, the holiday season, which is what anyone who has looked at this series would expect. The bogus 144-month peak is gone, removed by subtracting the trend line.
+<details>
+<summary>Click to reveal solution</summary>
 
-The second peak, at **6 months**, is worth a paragraph because beginners routinely misread it. It is not a separate half-yearly business cycle. It is a **harmonic**. The DFT builds everything out of pure sine waves, but the real yearly pattern is not a pure sine: it has a sharp summer spike and a flatter winter, and reproducing that lopsided shape requires the 12-month wave plus a smaller 6-month wave to sharpen the peak. Any non-sinusoidal repeating pattern produces harmonics at 1/2, 1/3, and so on of its period. Seeing a peak at exactly half your main period is evidence about the **shape** of the yearly cycle, not evidence of a second cycle. The third peak, at 13.09 months, is just leakage from the dominant 12-month spike into its neighbour.
-
-```r title="See it: the AirPassengers spectrum"
-ap_sm <- spec.pgram(AirPassengers, spans = c(3, 3), plot = FALSE)
-
-plot(ap_sm$freq, ap_sm$spec, type = "l", log = "y", col = "steelblue", lwd = 1.5,
-     main = "AirPassengers spectrum: yearly cycle and its harmonics",
-     xlab = "frequency (cycles per year)", ylab = "power (log scale)")
-abline(v = 1:3, col = "tomato", lty = 2)
-text(1, max(ap_sm$spec), "12 months", pos = 4, col = "tomato")
+```r title="Period-24 cycle solution"
+set.seed(7)
+ex_y <- 3 * sin(2 * pi * (1:144) / 24) + rnorm(144, sd = 2)
+ex_sp <- spectrum(ex_y, plot = FALSE)
+1 / ex_sp$freq[which.max(ex_sp$spec)]
+#> [1] 24
 ```
 
-The plot shows a tall peak at 1 cycle per year with the red guide line through it, a clearly smaller but unmistakable peak at 2 cycles per year (the 6-month harmonic), and a hint of a third at 3 cycles per year (a 4-month harmonic, sharpening the shape further). The descending ladder of harmonics is the fingerprint of a repeating pattern that is not a simple sine wave. Note this call uses R's defaults for everything except `spans`, which is the recommended everyday setting from the previous section.
-
-## How do you filter a cycle out?
-
-Finding a cycle is half the job. Often you want to **remove** one: strip the weekly rhythm out of the bakery's sales so you can look at whether the underlying business is growing, without weekends shouting over the answer.
-
-The classic tool is a **moving average filter**. To kill a 7-day cycle, average each day with the 3 days before and the 3 days after. Every full week contributes each weekday exactly once to every average, so the weekly wave cancels itself out while slower movements survive nearly untouched. This is the same machinery covered in [Moving Averages in R](Moving-Averages-in-R.html) and used inside [Time Series Decomposition in R](Time-Series-Decomposition-in-R.html); here we get to verify it in the frequency domain, which is where the proof is cleanest.
-
-```r title="Filter out the weekly cycle, then check the spectrum"
-# A centred 7-day moving average: each day averaged with 3 before and 3 after
-ma7      <- stats::filter(bakery, rep(1/7, 7), sides = 2)
-smoothed <- ts(na.omit(as.numeric(ma7)))   # drop the 3 NAs at each end
-
-length(smoothed)
-#> [1] 722
-
-pgf <- spec.pgram(smoothed, taper = 0, detrend = FALSE, fast = FALSE, plot = FALSE)
-
-# Power at the weekly frequency, before and after
-round(max(pg$spec[abs(pg$freq   - 1/7) < 0.002]))        # before
-#> [1] 285231
-round(max(pgf$spec[abs(pgf$freq - 1/7) < 0.002]), 3)     # after
-#> [1] 0.054
-
-round(1 / pgf$freq[which.max(pgf$spec)], 1)   # what dominates now?
-#> [1] 361
-```
-
-The weekly cycle is gone, and "gone" is not an overstatement. Power at the weekly frequency fell from **285,231 to 0.054**, a reduction of about five million times. The dominant cycle in the filtered series is now **361 days**: the yearly rhythm, which was always there in second place and has simply inherited the top spot. (It reads 361 rather than 364 because the filter shortened the series to 722 days, which moves the frequency grid, exactly as padding did in the earlier section.)
-
-The mechanics, line by line. `stats::filter()` applies a linear filter to a series; `rep(1/7, 7)` is the vector of weights `1/7, 1/7, ...` seven times, which is what makes it an average rather than a sum; `sides = 2` centres the window on each point instead of using only the past. We write `stats::filter` explicitly because `dplyr` also defines a `filter()` and the wrong one produces a baffling error. The filter cannot compute an average for the first and last 3 days (there is no data beyond the ends), so it returns `NA` there, and `na.omit()` drops them: 728 - 6 = 722.
-
-Why does a 7-day average annihilate a 7-day cycle so completely? Because a full cycle of a sine wave sums to zero. Averaging over exactly one period adds up every phase of the wave, the positive half cancels the negative half, and what is left is whatever the series was doing more slowly. The cancellation is this clean because two things line up exactly: our weekly wave sits at exactly 1/7, and the averaging window is exactly 7 days wide. The leftover 0.054 is not the wave hanging on. It is floating-point rounding plus the sliver of random noise that happened to land at that frequency.
-
-That exactness is also the catch. The window kills the cycle whose period it matches; it only dents a cycle it does not match. A 7-day average on a true 7.3-day rhythm would shrink it, not remove it, so match the window to the period you are aiming at.
-
-> **Watch out:** A moving average is a low-pass filter: it removes the weekly cycle **and** everything faster than it, not just the 7-day component. That is fine when you want a trend, and wrong when you wanted to remove only the weekly rhythm while keeping shorter movements. Check the whole spectrum after filtering, not just the frequency you aimed at.
-
-**Try it:** Filter the bakery series with a 30-day moving average instead (`rep(1/30, 30)`), then find the dominant cycle in the result. What happened to the weekly peak, and what is left?
-
-<details><summary>Click to reveal what you should see</summary>
-
-A 30-day average is a much heavier low-pass filter. The weekly peak is gone (30 days spans more than four full weekly cycles, so they cancel), and so is essentially everything else fast. What survives is the yearly cycle, which now dominates completely, and the series looks like a slow summer swell with the daily texture wiped away. This is the trade-off in the callout above made concrete: you asked to remove one cycle and removed every fast movement in the data.
+**Explanation:** The wave now completes one cycle every 24 steps, so the tallest peak sits at frequency 1/24, and inverting it returns 24.
 
 </details>
 
-## FAQ
+## What are frequency, period, and cycles in a time series?
 
-**Is a periodogram the same thing as a power spectrum?**
-Nearly, and the distinction matters. The **power spectrum** (or spectral density) is the true, unknown quantity: how the variance of the process is distributed across frequencies. The **periodogram** is one estimate of it, computed from your finite sample. As we saw, it is an unbiased but very noisy estimate with only 2 degrees of freedom, which is why a smoothed periodogram is a better estimate of the spectrum than the raw one, even though the raw one is the more direct calculation.
+Before we read a single chart, we need to pin down three words that spectral analysis leans on constantly. A cycle is one full repeat of a pattern, like winter-to-winter in monthly temperatures. The period is how many time steps that one repeat takes. The frequency is how many repeats happen per single time step.
 
-**Why does my peak not land on a round number?**
-Three reasons, all covered above. The frequency grid is discrete, so a peak can only ever land on \(j/n\); `fast = TRUE` pads the series and shifts that grid; and any filtering or trimming changes \(n\) too. A peak at 7.01 or 361 is the grid's nearest available answer, not a measurement to four significant figures. Read peaks as approximate unless your series length is an exact multiple of the cycle you care about.
+Period and frequency are two views of the same thing, and they are simple reciprocals of each other.
 
-**How do I know whether a peak is statistically real?**
-Start with the degrees of freedom. Ask R for `pg$df`, turn it into an interval with `df / qchisq(c(0.975, 0.025), df)`, and see whether the peak clears the surrounding noise floor by more than that interval. Raw periodograms (2 df, a 39x upper interval) essentially cannot establish a modest peak, so smooth first. R will also draw the interval for you: call `spec.pgram()` with `plot = TRUE` and it puts a small blue crosshair in the top right corner whose vertical bar is the 95% interval on the log scale. If a peak is not taller than that bar, it is not evidence.
+$$T = \frac{1}{f}$$
 
-**When should I use spectral analysis instead of the ACF?**
-They are the same information in different coordinates (the spectrum is the Fourier transform of the autocovariance), so it is a question of what is easier to read. Reach for the periodogram when you suspect **periodic** structure and want to know its length: cycles show as isolated peaks, and multiple overlapping cycles separate cleanly, which they never do in a correlogram. Reach for [ACF and PACF](ACF-and-PACF-in-R.html) when you are identifying an ARIMA model, where the decay pattern at short lags is the thing you need. Many workflows use both.
+Where:
+- $T$ is the period, measured in time steps per cycle
+- $f$ is the frequency, measured in cycles per time step
 
-**Does my series need to be stationary first?**
-Yes, in the sense that matters: a trend will hijack the low frequencies and can swamp everything real, as `AirPassengers` demonstrated with its bogus 144-month peak. But you do not usually need to difference the series. `detrend = TRUE` removes a linear trend, which handles most cases, and it is on by default. For a strong curved trend, difference the series or subtract a fitted curve first, then run the periodogram on the residuals. Seasonality itself is not a problem to remove here: it is the thing you are trying to measure.
+A slow cycle has a long period and a low frequency. A fast cycle has a short period and a high frequency. The table below makes the trade-off concrete for three frequencies.
 
-**Why is my spectrum symmetric, and what happened to the second half?**
-`fft()` on a real-valued series returns \(n\) complex numbers whose second half is the mirror image of the first, carrying no extra information. That is why we kept only elements 2 through \(n/2 + 1\), and why `spec.pgram()` returns 364 frequencies for 728 observations. It is also another way to see the Nyquist limit: half your observations buy you frequencies, and that is all there is.
+```r title="Frequency and period side by side"
+freqs <- c(0.05, 0.1, 0.25)
+data.frame(freq_cycles_per_step = freqs, period_steps_per_cycle = 1 / freqs)
+#>   freq_cycles_per_step period_steps_per_cycle
+#> 1                 0.05                     20
+#> 2                 0.10                     10
+#> 3                 0.25                      4
+```
+
+Read the first row like this: a frequency of 0.05 means the wave gets through 0.05 of a cycle each step, so it needs 20 steps to finish one full cycle. A frequency of 0.25 is four times faster, so it wraps up a cycle in just 4 steps. The periodogram always reports frequency on its x-axis, so you will convert to a period constantly, and it is always the same one-over-frequency move.
+
+[NOTE]
+**A period is only meaningful in the units of your time steps.** If your data is monthly, a period of 12 means 12 months, which is one year. If it is daily, a period of 7 means one week. Always translate the number back into calendar language before you report it.
+
+**Try it:** A wave completes 0.1 of a cycle every step. How many steps does one full cycle take?
+
+```r title="Your turn: convert a frequency"
+ex_freq <- 0.1
+# your code: turn this frequency into a period (steps per cycle)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Frequency to period solution"
+ex_freq <- 0.1
+1 / ex_freq
+#> [1] 10
+```
+
+**Explanation:** Period equals one divided by frequency, so 1 / 0.1 gives 10 steps per cycle.
+
+</details>
+
+## How do you read a periodogram in R?
+
+The periodogram is the core chart of spectral analysis. Its x-axis is frequency and its y-axis is power, which you can think of as how much of the series' wiggle each frequency is responsible for. A tall spike means a strong, dominant cycle at that frequency. A flat, low region means nothing much is happening there.
+
+When you call `spectrum(y)`, R draws this chart for you. It also stores the raw numbers in the returned object: `sp$freq` holds every frequency it tested, and `sp$spec` holds the power at each one. Instead of squinting at the plot, we can sort those numbers and print the five strongest frequencies as a table.
+
+```r title="Read the top five peaks"
+sp <- spectrum(y, plot = FALSE)
+top <- order(sp$spec, decreasing = TRUE)[1:5]
+data.frame(
+  frequency = round(sp$freq[top], 4),
+  period    = round(1 / sp$freq[top], 1),
+  power     = round(sp$spec[top], 2)
+)
+#>   frequency period  power
+#> 1    0.0833   12.0 237.74
+#> 2    0.1250    8.0  16.18
+#> 3    0.0972   10.3  14.20
+#> 4    0.4583    2.2  14.02
+#> 5    0.5000    2.0  11.95
+```
+
+Look at the power column. The top row has a power of 237.74 at a period of 12, and every other row sits below 17. That gap is the story: one cycle towers over everything else. The runner-up frequencies are not real cycles at all, they are just the noise leaving faint ripples across the chart. This is exactly how you separate signal from noise in a periodogram: hunt for the peak that stands far above its neighbours.
+
+[NOTE]
+**The plotted periodogram uses a logarithmic y-axis by default.** That compresses a huge dynamic range so both tall and short peaks are visible on one chart, but it can make a dominant peak look less extreme than it is. When you want the plain ratio of one peak to another, compare the raw `sp$spec` values as we did in the table.
+
+**Try it:** R ships with a series called `lh` (a set of luteinizing hormone readings). Find the period of its strongest cycle.
+
+```r title="Your turn: find the lh cycle"
+ex_lh_sp <- spectrum(lh, plot = FALSE)
+# your code: find the period of the tallest peak in ex_lh_sp
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="lh dominant cycle solution"
+ex_lh_sp <- spectrum(lh, plot = FALSE)
+1 / ex_lh_sp$freq[which.max(ex_lh_sp$spec)]
+#> [1] 8
+```
+
+**Explanation:** The tallest peak sits at frequency 1/8, so the strongest cycle in `lh` repeats about every 8 samples.
+
+</details>
+
+## How does the periodogram work under the hood (the FFT)?
+
+So far `spectrum()` has been a black box. Let us open it, because the machinery is simpler than it sounds and understanding it will help you trust the output. The engine is the Fast Fourier Transform, available in base R as `fft()`. It takes your series and reports, for every frequency, how strongly a wave at that frequency matches your data.
+
+The periodogram is then just the squared size of that match, scaled by the length of the series. We will do it by hand: subtract the mean so the flat "zero-frequency" part does not dominate, run `fft()`, square the magnitude with `Mod()`, divide by `n`, and keep only the first half of the frequencies (we will see why the second half is redundant in the next section).
+
+```r title="Build the periodogram with fft"
+yc <- y - mean(y)
+dft <- fft(yc)
+n <- length(y)
+pgram <- (Mod(dft)^2) / n
+freq <- (0:(n - 1)) / n
+half <- 2:floor(n / 2)
+peak_period <- 1 / freq[half][which.max(pgram[half])]
+peak_period
+#> [1] 12
+```
+
+Walk through it slowly. `yc` is the series with its average removed. `fft(yc)` returns a complex number per frequency, and `Mod()` gives the length of each of those complex numbers, which is the strength of the match. Squaring and dividing by `n` turns that into power, `freq` lists the frequencies that go with each entry, and `half` keeps the meaningful lower half. The strongest of those lands at frequency 1/12, so `peak_period` is 12, the same answer `spectrum()` gave us. The black box was never mysterious: it is just a Fourier transform, then a square and a scale.
+
+Here is the same idea written as a formula. If you would rather not read math, skip to the next section, because the code above already told the whole story.
+
+$$I(f_j) = \frac{1}{n}\left| \sum_{t=1}^{n} x_t \, e^{-2\pi i f_j t} \right|^2$$
+
+Where:
+- $I(f_j)$ is the periodogram value (the power) at frequency $f_j$
+- $x_t$ is the series value at time $t$
+- $n$ is the number of observations
+- the sum inside the bars is the discrete Fourier transform, which `fft()` computes for every frequency at once
+
+The diagram below traces that pipeline from raw series to cycle length.
+
+![How the FFT turns a time series into a periodogram and a cycle length](screenshots/Spectral-Analysis-in-R-frequency-domain-flow.webp)
+
+*Figure 1: How the FFT turns a time series into a periodogram and a cycle length.*
+
+[KEY INSIGHT]
+**The periodogram splits your series' total variance across frequencies.** Add up the whole periodogram and you get back the variance of the series. A tall peak therefore means that one cycle explains a large share of everything the series does, which is why the peak height is a direct measure of a cycle's importance.
+
+**Try it:** Build a periodogram by hand for a clean cosine wave that repeats every 6 steps, and confirm the peak lands at period 6.
+
+```r title="Your turn: hand-build a periodogram"
+ex_vec <- cos(2 * pi * (1:60) / 6)
+# your code: demean, run fft, square with Mod and scale by 60,
+# keep the first half, and find the peak period
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Hand-built periodogram solution"
+ex_vec <- cos(2 * pi * (1:60) / 6)
+ex_p <- (Mod(fft(ex_vec - mean(ex_vec)))^2) / 60
+ex_f <- (0:59) / 60
+ex_half <- 2:30
+1 / ex_f[ex_half][which.max(ex_p[ex_half])]
+#> [1] 6
+```
+
+**Explanation:** The wave has a period of 6, so its power piles up at frequency 1/6, and inverting the peak frequency returns 6.
+
+</details>
+
+## Which cycles can you actually detect? Fourier frequencies and the Nyquist limit
+
+A periodogram does not test every imaginable frequency. It tests a fixed grid called the Fourier frequencies, which are the fractions $j/n$ for $j$ running from 1 up to $n/2$. Two limits fall straight out of that grid, and knowing them keeps you from chasing cycles your data cannot possibly show.
+
+$$f_j = \frac{j}{n}, \quad j = 1, 2, \ldots, \frac{n}{2}$$
+
+The lowest frequency is $1/n$, which is one single cycle stretched across the entire record. You cannot detect anything slower, because a slower cycle would not even complete once in your data. The highest frequency is $1/2$, called the Nyquist frequency, which is the fastest cycle you can see: it takes two observations to define one up-and-down swing. The block below lists these limits for our 144-point series.
+
+```r title="Fourier frequencies and the Nyquist limit"
+n <- length(y)
+fourier_freqs <- (1:(n / 2)) / n
+data.frame(
+  lowest_freq     = min(fourier_freqs),
+  nyquist_freq    = max(fourier_freqs),
+  n_freqs         = length(fourier_freqs),
+  longest_period  = 1 / min(fourier_freqs),
+  shortest_period = 1 / max(fourier_freqs)
+)
+#>   lowest_freq nyquist_freq n_freqs longest_period shortest_period
+#> 1 0.006944444          0.5      72            144               2
+```
+
+The table spells out the boundaries. With 144 points you get 72 frequencies to inspect, the longest detectable cycle is 144 steps (the whole series is one cycle), and the shortest is 2 steps. Anything faster than the Nyquist limit is invisible, and worse, it appears in the spectrum as a slower cycle, an error called aliasing.
+
+[WARNING]
+**A cycle faster than two samples per repeat shows up in the spectrum as a slower one.** This is aliasing, the same effect that makes wagon wheels appear to spin backwards on film. If you suspect an important cycle is faster than your sampling can capture, you must collect data more frequently, because no amount of analysis can recover a cycle the Nyquist limit has already folded into a false low frequency.
+
+**Try it:** Work out the lowest frequency and the Nyquist frequency for a series of 200 observations.
+
+```r title="Your turn: frequencies for n = 200"
+ex_n <- 200
+# your code: build the Fourier frequencies for n = 200,
+# then report the lowest and the Nyquist frequency
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Nyquist for n = 200 solution"
+ex_n <- 200
+ex_ff <- (1:(ex_n / 2)) / ex_n
+c(lowest = min(ex_ff), nyquist = max(ex_ff))
+#>  lowest nyquist 
+#>   0.005   0.500 
+```
+
+**Explanation:** The lowest frequency is 1/200 = 0.005 (one cycle across all 200 points), and the Nyquist frequency is always 0.5, regardless of how long the series is.
+
+</details>
+
+## How do you find the dominant cycle in real data?
+
+Planted signals are reassuring, but the real test is messy data with a cycle nobody wrote in. The classic example is `sunspot.year`, the yearly count of sunspots stretching back to 1700. Astronomers have long known the Sun runs on an eleven-year rhythm, and spectral analysis should rediscover it without being told. We will pull the top five peaks just as before.
+
+```r title="Find the sunspot cycle"
+sun_sp <- spectrum(sunspot.year, plot = FALSE)
+sun_top <- order(sun_sp$spec, decreasing = TRUE)[1:5]
+data.frame(
+  freq_cycles_per_year = round(sun_sp$freq[sun_top], 4),
+  period_years         = round(1 / sun_sp$freq[sun_top], 1),
+  power                = round(sun_sp$spec[sun_top], 1)
+)
+#>   freq_cycles_per_year period_years   power
+#> 1               0.0900         11.1 55821.0
+#> 2               0.1000         10.0 40792.5
+#> 3               0.0100        100.0 16027.5
+#> 4               0.0833         12.0 11987.8
+#> 5               0.0967         10.3  8170.2
+```
+
+The top row nails it: a period of 11.1 years with far more power than anything else, exactly the solar cycle physicists talk about. Notice the neighbours at 10.0 and 10.3 years, which are the same broad peak spread across adjacent frequencies, not separate cycles. The 100-year entry in row three is a slow drift in overall activity, real but weaker. Because `sunspot.year` is stored as an annual time series, R reports frequency in cycles per year, so the periods come out directly in years.
+
+[TIP]
+**Sort the spectrum and read the tallest peak, then translate it into your data's time unit.** The single line 1 / freq[which.max(spec)] gives the dominant period, but always convert it back into years, months, or days before you report it, and glance at the neighbouring peaks to confirm they are one broad hump rather than several rival cycles.
+
+**Try it:** The `ldeaths` series records monthly lung-disease deaths in the UK. Find its dominant period. Because the series is monthly, the answer comes back in years.
+
+```r title="Your turn: find the ldeaths cycle"
+ex_ld_sp <- spectrum(ldeaths, plot = FALSE)
+# your code: find the dominant period of ex_ld_sp
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="ldeaths dominant cycle solution"
+ex_ld_sp <- spectrum(ldeaths, plot = FALSE)
+1 / ex_ld_sp$freq[which.max(ex_ld_sp$spec)]
+#> [1] 1
+```
+
+**Explanation:** The dominant period is 1 year, which is 12 months, the winter-to-winter seasonal cycle you would expect in respiratory deaths.
+
+</details>
+
+## Why is the raw periodogram noisy, and how does smoothing build the power spectrum?
+
+If you plot the raw periodogram of real data, it looks like a spiky mess even around a clear peak. That is not a display glitch, it is a genuine flaw: the raw periodogram is a noisy estimator, and its noise does not shrink as you collect more data. More points give you more frequencies, but each one stays just as jittery. The fix is to smooth neighbouring frequencies together, which trades a little precision on cycle length for a much steadier, more trustworthy estimate. That smoothed curve is what people usually mean by the power spectrum or spectral density.
+
+In R, you smooth by passing the `spans` argument to `spec.pgram()`. It averages each frequency with its neighbours using a gentle weighting (the modified Daniell kernel). Below we compare the raw estimate against a smoothed one for the sunspot series, printing each one's peak period, bandwidth and degrees of freedom.
+
+```r title="Smooth the periodogram"
+raw    <- spec.pgram(sunspot.year, taper = 0, detrend = TRUE, plot = FALSE)
+smooth <- spec.pgram(sunspot.year, spans = c(5, 5), taper = 0.1, plot = FALSE)
+data.frame(
+  which_spectrum = c("raw", "smoothed"),
+  peak_period    = c(round(1 / raw$freq[which.max(raw$spec)], 2),
+                     round(1 / smooth$freq[which.max(smooth$spec)], 2)),
+  bandwidth      = c(round(raw$bandwidth, 4), round(smooth$bandwidth, 4)),
+  df             = c(round(raw$df, 2), round(smooth$df, 2))
+)
+#>   which_spectrum peak_period bandwidth    df
+#> 1            raw       11.11    0.0010  1.93
+#> 2       smoothed       10.71    0.0059 10.94
+```
+
+Read the two rows against each other. Smoothing barely moved the peak, from 11.11 to 10.71 years, so the eleven-year cycle survives, which is the reassurance you want. The bandwidth grew from 0.001 to 0.006, meaning the estimate now blurs each frequency over a wider window, and the degrees of freedom jumped from about 2 to about 11, which is why the smoothed curve is so much steadier. The default `spectrum()` plot draws a small cross showing this bandwidth and a confidence interval, so you can judge whether a peak is tall enough to be believed.
+
+[TIP]
+**Use odd numbers in spans, and widen them for a smoother curve.** A value like spans = c(3, 3) smooths lightly, while spans = c(9, 9) smooths heavily; wider spans give a calmer spectrum but blur close cycles together, so start narrow and widen only until the noise settles without erasing the peak you care about.
+
+**Try it:** Re-run the smoothed spectrum of `sunspot.year` with a narrower window, `spans = c(3, 3)`, and report both the peak period and the bandwidth.
+
+```r title="Your turn: smooth with narrower spans"
+ex_sm <- spec.pgram(sunspot.year, spans = c(3, 3), taper = 0.1, plot = FALSE)
+# your code: report the peak period and the bandwidth of ex_sm
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Narrower spans solution"
+ex_sm <- spec.pgram(sunspot.year, spans = c(3, 3), taper = 0.1, plot = FALSE)
+c(peak_period = round(1 / ex_sm$freq[which.max(ex_sm$spec)], 2),
+  bandwidth   = round(ex_sm$bandwidth, 4))
+#> peak_period   bandwidth 
+#>     11.1100      0.0035 
+```
+
+**Explanation:** The narrower window keeps the peak at 11.11 years and gives a smaller bandwidth (0.0035) than the wider c(5, 5) window, so it smooths less and stays closer to the raw estimate.
+
+</details>
+
+## How do trends and leakage distort the spectrum, and how do you fix them?
+
+Real series often drift upward or downward over time, and that trend wrecks a naive periodogram. A steady climb looks, to the Fourier transform, like the first slow half of an enormous low-frequency cycle, so it puts most of the power at the lowest frequencies and buries every real cycle underneath. The famous `AirPassengers` series, monthly airline totals from 1949 to 1960, climbs steeply and shows the problem clearly. We compute its spectrum twice, once without removing the trend and once with `detrend = TRUE`.
+
+```r title="Detrend before you read peaks"
+ap_raw <- spec.pgram(AirPassengers, detrend = FALSE, taper = 0, plot = FALSE)
+ap_det <- spec.pgram(AirPassengers, detrend = TRUE,  taper = 0.1, plot = FALSE)
+c(raw_peak_years      = round(1 / ap_raw$freq[which.max(ap_raw$spec)], 2),
+  detrend_peak_years  = round(1 / ap_det$freq[which.max(ap_det$spec)], 2),
+  detrend_peak_months = round(12 / ap_det$freq[which.max(ap_det$spec)], 2))
+#>      raw_peak_years  detrend_peak_years detrend_peak_months 
+#>                  12                   1                  12 
+```
+
+The contrast is stark. Without detrending, the tallest peak sits at a 12-year period, which is simply the full length of the record: the trend dominates the spectrum and shows up as one giant cycle. After detrending, the peak snaps to a 1-year period, which is 12 months, the genuine annual travel season everyone expects. This is why `spectrum()` and `spec.pgram()` detrend by default, and it is the single most common mistake beginners make when they turn that default off.
+
+The `taper` argument fixes a subtler problem called leakage. Because your record is finite, it usually chops a cycle off partway through, and that abrupt edge smears a strong peak's energy into nearby frequencies. Tapering gently fades the two ends of the series toward its mean before the transform, which softens the edges and sharpens the peak. The default of `taper = 0.1` fades the first and last ten percent, which is a sensible starting point.
+
+[WARNING]
+**Always detrend or demean before reading a periodogram.** A trend appears as the biggest low-frequency cycle in the chart and hides every real signal beneath it, so leaving detrending off (as we did above only to expose the failure) is almost never what you want on trending data.
+
+**Try it:** Confirm the trap for yourself. Run `spec.pgram()` on `AirPassengers` with `detrend = FALSE` and see what period the tallest peak reports.
+
+```r title="Your turn: skip detrending"
+ex_ap <- spec.pgram(AirPassengers, detrend = FALSE, taper = 0, plot = FALSE)
+# your code: find the period of the tallest peak in ex_ap
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="No-detrend artifact solution"
+ex_ap <- spec.pgram(AirPassengers, detrend = FALSE, taper = 0, plot = FALSE)
+1 / ex_ap$freq[which.max(ex_ap$spec)]
+#> [1] 12
+```
+
+**Explanation:** With no detrending the peak lands at 12 years, the whole span of the data, because the upward trend dominates the spectrum. It is an artifact, not a real cycle.
+
+</details>
+
+## Complete Example
+
+Let us put every step together on a fresh series and finish with something practical: finding a cycle, then filtering it out. The `nottem` dataset holds monthly average temperatures at Nottingham Castle from 1920 to 1939. It has an obvious yearly rhythm, so it is the perfect series to find a cycle in and then remove.
+
+First we locate the dominant cycle exactly as before. Because `nottem` is monthly, we convert the period into months by multiplying by 12.
+
+```r title="Find the annual cycle in nottem"
+nt_sp <- spectrum(nottem, plot = FALSE)
+nt_period_years  <- 1 / nt_sp$freq[which.max(nt_sp$spec)]
+nt_period_months <- nt_period_years * frequency(nottem)
+c(period_years = round(nt_period_years, 3),
+  period_months = round(nt_period_months, 2))
+#>  period_years period_months 
+#>             1            12 
+```
+
+The dominant cycle is one year, or 12 months, the summer-to-summer temperature swing. Now for the useful part. Once you know a cycle's length, you can subtract it out and study whatever is left. We fit a sine and a cosine at the annual frequency with `lm()`, a technique called harmonic regression, and keep the residuals. Removing the annual wave should slash the variance and shift the dominant peak of what remains.
+
+```r title="Remove the annual cycle"
+yrs <- as.numeric(time(nottem))
+fit <- lm(nottem ~ sin(2 * pi * yrs) + cos(2 * pi * yrs))
+resid_series <- residuals(fit)
+res_sp <- spectrum(resid_series, plot = FALSE)
+res_peak_months <- (1 / res_sp$freq[which.max(res_sp$spec)]) * frequency(nottem)
+c(before_months = round(nt_period_months, 2),
+  after_months  = round(res_peak_months, 2),
+  var_before    = round(var(nottem), 2),
+  var_after     = round(var(resid_series), 2))
+#> before_months  after_months    var_before     var_after 
+#>         12.00         72.00         73.48          6.42 
+```
+
+The numbers tell a clean story. Before filtering, the series had a variance of 73.48 dominated by a 12-month cycle. After subtracting the annual wave, the variance collapsed to 6.42, meaning the yearly season alone accounted for about 91 percent of all the movement. The dominant cycle of the leftovers jumped from 12 months to 72 months, a slow six-year drift that was completely hidden under the seasonal swing. That is spectral analysis earning its keep: it found the cycle, and using its frequency we filtered it away to reveal a second, subtler pattern underneath.
+
+## Practice Exercises
+
+These combine several ideas from the tutorial. Try each one before opening the solution. The variables use a `my_` prefix so they will not clash with anything above.
+
+### Exercise 1: Recover two hidden cycles at once
+
+Build a 240-point series that hides two cycles, one with a period of 8 and one with a period of 20, plus light noise. Then recover both by reading the top two periodogram peaks. Expected output: the two periods 8 and 20.
+
+```r title="Two hidden cycles"
+# Build the series with two hidden cycles plus noise:
+set.seed(2024)
+my_n <- 240
+my_t <- 1:my_n
+my_y <- 2 * sin(2 * pi * my_t / 8) + 3 * sin(2 * pi * my_t / 20) + rnorm(my_n, sd = 1)
+# your code: take the top 2 peaks of spectrum(my_y) and convert them to periods
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Two hidden cycles solution"
+set.seed(2024)
+my_n <- 240
+my_t <- 1:my_n
+my_y <- 2 * sin(2 * pi * my_t / 8) + 3 * sin(2 * pi * my_t / 20) + rnorm(my_n, sd = 1)
+my_sp <- spectrum(my_y, plot = FALSE)
+my_top2 <- order(my_sp$spec, decreasing = TRUE)[1:2]
+sort(round(1 / my_sp$freq[my_top2], 1))
+#> [1]  8 20
+```
+
+**Explanation:** Each planted wave creates its own peak, so the two strongest frequencies invert to periods of 8 and 20, recovering both cycles. Sorting just puts them in ascending order for easy reading.
+
+</details>
+
+### Exercise 2: Compare a raw and a smoothed spectrum on real data
+
+Using `nottem`, find the dominant period (in months) from the raw spectrum and from a smoothed spectrum with `spans = c(3, 3)`, and report the smoothed bandwidth. Confirm the annual peak survives smoothing.
+
+```r title="Raw versus smoothed spectrum"
+# your code: compute the raw and smoothed spectra of nottem,
+# report both peak periods in months and the smoothed bandwidth
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Raw versus smoothed solution"
+my_raw <- spectrum(nottem, plot = FALSE)
+my_smooth <- spec.pgram(nottem, spans = c(3, 3), taper = 0.1, plot = FALSE)
+c(raw_period_months    = round((1 / my_raw$freq[which.max(my_raw$spec)]) * 12, 2),
+  smooth_period_months = round((1 / my_smooth$freq[which.max(my_smooth$spec)]) * 12, 2),
+  smooth_bandwidth     = round(my_smooth$bandwidth, 4))
+#>    raw_period_months smooth_period_months     smooth_bandwidth 
+#>               12.000               12.000                0.052 
+```
+
+**Explanation:** Both the raw and smoothed spectra peak at 12 months, so the annual cycle survives smoothing. Smoothing only widens the bandwidth to about 0.052, steadying the estimate without moving the peak.
+
+</details>
+
+### Exercise 3: Prove that fft() and spectrum() agree
+
+Generate a cosine wave with a period of 25 plus noise, then find the dominant period two ways: by hand with `fft()`, and with `spectrum()`. Show that both return the same period.
+
+```r title="Match fft and spectrum"
+# Build the signal first:
+set.seed(99)
+my_sig <- 4 * cos(2 * pi * (1:100) / 25) + rnorm(100, sd = 1.5)
+# your code: compute the peak period with fft(), then with spectrum(), and compare
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="fft versus spectrum solution"
+set.seed(99)
+my_sig <- 4 * cos(2 * pi * (1:100) / 25) + rnorm(100, sd = 1.5)
+my_fft_p <- (Mod(fft(my_sig - mean(my_sig)))^2) / 100
+my_f <- (0:99) / 100
+my_h <- 2:50
+fft_period <- 1 / my_f[my_h][which.max(my_fft_p[my_h])]
+spec_sp <- spectrum(my_sig, plot = FALSE)
+spec_period <- 1 / spec_sp$freq[which.max(spec_sp$spec)]
+c(fft_period = round(fft_period, 2), spectrum_period = round(spec_period, 2))
+#>      fft_period spectrum_period 
+#>              25              25 
+```
+
+**Explanation:** The hand-built periodogram and the built-in `spectrum()` both pick out a period of 25, confirming that `spectrum()` is just a polished wrapper around the same Fourier machinery you coded yourself.
+
+</details>
+
+## Frequently Asked Questions
+
+### What is the difference between a periodogram and a power spectrum?
+
+The periodogram is the raw estimate: the squared, scaled output of the Fourier transform at every frequency. It is spiky and noisy. The power spectrum (or spectral density) is the smoothed version you get after averaging neighbouring frequencies with `spans`. In everyday use people treat the smoothed curve as the thing worth reading, because the raw periodogram's noise never settles down no matter how much data you have.
+
+### Should I use spectrum() or spec.pgram()?
+
+Use `spectrum()` for a quick look; it is a friendly wrapper that detrends and tapers the series before plotting it with sensible defaults. Reach for `spec.pgram()` when you want direct control over the arguments, especially `spans` for smoothing, `taper` for leakage, and `detrend` for trend removal. They share the same engine, so the peak you find will agree.
+
+### Why is my biggest peak stuck at the lowest frequency?
+
+That is almost always an untreated trend. A series drifting up or down looks like the slow start of one giant cycle, so it piles power at the lowest frequencies. Detrend the series first (it is the default in `spectrum()`), and the real cycles will surface, exactly as they did for `AirPassengers` above.
+
+### How much data do I need to detect a cycle?
+
+You need at least two full repeats of the cycle just to register it, and several more to trust the peak. A yearly cycle in monthly data (period 12) needs a bare minimum of 24 months, but two or three years give a far cleaner signal. The longer your record, the finer the frequency grid, so longer series also separate close cycles more clearly.
+
+### Can I run spectral analysis on unevenly spaced data?
+
+Not with `fft()`, `spectrum()`, or `spec.pgram()`, which all assume evenly spaced observations. For irregular timestamps or missing points, the standard tool is the Lomb-Scargle periodogram, available in the `lomb` package, which estimates the spectrum directly from the time-value pairs without requiring a fixed sampling interval.
 
 ## Summary
 
-Spectral analysis re-expresses a time series as power against frequency. Nothing is added or lost; a pattern your eye cannot pull out of 728 wobbling days becomes the tallest spike on a chart.
+Spectral analysis turns a confusing time plot into a clear ranking of cycles. You compute a periodogram, read its tallest peak, and invert the peak's frequency to get the dominant cycle length. The workflow below captures the five moves you will repeat every time.
 
-| Idea | What to remember | In R |
-|---|---|---|
-| Period and frequency | Reciprocals. Humans think in periods, the maths works in frequency | `1 / pg$freq[i]` |
-| Fourier grid | Only \(j/n\) is estimable; resolution is \(1/n\) | `pg$freq` |
-| Nyquist frequency | Max 0.5 cycles per observation: you need 2 points per cycle | `max(pg$freq)` |
-| The periodogram | Size of the DFT, squared, over `n` | `Mod(fft(x))^2 / n` |
-| It is inconsistent | 2 df always; a 95% interval of `[0.27x, 39.5x]` that more data will not fix | `pg$df` |
-| Smoothing | Pool neighbours: df up, resolution down. Always a trade | `spans = c(5, 5)` |
-| `detrend = TRUE` | A trend becomes a fake giant low-frequency peak. Leave it on | default |
-| `taper = 0.1` | Fades the ends so the wrap-around jump does not leak power | default |
-| `fast = TRUE` | Pads `n`, shifting the grid. Peaks read 7.01, not 7 | default |
-| `ts` frequency | Sets the units of `pg$freq`. Check it before reading any answer | `frequency(x)` |
-| Harmonics | A peak at half your main period means a non-sinusoidal shape, not a second cycle | - |
-| Filtering | A `k`-length moving average kills the `k`-period cycle and everything faster | `stats::filter()` |
+![The five-step spectral analysis workflow, from detrending to reading the peak](screenshots/Spectral-Analysis-in-R-workflow.webp)
 
-For everyday work, the honest default is `spec.pgram(x, spans = c(5, 5))`: keep R's sensible `detrend`, `taper`, and `fast` settings, and add the smoothing the defaults leave out. Then read peaks as approximate, check `frequency()` before converting to periods, and treat any bump that does not clear the confidence bar as noise.
+*Figure 2: The five-step spectral analysis workflow, from detrending to reading the peak.*
 
-We opened with a bakery whose weekly and yearly rhythms we planted ourselves. The periodogram found both, to the day, without being told they existed, and a 7-day moving average removed the weekly one so completely that its power fell by a factor of five million. That is the loop worth carrying away: **build a series you understand, confirm the method recovers what you put in, then point it at data you do not understand.**
+| Idea | What to remember |
+|---|---|
+| Periodogram | A chart of power versus frequency; a tall peak is a strong cycle |
+| Period and frequency | Reciprocals: period = 1 / frequency, in your data's time units |
+| `spectrum()` and `spec.pgram()` | The base R workhorses; both detrend and taper by default |
+| `fft()` | The engine underneath; periodogram = squared magnitude, scaled by n |
+| Nyquist limit | Fastest detectable cycle is 2 samples per repeat (frequency 0.5) |
+| Smoothing with `spans` | Averages neighbours into a steadier power spectrum; wider blurs more |
+| Detrending | Mandatory on trending data, or the trend fakes a huge low-frequency cycle |
+
+Keep the flow in Figure 2 close: detrend, compute the periodogram, smooth it, read the peak, and convert the frequency to a period. With those five steps you can uncover a hidden season, confirm a known rhythm, or filter a cycle out to see what lies beneath.
 
 ## References
 
-1. R Core Team. **`spec.pgram()` reference manual.** [stat.ethz.ch/R-manual/R-devel/library/stats/html/spec.pgram.html](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/spec.pgram.html). The authoritative definition of every argument used here, including the exact `taper`, `detrend`, and `spans` behaviour.
-2. R Core Team. **`fft()` reference manual.** [stat.ethz.ch/R-manual/R-devel/library/stats/html/fft.html](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fft.html). Confirms the ordering and mirroring of the transform's output, which is why we kept elements 2 to n/2 + 1.
-3. R Core Team. **`filter()` reference manual.** [stat.ethz.ch/R-manual/R-devel/library/stats/html/filter.html](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/filter.html). The `sides` and `NA` padding behaviour behind the moving-average filter in the last section.
-4. Shumway, R. H. & Stoffer, D. S. **Time Series Analysis and Its Applications, code and data.** [github.com/nickpoison/tsa4](https://github.com/nickpoison/tsa4). Chapter 4 is the standard graduate treatment of spectral analysis, with the R code that goes with it.
-5. NIST/SEMATECH. **e-Handbook of Statistical Methods: Spectral Plot.** [itl.nist.gov/div898/handbook/eda/section3/eda35g.htm](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35g.htm). A short, practical account of reading a spectral plot for cycle detection.
-6. Bartlett, P. **Spectral analysis lecture notes, UC Berkeley Stat 153.** [stat.berkeley.edu/~bartlett/courses/153-fall2010/lectures/14.pdf](https://www.stat.berkeley.edu/~bartlett/courses/153-fall2010/lectures/14.pdf). Derives the chi-squared 2-df result and the smoothing trade-off that this post demonstrates empirically.
-7. Wikipedia. **Spectral density estimation.** [en.wikipedia.org/wiki/Spectral_density_estimation](https://en.wikipedia.org/wiki/Spectral_density_estimation). A good map of where the periodogram sits among the other estimators (Welch, multitaper, parametric).
+1. R Core Team. *spec.pgram: Estimate Spectral Density of a Time Series by a Smoothed Periodogram.* R stats package documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/spec.pgram.html)
+2. R Core Team. *spectrum: Spectral Density Estimation.* R stats package documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/spectrum.html)
+3. Shumway, R. H., & Stoffer, D. S. *Time Series Analysis and Its Applications: With R Examples*, 4th Edition. Springer (2017). Chapter 4: Spectral Analysis and Filtering. [Link](https://link.springer.com/book/10.1007/978-3-319-52452-8)
+4. Cryer, J. D., & Chan, K.-S. *Time Series Analysis: With Applications in R*, 2nd Edition. Springer (2008). Chapter 13: Introduction to Spectral Analysis. [Link](https://link.springer.com/book/10.1007/978-0-387-75959-3)
+5. PennState STAT 510. *Lesson 6: The Periodogram.* Applied Time Series Analysis. [Link](https://online.stat.psu.edu/stat510/Lesson06)
+6. R Core Team and contributors. *CRAN Task View: Time Series Analysis* (see the Frequency Analysis section). [Link](https://cran.r-project.org/web/views/TimeSeries.html)
 
 ## Continue Learning
 
-- [Test Stationarity in R](Test-Stationarity-in-R.html), the parent of this post. A trend wrecks a periodogram before you start, and that page shows how to detect and remove one properly.
-- [Time Series Objects in R](Time-Series-Objects-in-R.html), where the `ts` `frequency` attribute comes from. It silently sets the units of every frequency in this post.
-- [Time Series Decomposition in R](Time-Series-Decomposition-in-R.html), the time-domain counterpart. Decomposition splits a series into trend, season, and remainder; the periodogram measures the same seasonality in frequency instead.
-- [ACF and PACF in R](ACF-and-PACF-in-R.html), the same information in the other coordinate system, and the tool to reach for when identifying an ARIMA model.
+- [Test for Stationarity in R](Test-Stationarity-in-R.html): Spectral analysis assumes a stable series, so check stationarity with the ADF and KPSS tests before you trust the peaks.
+- [ACF and PACF in R](ACF-and-PACF-in-R.html): The time-domain cousin of the periodogram; autocorrelation finds repeating structure by comparing a series with lagged copies of itself.
+- [Time Series Decomposition in R](Time-Series-Decomposition-in-R.html): Once you know the dominant cycle, split the series into trend, seasonal, and remainder components to model each piece on its own.
