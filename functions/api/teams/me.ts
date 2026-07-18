@@ -29,7 +29,17 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   const db = context.env.DB;
   const now = Math.floor(Date.now() / 1000);
 
-  const memberships = await listActiveMemberships(db, u.id);
+  // Pre-schema resilience: if the teams columns/tables are not applied to this
+  // environment's D1 yet, report "no teams" instead of 500ing. Real teams can
+  // only exist after the schema (webhook provisioning requires it), so an
+  // empty list is always truthful here.
+  let memberships: Awaited<ReturnType<typeof listActiveMemberships>>;
+  try {
+    memberships = await listActiveMemberships(db, u.id);
+  } catch (e) {
+    console.warn(`[teams/me] membership query failed (schema not applied?): ${(e as Error).message}`);
+    return json({ teams: [] });
+  }
   const teams = [];
   for (const { org, role } of memberships) {
     const canManage = role === "owner" || role === "admin";
