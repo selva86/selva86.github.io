@@ -29,8 +29,11 @@
     return null;
   }
 
+  // review-only fixtures (auth does not complete on the pages.dev subdomain),
+  // same pattern as dashboard.js. ?demo=1 renders a populated admin card.
+  var DEMO = /[?&]demo=1/.test(location.search);
   var TOKEN = readToken();
-  if (!TOKEN) { location.replace("/signin.html?next=/team.html"); return; }
+  if (!TOKEN && !DEMO) { location.replace("/signin.html?next=/team.html"); return; }
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -61,7 +64,33 @@
 
   var state = { teams: [], progress: {} };
 
+  function demoFixture() {
+    var now = Math.floor(Date.now() / 1000);
+    var org = { id: "org_demo", name: "Acme Analytics", plan: "teams", status: "active", seats_purchased: 8, current_period_end: now + 290 * 86400 };
+    state.teams = [{
+      org: org, role: "owner", can_manage: true,
+      seats: { total: 8, assigned: 6, available: 2 },
+      members: [
+        { user_id: "u1", email: "selva@acme.com", role: "owner", joined_at: now - 40 * 86400 },
+        { user_id: "u2", email: "priya@acme.com", role: "admin", joined_at: now - 32 * 86400 },
+        { user_id: "u3", email: "daniel@acme.com", role: "member", joined_at: now - 30 * 86400 },
+        { user_id: "u4", email: "mei@acme.com", role: "member", joined_at: now - 21 * 86400 },
+        { user_id: "u5", email: "arjun@acme.com", role: "member", joined_at: now - 9 * 86400 },
+      ],
+      invites: [{ email: "newhire@acme.com", role: "member", created_at: now - 86400, expires_at: now + 13 * 86400 }],
+    }];
+    state.progress.org_demo = [
+      { user_id: "u2", email: "priya@acme.com", display_name: "Priya", role: "admin", total_xp: 4210, current_streak_days: 9, last_active_date: "2026-07-18", exercises_solved: 58, certificates: 2 },
+      { user_id: "u3", email: "daniel@acme.com", display_name: "Daniel", role: "member", total_xp: 2840, current_streak_days: 3, last_active_date: "2026-07-17", exercises_solved: 41, certificates: 1 },
+      { user_id: "u1", email: "selva@acme.com", display_name: "Selva", role: "owner", total_xp: 1930, current_streak_days: 5, last_active_date: "2026-07-18", exercises_solved: 27, certificates: 1 },
+      { user_id: "u4", email: "mei@acme.com", display_name: "Mei", role: "member", total_xp: 860, current_streak_days: 0, last_active_date: "2026-07-11", exercises_solved: 12, certificates: 0 },
+      { user_id: "u5", email: "arjun@acme.com", display_name: "Arjun", role: "member", total_xp: 120, current_streak_days: 1, last_active_date: "2026-07-16", exercises_solved: 3, certificates: 0 },
+    ];
+    render();
+  }
+
   function load() {
+    if (DEMO) { demoFixture(); return; }
     return api("/api/teams/me").then(function (r) {
       if (r.status === 401) { location.replace("/signin.html?next=/team.html"); return; }
       state.teams = (r.json && r.json.teams) || [];
