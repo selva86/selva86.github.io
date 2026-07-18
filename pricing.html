@@ -291,12 +291,26 @@ a{text-decoration:none;color:inherit}
         </ul>
       </article>
 
-      <article class="tier">
+      <style>
+        .tm-seatpick{display:flex;align-items:center;gap:8px;margin:6px 0 2px}
+        .tm-step{width:32px;height:32px;border:1px solid var(--line,#e5e7eb);background:#fff;border-radius:9px;font-size:18px;line-height:1;cursor:pointer;color:var(--ink,#111)}
+        .tm-step:hover{border-color:#2f6df6;color:#2f6df6}
+        .tm-seatpick input{width:56px;height:32px;text-align:center;border:1px solid var(--line,#e5e7eb);border-radius:9px;font:inherit;font-size:15px;font-weight:600}
+        .tm-seatpick input:focus{outline:none;border-color:#2f6df6}
+        .tm-seattotal{font-size:12.5px;color:var(--faint,#6b7280);margin-left:2px}
+      </style>
+      <article class="tier" id="teams">
         <div class="tn">Teams</div>
         <div class="td">All-Access for your whole group.</div>
-        <div class="price"><span class="amt">$12</span><span class="per">/ member / mo</span></div>
-        <div class="bill">From 5 members</div>
-        <a class="cta" href="#signup-notify" data-plan="teams">Talk to us</a>
+        <div class="price"><span class="amt">$115</span><span class="per">/ seat / year</span></div>
+        <div class="bill">Minimum 5 seats &middot; billed annually</div>
+        <div class="tm-seatpick">
+          <button type="button" class="tm-step" data-seat-dec aria-label="Fewer seats">&minus;</button>
+          <input type="number" id="teamSeats" min="5" max="100" value="5" step="1" inputmode="numeric" aria-label="Number of seats">
+          <button type="button" class="tm-step" data-seat-inc aria-label="More seats">+</button>
+          <span class="tm-seattotal" id="teamTotal">5 seats &middot; $575/yr</span>
+        </div>
+        <a class="cta" href="#signup-notify" data-plan="teams" id="teamsCta">Buy seats</a>
         <ul>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Everything in All-Access</li>
           <li><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Central billing, one invoice</li>
@@ -642,6 +656,79 @@ window.addEventListener('load',function(){setMode('annual')});
       })
       .catch(function(){ btn.disabled=false; btn.textContent='Join the waitlist'; msg.style.color='#b42318'; msg.textContent='Network error. Please try again.'; });
   });
+})();
+</script>
+<script>
+/* Teams seat picker + checkout. Seat math is always live. Real Paddle checkout
+   activates only when /api/_auth-config returns a paddle.clientToken; until then
+   the CTA falls through to the existing waitlist handler. */
+(function () {
+  "use strict";
+  var SEAT = 115, MIN = 5, MAX = 100;
+  var input = document.getElementById("teamSeats");
+  var totalEl = document.getElementById("teamTotal");
+  var cta = document.getElementById("teamsCta");
+  if (!input || !cta) return;
+
+  function seats() { var n = parseInt(input.value, 10); if (isNaN(n)) n = MIN; return Math.max(MIN, Math.min(MAX, n)); }
+  function refresh() { var n = seats(); input.value = n; if (totalEl) totalEl.textContent = n + " seats · $" + (n * SEAT) + "/yr"; }
+  document.querySelector("[data-seat-dec]") && document.querySelector("[data-seat-dec]").addEventListener("click", function () { input.value = seats() - 1; refresh(); });
+  document.querySelector("[data-seat-inc]") && document.querySelector("[data-seat-inc]").addEventListener("click", function () { input.value = seats() + 1; refresh(); });
+  input.addEventListener("input", refresh);
+  input.addEventListener("change", refresh);
+  refresh();
+
+  var paddle = null, ready = false;
+  function readToken() {
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf("sb-") !== 0 || k.indexOf("-auth-token") < 0) continue;
+        var raw = localStorage.getItem(k); if (!raw) continue;
+        var val = raw;
+        if (raw.charAt(0) !== "{" && raw.indexOf("base64-") === 0) { try { val = atob(raw.slice(7)); } catch (e) {} }
+        try { var o = JSON.parse(val); if (o && o.access_token) return o.access_token; if (Array.isArray(o) && typeof o[0] === "string") return o[0]; }
+        catch (e) { if (val.split(".").length === 3) return val; }
+      }
+    } catch (e) {}
+    return null;
+  }
+  function jwtClaims(tok) { try { var p = tok.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(decodeURIComponent(escape(atob(p)))); } catch (e) { return {}; } }
+
+  fetch("/api/_auth-config").then(function (r) { return r.json(); }).then(function (cfg) {
+    if (!cfg || !cfg.paddle || !cfg.paddle.clientToken || !cfg.paddle.teamsPriceId) return; // stay on waitlist fallback
+    paddle = cfg.paddle;
+    var s = document.createElement("script");
+    s.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+    s.onload = function () {
+      try {
+        if (window.Paddle) {
+          window.Paddle.Environment.set(paddle.environment === "sandbox" ? "sandbox" : "production");
+          window.Paddle.Initialize({ token: paddle.clientToken });
+          ready = true;
+          cta.textContent = "Buy " + seats() + " seats";
+          input.addEventListener("change", function () { if (ready) cta.textContent = "Buy " + seats() + " seats"; });
+        }
+      } catch (e) {}
+    };
+    document.head.appendChild(s);
+  }).catch(function () {});
+
+  cta.addEventListener("click", function (e) {
+    if (!ready) return; // not provisioned -> existing waitlist handler runs
+    e.preventDefault(); e.stopImmediatePropagation();
+    var tok = readToken();
+    if (!tok) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html#teams"); return; }
+    var claims = jwtClaims(tok);
+    try {
+      window.Paddle.Checkout.open({
+        items: [{ priceId: paddle.teamsPriceId, quantity: seats() }],
+        customer: claims.email ? { email: claims.email } : undefined,
+        customData: { user_id: claims.sub || "", plan: "teams" },
+        settings: { successUrl: location.origin + "/team.html" },
+      });
+    } catch (err) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html#teams"); }
+  }, true);
 })();
 </script>
 <script defer src="/www/practice-nav.js?v=12"></script><script defer src="/www/roadmap-nav.js?v=4"></script>

@@ -26,8 +26,21 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (!url || !anonKey) {
     return jsonError(503, "config_missing", "Auth config not yet provisioned");
   }
+  // Paddle checkout config (all public-safe). clientToken is a browser token by
+  // design; null until provisioned, in which case the Teams tile keeps its
+  // waitlist fallback instead of opening a checkout.
+  const paddle = context.env.PADDLE_CLIENT_TOKEN
+    ? {
+        clientToken: context.env.PADDLE_CLIENT_TOKEN,
+        environment: context.env.PADDLE_CLIENT_TOKEN.startsWith("test_") ? "sandbox" : "production",
+        teamsPriceId: context.env.PADDLE_TEAMS_PRICE_ID || null,
+        teamsSeatPriceUsd: 115,
+        teamsMinSeats: 5,
+      }
+    : null;
+
   return json(
-    { url, anonKey, env: context.env.ENVIRONMENT, googleClientId: GOOGLE_CLIENT_ID },
+    { url, anonKey, env: context.env.ENVIRONMENT, googleClientId: GOOGLE_CLIENT_ID, paddle },
     {
       headers: {
         // Override the default no-store from json() since this IS cacheable.
