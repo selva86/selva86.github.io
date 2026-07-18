@@ -1,0 +1,888 @@
+---
+title: "Fourier Terms in R: Model Complex Seasonality"
+description: "Model complex and multiple seasonality in R with Fourier terms: build them with fourier(), fit dynamic harmonic regression via auto.arima(), and forecast ahead."
+keywords: "Fourier terms in R, complex seasonality, dynamic harmonic regression, fourier() forecast, multiple seasonal periods, auto.arima xreg, harmonic regression R, msts, fable fourier"
+mathjax: true
+webr: true
+curriculum_id: "FR-arim-3"
+post_type: "FR"
+auto_link_terms: "Fourier terms|Fourier term|Fourier terms in R|dynamic harmonic regression|harmonic regression|complex seasonality|multiple seasonal periods|fourier()|Fourier series|msts|number of harmonics"
+auto_link_case_sensitive: false
+fr_parent: "SARIMA-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Fourier terms are pairs of sine and cosine waves that stand in for a repeating <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> using only a handful of numbers. In R you build them with <code>fourier()</code> and hand them to <code>auto.arima()</code> as extra predictors, which lets a single model capture very long seasonal cycles, and even several overlapping cycles at once, that a seasonal ARIMA cannot. This tutorial uses the <code>forecast</code> and <code>ggplot2</code> packages for the runnable code, and shows the modern <code>fable</code> version to run in your own R session.</p>
+
+<h2>Why do weekly and daily seasonal cycles break a seasonal ARIMA model?</h2>
+
+<p>Sales climb every December. Website traffic peaks every Monday. A <a href="SARIMA-in-R.html">seasonal ARIMA model</a> copes fine with a short cycle like 12 months, but it starts to struggle when the cycle is long, say 52 weeks, and it cannot handle two cycles at the same time. The quickest way to feel the problem is to build a weekly series and let R try to fit it.</p>
+
+<p>Let's create five years of weekly demand with a clear yearly rhythm baked in, then look at it.</p>
+
+<div class="webr-container" data-block-title="Build a weekly series with a yearly cycle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a weekly series with a yearly cycle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+library(ggplot2)
+
+set.seed(2027)
+n &lt;- 260                         # 5 years of weekly data
+week &lt;- 1:n
+# a smooth yearly shape (three harmonics) plus a gentle trend and noise
+seasonal &lt;- 14 * sin(2 * pi * week / 52) + 6 * cos(2 * pi * week / 52) +
+            5 * sin(2 * pi * 2 * week / 52) + 4 * cos(2 * pi * 2 * week / 52) +
+            3 * sin(2 * pi * 3 * week / 52)
+weekly_demand &lt;- ts(120 + 0.05 * week + seasonal + rnorm(n, 0, 3), frequency = 52)
+
+c(observations = length(weekly_demand), season_length = frequency(weekly_demand))
+#&gt;  observations season_length 
+#&gt;           260            52 
+
+autoplot(weekly_demand) +
+  labs(title = &quot;Weekly demand with a yearly cycle&quot;, x = &quot;Year&quot;, y = &quot;Units&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printout confirms what we built: 260 weekly observations with a season that is 52 steps long. The plot shows the same wave rolling past five times, once per year. This is exactly the kind of series a seasonal model should love, so let's hand it to <code>auto.arima()</code> and see what it does.</p>
+
+<div class="webr-container" data-block-title="Let auto.arima try a seasonal model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let auto.arima try a seasonal model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">naive_fit &lt;- auto.arima(weekly_demand)
+naive_fit
+#&gt; Series: weekly_demand 
+#&gt; ARIMA(0,0,0)(1,1,0)[52] with drift 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          sar1   drift
+#&gt;       -0.4856  0.0470
+#&gt; s.e.   0.0694  0.0036
+#&gt; 
+#&gt; sigma^2 = 13.44:  log likelihood = -571.31
+#&gt; AIC=1148.63   AICc=1148.74   BIC=1158.64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the label <code>ARIMA(0,0,0)(1,1,0)[52]</code>. The <code>1</code> in the middle of the seasonal bracket means R was forced to take one seasonal difference, subtracting each week from the same week a year earlier. That throws away the first 52 weeks before the model can learn anything. Worse, the entire yearly shape is now squeezed into a single seasonal coefficient, <code>sar1</code>. That is a rigid, blunt way to describe a rich pattern, and it only works at all because there is exactly one seasonal period. The moment you have a daily cycle sitting on top of a weekly one, this whole approach falls apart.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The monthly <code>AirPassengers</code> series has a short season (m = 12). Fit an automatic model to it and notice how much fuller the seasonal part of the label can be when the period is small.</p>
+<div class="webr-container" data-block-title="Your turn: seasonal model on monthly data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: seasonal model on monthly data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit auto.arima to the monthly AirPassengers series (m = 12)
+# and read the (P,D,Q)[m] seasonal part of the label.
+ex_series &lt;- weekly_demand    # change this to AirPassengers, then run
+auto.arima(ex_series)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Automatic model on AirPassengers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Automatic model on AirPassengers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auto.arima(AirPassengers)
+#&gt; Series: AirPassengers 
+#&gt; ARIMA(2,1,1)(0,1,0)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2      ma1
+#&gt;       0.5960  0.2143  -0.9819
+#&gt; s.e.  0.0888  0.0880   0.0292
+#&gt; 
+#&gt; sigma^2 = 132.3:  log likelihood = -504.92
+#&gt; AIC=1017.85   AICc=1018.17   BIC=1029.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With m = 12 the model comfortably fits a seasonal part. The pain only starts when m is large (weekly, daily) or when there is more than one season.</p>
+
+</details>
+</section>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A seasonal ARIMA has to reach across the whole cycle to model a season; Fourier terms trace the same shape with just a few waves.</strong> A weekly season forces the model to span all 52 steps and give up the first year to <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">seasonal differencing</a>, yet two or three sine and cosine pairs can follow the same shape with a handful of numbers, so the model stays small no matter how long the period is.</div></div>
+
+<h2>What exactly is a Fourier term?</h2>
+
+<p>A Fourier term is a single sine or cosine wave that completes a whole number of cycles per season. The first harmonic completes a single cycle per season, and each higher harmonic completes one more cycle than the last, so harmonic number k makes k cycles. The remarkable fact, proved by the mathematician Joseph Fourier, is that adding a few of these waves together can trace almost any repeating shape. We use them in sine-and-cosine pairs so the combined wave can peak at any point in the cycle, not just where a plain sine would.</p>
+
+<p>Here is the same idea written down. For a season of length $m$, the $k$-th Fourier pair is</p>
+
+<p>$$s_k(t) = \sin\left(\frac{2 \pi k t}{m}\right), \qquad c_k(t) = \cos\left(\frac{2 \pi k t}{m}\right)$$</p>
+
+<p>and the seasonal part of the series is approximated by adding $K$ of these pairs on top of a baseline:</p>
+
+<p>$$\hat{y}_t = a + \sum_{k=1}^{K}\left[\alpha_k \sin\left(\frac{2 \pi k t}{m}\right) + \beta_k \cos\left(\frac{2 \pi k t}{m}\right)\right] + N_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$t$ = the time index (week 1, 2, 3, and onward)</li>
+
+<li>$m$ = the season length (52 for weekly data)</li>
+
+<li>$K$ = how many sine and cosine pairs you keep</li>
+
+<li>$\alpha_k$ and $\beta_k$ = the wave sizes the model estimates</li>
+
+<li>$N_t$ = whatever is left over, handled by an ARIMA model</li>
+
+</ul>
+
+<p>If formulas are not your thing, skip straight to the code, because the <code>fourier()</code> function builds all of this for you. Pass it the series and a value of <code>K</code>, and it returns a matrix of the sine and cosine columns.</p>
+
+<div class="webr-container" data-block-title="Build the Fourier terms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the Fourier terms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(head(fourier(weekly_demand, K = 2), 4), 3)
+#&gt;      S1-52 C1-52 S2-52 C2-52
+#&gt; [1,] 0.121 0.993 0.239 0.971
+#&gt; [2,] 0.239 0.971 0.465 0.885
+#&gt; [3,] 0.355 0.935 0.663 0.749
+#&gt; [4,] 0.465 0.885 0.823 0.568</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>K = 2</code> you get four columns, one sine and one cosine for each of the first two harmonics. Each row is one week, and each number is where that wave sits at that moment. These four columns are the predictors you will feed to the model. It helps to actually see the waves they represent.</p>
+
+<div class="webr-container" data-block-title="See the Fourier waves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the Fourier waves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wave_df &lt;- data.frame(
+  week = week,
+  S1   = sin(2 * pi * week / 52),
+  C1   = cos(2 * pi * week / 52),
+  S2   = sin(2 * pi * 2 * week / 52)
+)
+
+ggplot(subset(wave_df, week &lt;= 104), aes(week)) +
+  geom_line(aes(y = S1, colour = &quot;S1: one cycle per year&quot;)) +
+  geom_line(aes(y = C1, colour = &quot;C1: one cycle per year&quot;)) +
+  geom_line(aes(y = S2, colour = &quot;S2: two cycles per year&quot;)) +
+  labs(title = &quot;Fourier terms are just sine and cosine waves&quot;,
+       x = &quot;Week&quot;, y = &quot;Value&quot;, colour = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Over two years, <code>S1</code> and <code>C1</code> each make two full swings (one per year), while <code>S2</code> makes four (two per year). The model will scale and add waves like these until their sum matches the real seasonal shape.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Each value of K adds one sine and one cosine, so K pairs make 2K columns. Confirm it: how many columns does <code>K = 4</code> create?</p>
+<div class="webr-container" data-block-title="Your turn: count the Fourier columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count the Fourier columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: how many predictor columns does K = 4 produce?
+# Hint: ncol() counts columns; each K adds a sine and a cosine.
+ncol(fourier(weekly_demand, K = 2))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Counting Fourier columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Counting Fourier columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ncol(fourier(weekly_demand, K = 4))
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Four pairs make 2 times 4 = 8 columns. More pairs means more columns and a more flexible seasonal curve.</p>
+
+</details>
+</section>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Column names encode the wave.</strong> In a name like S2-52, the S means sine (C means cosine). The 2 is the harmonic number, and 52 is the season length. You never type these by hand, because <code>fourier()</code> names them for you.</div></div>
+
+<h2>How do you fit a dynamic harmonic regression in R?</h2>
+
+<p>Now we combine the pieces. You feed the Fourier columns to <code>auto.arima()</code> through its <code>xreg</code> argument (short for external regressors) and set <code>seasonal = FALSE</code>. The Fourier terms carry the season, so <code>auto.arima()</code> is free to model only the short-term wobble that is left, treating it as ordinary, non-seasonal ARIMA errors. This two-part recipe, a regression on Fourier terms with ARIMA errors, is called dynamic harmonic regression.</p>
+
+<div class="webr-container" data-block-title="Fit a dynamic harmonic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a dynamic harmonic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dhr_fit &lt;- auto.arima(weekly_demand,
+                      xreg = fourier(weekly_demand, K = 3),
+                      seasonal = FALSE)
+dhr_fit
+#&gt; Series: weekly_demand 
+#&gt; Regression with ARIMA(0,1,1) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1    S1-52   C1-52   S2-52   C2-52   S3-52   C3-52
+#&gt;       -0.9089  13.6383  5.9220  4.3750  3.7826  2.8875  0.3314
+#&gt; s.e.   0.0200   0.3259  0.3147  0.2688  0.2655  0.2568  0.2553
+#&gt; 
+#&gt; sigma^2 = 8.949:  log likelihood = -648.64
+#&gt; AIC=1313.28   AICc=1313.86   BIC=1341.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The label now reads "Regression with ARIMA(0,1,1) errors", with no seasonal bracket at all. The season has moved into the six Fourier coefficients, from <code>S1-52</code> through <code>C3-52</code>, and the only ARIMA structure left is a tiny non-seasonal <code>(0,1,1)</code>. Notice too that this model uses every observation, with no year of data sacrificed to seasonal differencing.</p>
+
+<p><img src="screenshots/Fourier-Terms-in-R-workflow.webp" alt="The dynamic harmonic regression workflow from series to forecast" class="img-responsive img-zoomable" loading="lazy" width="2248" height="362" /></p>
+
+<p><em>Figure 1: The dynamic harmonic regression workflow: turn the season into Fourier columns, fit ARIMA on the rest, then forecast with future Fourier terms.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The fitted amplitudes recover a signal you could not see.</strong> We secretly built the series from waves of size 14, 6, 5, 4 and 3; the model read them back as roughly 13.6, 5.9, 4.4, 3.8 and 2.9 without ever being told they existed. That is the Fourier idea working in reverse, pulling a clean seasonal signal out of noisy data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the model with only <code>K = 2</code> pairs and read its AICc. A lower AICc means a better trade-off between fit and complexity.</p>
+<div class="webr-container" data-block-title="Your turn: fit with two Fourier pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit with two Fourier pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit the dynamic harmonic regression with K = 2
+# and print its AICc, rounded to 2 decimals.
+ex_fit2 &lt;- auto.arima(weekly_demand,
+                      xreg = fourier(weekly_demand, K = 1),   # change 1 to 2
+                      seasonal = FALSE)
+round(ex_fit2$aicc, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AICc at two Fourier pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AICc at two Fourier pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit2 &lt;- auto.arima(weekly_demand,
+                      xreg = fourier(weekly_demand, K = 2),
+                      seasonal = FALSE)
+round(ex_fit2$aicc, 2)
+#&gt; [1] 1384.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 1384.99 is higher than the K = 3 model's 1313.86, so two pairs are not flexible enough to trace this season.</p>
+
+</details>
+</section>
+
+<h2>How do you choose K, the number of Fourier pairs?</h2>
+
+<p><code>K</code> is the one dial you control, and it sets how detailed the seasonal curve can be. A small <code>K</code> gives a smooth, simple season. A large <code>K</code> gives a wiggly one that can start chasing noise. The clean way to pick it is to fit a handful of values and keep the one with the lowest AICc, a score that rewards good fit and penalises extra parameters.</p>
+
+<div class="webr-container" data-block-title="Search K by AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Search K by AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">for (K in 1:6) {
+  fit_k &lt;- auto.arima(weekly_demand,
+                      xreg = fourier(weekly_demand, K = K),
+                      seasonal = FALSE)
+  cat(&quot;K =&quot;, K, &quot; AICc =&quot;, round(fit_k$aicc, 2), &quot;\n&quot;)
+}
+#&gt; K = 1  AICc = 1452.5 
+#&gt; K = 2  AICc = 1384.99 
+#&gt; K = 3  AICc = 1313.86 
+#&gt; K = 4  AICc = 1315.94 
+#&gt; K = 5  AICc = 1322.33 
+#&gt; K = 6  AICc = 1324.87 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The AICc drops sharply, hits its lowest point at <code>K = 3</code>, then creeps back up. That dip is the sweet spot: enough waves to trace the yearly shape, not so many that the model fits the random noise. A picture makes the smoothness trade-off obvious.</p>
+
+<div class="webr-container" data-block-title="Compare the seasonal shape at K = 1 and K = 3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the seasonal shape at K = 1 and K = 3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit1 &lt;- auto.arima(weekly_demand,
+                   xreg = fourier(weekly_demand, K = 1),
+                   seasonal = FALSE)
+
+compare_df &lt;- data.frame(
+  week   = week,
+  actual = as.numeric(weekly_demand),
+  K1     = as.numeric(fitted(fit1)),
+  K3     = as.numeric(fitted(dhr_fit))
+)
+
+ggplot(subset(compare_df, week &lt;= 78), aes(week)) +
+  geom_line(aes(y = actual), colour = &quot;grey70&quot;) +
+  geom_line(aes(y = K1, colour = &quot;K = 1&quot;), linewidth = 0.9) +
+  geom_line(aes(y = K3, colour = &quot;K = 3&quot;), linewidth = 0.9) +
+  labs(title = &quot;More Fourier pairs trace a more detailed season&quot;,
+       x = &quot;Week&quot;, y = &quot;Weekly demand&quot;, colour = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>K = 1</code> line is a single smooth swell, too plain to follow the real peaks and dips. The <code>K = 3</code> line hugs the actual series closely. Push <code>K</code> much higher and that line would start wobbling around every little bump, which is overfitting.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The search stopped improving after <code>K = 3</code>. Check the next step up: fit <code>K = 5</code> and confirm its AICc is worse than 1313.86.</p>
+<div class="webr-container" data-block-title="Your turn: check a larger K">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check a larger K</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit K = 5 and print its AICc. Is it above or below 1313.86?
+ex_fit5 &lt;- auto.arima(weekly_demand,
+                      xreg = fourier(weekly_demand, K = 3),   # change 3 to 5
+                      seasonal = FALSE)
+round(ex_fit5$aicc, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AICc at five Fourier pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AICc at five Fourier pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit5 &lt;- auto.arima(weekly_demand,
+                      xreg = fourier(weekly_demand, K = 5),
+                      seasonal = FALSE)
+round(ex_fit5$aicc, 2)
+#&gt; [1] 1322.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 1322.33 sits above 1313.86, so five pairs slightly overfit. K = 3 remains the winner.</p>
+
+</details>
+</section>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Let AICc pick K, not your eyes.</strong> Loop over a small range such as K = 1 to 8, fitting each model and keeping the K with the lowest AICc. It is faster and more reliable than judging the wiggle of a plot.</div></div>
+
+<h2>How do you forecast future values with Fourier terms?</h2>
+
+<p><a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">Forecasting</a> has one twist worth understanding. To predict ahead, <code>auto.arima()</code> needs the Fourier terms for the future weeks too, and here is the good news: those terms depend only on the calendar, never on anything unknown. You generate them the same way you generated the training terms, this time asking for a horizon <code>h</code>. Call <code>fourier(x, K, h)</code> to build the terms for the next <code>h</code> steps, then pass them to <code>forecast()</code> as <code>xreg</code>.</p>
+
+<div class="webr-container" data-block-title="Forecast the next 26 weeks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the next 26 weeks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc &lt;- forecast(dhr_fit, xreg = fourier(weekly_demand, K = 3, h = 26))
+
+head(data.frame(point = round(as.numeric(fc$mean), 1),
+                lo95  = round(as.numeric(fc$lower[, 2]), 1),
+                hi95  = round(as.numeric(fc$upper[, 2]), 1)), 4)
+#&gt;   point  lo95  hi95
+#&gt; 1 145.8 140.0 151.7
+#&gt; 2 148.8 142.9 154.7
+#&gt; 3 151.1 145.2 157.0
+#&gt; 4 152.5 146.6 158.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one future week: a point forecast plus a 95 percent interval showing the range the value is likely to fall in. The point forecasts rise week by week, tracing the start of the next yearly climb. Plotting the whole forecast makes the continuation clear.</p>
+
+<div class="webr-container" data-block-title="Plot the forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(fc) +
+  labs(title = &quot;26-week forecast from dynamic harmonic regression&quot;,
+       x = &quot;Year&quot;, y = &quot;Weekly demand&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The shaded fan is the forecast interval, widening as it reaches further ahead. The central line carries the yearly wave smoothly forward from where the data ends.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Use the same K for the future terms as you used to fit.</strong> If you fit with K = 3 but call <code>fourier(..., K = 4, h = 26)</code> for the forecast, the columns will not line up and R will stop with an error. Match the K on both calls, every time.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Produce a shorter forecast of just the next 8 weeks, then print the point predictions.</p>
+<div class="webr-container" data-block-title="Your turn: forecast eight weeks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast eight weeks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: forecast the next 8 weeks and print the point forecasts.
+# Build future Fourier terms with the SAME K = 3 and h = 8.
+ex_fc &lt;- forecast(dhr_fit, xreg = fourier(weekly_demand, K = 3, h = 4))  # change h to 8
+round(as.numeric(ex_fc$mean), 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Eight-week point forecasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Eight-week point forecasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fc &lt;- forecast(dhr_fit, xreg = fourier(weekly_demand, K = 3, h = 8))
+round(as.numeric(ex_fc$mean), 1)
+#&gt; [1] 145.8 148.8 151.1 152.5 153.0 152.7 151.7 150.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Eight numbers, one per week, tracing the opening of the next yearly rise.</p>
+
+</details>
+</section>
+
+<h2>How do you model multiple seasonal periods at once?</h2>
+
+<p>This is where Fourier terms leave seasonal ARIMA behind for good. <a class="auto-link" href="High-Frequency-Time-Series-in-R.html" title="High-Frequency Time Series in R: Intraday xts and quantmod">High-frequency data</a> often repeats on more than one clock at the same time. Half-hourly electricity demand has a daily rhythm (48 half-hours) and a weekly rhythm (336 half-hours) layered on top of each other. A seasonal ARIMA can track only one of them. With Fourier terms you simply add a set of waves for each period.</p>
+
+<p>The recipe has two parts. First store the series as an <code>msts</code> object (a multiple seasonal time series) that records every period. Then give <code>fourier()</code> a vector of <code>K</code> values, one per period. The built-in <code>taylor</code> series (half-hourly electricity demand in England and Wales) already arrives in that form. We fit it here with <code>tslm()</code>, a time series version of <code>lm()</code> that is fast and does the job.</p>
+
+<div class="webr-container" data-block-title="Fit two seasonal periods together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit two seasonal periods together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(taylor, package = &quot;forecast&quot;)
+attributes(taylor)$msts        # the two seasonal periods, in half-hours
+#&gt; [1]  48 336
+
+multi_fit &lt;- tslm(taylor ~ fourier(taylor, K = c(10, 10)))
+length(coef(multi_fit))        # intercept plus every Fourier column
+#&gt; [1] 39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>K = c(10, 10)</code> gives ten pairs to the daily cycle and ten to the weekly cycle. You might expect 41 coefficients (an intercept plus 2 times 10 daily and 2 times 10 weekly columns), but because the weekly period is exactly seven daily periods (336 = 7 times 48), one weekly harmonic falls right on top of a daily one, so <code>fourier()</code> drops that duplicate pair and 39 remain. That single model now carries both seasons together. Forecasting works just as before: build future Fourier terms for both periods and pass them along.</p>
+
+<div class="webr-container" data-block-title="Forecast the next two days of demand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the next two days of demand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi_fc &lt;- forecast(multi_fit,
+                     newdata = data.frame(fourier(taylor, K = c(10, 10), h = 96)))
+round(as.numeric(multi_fc$mean[1:4]), 1)   # first four half-hours
+#&gt; [1] 22324.6 21791.1 21749.1 21832.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those four numbers are the predicted demand for the first four half-hours of the next day. The forecast rolls the daily peak-and-trough forward while also respecting where we are in the week, something no single-season model could manage.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>msts stores more than one season.</strong> A plain <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">ts object</a> holds a single frequency, so it cannot describe daily-and-weekly data. Wrap the numbers in <code>msts(x, seasonal.periods = c(48, 336))</code> to record both periods, and then <code>fourier()</code> can build terms for each. The <code>taylor</code> series already comes packaged as an msts.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You can spend a different number of pairs on each period. How many columns does <code>K = c(5, 3)</code> create for the two seasons?</p>
+<div class="webr-container" data-block-title="Your turn: count columns for two periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count columns for two periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: how many Fourier columns for K = c(5, 3)?
+# Hint: 2 * 5 for the first period plus 2 * 3 for the second.
+ncol(fourier(taylor, K = c(2, 2)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Columns for two seasonal periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Columns for two seasonal periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ncol(fourier(taylor, K = c(5, 3)))
+#&gt; [1] 16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Ten columns for the daily cycle (2 times 5) plus six for the weekly cycle (2 times 3) makes 16.</p>
+
+</details>
+</section>
+
+<h2>How do you do this the modern way with fable?</h2>
+
+<p>The forecast package is the classic toolkit. The newer tidyverts family (the <code>tsibble</code> and <code>fable</code> packages) does the same modelling in tidy, pipe-friendly form, and it is what Hyndman's textbook now teaches. The idea is identical: a <code>fourier()</code> term for the season and <code>PDQ(0, 0, 0)</code> to switch off seasonal ARIMA so the Fourier terms own the season. The only real difference is that the data lives in a <code>tsibble</code>, a time-aware version of a data frame, instead of a <code>ts</code> object.</p>
+
+<p>Because <code>tsibble</code> and <code>fable</code> are not part of the in-browser toolkit, run the block below in your own R session after installing them with <code>install.packages(c(&quot;fable&quot;, &quot;tsibble&quot;, &quot;dplyr&quot;))</code>.</p>
+
+<pre><code class="language-r">library(dplyr)
+library(tsibble)
+library(fable)
+
+demand_tsbl &lt;- tsibble(week = 1:260,
+                       demand = as.numeric(weekly_demand),
+                       index = week)
+
+fit_fbl &lt;- demand_tsbl |&gt;
+  model(dhr = ARIMA(demand ~ fourier(period = 52, K = 3) + PDQ(0, 0, 0)))
+
+report(fit_fbl)
+#&gt; Series: demand 
+#&gt; Model: LM w/ ARIMA(1,1,1) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1      ma1  fourier(period = 52, K = 3)C1_52  fourier(period = 52, K = 3)S1_52
+#&gt;       0.0116  -0.9100                            5.9218                           13.6375
+#&gt; s.e.  0.0654   0.0208                            0.3169                            0.3282
+#&gt;       fourier(period = 52, K = 3)C2_52  fourier(period = 52, K = 3)S2_52
+#&gt;                                 3.7825                            4.3746
+#&gt; s.e.                            0.2682                            0.2715
+#&gt;       fourier(period = 52, K = 3)C3_52  fourier(period = 52, K = 3)S3_52
+#&gt;                                 0.3312                            2.8872
+#&gt; s.e.                            0.2580                            0.2595
+#&gt; 
+#&gt; sigma^2 estimated as 8.984:  log likelihood=-648.62
+#&gt; AIC=1315.25   AICc=1315.97   BIC=1347.26</code></pre>
+
+<p>Look at the Fourier coefficients: <code>S1_52</code> is 13.64 and <code>C1_52</code> is 5.92, matching the forecast-package fit almost to the decimal. Both packages estimate the same model; they just wrap it in different syntax.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>fable is the modern path; forecast is the compatible one.</strong> Both fit the identical model, and the coefficients above match the forecast version almost exactly. Reach for fable when you want tidy pipelines and many series at once, and for the forecast package when you want something lighter that runs anywhere, including right here in your browser.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine the ideas above. Try each before opening the solution.</p>
+
+<h3>Exercise 1: Let AICc pick K for you</h3>
+
+<p>Instead of reading the AICc table by eye, write code that fits <code>K = 1</code> through <code>6</code> and returns the K with the lowest AICc automatically. Save it to <code>best_k</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit K = 1..6, then use which.min() on the AICc values to pick the best K.
+# Hint: sapply() over 1:6 returns a vector of AICc values.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aicc_by_k &lt;- sapply(1:6, function(K)
+  auto.arima(weekly_demand,
+             xreg = fourier(weekly_demand, K = K),
+             seasonal = FALSE)$aicc)
+best_k &lt;- which.min(aicc_by_k)
+best_k
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sapply()</code> collects the six AICc scores into a vector, and <code>which.min()</code> returns the position of the smallest, which is K = 3, exactly matching the table you read earlier.</p>
+
+</details>
+
+<h3>Exercise 2: A full multiple-seasonality forecast</h3>
+
+<p>Put the whole multiple-seasonality workflow together on the <code>taylor</code> series: fit a harmonic regression with <code>K = c(10, 10)</code>, forecast the next full day (48 half-hours), and print the very first forecast value. Save the forecast object to <code>my_fc</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit tslm(taylor ~ fourier(taylor, K = c(10, 10)))
+# 2. Forecast with newdata = data.frame(fourier(taylor, K = c(10, 10), h = 48))
+# 3. Print the first value of my_fc$mean, rounded to 1 decimal.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit &lt;- tslm(taylor ~ fourier(taylor, K = c(10, 10)))
+my_fc  &lt;- forecast(my_fit,
+                   newdata = data.frame(fourier(taylor, K = c(10, 10), h = 48)))
+round(as.numeric(my_fc$mean[1]), 1)
+#&gt; [1] 22324.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first half-hour of the next day is predicted at 22324.6, the same value the section-6 forecast produced, because it is the same fitted model.</p>
+
+</details>
+
+<h3>Exercise 3: Check the model is trustworthy</h3>
+
+<p>A good forecast model leaves behind residuals that look like random noise. Run <code>checkresiduals()</code> on the <code>K = 3</code> model <code>dhr_fit</code> from earlier and read the <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">Ljung-Box</a> <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> from the printout. A p-value above 0.05 means the leftovers are indistinguishable from noise, which is what you want.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run checkresiduals() on the fitted model dhr_fit
+# and read the Ljung-Box p-value from the printout.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(dhr_fit)
+#&gt; 
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from Regression with ARIMA(0,1,1) errors
+#&gt; Q* = 60.521, df = 51, p-value = 0.1698
+#&gt; 
+#&gt; Model df: 1.   Total lags used: 52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value of 0.1698 is well above 0.05, so the residuals pass the white-noise test. The Fourier terms plus a small ARIMA error captured the structure, and nothing systematic is left over.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>How are Fourier terms different from seasonal dummy variables?</h3>
+
+<p>Seasonal dummy variables use one indicator column per step in the season, so a weekly season needs 51 dummies and a daily one needs 364. Fourier terms compress the same shape into a few smooth waves, so the model stays small and the fitted season stays smooth instead of jagged.</p>
+
+<h3>What value of K should I start with?</h3>
+
+<p>Start small. Try <code>K = 1</code> up to about 6 or 10, fitting each model and keeping the K with the lowest AICc. Note that K can never exceed m/2 (half the season length), because beyond that point the extra waves simply repeat ones you already have.</p>
+
+<h3>Can I add other predictors alongside the Fourier terms?</h3>
+
+<p>Yes. The Fourier columns are just regressors, so you can <code>cbind()</code> them with anything else, such as a temperature series or a holiday flag, and pass the combined matrix as <code>xreg</code>. This is how forecasters model electricity demand from the weather and the calendar together.</p>
+
+<h3>When should I reach for TBATS or Prophet instead?</h3>
+
+<p>Dynamic harmonic regression assumes the seasonal shape stays roughly constant over time. If the seasonality clearly drifts from year to year, TBATS (also in the forecast package) lets it evolve, and Prophet is a popular choice for business series with irregular holidays. Fourier-term regression is the simplest and most transparent place to start.</p>
+
+<h3>Do Fourier terms work for daily data with a yearly cycle?</h3>
+
+<p>Yes, and it is one of their best uses. A yearly cycle in daily data has a period of about 365, far too long for seasonal ARIMA, yet a handful of Fourier pairs handle it with ease. Set the period to 365.25 (or use an <code>msts</code> object) and pick K by AICc as usual.</p>
+
+<h2>Summary</h2>
+
+<p>Fourier terms turn a long or complicated season into a few sine and cosine columns that drop straight into a regression. That one trick handles the cases a seasonal ARIMA cannot, namely very long periods and several overlapping cycles, using a model that stays small and forecasts cleanly.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Function</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build terms</td>
+<td>fourier(x, K)</td>
+<td>Turns the season into 2K sine and cosine columns</td>
+</tr>
+<tr>
+<td>Fit the model</td>
+<td><a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">auto.arima</a>(x, xreg =, seasonal = FALSE)</td>
+<td>Fourier terms carry the season; ARIMA handles the rest</td>
+</tr>
+<tr>
+<td>Choose K</td>
+<td>compare AICc</td>
+<td>Balances a smooth season against overfitting</td>
+</tr>
+<tr>
+<td>Forecast</td>
+<td>fourier(x, K, h) as xreg</td>
+<td>Future terms come from the calendar alone</td>
+</tr>
+<tr>
+<td>Many seasons</td>
+<td>msts + fourier(K = c(...))</td>
+<td>One set of terms per seasonal period</td>
+</tr>
+</tbody>
+</table>
+
+<p>With those five moves you can model weekly sales or half-hourly demand without ever fighting a giant seasonal ARIMA.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J., and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em> (3rd ed), Section 10.5, Dynamic harmonic regression. <a href="https://otexts.com/fpp3/dhr.html">Link</a></li>
+
+<li>Hyndman, R.J., and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em> (3rd ed), Section 12.1, Complex seasonality. <a href="https://otexts.com/fpp3/complexseasonality.html">Link</a></li>
+
+<li>forecast package documentation, fourier() reference. <a href="https://pkg.robjhyndman.com/forecast/reference/fourier.html">Link</a></li>
+
+<li>fable package documentation, ARIMA() model reference. <a href="https://fable.tidyverts.org/reference/ARIMA.html">Link</a></li>
+
+<li>forecast package documentation, tslm() reference. <a href="https://pkg.robjhyndman.com/forecast/reference/tslm.html">Link</a></li>
+
+<li>Hyndman, R.J., and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em> (3rd ed), book home. <a href="https://otexts.com/fpp3/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="SARIMA-in-R.html">SARIMA in R: How to Fit Seasonal ARIMA Models</a>. The seasonal model that Fourier terms extend to long periods. Start here if the <a class="auto-link" href="SARIMA-in-R.html" title="SARIMA in R: How to Fit Seasonal ARIMA Models">(P,D,Q)</a>[m] notation is new to you.</li>
+
+<li><a href="ARIMAX-in-R.html">ARIMAX in R: ARIMA with External Regressors</a>. Fourier terms are one kind of external regressor; this shows the general xreg idea with real predictors.</li>
+
+<li><a href="Dynamic-Regression-in-R.html">Dynamic Regression in R: Regression with ARIMA Errors</a>. The broader family of models that dynamic harmonic regression belongs to.</li>
+
+</ul>
+
+{% endraw %}
