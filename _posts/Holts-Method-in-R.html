@@ -1,54 +1,44 @@
 ---
 title: "Holt's Method in R: Forecast Trend Without Seasonality"
-description: "Holt's linear trend method in R: how holt() adds a slope to exponential smoothing, what beta really controls, and why damping usually forecasts better."
-keywords: "holt's method in R, holt linear trend method, holt() function R, damped trend forecast, beta parameter smoothing, forecast package R, trend forecasting in R, exponential smoothing with trend"
+description: "Holt's method adds a trend term to exponential smoothing, forecasting a sloped line, not a flat one. Learn holt() in R, its two equations, and damped trends."
+keywords: "Holt's method in R, double exponential smoothing, holt() function, forecast package, linear trend forecasting, damped trend, level and trend smoothing, time series trend forecast"
 mathjax: true
 webr: true
 curriculum_id: "FR-ets-1"
 post_type: "FR"
-auto_link_terms: "Holt's method|Holt's linear trend method|Holt's linear method|holt()|damped trend|damped trend method|damping parameter|trend component|slope component|the beta parameter|linear trend method|Holt's method in R|forecast a trend"
+auto_link_terms: "Holt's method | Holt's linear trend | double exponential smoothing | holt() | holt() function | Holt's method in R | linear trend method | damped trend | Holt's exponential smoothing | trend forecasting | Holt's method forecast"
 auto_link_case_sensitive: false
 fr_parent: "Exponential-Smoothing-in-R.html"
 ---
 {% raw %}
 <!-- md2html:generated -->
 
-<p class="lead">Holt's linear trend method forecasts a series that is going somewhere. It keeps the level that <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">simple exponential smoothing</a> tracks and adds a <a class="auto-link" href="lubridate-second-in-R.html" title="lubridate second() in R: Extract Seconds From Datetimes">second component</a>, a <b>slope</b>, so the forecast is a sloped line instead of a flat one. In R it is <code>holt()</code> from the forecast package, and it costs one extra smoothing parameter, <b>beta</b>, which controls how fast the slope is allowed to change its mind. This post builds the method by hand until it reproduces <code>holt()</code> to four decimals, shows what beta really does, and explains why the damped version usually forecasts better than the straight-line one.</p>
+<p class="lead">Holt's method, also called double exponential smoothing, extends <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">simple exponential smoothing</a> by tracking a slope as well as a level, so its forecast climbs or falls in a straight line instead of staying flat. The <code>holt()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a>'s forecast package fits the model and tunes both smoothing dials for you.</p>
 
-<p>Everything below uses one dataset, so you always have something concrete to picture.</p>
+<p>Simple exponential smoothing (SES) is the base case: it estimates one number, the current level, and forecasts that same number forever, which is why its forecast is a flat horizontal line. That works beautifully for a series that only wobbles around a steady level, but it falls apart the moment the data trends up or down. This tutorial builds Holt's method up from that gap, one piece at a time, using the built-in <code>airmiles</code> series (annual airline passenger miles, no downloads needed) so you can run every line yourself. We stay in the well-tested forecast package throughout.</p>
 
-<p><strong>Ridge Road Bakery</strong> sells sourdough loaves. In week 1 it landed a contract supplying a cafe chain, and weekly sales have climbed ever since: about 116 loaves a week over the opening four weeks, about 169 over the closing four, which works out to growth of roughly 2.6 loaves a week across 24 weeks. There is no yearly cycle in it (24 weeks is too short to see one). What there is, is a level that keeps moving in one direction.</p>
+<h2>What does Holt's method add to simple exponential smoothing?</h2>
 
-<p>The bakery wants one number: <strong>how many loaves should they prep for week 30, six weeks out?</strong> Hold on to that question. Every section below is a different answer to it, and two of those answers differ by 58 loaves.</p>
+<p>A trending series has somewhere to go, but SES has no way to follow it. SES tracks only a level, so its best guess about the future is "wherever the level is now," repeated forever. Holt's method adds a second moving piece: an estimate of the slope, which it carries forward. The result is a forecast that keeps rising (or falling) instead of freezing in place. Let's see it before we unpack the theory.</p>
 
-<blockquote><p><strong>Coming from <a href="Exponential-Smoothing-in-R.html">Exponential Smoothing in R</a>?</strong> This is the same bakery and the same 24 numbers that post ended on, picked up where it left off. If you have not read it, you only need two ideas from it: the <strong>level</strong> is the model's estimate of where the series sits right now, and <strong>alpha</strong> is the dial that decides how fast that estimate reacts to new data. Both are restated here as they come up.</p></blockquote>
+<p>The block below loads the forecast package, fits Holt's method to the <code>airmiles</code> series, and asks for a six-year forecast.</p>
 
-<h2>What does Holt's method forecast that SES cannot?</h2>
-
-<p>Simple exponential smoothing (SES) models the level and nothing else. Its forecast for every future week is the current level, so its forecast is a flat line. That is the right model for a series that wanders around a stable value, and the wrong one for a bakery that has grown for six straight months.</p>
-
-<p>Holt's linear trend method fixes exactly that by tracking a second quantity alongside the level: the <strong>slope</strong>, meaning how much the level is moving per period. The forecast then starts at the level and walks forward along that slope. Here is the whole thing, working, before any explanation.</p>
-
-<div class="webr-container" data-block-title="Forecast the bakery&#x27;s next six weeks with Holt&#x27;s method">
+<div class="webr-container" data-block-title="Fit Holt&#x27;s method to the airmiles series">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the bakery&#x27;s next six weeks with Holt&#x27;s method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">suppressMessages(library(forecast))
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit Holt&#x27;s method to the airmiles series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
 
-# Sourdough loaves sold per week at Ridge Road Bakery, weeks 1 to 24.
-# Week 1 is when the cafe-chain contract started.
-loaves &lt;- c(121, 110, 114, 118, 119, 121, 131, 130, 133, 144, 139, 151,
-            152, 147, 156, 153, 150, 155, 159, 165, 167, 169, 174, 166)
-bakery &lt;- ts(loaves, start = 1)
-
-fit &lt;- holt(bakery, h = 6)
+library(ggplot2)
+# Annual airline passenger miles, 1937 to 1960: a strong upward trend, no season
+fit &lt;- holt(airmiles, h = 6)
 fit
-#&gt;    Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
-#&gt; 25       176.6402 170.1500 183.1304 166.7144 186.5660
-#&gt; 26       179.2863 172.7961 185.7765 169.3605 189.2122
-#&gt; 27       181.9324 175.4423 188.4226 172.0066 191.8583
-#&gt; 28       184.5785 178.0884 191.0687 174.6527 194.5044
-#&gt; 29       187.2246 180.7345 193.7148 177.2988 197.1505
-#&gt; 30       189.8707 183.3806 196.3609 179.9449 199.7966</div>
+#&gt;      Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 1961       32764.31 31311.44 34217.18 30542.33 34986.28
+#&gt; 1962       34871.30 32688.58 37054.03 31533.11 38209.50
+#&gt; 1963       36978.30 33978.32 39978.29 32390.22 41566.38
+#&gt; 1964       39085.30 35188.38 42982.21 33125.48 45045.11
+#&gt; 1965       41192.29 36324.99 46059.60 33748.39 48636.20
+#&gt; 1966       43299.29 37393.16 49205.42 34266.64 52331.94</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -58,24 +48,17 @@ fit
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read that line by line. The first line attaches the <code>forecast</code> package, which is where <code>holt()</code> lives. (<code>suppressMessages()</code> just keeps the package's startup chatter out of the way; the code works the same without it.) The next lines write the bakery's 24 numbers into a plain vector, then <code>ts()</code> turns that vector into a <strong>time series object</strong>, which is R's way of saying "these numbers are in time order, starting at time 1". If <code>ts()</code> is new to you, <a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> covers it properly; here it just labels the weeks 1 to 24.</p>
+<p>Look at the <code>Point Forecast</code> column. Unlike SES, these numbers are not all the same: they climb steadily from 32,764 in 1961 to 43,299 in 1966. Each year is about 2,107 higher than the year before, a constant step that is exactly the trend Holt estimated. The four other columns are 80% and 95% prediction intervals (the plausible range around the forecast), and they widen the further out you look.</p>
 
-<p>Then the real line: <code>holt(bakery, h = 6)</code>. The <code>h</code> argument is the <strong>forecast horizon</strong>, meaning how many periods ahead you want. We asked for 6, so R gave us weeks 25 through 30.</p>
+<p>To feel how different that is from SES, fit both to the same data and compare their final-year forecasts side by side.</p>
 
-<p>Now look at what it says. The <code>Point Forecast</code> column is the single best guess for each week, and unlike SES it is a <strong>different number every week</strong>: 176.64 for week 25, climbing steadily to 189.87 for week 30. The gap between consecutive weeks is 2.65 loaves, every time. That constant step is the slope, and the fact that it is constant is why this is called the <em>linear</em> trend method: the point forecasts lie exactly on a straight line. The other four columns are <strong>prediction intervals</strong>, the same as in SES: R is 80% confident week 25 lands between 170.15 and 183.13, and 95% confident it lands between 166.71 and 186.57. They widen as the horizon grows, because <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> further out is harder.</p>
-
-<p>So the bakery should prep about 177 loaves for next week and about 190 for week 30. Put that next to what SES says about the same 24 numbers.</p>
-
-<div class="webr-container" data-block-title="SES says one number forever; Holt says a line">
+<div class="webr-container" data-block-title="Contrast the SES and Holt forecasts">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">SES says one number forever; Holt says a line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">fit_ses &lt;- ses(bakery, h = 6)
-
-round(rbind(ses  = as.numeric(fit_ses$mean),
-            holt = as.numeric(fit$mean)), 2)
-#&gt;        [,1]   [,2]   [,3]   [,4]   [,5]   [,6]
-#&gt; ses  167.03 167.03 167.03 167.03 167.03 167.03
-#&gt; holt 176.64 179.29 181.93 184.58 187.22 189.87</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Contrast the SES and Holt forecasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(ses  = as.numeric(tail(ses(airmiles, h = 6)$mean, 1)),
+  holt = as.numeric(tail(fit$mean, 1)))
+#&gt;      ses     holt
+#&gt; 30513.88 43299.29</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -85,54 +68,14 @@ round(rbind(ses  = as.numeric(fit_ses$mean),
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>$mean</code> is where a forecast object keeps its point forecasts, and <code>rbind()</code> stacks the two sets of six numbers into a small matrix so they line up under each other.</p>
+<p>SES parks its forecast at 30,514 for every future year, roughly the last observed level. Holt, having estimated an upward trend, projects 43,299 by 1966. On a series that is clearly growing, that gap is the difference between a forecast that ignores the trend and one that respects it. A picture makes it obvious.</p>
 
-<p>SES answers 167.03 for week 25 and 167.03 for week 30, because a level-only model has no way to say "and it is still going up". It is not being lazy; it genuinely cannot represent a direction. Holt answers 176.64 and 189.87. By week 30 the two methods disagree by nearly 23 loaves, and the bakery's own history of climbing every month is the reason to believe Holt.</p>
-
-<p>That difference comes entirely from one new thing: a second component. The rest of this post is about what that component is, how it updates, and when it will lie to you.</p>
-
-<h2>What are the two equations actually doing?</h2>
-
-<p>SES had one equation. Holt has two, because it has two things to keep track of, and then a third line that turns them into a forecast.</p>
-
-<p>Start with the level, which is the SES equation with one change. Each week, the model blends the number that just came in with the estimate it already had. The change is what "the estimate it already had" means. SES compares the news against last week's level, \(\ell_{t-1}\). Holt compares it against last week's level <em>plus</em> last week's slope, because if the series is climbing by 2.6 a week, then last week's honest guess for this week was never \(\ell_{t-1}\); it was \(\ell_{t-1} + b_{t-1}\):</p>
-
-<p>$$\ell_t = \alpha \, y_t + (1 - \alpha)(\ell_{t-1} + b_{t-1})$$</p>
-
-<p>Then the slope gets its own equation, built the same way. How much is the level moving per week? The freshest evidence is how much it just moved, \(\ell_t - \ell_{t-1}\). The prior belief is what we thought the slope was last week, \(b_{t-1}\). Blend them:</p>
-
-<p>$$b_t = \beta^{<em>} (\ell_t - \ell_{t-1}) + (1 - \beta^{</em>}) \, b_{t-1}$$</p>
-
-<p>Take those apart symbol by symbol. \(y_t\) is the actual value observed at time \(t\), so \(y_{24} = 166\) loaves. \(\ell_t\) (a script letter L, for "level") is the model's estimate of the level after seeing week \(t\). \(b_t\) is its estimate of the slope after seeing week \(t\), measured in loaves per week. \(\alpha\) (alpha) is a number between 0 and 1 deciding how much of the news moves the level, exactly as in SES. And \(\beta^{*}\) (beta-star) is a number between 0 and 1 deciding how much of the freshest slope evidence moves the slope. Both equations are weighted averages of two things whose weights add to 1, which is what makes this exponential smoothing rather than something new.</p>
-
-<p>Finally, the forecast. The level says where the series is now; the slope says where it is heading. Walking \(h\) periods forward means starting at the level and taking \(h\) steps of size \(b_t\):</p>
-
-<p>$$\hat{y}_{t+h|t} = \ell_t + h \, b_t$$</p>
-
-<p>The notation \(\hat{y}_{t+h|t}\) reads as "the forecast for time \(t+h\), made using data up to time \(t\)". This one line explains everything we saw in the first block. The forecasts sit on a straight line because \(h\) enters linearly. They step by exactly 2.65 each week because that step <em>is</em> \(b_t\). And SES is the special case \(b_t = 0\), which collapses the line back to a flat one.</p>
-
-<p>There is a second way to write those same two equations, and it is the one R actually runs. Instead of blending, work from the mistake. Last week's guess for this week was \(\ell_{t-1} + b_{t-1}\). Call the gap between that guess and reality the <strong>forecast error</strong>:</p>
-
-<p>$$e_t = y_t - (\ell_{t-1} + b_{t-1})$$</p>
-
-<p>Then the level and the slope each take a share of that one error:</p>
-
-<p>$$\ell_t = \ell_{t-1} + b_{t-1} + \alpha \, e_t \qquad b_t = b_{t-1} + \beta \, e_t$$</p>
-
-<p>This is the <strong>innovations state space form</strong>, and it is algebraically identical to the blending form above. It just makes the mechanism obvious: one surprise arrives each week, alpha decides how much of it moves the level, and beta decides how much of it bends the slope. Everything the model learns, it learns from \(e_t\).</p>
-
-<p><img src="screenshots/Holts-Method-in-R-update.webp" alt="Flow diagram of one week of Holt's method, where last week's level and slope produce a guess, the new observation produces a forecast error, and that error updates the level by alpha and the slope by beta before the forecast extends h weeks along the new slope" class="img-responsive img-zoomable" loading="lazy" width="1572" height="2186" /></p>
-
-<p><em>Figure 1: One week of Holt's method. A single forecast error is computed once, then spent twice: alpha decides how much of it moves the level, beta decides how much of it bends the slope. The updated pair becomes both the forecast and next week's starting point, which is what makes this a loop rather than a formula.</em></p>
-
-<p>Notice the \(\beta\) in the innovations form has lost its star. That is not a typo, and it is the single most common way to get these equations wrong in practice. We will come back to it in a moment, because first we need the numbers R fitted.</p>
-
-<div class="webr-container" data-block-title="The four numbers holt() estimated">
+<div class="webr-container" data-block-title="Plot the rising Holt forecast">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The four numbers holt() estimated</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(fit$model$par, 4)
-#&gt;    alpha     beta        l        b 
-#&gt;   0.0001   0.0001 110.4871   2.6463 </div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the rising Holt forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(fit) +
+  ggplot2::ylab(&quot;Airline miles&quot;) +
+  ggplot2::ggtitle(&quot;Holt's method forecasts a rising line&quot;)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -142,22 +85,39 @@ round(rbind(ses  = as.numeric(fit_ses$mean),
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>fit$model$par</code> is a named vector holding everything <code>holt()</code> estimated. There are four numbers, not two. <code>alpha</code> and <code>beta</code> are the smoothing parameters from the equations. <code>l</code> and <code>b</code> are \(\ell_0\) and \(b_0\), the level and slope the model reckons the series had <em>just before week 1</em>, which the equations need to have something to start from. SES had to estimate \(\ell_0\) for the same reason; Holt needs a starting slope too. R fits all four together by minimising squared forecast error, so \(b_0 = 2.6463\) is not a guess anyone made, it is the starting slope that made the whole 24-week history fit best.</p>
+<p>The blue line is the point forecast, sloping upward to continue the trend of the history, wrapped in shaded prediction bands that fan out with the horizon.</p>
 
-<p>Both alpha and beta came out at 0.0001, which is the lower bound R allows. Read that as the optimiser saying something specific: <em>do not react to the wiggles</em>. With alpha near zero, the level almost ignores each week's surprise and just follows its own trajectory. With beta near zero, the slope barely changes at all. Watch what that looks like in the fitted slope over the final three weeks.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The Holt forecast is a sloped line, not a flat level.</strong> SES forecasts one number carried forward; Holt forecasts a level plus a slope, so its point forecast is a straight line that continues the trend of the data.</div></div>
 
-<div class="webr-container" data-block-title="The slope R fitted barely moves">
+<section class="tryit-block">
+<p><strong>Try it:</strong> Ask <code>holt()</code> for a 3-year forecast of <code>airmiles</code> instead of 6, and confirm each year is higher than the last.</p>
+<div class="webr-container" data-block-title="Your turn: forecast three years ahead">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The slope R fitted barely moves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(tail(fit$model$states, 3), 3)
-#&gt; Time Series:
-#&gt; Start = 22 
-#&gt; End = 24 
-#&gt; Frequency = 1 
-#&gt;          l     b
-#&gt; 22 168.701 2.647
-#&gt; 23 171.348 2.647
-#&gt; 24 173.994 2.646</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast three years ahead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change the horizon to 3 years
+ex_fit &lt;- holt(airmiles, h = 6)
+ex_fit
+# Expected: 3 rows, each Point Forecast higher than the one above it</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-year airmiles forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-year airmiles forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- holt(airmiles, h = 3)
+ex_fit
+#&gt;      Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 1961       32764.31 31311.44 34217.18 30542.33 34986.28
+#&gt; 1962       34871.30 32688.58 37054.03 31533.11 38209.50
+#&gt; 1963       36978.30 33978.32 39978.29 32390.22 41566.38</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -167,31 +127,68 @@ round(rbind(ses  = as.numeric(fit_ses$mean),
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>fit$model$states</code> is the full history of the model's internal state, one row per week, with a column for the level <code>l</code> and a column for the slope <code>b</code>. <code>tail(..., 3)</code> shows the last three weeks. The level climbs 168.70, 171.35, 173.99, gaining about 2.65 a week. The slope sits at 2.647, 2.647, 2.646, essentially frozen.</p>
+<p><strong>Explanation:</strong> Only the horizon <code>h</code> changes. Each point forecast is about 2,107 higher than the one before, because Holt keeps adding the estimated trend at every step.</p>
 
-<p>So the model Holt fitted to this bakery is close to "draw the best straight line through 24 weeks and extend it". That is a legitimate answer, not a failure. The bakery's growth has been steady enough that the honest estimate of the slope is a constant, and the level after week 24 is 173.994. Add six steps of 2.646 and you are at week 30's forecast.</p>
+</details>
+</section>
 
-<h2>Can you reproduce holt() by hand?</h2>
+<h2>How do the level and trend equations work?</h2>
 
-<p>The equations above are only worth trusting if they produce R's numbers. Let us take the four fitted parameters, run the innovations form across all 24 weeks in a plain <code>for</code> loop, and see whether we land where <code>holt()</code> landed.</p>
+<p>Holt runs two smoothing updates at every time step instead of one. The first tracks the level, just like SES. The second tracks the trend, the slope from one point to the next. Each update is a weighted blend controlled by its own dial: alpha for the level and beta for the trend.</p>
 
-<div class="webr-container" data-block-title="Holt&#x27;s method, hand-rolled in five lines">
+<p><img src="screenshots/Holts-Method-in-R-two-equations.webp" alt="Holt runs two smoothing updates each step: one for the level, one for the trend." class="img-responsive img-zoomable" loading="lazy" width="2248" height="384" /></p>
+
+<p><em>Figure 1: Holt runs two smoothing updates each step: one for the level, one for the trend.</em></p>
+
+<p>The level update is SES with a twist. Instead of blending the new observation with the old level, it blends the new observation with the old level plus the old trend (a one-step-ahead guess of where the level should be now). Writing the level at time $t$ as $\ell_t$ and the trend as $b_t$:</p>
+
+<p>$$\ell_t = \alpha\, y_t + (1 - \alpha)\,(\ell_{t-1} + b_{t-1})$$</p>
+
+<p>The trend update then blends the newest observed slope (how much the level just changed) with the previous trend estimate:</p>
+
+<p>$$b_t = \beta\,(\ell_t - \ell_{t-1}) + (1 - \beta)\,b_{t-1}$$</p>
+
+<p>And the forecast for any future step is the latest level plus that many steps of the latest trend:</p>
+
+<p>$$\hat{y}_{t+h\,|\,t} = \ell_t + h\, b_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\ell_t$ = the level, the smoothed value at time $t$</li>
+
+<li>$b_t$ = the trend, the smoothed slope at time $t$</li>
+
+<li>$\alpha$ = the level dial, between 0 and 1</li>
+
+<li>$\beta$ = the trend dial, between 0 and 1</li>
+
+<li>$h$ = how many steps ahead you are <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a></li>
+
+</ul>
+
+<p>The clearest way to feel this is to run both updates by hand on a tiny series. Below we smooth six numbers, starting the level at the first value and the trend at the first change (the second value minus the first).</p>
+
+<div class="webr-container" data-block-title="Run the level and trend updates by hand">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Holt&#x27;s method, hand-rolled in five lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">alpha &lt;- fit$model$par[[&quot;alpha&quot;]]
-beta  &lt;- fit$model$par[[&quot;beta&quot;]]
-level &lt;- fit$model$par[[&quot;l&quot;]]   # l_0, the starting level
-slope &lt;- fit$model$par[[&quot;b&quot;]]   # b_0, the starting slope
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the level and trend updates by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(5, 7, 8, 11, 12, 15)
+alpha &lt;- 0.5
+beta  &lt;- 0.3
+level &lt;- numeric(length(y))
+trend &lt;- numeric(length(y))
+level[1] &lt;- y[1]          # start the level at the first value
+trend[1] &lt;- y[2] - y[1]   # start the trend at the first change
 
-for (t in seq_along(loaves)) {
-  error &lt;- loaves[t] - (level + slope)        # how wrong last week's guess was
-  level &lt;- level + slope + alpha * error      # alpha's share of the surprise
-  slope &lt;- slope + beta * error               # beta's share of the surprise
+for (t in 2:length(y)) {
+  level[t] &lt;- alpha * y[t] + (1 - alpha) * (level[t - 1] + trend[t - 1])
+  trend[t] &lt;- beta  * (level[t] - level[t - 1]) + (1 - beta) * trend[t - 1]
 }
-
-round(c(hand_level = level, hand_slope = slope), 3)
-#&gt; hand_level hand_slope 
-#&gt;    173.994      2.646 </div>
+round(level, 3)
+#&gt; [1]  5.000  7.000  8.500 10.675 12.311 14.583
+round(trend, 3)
+#&gt; [1] 2.000 2.000 1.850 1.948 1.854 1.979</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -201,19 +198,17 @@ round(c(hand_level = level, hand_slope = slope), 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Walk through the loop. <code>level</code> and <code>slope</code> start at \(\ell_0\) and \(b_0\), the two starting values R fitted. Each pass computes <code>error</code>, the gap between what actually happened that week and what the model would have predicted knowing only the weeks before it. Then the level moves by <code>alpha * error</code> on top of its own momentum, and the slope bends by <code>beta * error</code>. The double brackets in <code>par[[&quot;alpha&quot;]]</code> pull out the bare number rather than a one-element named vector, which keeps the arithmetic clean.</p>
+<p>Walk through the third step to see the two updates in action. The level guess before seeing <code>y[3] = 8</code> is the old level plus the old trend, <code>7 + 2 = 9</code>; blending that with the new 8 gives <code>0.5 * 8 + 0.5 * 9 = 8.5</code>, the third level. The observed slope is <code>8.5 - 7 = 1.5</code>, and blending that with the old trend of 2 gives <code>0.3 * 1.5 + 0.7 * 2 = 1.85</code>, the third trend. Both estimates move a little toward the fresh data and a lot toward their own history, which is what smoothing means.</p>
 
-<p>After 24 passes our hand-rolled level is 173.994 and our slope is 2.646. Compare those to the last row of <code>fit$model$states</code> in the previous block: 173.994 and 2.646. The same numbers. Five lines of base R just reproduced the state that <code>holt()</code> arrived at.</p>
+<p>Now use those final numbers to forecast. The last level is 14.583 and the last trend is 1.979, so each future step just adds another 1.979.</p>
 
-<p>Now push it one step further and turn our state into a forecast, using \(\hat{y}_{t+h|t} = \ell_t + h b_t\) exactly as written.</p>
-
-<div class="webr-container" data-block-title="Our state, R&#x27;s forecast">
+<div class="webr-container" data-block-title="Forecast by adding the trend to the level">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Our state, R&#x27;s forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(level + (1:6) * slope, 4)
-#&gt; [1] 176.6402 179.2863 181.9324 184.5785 187.2246 189.8707
-round(as.numeric(fit$mean), 4)
-#&gt; [1] 176.6402 179.2863 181.9324 184.5785 187.2246 189.8707</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast by adding the trend to the level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">last_level &lt;- tail(level, 1)
+last_trend &lt;- tail(trend, 1)
+round(last_level + (1:3) * last_trend, 3)
+#&gt; [1] 16.562 18.541 20.521</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -223,31 +218,26 @@ round(as.numeric(fit$mean), 4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>(1:6)</code> is the vector of horizons, so <code>level + (1:6) * slope</code> evaluates the forecast equation at every \(h\) from 1 to 6 in one go. The two lines agree to all four decimals across all six weeks. The forecast equation is not an approximation of what <code>holt()</code> does; it is what <code>holt()</code> does.</p>
+<p>There is the forecast equation made concrete: 14.583 plus one trend is 16.562, plus two trends is 18.541, plus three is 20.521. The point forecast is nothing more than the final level extended by the final slope.</p>
 
-<p>Now back to that missing star. Our loop used the innovations form with the <code>beta</code> R reported, and it matched. If instead you take the blending form from the previous section and plug R's reported <code>beta</code> in where \(\beta^{*}\) belongs, you get the wrong answer, because they are not the same quantity.</p>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Seed the level with the first value and the trend with the first change.</strong> Holt needs a starting level and a starting trend before the recursion can run. Setting the level to the first observation and the trend to the second value minus the first is the simplest choice, and it is close to what the forecast package uses before it fine-tunes both.</div></div>
 
-<blockquote><p><strong>Watch out:</strong> <code>holt()</code> and <code>ets()</code> report \(\beta = \alpha \beta^{<em>}\), not \(\beta^{</em>}\). The textbook writes Holt's method with \(\beta^{<em>}\); R prints \(\beta\). To recover the textbook's \(\beta^{</em>}\), divide: \(\beta^{*} = \beta / \alpha\). This is also why R's constraint is \(0 < \beta < \alpha\) rather than \(0 < \beta < 1\), which surprises people who have only seen the textbook form.</p></blockquote>
-
-<p>That claim is testable, so test it. Recover \(\beta^{<em>}\) by division, then run the </em>blending* form and see whether it lands in the same place.</p>
-
-<div class="webr-container" data-block-title="The textbook form, with beta-star recovered">
+<section class="tryit-block">
+<p><strong>Try it:</strong> Smooth the same <code>y</code> vector but with a gentler trend dial of <code>beta = 0.1</code>, and watch the trend estimates settle more smoothly.</p>
+<div class="webr-container" data-block-title="Your turn: smooth the trend with beta 0.1">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The textbook form, with beta-star recovered</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">beta_star &lt;- beta / alpha
-round(beta_star, 6)
-#&gt; [1] 0.999998
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: smooth the trend with beta 0.1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_beta  &lt;- 0.1
+ex_level &lt;- numeric(length(y))
+ex_trend &lt;- numeric(length(y))
+ex_level[1] &lt;- y[1]
+ex_trend[1] &lt;- y[2] - y[1]
 
-lev2 &lt;- fit$model$par[[&quot;l&quot;]]
-slo2 &lt;- fit$model$par[[&quot;b&quot;]]
-for (t in seq_along(loaves)) {
-  prev &lt;- lev2
-  lev2 &lt;- alpha * loaves[t] + (1 - alpha) * (prev + slo2)
-  slo2 &lt;- beta_star * (lev2 - prev) + (1 - beta_star) * slo2
+for (t in 2:length(y)) {
+  # your code here: update ex_level, then ex_trend, using ex_beta
 }
-round(c(component_level = lev2, component_slope = slo2), 3)
-#&gt; component_level component_slope 
-#&gt;         173.994           2.646 </div>
+round(ex_trend, 3)
+# Expected: 2.000 2.000 1.950 1.978 1.942 1.978</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -256,35 +246,24 @@ round(c(component_level = lev2, component_slope = slo2), 3)
   </div>
   <div class="webr-plot-output"></div>
 </div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>The blending form lands on 173.994 and 2.646, the same state the innovations form and <code>holt()</code> both reached. The two ways of writing Holt's method really are the same method, once \(\beta^{*}\) is the right number.</p>
-
-<p>And look at what \(\beta^{<em>}\) actually is here: 0.999998, essentially 1. In textbook terms that reads as "the slope reacts completely to the latest change in level", which sounds like the opposite of the frozen slope we saw. Both are true, and that is the whole point of the reparameterisation. Because alpha is near zero, the level barely reacts to anything, so \(\ell_t - \ell_{t-1}\) is itself just \(b_{t-1}\). A slope reacting fully to a change that is only ever its own previous value does not move. The product \(\beta = \alpha \beta^{</em>} = 0.0001\) is the number that actually describes the behaviour, which is exactly why R reports that one.</p>
-
-<h2>What does beta actually control?</h2>
-
-<p>Beta decides how much of each week's surprise is allowed to bend the slope. Low beta means the slope is stubborn: it was fitted from the whole history and one odd week will not move it. High beta means the slope is credulous: it rewrites its opinion of the bakery's growth rate from whatever just happened.</p>
-
-<p>The cleanest way to see it is to pin alpha and sweep beta. We hold <code>alpha = 0.9</code> fixed so the level behaves identically in every run, then vary beta across its allowed range and look at what happens to the fitted slope and to week 30.</p>
-
-<div class="webr-container" data-block-title="Same level dynamics, four different betas">
+<div class="webr-container" data-block-title="Beta 0.1 trend solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same level dynamics, four different betas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">compare_beta &lt;- function(b) {
-  f  &lt;- holt(bakery, h = 6, alpha = 0.9, beta = b)
-  st &lt;- tail(f$model$states, 1)
-  c(beta      = b,
-    beta_star = round(b / 0.9, 3),
-    slope     = round(unname(st[1, &quot;b&quot;]), 3),
-    week_30   = round(as.numeric(f$mean[6]), 2),
-    RMSE      = round(unname(accuracy(f)[, &quot;RMSE&quot;]), 3))
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Beta 0.1 trend solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_beta  &lt;- 0.1
+ex_level &lt;- numeric(length(y))
+ex_trend &lt;- numeric(length(y))
+ex_level[1] &lt;- y[1]
+ex_trend[1] &lt;- y[2] - y[1]
+
+for (t in 2:length(y)) {
+  ex_level[t] &lt;- alpha * y[t] + (1 - alpha) * (ex_level[t - 1] + ex_trend[t - 1])
+  ex_trend[t] &lt;- ex_beta * (ex_level[t] - ex_level[t - 1]) + (1 - ex_beta) * ex_trend[t - 1]
 }
-t(sapply(c(0.01, 0.1, 0.45, 0.85), compare_beta))
-#&gt;      beta beta_star  slope week_30  RMSE
-#&gt; [1,] 0.01     0.011  2.052  179.30 5.503
-#&gt; [2,] 0.10     0.111  1.704  177.27 5.732
-#&gt; [3,] 0.45     0.500 -1.486  158.23 6.456
-#&gt; [4,] 0.85     0.944 -5.872  131.98 7.660</div>
+round(ex_trend, 3)
+#&gt; [1] 2.000 2.000 1.950 1.978 1.942 1.978</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -294,31 +273,36 @@ t(sapply(c(0.01, 0.1, 0.45, 0.85), compare_beta))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The helper fits one model per beta and pulls out five things: the beta we passed, the textbook \(\beta^{*}\) it corresponds to, the final fitted slope, the week-30 forecast, and the in-sample RMSE. <code>accuracy()</code> computes fit statistics for a forecast object, and <code>RMSE</code> (root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>) is the typical size of a one-week-ahead miss, in loaves. <code>unname()</code> strips the labels R attaches to those pieces so the table prints cleanly. <code>sapply()</code> runs the helper over the four betas and <code>t()</code> transposes the result so each beta is a row.</p>
+<p><strong>Explanation:</strong> With <code>beta = 0.1</code> the trend leans 90% on its own past, so it barely reacts to each new observed slope and stays close to its starting value of 2. A small beta gives a steady, slowly changing trend.</p>
 
-<p>Read the <code>slope</code> column top to bottom, because it tells the story. At <code>beta = 0.01</code> the slope is 2.052 loaves a week, close to the steady growth the whole history shows. At <code>beta = 0.85</code> the slope is <strong>-5.872</strong>: the model now believes the bakery is losing almost six loaves a week. Nothing about the bakery changed between those two rows. The only difference is how much attention the slope pays to the most recent surprises, and the most recent surprise was week 24, where sales fell from 174 to 166. A high-beta slope reads that single drop as news about the growth rate itself and forecasts the bakery down to 131.98 loaves by week 30. That is 47 loaves below the low-beta row directly above it, and 58 below the 189.87 that <code>holt()</code> forecast back in the first section, off the very same 24 numbers.</p>
+</details>
+</section>
 
-<p>The RMSE column settles the argument. It rises from 5.503 to 7.660 as beta climbs, so a jumpy slope does not merely produce a scarier forecast, it fits the actual history worse. This series wants a stable slope.</p>
+<h2>How does holt() estimate alpha and beta?</h2>
 
-<blockquote><p><strong>Note:</strong> the <code>beta_star</code> column also shows why R constrains \(\beta < \alpha\). We pinned <code>alpha = 0.9</code>, so beta could go no higher than 0.9, and <code>beta = 0.85</code> already puts \(\beta^{*}\) at 0.944. Passing <code>beta</code> larger than <code>alpha</code> would ask for \(\beta^{*} > 1\), which is not a weighted average at all.</p></blockquote>
+<p>You do not have to guess alpha and beta. By default, <code>holt()</code> finds the pair of values (along with the starting level and trend) that make the model fit the historical data as closely as possible. It measures fit with the sum of squared errors, the total of the squared gaps between each actual value and the model's one-step-ahead forecast of it. There is no tidy formula for the best values, so R searches for them numerically. You can read the chosen values straight off the fitted model.</p>
 
-<p>In practice you rarely set beta by hand. You let R fit it, and then read the fitted value as a diagnostic, the same way you read alpha. A fitted beta at the lower bound says the growth rate is steady. A large fitted beta says the growth rate itself is moving around, which is worth knowing before you trust any long forecast.</p>
-
-<h2>Why should you damp the trend?</h2>
-
-<p>Here is the uncomfortable part of \(\hat{y}_{t+h|t} = \ell_t + h b_t\). The forecast is a straight line, and a straight line never stops. Ask Holt for a forecast far enough out and it will confidently tell you the bakery sells any number you like.</p>
-
-<div class="webr-container" data-block-title="What the straight line says a year out">
+<div class="webr-container" data-block-title="Inspect the parameters holt() estimated">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What the straight line says a year out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">long_u &lt;- holt(bakery, h = 52)
-long_d &lt;- holt(bakery, h = 52, damped = TRUE)
-
-round(rbind(undamped = as.numeric(long_u$mean)[c(6, 26, 52)],
-            damped   = as.numeric(long_d$mean)[c(6, 26, 52)]), 1)
-#&gt;           [,1]  [,2]  [,3]
-#&gt; undamped 189.9 242.8 311.6
-#&gt; damped   181.5 205.2 221.0</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the parameters holt() estimated</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit$model
+#&gt; Holt's method
+#&gt;
+#&gt; Call:
+#&gt; holt(y = airmiles, h = 6)
+#&gt;
+#&gt;   Smoothing parameters:
+#&gt;     alpha = 0.8258
+#&gt;     beta  = 0.2954
+#&gt;
+#&gt;   Initial states:
+#&gt;     l = -786.1038
+#&gt;     b = 557.3313
+#&gt;
+#&gt;   sigma:  1133.681
+#&gt;
+#&gt;      AIC     AICc      BIC
+#&gt; 419.4924 422.8257 425.3827</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -328,21 +312,22 @@ round(rbind(undamped = as.numeric(long_u$mean)[c(6, 26, 52)],
   <div class="webr-plot-output"></div>
 </div>
 
-<p>We fit the same data twice, once as before and once with <code>damped = TRUE</code>, ask both for a year of forecasts, and print weeks 30, 50, and 76. The undamped model says the bakery will sell <strong>311.6 loaves</strong> in week 76, nearly double its current 166, purely because 2.6 times 52 is 137 and nothing in the model ever says stop. No bakery grows in a straight line for a year. Ovens have capacity, the cafe chain has a finite number of cafes, and growth from a one-off contract flattens once the contract is fully ramped.</p>
+<p>The fit reports <code>alpha = 0.8258</code>, a fairly high level dial, which says the level should follow recent observations closely. The trend dial <code>beta = 0.2954</code> is lower, so the slope changes more gently from year to year. It also reports the initial states (<code>l</code> and <code>b</code>), <code>sigma</code> (the standard deviation of the residuals), and the <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, AICc, and BIC model-comparison scores you can use to pit Holt against other models.</p>
 
-<p>Damping is the fix, and it is a small one. Add a fourth parameter \(\phi\) (phi) between 0 and 1, and shrink the slope by a factor of \(\phi\) at every step into the future:</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The initial states are a mathematical seed, not a data value.</strong> Do not be alarmed that the initial level here is negative (l = -786). It is simply the starting point the optimiser chose so the recursion best fits the whole steeply rising series, not a real airmiles reading. The numbers you actually forecast from are the final level and trend, which we read separately in a later section.</div></div>
 
-<p>$$\hat{y}_{t+h|t} = \ell_t + (\phi + \phi^2 + \cdots + \phi^h) \, b_t$$</p>
+<p>To convince yourself the optimiser is really minimising squared error, fit the model twice: once with the automatic defaults, and once with a hand-picked pair of dials. Compare their training sum of squared errors.</p>
 
-<p>Instead of \(h\) full steps, the forecast takes \(h\) shrinking ones. The level and slope equations get the same treatment: wherever \(b_{t-1}\) appeared, it becomes \(\phi b_{t-1}\). With \(\phi = 1\) nothing shrinks and you have ordinary Holt back, so on paper damped Holt contains plain Holt as a special case. R will not actually go there: <code>holt()</code> keeps \(\phi\) between 0.8 and 0.98 and refuses anything outside that range. The reasoning is that a \(\phi\) close to 1 is indistinguishable from no damping at all, while a small \(\phi\) damps the trend so hard the forecast flattens almost at once. With \(\phi\) slightly below 1 the near-term forecast is barely touched while the long-term one is pulled up short.</p>
-
-<div class="webr-container" data-block-title="The damped fit adds one parameter">
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>holt()</code> with <code>alpha = 0.3, beta = 0.1</code> and compare its training sum of squared errors against the automatic fit.</p>
+<div class="webr-container" data-block-title="Your turn: compare a hand-picked alpha and beta">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The damped fit adds one parameter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">fit_damped &lt;- holt(bakery, h = 6, damped = TRUE)
-round(fit_damped$model$par, 4)
-#&gt;    alpha     beta      phi        l        b 
-#&gt;   0.0001   0.0001   0.9711 106.3242   3.8262 </div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare a hand-picked alpha and beta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit holt() twice on airmiles: once with the defaults, once with alpha = 0.3, beta = 0.1
+# Then compare the training SSE of each with sum(residuals(...)^2)
+
+# your code here
+# Expected: the optimised fit has a much smaller SSE</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -351,19 +336,17 @@ round(fit_damped$model$par, 4)
   </div>
   <div class="webr-plot-output"></div>
 </div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>There are now five numbers instead of four, and the new one is <code>phi = 0.9711</code>. R fitted that from the data the same way it fitted the rest. Alpha and beta are still pinned at their lower bound, so this is still a near-deterministic trend, just one that is allowed to tire.</p>
-
-<p>The starting slope moved too, from 2.6463 in the undamped fit to 3.8262 here. That is damping working backwards. Every week multiplies the slope by 0.9711, so to have the middle of the series still climbing at the roughly 2.6 loaves a week the data actually shows, the model has to start steeper: \(3.8262 \times 0.9711^{12} = 2.69\) by week 12. Keep going and \(3.8262 \times 0.9711^{24} = 1.89\) by week 24, which is the slope the next block reports.</p>
-
-<div class="webr-container" data-block-title="Damped versus undamped, six weeks out">
+<div class="webr-container" data-block-title="Optimised versus hand-picked SSE">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Damped versus undamped, six weeks out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(rbind(undamped = as.numeric(fit$mean),
-            damped   = as.numeric(fit_damped$mean)), 2)
-#&gt;            [,1]   [,2]   [,3]   [,4]   [,5]   [,6]
-#&gt; undamped 176.64 179.29 181.93 184.58 187.22 189.87
-#&gt; damped   173.12 174.90 176.63 178.32 179.95 181.54</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Optimised versus hand-picked SSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">opt   &lt;- sum(residuals(holt(airmiles, h = 1))^2)
+fixed &lt;- sum(residuals(holt(airmiles, h = 1, alpha = 0.3, beta = 0.1))^2)
+round(c(optimised = opt, fixed = fixed))
+#&gt; optimised     fixed
+#&gt;  25704657  54392849</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -373,31 +356,26 @@ round(fit_damped$model$par, 4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>At week 25 the two differ by 3.5 loaves. By week 30 they differ by 8.3, and the damped forecast's own steps are visibly shrinking: 1.78, then 1.73, then 1.69, where the undamped model steps by 2.65 every single time. Damping does not disagree about where the bakery is. It disagrees about how long the climb lasts.</p>
+<p><strong>Explanation:</strong> The optimised dials produce less than half the squared error of the hand-picked ones. That is exactly what the numerical search is for: it finds the alpha and beta that fit the history best, so you rarely need to set them yourself.</p>
 
-<p>The geometric series has a limit, which means a damped forecast has a <strong>ceiling</strong> it approaches but never passes:</p>
+</details>
+</section>
 
-<p>$$\lim_{h \to \infty} \hat{y}_{t+h|t} = \ell_t + \frac{\phi}{1 - \phi} \, b_t$$</p>
+<h2>What is a damped trend and when should you use it?</h2>
 
-<p>That is a claim with a number attached, so check it.</p>
+<p>Plain Holt has one weakness: it extends the same straight-line slope forever. Ten steps out, a hundred steps out, the forecast keeps climbing at the same rate. Real trends rarely do that; growth usually eases off. A damped trend fixes this by multiplying the trend by a damping factor, phi (between 0 and 1), at every future step, so each added slope is a little smaller than the last and the forecast line gradually flattens. Turn it on with <code>damped = TRUE</code>.</p>
 
-<div class="webr-container" data-block-title="The damped forecast has a ceiling, and R hits it">
+<p>The difference is invisible at short horizons but large at long ones. Compare the fifteen-year forecast of <code>airmiles</code> with and without damping.</p>
+
+<div class="webr-container" data-block-title="Compare a linear and a damped long-range forecast">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The damped forecast has a ceiling, and R hits it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">last  &lt;- tail(fit_damped$model$states, 1)
-phi   &lt;- fit_damped$model$par[[&quot;phi&quot;]]
-l_end &lt;- last[1, &quot;l&quot;]
-b_end &lt;- last[1, &quot;b&quot;]
-
-ceiling_fc &lt;- l_end + b_end * phi / (1 - phi)
-round(c(level = unname(l_end), slope = unname(b_end),
-        phi = phi, ceiling = unname(ceiling_fc)), 3)
-#&gt;   level   slope     phi ceiling 
-#&gt; 171.279   1.892   0.971 234.856 
-
-far &lt;- holt(bakery, h = 400, damped = TRUE)
-round(as.numeric(far$mean)[c(52, 200, 400)], 2)
-#&gt; [1] 221.02 234.68 234.86</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare a linear and a damped long-range forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">linear &lt;- holt(airmiles, h = 15)
+damped &lt;- holt(airmiles, h = 15, damped = TRUE)
+round(c(linear = as.numeric(tail(linear$mean, 1)),
+        damped = as.numeric(tail(damped$mean, 1))), 1)
+#&gt;  linear  damped
+#&gt; 62262.3 56626.8</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -407,30 +385,30 @@ round(as.numeric(far$mean)[c(52, 200, 400)], 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>We pull the final level and slope out of the fitted states, apply the limit formula, and get a ceiling of <strong>234.856 loaves</strong>. Then we ask R for 400 weeks of damped forecasts: week 76 is at 221.02, week 224 has reached 234.68, and week 424 sits at 234.86. The formula predicted where the model would settle, and the model settled there. Compare that with the undamped forecast, which passed 311 loaves before its first year was out and kept going.</p>
+<p>Fifteen years out, the plain Holt forecast reaches 62,262 while the damped version reaches 56,627, about 5,600 lower. The damped model has been shaving a little off the slope every year, so its line bends toward the horizontal instead of shooting straight up. The estimated damping factor appears in the model summary.</p>
 
-<blockquote><p><strong>Tip:</strong> damping is not pessimism, it is honesty about horizon. A trend estimated from 24 weeks is evidence about the next few weeks and much weaker evidence about the next few years. Damped trend methods are among the best performers in large-scale forecasting competitions for exactly this reason, which is why <code>ets()</code> includes damped variants in the family it searches.</p></blockquote>
-
-<h2>How do you choose between SES, Holt and damped Holt?</h2>
-
-<p>Three models, three different answers for week 30: 167.03, 189.87, 181.54. You cannot pick by eye. Two tools decide it, and they are worth understanding separately because they can disagree.</p>
-
-<p>The first is <strong>AIC</strong> (<a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">Akaike information criterion</a>), a score that rewards fitting the data well and charges a penalty per parameter. Lower is better, and it is only comparable between models fitted to the same data.</p>
-
-<div class="webr-container" data-block-title="AIC and in-sample RMSE for all three">
+<div class="webr-container" data-block-title="Read the damping factor phi">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC and in-sample RMSE for all three</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(c(ses    = fit_ses$model$aic,
-        holt   = fit$model$aic,
-        damped = fit_damped$model$aic), 3)
-#&gt;     ses    holt  damped 
-#&gt; 167.488 159.764 160.155 
-
-round(c(ses    = accuracy(fit_ses)[, &quot;RMSE&quot;],
-        holt   = accuracy(fit)[, &quot;RMSE&quot;],
-        damped = accuracy(fit_damped)[, &quot;RMSE&quot;]), 3)
-#&gt;    ses   holt damped 
-#&gt;  5.902  4.623  4.471 </div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the damping factor phi</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">damped$model
+#&gt; Damped Holt's method
+#&gt;
+#&gt; Call:
+#&gt; holt(y = airmiles, h = 15, damped = TRUE)
+#&gt;
+#&gt;   Smoothing parameters:
+#&gt;     alpha = 0.8087
+#&gt;     beta  = 0.3348
+#&gt;     phi   = 0.98
+#&gt;
+#&gt;   Initial states:
+#&gt;     l = -786.2858
+#&gt;     b = 557.9213
+#&gt;
+#&gt;   sigma:  1173.327
+#&gt;
+#&gt;      AIC     AICc      BIC
+#&gt; 421.9113 426.8525 428.9796</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -440,31 +418,13 @@ round(c(ses    = accuracy(fit_ses)[, &quot;RMSE&quot;],
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read the two lines against each other, because they do not agree. On AIC, plain Holt wins at 159.764, damped Holt is a hair behind at 160.155, and SES is far back at 167.488. On in-sample RMSE, the order flips at the top: damped Holt fits best at 4.471, then Holt at 4.623, then SES at 5.902.</p>
+<p>The fit adds a third dial, <code>phi = 0.98</code>. A phi that close to 1 means only gentle damping: the trend fades slowly. A smaller phi would flatten the forecast much faster. A quick plot shows the bend.</p>
 
-<p>The disagreement is the lesson. Damped Holt has one more parameter than Holt, and that extra dial gives the optimiser one more way to bend the fitted line toward the data it can already see, so it will nearly always score better on in-sample error. (Only nearly: R's \(\phi \le 0.98\) stops damped Holt from collapsing exactly onto plain Holt, so it is not guaranteed. Here it did score better.) So RMSE preferring damped Holt is close to uninformative, because it mostly reports which model had more freedom. AIC charges for that freedom, and once charged, the improvement no longer covers its cost: the 0.4-point gap says the two models are about equally good, with Holt marginally ahead on parsimony. What both agree on emphatically is that SES does not belong here.</p>
-
-<p>Both of those numbers are still measured on data the models were fitted to. The question the bakery actually has is about weeks nobody has seen. So hide some.</p>
-
-<div class="webr-container" data-block-title="Fit on the first 18 weeks, forecast the last 6">
+<div class="webr-container" data-block-title="Plot the damped forecast">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit on the first 18 weeks, forecast the last 6</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">train &lt;- window(bakery, end = 18)
-test  &lt;- window(bakery, start = 19)
-
-h_train &lt;- holt(train, h = 6)
-s_train &lt;- ses(train, h = 6)
-d_train &lt;- holt(train, h = 6, damped = TRUE)
-
-round(rbind(ses    = as.numeric(s_train$mean),
-            holt   = as.numeric(h_train$mean),
-            damped = as.numeric(d_train$mean),
-            actual = as.numeric(test)), 1)
-#&gt;         [,1]  [,2]  [,3]  [,4]  [,5]  [,6]
-#&gt; ses    154.1 154.1 154.1 154.1 154.1 154.1
-#&gt; holt   162.1 164.9 167.7 170.4 173.2 176.0
-#&gt; damped 161.4 163.8 166.0 168.2 170.4 172.5
-#&gt; actual 159.0 165.0 167.0 169.0 174.0 166.0</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the damped forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(damped) +
+  ggplot2::ggtitle(&quot;A damped trend flattens the long-range forecast&quot;)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -474,18 +434,17 @@ round(rbind(ses    = as.numeric(s_train$mean),
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>window()</code> cuts a time series by time, so <code>train</code> is weeks 1 to 18 and <code>test</code> is weeks 19 to 24. Each model sees only the training weeks, then forecasts six ahead, and the last row is what really happened. Now the comparison is honest: none of these models has ever seen the numbers in the <code>actual</code> row.</p>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An undamped trend can produce runaway long-range forecasts.</strong> Because plain Holt projects the same slope indefinitely, a steep trend keeps compounding and the forecast can reach implausible values far out. For any horizon longer than a handful of steps, a damped trend is usually the safer, more realistic default.</div></div>
 
-<p>Look down the columns. SES sits at 154.1 while the bakery climbs past it to 174. Holt tracks the middle four weeks almost exactly (164.9 against 165, 167.7 against 167, 170.4 against 169) and then overshoots the final week, forecasting 176.0 when sales dipped to 166. Damped Holt is slightly low early and closer at the end. Score them.</p>
-
-<div class="webr-container" data-block-title="Out-of-sample RMSE: the honest comparison">
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a damped Holt model to the built-in <code>austres</code> series (quarterly Australian resident numbers) and read its estimated phi.</p>
+<div class="webr-container" data-block-title="Your turn: read the damping parameter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Out-of-sample RMSE: the honest comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(c(ses    = accuracy(s_train, test)[&quot;Test set&quot;, &quot;RMSE&quot;],
-        holt   = accuracy(h_train, test)[&quot;Test set&quot;, &quot;RMSE&quot;],
-        damped = accuracy(d_train, test)[&quot;Test set&quot;, &quot;RMSE&quot;]), 3)
-#&gt;    ses   holt damped 
-#&gt; 13.320  4.322  3.281 </div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the damping parameter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a damped Holt model to the austres series, then read par[&quot;phi&quot;]
+ex_damp &lt;- holt(austres, h = 10)   # add damped = TRUE here
+ex_damp$model$par[&quot;phi&quot;]
+# Expected: a phi just below 1</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -494,21 +453,16 @@ round(rbind(ses    = as.numeric(s_train$mean),
   </div>
   <div class="webr-plot-output"></div>
 </div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>Passing <code>test</code> as a second argument to <code>accuracy()</code> makes it score the forecasts against the held-out truth and report a <code>Test set</code> row. SES misses by 13.3 loaves on average, three times worse than either trend model. Damped Holt wins at 3.281, ahead of Holt's 4.322.</p>
-
-<p>So the in-sample AIC narrowly preferred plain Holt and the holdout preferred damped Holt. Both comparisons are legitimate; they answer different questions, and with a 24-point series and a 6-point <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> neither margin is large enough to be worth much confidence. The defensible reading is that this bakery has a real trend (every method that models one beats the method that does not, by a wide margin) and that the choice between damped and undamped is close, with damping the safer default the further out you forecast.</p>
-
-<p>If you would rather not run the comparison yourself, <code>ets()</code> will search the family and score it for you.</p>
-
-<div class="webr-container" data-block-title="What ets() picks unprompted">
+<div class="webr-container" data-block-title="Damping factor for austres">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What ets() picks unprompted</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">auto &lt;- ets(bakery)
-auto$method
-#&gt; [1] &quot;ETS(A,A,N)&quot;
-round(auto$aic, 3)
-#&gt; [1] 159.764</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Damping factor for austres</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_damp &lt;- holt(austres, h = 10, damped = TRUE)
+ex_damp$model$par[&quot;phi&quot;]
+#&gt;       phi
+#&gt; 0.9799998</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -518,32 +472,21 @@ round(auto$aic, 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>ets()</code> fits the whole exponential smoothing family and selects on AIC. It chose <code>ETS(A,A,N)</code>, which reads as <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">additive error</a>, additive trend, no seasonality, and that is precisely Holt's linear method. Its AIC of 159.764 is identical to what <code>holt()</code> reported, because it fitted the same model. The three letters are worth knowing properly; <a href="ETS-Models-in-R.html">ETS Models in R</a> walks through what each slot means and why there are thirty combinations.</p>
+<p><strong>Explanation:</strong> Adding <code>damped = TRUE</code> estimates a phi of about 0.98 for <code>austres</code>, so its long-range forecast bends only slightly. As with <code>airmiles</code>, a phi near 1 signals light damping of a strong, persistent trend.</p>
 
-<h2>When does Holt's method break?</h2>
+</details>
+</section>
 
-<p>Holt models a level and a slope, and nothing else. Every failure follows from that sentence.</p>
+<h2>How do you read the forecast and check the fit?</h2>
 
-<p>The first failure is the one you invite by reaching for Holt too eagerly: a series with no trend at all. The model will still fit a slope, because it has one and it must put a number in it. Here is the bakery's <em>other</em> 24 weeks, the ones from before the contract, when sales just wobbled around a stable level.</p>
+<p>A forecast object carries two things worth reading: how well the model fit the past, and how uncertain it is about the future. The <code>accuracy()</code> function summarises the in-sample fit with a row of error metrics.</p>
 
-<div class="webr-container" data-block-title="Failure 1: no trend, and Holt invents one anyway">
+<div class="webr-container" data-block-title="Summarise how well the model fit the history">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Failure 1: no trend, and Holt invents one anyway</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">flat &lt;- ts(c(118, 124, 115, 131, 121, 109, 126, 122, 133, 117, 128, 119,
-             125, 136, 114, 123, 130, 120, 127, 116, 132, 122, 129, 121),
-           start = 1)
-
-flat_holt &lt;- holt(flat, h = 4)
-flat_ses  &lt;- ses(flat, h = 4)
-
-round(flat_holt$model$par, 4)
-#&gt;    alpha     beta        l        b 
-#&gt;   0.0001   0.0001 120.9238   0.1867 
-round(rbind(ses  = as.numeric(flat_ses$mean),
-            holt = as.numeric(flat_holt$mean)), 2)
-#&gt;        [,1]   [,2]   [,3]   [,4]
-#&gt; ses  123.25 123.25 123.25 123.25
-#&gt; holt 125.59 125.78 125.96 126.15</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise how well the model fit the history</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(fit), 3)
+#&gt;                   ME     RMSE     MAE   MPE  MAPE  MASE  ACF1
+#&gt; Training set 218.615 1034.905 811.515 0.077 23.94 0.615 -0.06</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -553,19 +496,17 @@ round(rbind(ses  = as.numeric(flat_ses$mean),
   <div class="webr-plot-output"></div>
 </div>
 
-<p>These 24 numbers have no trend in them; they are noise around roughly 123 loaves. Holt fitted a starting slope of <strong>0.1867 loaves a week</strong> regardless, and forecasts the bakery drifting up to 126.15 by week 28 while SES holds flat at 123.25. The slope is not real. It is Holt fitting a faint upward tilt to a cloud of noise, and it will keep extrapolating that tilt for as long as you ask.</p>
+<p>The two you will use most are RMSE (root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>, about 1,035 here) and MASE. A MASE below 1 (0.615) means Holt beats a naive one-step benchmark on the training data. The MAPE of 23.94 looks high, but it is inflated by the tiny early values of <code>airmiles</code> (a small denominator makes percentage errors explode), which is a good reminder to read more than one metric.</p>
 
-<p>Here is the part that catches people, and it is why the two numbers in the next block matter more than they look.</p>
+<p>Now the trend itself. Earlier we saw each point forecast sit about 2,107 above the previous one. That constant gap is the final trend, the slope Holt projects into the future. You can confirm it two ways: by <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a> the forecasts, and by reading the final trend state directly.</p>
 
-<div class="webr-container" data-block-title="RMSE says use Holt; AIC says do not">
+<div class="webr-container" data-block-title="The gap between forecasts is the final trend">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">RMSE says use Holt; AIC says do not</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">round(c(ses_aic = flat_ses$model$aic, holt_aic = flat_holt$model$aic), 3)
-#&gt;  ses_aic holt_aic 
-#&gt;  172.695  175.735 
-round(c(ses_rmse = accuracy(flat_ses)[, &quot;RMSE&quot;], holt_rmse = accuracy(flat_holt)[, &quot;RMSE&quot;]), 3)
-#&gt;  ses_rmse holt_rmse 
-#&gt;     6.578     6.448 </div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The gap between forecasts is the final trend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(diff(as.numeric(fit$mean)), 3)
+#&gt; [1] 2106.996 2106.996 2106.996 2106.996 2106.996
+round(as.numeric(tail(fit$model$states[, &quot;b&quot;], 1)), 3)
+#&gt; [1] 2106.996</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -575,19 +516,22 @@ round(c(ses_rmse = accuracy(flat_ses)[, &quot;RMSE&quot;], holt_rmse = accuracy(
   <div class="webr-plot-output"></div>
 </div>
 
-<p>In-sample RMSE prefers Holt: 6.448 against SES's 6.578. Of course it does. Holt has two more parameters and can bend slightly toward the noise, so it <em>always</em> fits the training data at least as well. If RMSE on the fitted data were your selection rule, you would pick the model with the invented slope every time. AIC charges for those parameters and reverses the verdict: 175.735 for Holt against 172.695 for SES, a 3-point win for the simpler model. This is the whole reason <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a> uses AIC or a holdout instead of in-sample error.</p>
+<p>Both give 2106.996. Note that this final trend (2,107) is not the initial trend <code>b = 557.33</code> printed in the model summary; the summary shows the starting seed, while the forecast uses the trend after it has been updated across the whole series. The point forecast is the final level plus this final trend, added once per step ahead.</p>
 
-<p>The second failure is seasonality. A slope is a straight line and a season is a repeating wave, and no amount of slope will make a line wave. Suppose the bakery's weekly numbers were quarterly ones, with a large spike every fourth quarter.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The forecast is the final level plus the final trend times the horizon.</strong> Read the last level and last trend from the fitted states, and every point forecast follows: level plus one trend, plus two trends, and so on. The model summary shows the starting seeds; the forecast uses the final states.</div></div>
 
-<div class="webr-container" data-block-title="A series with a strong quarterly cycle">
+<p>Uncertainty is the other half. The point forecast is a clean line, but the prediction intervals around it widen with the horizon.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Measure how much the 95% interval widens between the first and sixth forecast step.</p>
+<div class="webr-container" data-block-title="Your turn: measure how fast the band grows">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A series with a strong quarterly cycle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">set.seed(11)
-seas &lt;- ts(rep(c(90, 95, 100, 140), 8) + round(rnorm(32, 0, 4)) + rep(0:7 * 2, each = 4),
-           frequency = 4, start = 1)
-as.numeric(seas)
-#&gt;  [1]  88  95  94 135  97  93 107 144  94  95 101 143  90 100 101 146  97 107 106 145  97 105 108 151
-#&gt; [25] 102 107 111 149 103 105 110 150</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure how fast the band grows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 95% interval width = upper 95% bound minus lower 95% bound, at step 1 and step 6
+w1 &lt;- NA   # fill in for step 1
+w6 &lt;- NA   # fill in for step 6
+round(c(h1 = w1, h6 = w6), 1)
+# Expected: h6 much wider than h1</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -596,24 +540,17 @@ as.numeric(seas)
   </div>
   <div class="webr-plot-output"></div>
 </div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>This builds 8 years of quarterly data: a repeating pattern of roughly 90, 95, 100, 140 (so Q4 is the big one), plus random noise via <code>rnorm()</code>, plus a gentle upward drift of 2 per year. <code>set.seed(11)</code> fixes the random numbers so you get the same series shown here. <code>frequency = 4</code> tells R these are quarters, which is how <code>hw()</code> will know a cycle is four periods long.</p>
-
-<div class="webr-container" data-block-title="Failure 2: Holt averages the season away">
+<div class="webr-container" data-block-title="Interval width at step 1 versus step 6">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Failure 2: Holt averages the season away</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">seas_holt &lt;- holt(seas, h = 4)
-seas_hw   &lt;- hw(seas, h = 4)
-
-round(rbind(holt = as.numeric(seas_holt$mean),
-            hw   = as.numeric(seas_hw$mean)), 2)
-#&gt;        [,1]   [,2]  [,3]   [,4]
-#&gt; holt 123.29 123.99 124.7 125.40
-#&gt; hw   104.61 109.44 113.7 154.44
-round(c(holt_RMSE = accuracy(seas_holt)[, &quot;RMSE&quot;],
-        hw_RMSE   = accuracy(seas_hw)[, &quot;RMSE&quot;]), 3)
-#&gt; holt_RMSE   hw_RMSE 
-#&gt;    19.303     2.780 </div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interval width at step 1 versus step 6</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w1 &lt;- fit$upper[1, &quot;95%&quot;] - fit$lower[1, &quot;95%&quot;]
+w6 &lt;- fit$upper[6, &quot;95%&quot;] - fit$lower[6, &quot;95%&quot;]
+round(c(h1 = w1, h6 = w6), 1)
+#&gt;  h1.95%  h6.95%
+#&gt;  4443.9 18065.3</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -623,29 +560,27 @@ round(c(holt_RMSE = accuracy(seas_holt)[, &quot;RMSE&quot;],
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Holt forecasts the next four quarters as 123.29, 123.99, 124.70, 125.40: a gentle upward line straight through the middle of a pattern that actually swings from about 103 to about 150. It has averaged the season away, because averaging is the only thing a level-and-slope model can do with a wave. <code>hw()</code> (Holt-Winters) adds a third component for the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> and forecasts 104.61, 109.44, 113.70, and then <strong>154.44</strong> for the Q4 spike. The RMSE gap is not subtle: 19.303 for Holt against 2.780 for Holt-Winters, a seven-fold difference. If your series has a cycle, Holt is the wrong member of the family and <a href="Holt-Winters-in-R.html">Holt-Winters in R</a> is the right one.</p>
+<p><strong>Explanation:</strong> The 95% band is about 4,444 units wide one year out and about 18,065 units wide six years out, four times as wide. Uncertainty compounds with the horizon even though the point forecast follows a clean straight line.</p>
 
-<p>The third failure is more subtle: Holt's trend is <strong>additive</strong>, meaning it adds a fixed number of loaves per period. A business growing at 5% a week is not adding a fixed amount, it is multiplying, and the gap between those two shapes widens the further you forecast. Suppose Ridge Road opened a second location that grows that way.</p>
+</details>
+</section>
 
-<div class="webr-container" data-block-title="Failure 3: percentage growth is not a fixed number of loaves">
+<h2>When should you use Holt's method (and when not)?</h2>
+
+<p>Holt's method assumes the series has a trend but no seasonality. That is the sweet spot. If the data is flat with no trend, SES is simpler and just as good. If the data also repeats a <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a>, Holt will track the overall trend but flatten the season, so you need Holt-Winters instead. The diagram below turns that into a quick decision.</p>
+
+<p><img src="screenshots/Holts-Method-in-R-decision.webp" alt="Choosing between SES, Holt, damped Holt, and Holt-Winters." class="img-responsive img-zoomable" loading="lazy" width="1300" height="1074" /></p>
+
+<p><em>Figure 2: Choosing between SES, Holt, damped Holt, and Holt-Winters.</em></p>
+
+<p>To see the seasonal failure for yourself, apply Holt to the monthly <code>AirPassengers</code> series, which has both a strong trend and a strong yearly cycle. Watch the last few forecasts.</p>
+
+<div class="webr-container" data-block-title="Holt tracks the trend but ignores the season">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Failure 3: percentage growth is not a fixed number of loaves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">set.seed(3)
-# A second location growing 5% a week, rather than +2.6 loaves a week.
-pct &lt;- ts(round(100 * 1.05^(0:23) + rnorm(24, 0, 3)), start = 1)
-
-add_fit &lt;- holt(pct, h = 6)
-log_fit &lt;- holt(pct, h = 6, lambda = 0, biasadj = TRUE)
-
-round(rbind(additive  = as.numeric(add_fit$mean),
-            log_scale = as.numeric(log_fit$mean)), 1)
-#&gt;            [,1]  [,2]  [,3]  [,4]  [,5]  [,6]
-#&gt; additive  315.7 328.4 341.2 354.0 366.7 379.5
-#&gt; log_scale 321.5 337.6 354.5 372.3 391.0 410.6
-round(c(additive  = accuracy(add_fit)[, &quot;RMSE&quot;],
-        log_scale = accuracy(log_fit)[, &quot;RMSE&quot;]), 3)
-#&gt;  additive log_scale 
-#&gt;     3.067     2.294</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Holt tracks the trend but ignores the season</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">seasonal_fit &lt;- holt(AirPassengers, h = 12)
+round(as.numeric(tail(seasonal_fit$mean, 4)), 1)
+#&gt; [1] 446.4 448.0 449.6 451.2</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -655,97 +590,432 @@ round(c(additive  = accuracy(add_fit)[, &quot;RMSE&quot;],
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The fix is to model <code>log(y)</code> and Holt the logs, since a constant additive trend on the log scale is constant percentage growth on the original scale. The <code>lambda</code> argument does the transformation inside the call: <code>lambda = 0</code> means take logs before fitting and undo them afterwards, and <code>biasadj = TRUE</code> corrects the back-transformed forecast so it is a mean rather than a median.</p>
+<p>The forecast climbs smoothly (446, 448, 450, 451) with no hint of the sharp summer peaks and winter troughs that define this series. Holt captured the upward trend but erased the season, which would badly mislead anyone planning around monthly demand.</p>
 
-<p>Compare the two rows. The additive fit steps by a flat 12.77 loaves a week and keeps stepping by 12.77 no matter how large the bakery gets, because that is the only shape it has. The log-scale fit steps by 16.1, then 16.9, then 17.8, growing as the series grows, which is what 5% a week actually looks like. It also fits the history better, 2.294 against 3.067. Multiplicative trend models exist in the ETS family too, though Hyndman advises against them in practice because they extrapolate explosively.</p>
+<p>On a genuine trend-only series, though, Holt earns its keep. Here we split <code>airmiles</code> into a training period and a test period, then compare Holt, damped Holt, SES, and a random-walk-with-drift baseline by their RMSE on the held-out years.</p>
 
-<p>The honest scope of <code>holt()</code> is therefore narrow. Use it on a series with a real, roughly linear trend and no seasonal cycle, over a horizon short enough that "the trend continues" is a defensible sentence. That is the bakery's 24 weeks, over 6 weeks, which is why 176.64 was a reasonable answer. Before reaching for it on your own data, plot the series and check both conditions. <a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a> is the tool for answering them when the eye is not enough.</p>
+<div class="webr-container" data-block-title="Compare Holt with damped, SES, and a drift baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare Holt with damped, SES, and a drift baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- window(airmiles, end = 1955)
+test  &lt;- window(airmiles, start = 1956)
+h &lt;- length(test)
 
-<h2>FAQ</h2>
+rmse &lt;- function(f) accuracy(f, test)[&quot;Test set&quot;, &quot;RMSE&quot;]
+round(c(
+  holt   = rmse(holt(train, h = h)),
+  damped = rmse(holt(train, h = h, damped = TRUE)),
+  ses    = rmse(ses(train,  h = h)),
+  naive  = rmse(rwf(train,  h = h, drift = TRUE))
+), 1)
+#&gt;   holt damped    ses  naive
+#&gt; 1574.9 1123.9 7364.4 3827.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p><strong>What is the difference between Holt's method and Holt-Winters?</strong> Holt's method tracks two components, a level and a slope, using two smoothing parameters (alpha and beta). Holt-Winters adds a third component for a repeating seasonal pattern and a third parameter (gamma) to smooth it. Use <code>holt()</code> when the series trends but has no cycle; use <code>hw()</code> when it has both. In the seasonal example above, that choice was worth a seven-fold difference in RMSE.</p>
+<p>Both Holt variants beat SES by a wide margin on this trending data: SES posts a test RMSE of 7,364 against Holt's 1,575, because SES flattens a series that is clearly climbing. The damped version does best of all here (1,124), a reminder that damping is worth trying, not just for very long horizons.</p>
 
-<p><strong>Why is my fitted beta 0.0001?</strong> That is R's lower bound, and it means the optimiser found no evidence the growth rate is changing. The model has settled on a near-constant slope, so it is behaving much like a straight line fitted through your data and extended. This is a normal, healthy result for a series with steady growth, not an error. Read it the same way you read a near-zero alpha in SES: as the fit telling you something about your data.</p>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>An SES alpha near 1 is a hint to switch to Holt.</strong> If <code>ses()</code> sets its alpha close to 1, the level is tracking each latest observation almost exactly, which usually means the series has a pattern SES cannot capture, often a trend. That is your cue to fit <code>holt()</code> and let a real trend term do the work.</div></div>
 
-<p><strong>Should I always use damped = TRUE?</strong> Not always, but it is a sensible default for anything beyond a short horizon. Damping adds a single parameter, and when phi is fitted near the top of R's allowed range (0.8 to 0.98) the near-term forecast barely differs from undamped Holt while the long-term one is protected from the straight line that never stops. On the bakery's data, damping won the out-of-sample comparison (3.281 against 4.322) while losing narrowly on AIC. If your horizon is a handful of periods and AIC prefers the undamped fit, plain <code>holt()</code> is defensible.</p>
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply <code>holt()</code> to the monthly <code>co2</code> series (Mauna Loa atmospheric CO2, which also has a strong trend and a yearly cycle) twelve steps ahead, and check the last four forecasts for any seasonal ripple.</p>
+<div class="webr-container" data-block-title="Your turn: watch Holt ignore a season">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: watch Holt ignore a season</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit holt() to the co2 series with h = 12
+# Then look at round(tail(..$mean, 4), 1): does it wiggle up and down, or climb smoothly?
 
-<p><strong>Why does R's beta not match the beta in my textbook?</strong> Because they are different quantities. The textbook (including Hyndman's fpp3) writes the slope equation with \(\beta^{*}\), while <code>holt()</code> and <code>ets()</code> report \(\beta = \alpha \beta^{<em>}\). Divide R's beta by R's alpha to recover the textbook's \(\beta^{</em>}\). This also explains R's constraint \(0 < \beta < \alpha\), which looks strange until you know that \(\beta^{*} = \beta / \alpha\) is the thing that has to stay below 1.</p>
+# your code here
+# Expected: a smooth climb, no seasonal ripple</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p><strong>Can Holt's method handle a series that grows by a percentage each period?</strong> Not directly, because its trend is additive: it adds a fixed quantity each period rather than multiplying. Fit it to <code>log(y)</code> instead, where constant percentage growth becomes a constant additive trend, then back-transform. In the forecast package, pass <code>lambda = 0</code> to do the log transform inside the call, and add <code>biasadj = TRUE</code> so the back-transformed forecast is a mean rather than a median.</p>
+<div class="webr-container" data-block-title="Holt erases the seasonal ripple">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Holt erases the seasonal ripple</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">co2_fit &lt;- holt(co2, h = 12)
+round(as.numeric(tail(co2_fit$mean, 4)), 1)
+#&gt; [1] 381.0 382.8 384.7 386.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p><strong>Should I use holt() or ets(model = "AAN")?</strong> They fit the same model, and on the bakery's data they returned an identical AIC of 159.764. Use <code>holt()</code> when you have already decided the series has a trend and no season, since the call is shorter and the arguments (<code>damped</code>, <code>beta</code>) are right there. Use <code>ets()</code> when you want the selection made for you or want to compare across the whole family on AIC.</p>
+<p><strong>Explanation:</strong> The four forecasts rise by a near-constant step with no up-and-down swing, so Holt has ignored the strong yearly cycle in <code>co2</code> entirely. For a seasonal series like this you would reach for Holt-Winters, which adds a seasonal term on top of the level and trend.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: forecasting Australian residents</h2>
+
+<p>Let's put every piece together on a fresh dataset. The built-in <code>austres</code> series records the number of Australian residents (in thousands), measured each quarter from 1971 to 1993. It has a strong, smooth upward trend and no meaningful seasonal cycle, which makes it a natural fit for Holt's method. We fit the model and read its parameters first.</p>
+
+<div class="webr-container" data-block-title="Fit Holt&#x27;s method to Australian residents">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit Holt&#x27;s method to Australian residents</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc &lt;- holt(austres, h = 8)
+fc$model
+#&gt; Holt's method
+#&gt;
+#&gt; Call:
+#&gt; holt(y = austres, h = 8)
+#&gt;
+#&gt;   Smoothing parameters:
+#&gt;     alpha = 0.9999
+#&gt;     beta  = 0.4421
+#&gt;
+#&gt;   Initial states:
+#&gt;     l = 13006.2854
+#&gt;     b = 77.9696
+#&gt;
+#&gt;   sigma:  10.4239
+#&gt;
+#&gt;      AIC     AICc      BIC
+#&gt; 822.6457 823.3686 835.0889</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The optimiser settles on <code>alpha = 0.9999</code>, meaning the level hugs the latest observation almost exactly, which makes sense for a population count that changes little from one quarter to the next. The trend dial <code>beta = 0.4421</code> is moderate, giving a slope that responds to genuine shifts in the growth rate. Now check the fit.</p>
+
+<div class="webr-container" data-block-title="Check how closely the model fit the history">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check how closely the model fit the history</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(fc), 3)
+#&gt;                  ME   RMSE   MAE    MPE  MAPE  MASE  ACF1
+#&gt; Training set -0.891 10.187 7.507 -0.006 0.049 0.036 0.037</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The MAPE of 0.049 says the fitted values are within about 0.05% of the actual residents, an almost perfect in-sample fit for such a smooth series. Because the trend is so strong and steady, it is worth asking whether damping changes the long-range forecast much.</p>
+
+<div class="webr-container" data-block-title="Compare linear and damped forecasts twelve steps out">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare linear and damped forecasts twelve steps out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_damped &lt;- holt(austres, h = 12, damped = TRUE)
+round(c(linear = as.numeric(tail(holt(austres, h = 12)$mean, 1)),
+        damped = as.numeric(tail(fc_damped$mean, 1))), 1)
+#&gt;  linear  damped
+#&gt; 18176.5 18102.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Twelve quarters out the two forecasts differ by only about 74 thousand residents (18,176 versus 18,103), because the estimated damping is light. For a short horizon like this, either is fine. Finally, read the forecast and plot it.</p>
+
+<div class="webr-container" data-block-title="Read the eight-quarter forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the eight-quarter forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc
+#&gt;         Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 1993 Q3       17704.42 17691.06 17717.78 17683.99 17724.85
+#&gt; 1993 Q4       17747.34 17723.90 17770.78 17711.49 17783.19
+#&gt; 1994 Q1       17790.26 17755.87 17824.66 17737.66 17842.86
+#&gt; 1994 Q2       17833.18 17786.83 17879.53 17762.29 17904.07
+#&gt; 1994 Q3       17876.10 17816.80 17935.40 17785.41 17966.79
+#&gt; 1994 Q4       17919.02 17845.84 17992.20 17807.10 18030.94
+#&gt; 1995 Q1       17961.94 17873.99 18049.90 17827.43 18096.46
+#&gt; 1995 Q2       18004.86 17901.28 18108.44 17846.46 18163.27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Plot the Australian residents forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the Australian residents forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(fc) +
+  ggplot2::ylab(&quot;Residents (thousands)&quot;) +
+  ggplot2::ggtitle(&quot;Holt's forecast of Australian residents&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The forecast rises by about 43 thousand residents each quarter, continuing the historical trend, with narrow prediction bands that reflect how regular the series is. That is the full loop: fit the model, inspect the dials, check the accuracy, weigh whether to damp, then read the forecast.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone problems combine the ideas above. Each uses fresh variable names so nothing you ran earlier gets overwritten. Try them before opening the solutions.</p>
+
+<h3>Exercise 1: Does damping change a steep forecast?</h3>
+
+<p>The built-in <code>uspop</code> series records the US population (in millions) at each census from 1790 to 1970. Fit both a plain and a damped Holt model with a 5-step horizon. Compare the final forecasts, then read the damping factor.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: linear versus damped on uspop">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: linear versus damped on uspop</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit holt(uspop, h = 5) and holt(uspop, h = 5, damped = TRUE)
+# 2. Compare the last point forecast of each
+# 3. Read par[&quot;phi&quot;] from the damped model
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_lin &lt;- holt(uspop, h = 5)
+my_dmp &lt;- holt(uspop, h = 5, damped = TRUE)
+round(c(linear = as.numeric(tail(my_lin$mean, 1)),
+        damped = as.numeric(tail(my_dmp$mean, 1))), 1)
+#&gt; linear damped
+#&gt;  324.7  298.2
+round(as.numeric(my_dmp$model$par[&quot;phi&quot;]), 4)
+#&gt; [1] 0.9237</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Five steps out, the plain model forecasts 324.7 million while the damped model forecasts 298.2 million. The lower phi here (0.9237, more damping than <code>airmiles</code> had) bends the steep population trend down noticeably, which is exactly the behaviour you want when a fast-growing series cannot realistically keep accelerating forever.</p>
+
+</details>
+
+<h3>Exercise 2: Rebuild the forecast from the final states</h3>
+
+<p>Show that the Holt forecast really is the final level plus the final trend. Using the <code>fit</code> object from the tutorial (Holt on <code>airmiles</code>), read the last level and last trend from the fitted states, then reconstruct the first two point forecasts by hand.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: reconstruct from the states">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: reconstruct from the states</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Read the final level and trend from tail(fit$model$states[, &quot;l&quot;]) and [, &quot;b&quot;]
+# 2. Compute final_level + (1:2) * final_trend
+# 3. Compare with as.numeric(fit$mean[1:2])
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">final_level &lt;- as.numeric(tail(fit$model$states[, &quot;l&quot;], 1))
+final_trend &lt;- as.numeric(tail(fit$model$states[, &quot;b&quot;], 1))
+round(c(level = final_level, trend = final_trend), 3)
+#&gt;     level     trend
+#&gt; 30657.312  2106.996
+round(final_level + (1:2) * final_trend, 2)
+#&gt; [1] 32764.31 34871.30
+as.numeric(fit$mean[1:2])
+#&gt; [1] 32764.31 34871.30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The final level (30,657) plus one trend (2,107) reproduces the first forecast, 32,764.31, and plus two trends reproduces the second, 34,871.30, exactly matching <code>fit$mean</code>. The forecast equation is not an approximation: it is precisely the final level extended by the final slope.</p>
+
+</details>
+
+<h3>Exercise 3: Which model generalises best on airmiles?</h3>
+
+<p>Split <code>airmiles</code> into a <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> (up to 1955) and a <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> (1956 onward). Fit Holt, damped Holt, and SES on the training set, then compare their RMSE on the held-out years. Which would you trust for a trending series?</p>
+
+<div class="webr-container" data-block-title="Exercise 3: train, test, compare">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: train, test, compare</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. window() airmiles into my_train (end 1955) and my_test (start 1956)
+# 2. Forecast the test length with holt(), holt(damped = TRUE), and ses()
+# 3. Compare accuracy(..., my_test)[&quot;Test set&quot;, &quot;RMSE&quot;]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_train &lt;- window(airmiles, end = 1955)
+my_test  &lt;- window(airmiles, start = 1956)
+my_h &lt;- length(my_test)
+
+score &lt;- function(f) accuracy(f, my_test)[&quot;Test set&quot;, &quot;RMSE&quot;]
+round(c(
+  holt   = score(holt(my_train, h = my_h)),
+  damped = score(holt(my_train, h = my_h, damped = TRUE)),
+  ses    = score(ses(my_train,  h = my_h))
+), 1)
+#&gt;   holt damped    ses
+#&gt; 1574.9 1123.9 7364.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> SES posts a test RMSE of 7,364 because it flattens a rising series, while both Holt variants stay under 1,600. Damped Holt wins here at 1,124. On trending data, a model with a trend term generalises far better than one without.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between Holt's method and simple exponential smoothing?</h3>
+
+<p>Simple exponential smoothing tracks a single quantity, the level, so its forecast is a flat line. Holt's method adds a second tracked quantity, the trend, and carries it forward, so its forecast is a sloped line. Put simply, SES answers "what is the level now?" while Holt answers "what is the level now, and how fast is it changing?"</p>
+
+<h3>What does the beta parameter do?</h3>
+
+<p>Beta is the smoothing dial for the trend, just as alpha is the dial for the level. A large beta lets the estimated slope react quickly to recent changes in direction; a small beta keeps the slope steady and smooth, leaning on its own history. Like alpha, beta lives between 0 and 1, and <code>holt()</code> estimates it for you by minimising squared error.</p>
+
+<h3>Why would I damp the trend?</h3>
+
+<p>An undamped Holt forecast projects the same slope forever, which often overshoots at long horizons because real growth tends to level off. Setting <code>damped = TRUE</code> multiplies the trend by a factor phi (just under 1) at each step, so the forecast line gradually flattens. Damping is the safer default whenever you forecast many steps ahead.</p>
+
+<h3>Can Holt's method handle seasonality?</h3>
+
+<p>No. Holt models a level and a trend only, so it will track the overall direction of a seasonal series but erase the repeating up-and-down pattern. For data with a season, use Holt-Winters (which adds a seasonal term) or let <code>ets()</code> choose the components automatically.</p>
+
+<h3>How is holt() related to HoltWinters() and ets()?</h3>
+
+<p>All three fit exponential smoothing models. Base R's <code>HoltWinters()</code> can fit Holt's linear trend (call it with <code>gamma = FALSE</code> to drop the seasonal part) but minimises errors slightly differently and lacks the tidy forecast object. The forecast package's <code>holt()</code> is a friendly wrapper around <code>ets()</code> restricted to the trend model, known as ETS(A,A,N): <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">additive error</a>, additive trend, no season. Use <code>holt()</code> when you specifically want a trend forecast, and <code>ets()</code> when you want the software to compare model forms for you.</p>
 
 <h2>Summary</h2>
 
-<p>Holt's linear trend method is SES plus a slope. That single addition turns a flat forecast into a line. It also brings one new parameter to understand and one new way to be wrong.</p>
+<p>Holt's method is simple exponential smoothing plus a trend: two levels of smoothing, two dials, and a forecast that follows a straight line instead of a flat one. Everything flows from the level and trend equations.</p>
+
+<p><img src="screenshots/Holts-Method-in-R-overview-mindmap.webp" alt="The moving parts of Holt's method in R." class="img-responsive img-zoomable" loading="lazy" width="1732" height="912" /></p>
+
+<p><em>Figure 3: The moving parts of Holt's method in R.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Piece</th>
-<th>What it does</th>
-<th>What to watch</th>
+<th>Idea</th>
+<th>What to remember</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Level \(\ell_t\)</td>
-<td>Where the series sits now</td>
-<td>Same role as in SES</td>
+<td>The model</td>
+<td>Level <code>alpha * y + (1 - alpha) * (old level + old trend)</code>, trend smooths the observed slope, forecast is level + h * trend</td>
 </tr>
 <tr>
-<td>Slope \(b_t\)</td>
-<td>How much the level moves per period</td>
-<td>The whole reason to use Holt</td>
+<td>Alpha</td>
+<td>The level dial (0 to 1); high means the level follows recent data closely</td>
 </tr>
 <tr>
-<td>\(\alpha\)</td>
-<td>How much of each surprise moves the level</td>
-<td>Near 0 means a near-deterministic fit</td>
+<td>Beta</td>
+<td>The trend dial (0 to 1); high means the slope reacts fast, low means it stays smooth</td>
 </tr>
 <tr>
-<td>\(\beta\)</td>
-<td>How much of each surprise bends the slope</td>
-<td>R reports \(\alpha\beta^{<em>}\), not \(\beta^{</em>}\); constrained \(0 < \beta < \alpha\)</td>
+<td>holt()</td>
+<td>Picks alpha, beta, and the starting states by minimising squared error</td>
 </tr>
 <tr>
-<td>\(\phi\) (damped only)</td>
-<td>Shrinks the slope by \(\phi\) each step ahead</td>
-<td>Gives the forecast a ceiling at \(\ell_t + \tfrac{\phi}{1-\phi} b_t\)</td>
+<td>Damped trend</td>
+<td><code>damped = TRUE</code> multiplies the trend by phi each step so long-range forecasts flatten</td>
 </tr>
 <tr>
-<td>\(\hat{y}_{t+h</td>
-<td>t} = \ell_t + h b_t\)</td>
-<td>The forecast: a straight line out of the level</td>
-<td>Never stops climbing without damping</td>
-</tr>
-<tr>
-<td><code>holt(y, h)</code></td>
-<td>Fits it and picks all parameters by minimising squared error</td>
-<td><code>damped = TRUE</code> adds \(\phi\)</td>
+<td>When to use it</td>
+<td>A series with a trend but no seasonality; use SES if flat, Holt-Winters if seasonal</td>
 </tr>
 </tbody>
 </table>
 
-<p>For Ridge Road Bakery, the answer to "how many for week 30" is about 190 loaves undamped, 182 damped, against SES's 167. The out-of-sample test preferred the damped answer. Use <code>holt()</code> when the series has a real trend and no seasonal cycle, prefer <code>damped = TRUE</code> as the horizon grows, select with AIC or a holdout rather than in-sample RMSE, and move to <code>hw()</code> the moment a cycle appears.</p>
+<p>The <code>holt()</code> function packages all of this into one call: it fits the level and trend, tunes both dials, and returns a forecast whose sloped line continues the trend of your data. Reach for it whenever a series is clearly climbing or falling but not repeating a seasonal cycle.</p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed., Section 8.2 "Methods with trend". <a href="https://otexts.com/fpp3/holt.html">otexts.com/fpp3/holt.html</a>. The canonical treatment of Holt's method and the damped trend, and the source of the \(\beta^{*}\) notation used here.</li>
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 2nd edition, Section 7.2: Trend methods (Holt's linear trend). <a href="https://otexts.com/fpp2/holt.html">Link</a></li>
 
-<li>Hyndman & Athanasopoulos, <em>FPP3</em>, Section 8.1 "Simple exponential smoothing". <a href="https://otexts.com/fpp3/ses.html">otexts.com/fpp3/ses.html</a>. The level-only model Holt extends; read this first if alpha is unfamiliar.</li>
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, Section 8.2: Methods with trend. <a href="https://otexts.com/fpp3/holt.html">Link</a></li>
 
-<li>Hyndman & Athanasopoulos, <em>FPP3</em>, Section 8.4 "A taxonomy of exponential smoothing methods". <a href="https://otexts.com/fpp3/taxonomy.html">otexts.com/fpp3/taxonomy.html</a>. Where Holt's method sits in the ETS family and what <code>ETS(A,A,N)</code> means.</li>
+<li>Hyndman, R.J. et al. forecast package documentation, <code>ses()</code>, <code>holt()</code>, and <code>hw()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/ses.html">Link</a></li>
 
-<li>Hyndman, R. J. & Khandakar, Y. "Automatic Time Series Forecasting: The forecast Package for R." <em>Journal of Statistical Software</em> 27(3), 2008. <a href="https://www.jstatsoft.org/article/view/v027i03">jstatsoft.org/article/view/v027i03</a>. The paper behind <code>ets()</code> and <code>holt()</code>, including the state space form and the parameter constraints.</li>
+<li>Holt, C.C. <em>Forecasting seasonals and trends by exponentially weighted moving averages</em>. International Journal of Forecasting, 20(1), 5-10 (2004; originally 1957). <a href="https://doi.org/10.1016/j.ijforecast.2003.09.015">Link</a></li>
 
-<li>Hyndman, R. J., Koehler, A. B., Snyder, R. D. & Grose, S. "A state space framework for automatic forecasting using exponential smoothing methods." <em>International Journal of Forecasting</em> 18(3), 2002, pp. 439-454. <a href="https://robjhyndman.com/papers/hksg.pdf">robjhyndman.com/papers/hksg.pdf</a>. Where the innovations state space form used in this post's hand-rolled loop comes from.</li>
+<li>NIST/SEMATECH <em>e-Handbook of Statistical Methods</em>, Section 6.4.3.3: Double Exponential Smoothing. <a href="https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc433.htm">Link</a></li>
 
-<li><code>forecast</code> package on CRAN. <a href="https://cran.r-project.org/package=forecast">cran.r-project.org/package=forecast</a>. Current version plus the full reference manual and changelog.</li>
+<li>forecast package on CRAN. <a href="https://cran.r-project.org/package=forecast">Link</a></li>
 
-<li><code>ses()</code> / <code>holt()</code> / <code>hw()</code> function reference. <a href="https://pkg.robjhyndman.com/forecast/reference/ses.html">pkg.robjhyndman.com/forecast/reference/ses.html</a>. Every argument of <code>holt()</code>, including <code>damped</code>, <code>lambda</code>, and <code>biasadj</code>.</li>
+<li>R Core Team. <code>airmiles</code> and <code>austres</code> datasets, R datasets package documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/airmiles.html">Link</a></li>
 
 </ol>
 
@@ -753,11 +1023,11 @@ round(c(additive  = accuracy(add_fit)[, &quot;RMSE&quot;],
 
 <ul>
 
-<li><a href="Exponential-Smoothing-in-R.html">Exponential Smoothing in R</a>, the level-only method Holt extends. It builds alpha and the level from scratch on this same bakery, and ends where this post begins.</li>
+<li><a href="Exponential-Smoothing-in-R.html">Exponential Smoothing in R</a>: the parent lesson on simple exponential smoothing, the level-only base case that Holt's method extends.</li>
 
-<li><a href="Holt-Winters-in-R.html">Holt-Winters in R</a>, the next component along. Add a seasonal term when your series repeats on a fixed cycle, as the quarterly failure above showed.</li>
+<li><a href="ETS-Models-in-R.html">ETS Models in R</a>: the <code>ets()</code> function generalises Holt, choosing the error, trend, and seasonal components automatically.</li>
 
-<li><a href="ETS-Models-in-R.html">ETS Models in R</a>, the family that contains all of these. <code>ETS(A,A,N)</code> is Holt's method; the post explains the other twenty-nine combinations and how <code>ets()</code> chooses.</li>
+<li><a href="Holt-Winters-in-R.html">Holt-Winters in R</a>: add a seasonal term on top of the level and trend for series that repeat a yearly or weekly cycle.</li>
 
 </ul>
 

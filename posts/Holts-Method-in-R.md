@@ -1,525 +1,663 @@
 ---
 title: "Holt's Method in R: Forecast Trend Without Seasonality"
 slug: "Holts-Method-in-R"
-description: "Holt's linear trend method in R: how holt() adds a slope to exponential smoothing, what beta really controls, and why damping usually forecasts better."
-keywords: "holt's method in R, holt linear trend method, holt() function R, damped trend forecast, beta parameter smoothing, forecast package R, trend forecasting in R, exponential smoothing with trend"
-auto_link_terms: "Holt's method|Holt's linear trend method|Holt's linear method|holt()|damped trend|damped trend method|damping parameter|trend component|slope component|the beta parameter|linear trend method|Holt's method in R|forecast a trend"
+description: "Holt's method adds a trend term to exponential smoothing, forecasting a sloped line, not a flat one. Learn holt() in R, its two equations, and damped trends."
+keywords: "Holt's method in R, double exponential smoothing, holt() function, forecast package, linear trend forecasting, damped trend, level and trend smoothing, time series trend forecast"
+auto_link_terms: "Holt's method | Holt's linear trend | double exponential smoothing | holt() | holt() function | Holt's method in R | linear trend method | damped trend | Holt's exponential smoothing | trend forecasting | Holt's method forecast"
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
-date: "2026-07-17"
+date: "2026-07-18"
 curriculum_id: "FR-ets-1"
 post_type: "FR"
 fr_parent: "Exponential-Smoothing-in-R.html"
 difficulty: "Intermediate"
 ---
 
-<p class="lead">Holt's linear trend method forecasts a series that is going somewhere. It keeps the level that simple exponential smoothing tracks and adds a second component, a <b>slope</b>, so the forecast is a sloped line instead of a flat one. In R it is <code>holt()</code> from the forecast package, and it costs one extra smoothing parameter, <b>beta</b>, which controls how fast the slope is allowed to change its mind. This post builds the method by hand until it reproduces <code>holt()</code> to four decimals, shows what beta really does, and explains why the damped version usually forecasts better than the straight-line one.</p>
+<p class="lead">Holt's method, also called double exponential smoothing, extends simple exponential smoothing by tracking a slope as well as a level, so its forecast climbs or falls in a straight line instead of staying flat. The <code>holt()</code> function in R's forecast package fits the model and tunes both smoothing dials for you.</p>
 
-Everything below uses one dataset, so you always have something concrete to picture.
+Simple exponential smoothing (SES) is the base case: it estimates one number, the current level, and forecasts that same number forever, which is why its forecast is a flat horizontal line. That works beautifully for a series that only wobbles around a steady level, but it falls apart the moment the data trends up or down. This tutorial builds Holt's method up from that gap, one piece at a time, using the built-in `airmiles` series (annual airline passenger miles, no downloads needed) so you can run every line yourself. We stay in the well-tested forecast package throughout.
 
-**Ridge Road Bakery** sells sourdough loaves. In week 1 it landed a contract supplying a cafe chain, and weekly sales have climbed ever since: about 116 loaves a week over the opening four weeks, about 169 over the closing four, which works out to growth of roughly 2.6 loaves a week across 24 weeks. There is no yearly cycle in it (24 weeks is too short to see one). What there is, is a level that keeps moving in one direction.
+## What does Holt's method add to simple exponential smoothing?
 
-The bakery wants one number: **how many loaves should they prep for week 30, six weeks out?** Hold on to that question. Every section below is a different answer to it, and two of those answers differ by 58 loaves.
+A trending series has somewhere to go, but SES has no way to follow it. SES tracks only a level, so its best guess about the future is "wherever the level is now," repeated forever. Holt's method adds a second moving piece: an estimate of the slope, which it carries forward. The result is a forecast that keeps rising (or falling) instead of freezing in place. Let's see it before we unpack the theory.
 
-> **Coming from [Exponential Smoothing in R](Exponential-Smoothing-in-R.html)?** This is the same bakery and the same 24 numbers that post ended on, picked up where it left off. If you have not read it, you only need two ideas from it: the **level** is the model's estimate of where the series sits right now, and **alpha** is the dial that decides how fast that estimate reacts to new data. Both are restated here as they come up.
+The block below loads the forecast package, fits Holt's method to the `airmiles` series, and asks for a six-year forecast.
 
-## What does Holt's method forecast that SES cannot?
+```r title="Fit Holt's method to the airmiles series"
+library(forecast)
 
-Simple exponential smoothing (SES) models the level and nothing else. Its forecast for every future week is the current level, so its forecast is a flat line. That is the right model for a series that wanders around a stable value, and the wrong one for a bakery that has grown for six straight months.
-
-Holt's linear trend method fixes exactly that by tracking a second quantity alongside the level: the **slope**, meaning how much the level is moving per period. The forecast then starts at the level and walks forward along that slope. Here is the whole thing, working, before any explanation.
-
-```r title="Forecast the bakery's next six weeks with Holt's method"
-suppressMessages(library(forecast))
-
-# Sourdough loaves sold per week at Ridge Road Bakery, weeks 1 to 24.
-# Week 1 is when the cafe-chain contract started.
-loaves <- c(121, 110, 114, 118, 119, 121, 131, 130, 133, 144, 139, 151,
-            152, 147, 156, 153, 150, 155, 159, 165, 167, 169, 174, 166)
-bakery <- ts(loaves, start = 1)
-
-fit <- holt(bakery, h = 6)
+# Annual airline passenger miles, 1937 to 1960: a strong upward trend, no season
+fit <- holt(airmiles, h = 6)
 fit
-#>    Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
-#> 25       176.6402 170.1500 183.1304 166.7144 186.5660
-#> 26       179.2863 172.7961 185.7765 169.3605 189.2122
-#> 27       181.9324 175.4423 188.4226 172.0066 191.8583
-#> 28       184.5785 178.0884 191.0687 174.6527 194.5044
-#> 29       187.2246 180.7345 193.7148 177.2988 197.1505
-#> 30       189.8707 183.3806 196.3609 179.9449 199.7966
+#>      Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#> 1961       32764.31 31311.44 34217.18 30542.33 34986.28
+#> 1962       34871.30 32688.58 37054.03 31533.11 38209.50
+#> 1963       36978.30 33978.32 39978.29 32390.22 41566.38
+#> 1964       39085.30 35188.38 42982.21 33125.48 45045.11
+#> 1965       41192.29 36324.99 46059.60 33748.39 48636.20
+#> 1966       43299.29 37393.16 49205.42 34266.64 52331.94
 ```
 
-Read that line by line. The first line attaches the `forecast` package, which is where `holt()` lives. (`suppressMessages()` just keeps the package's startup chatter out of the way; the code works the same without it.) The next lines write the bakery's 24 numbers into a plain vector, then `ts()` turns that vector into a **time series object**, which is R's way of saying "these numbers are in time order, starting at time 1". If `ts()` is new to you, [Time Series Objects in R](Time-Series-Objects-in-R.html) covers it properly; here it just labels the weeks 1 to 24.
+Look at the `Point Forecast` column. Unlike SES, these numbers are not all the same: they climb steadily from 32,764 in 1961 to 43,299 in 1966. Each year is about 2,107 higher than the year before, a constant step that is exactly the trend Holt estimated. The four other columns are 80% and 95% prediction intervals (the plausible range around the forecast), and they widen the further out you look.
 
-Then the real line: `holt(bakery, h = 6)`. The `h` argument is the **forecast horizon**, meaning how many periods ahead you want. We asked for 6, so R gave us weeks 25 through 30.
+To feel how different that is from SES, fit both to the same data and compare their final-year forecasts side by side.
 
-Now look at what it says. The `Point Forecast` column is the single best guess for each week, and unlike SES it is a **different number every week**: 176.64 for week 25, climbing steadily to 189.87 for week 30. The gap between consecutive weeks is 2.65 loaves, every time. That constant step is the slope, and the fact that it is constant is why this is called the *linear* trend method: the point forecasts lie exactly on a straight line. The other four columns are **prediction intervals**, the same as in SES: R is 80% confident week 25 lands between 170.15 and 183.13, and 95% confident it lands between 166.71 and 186.57. They widen as the horizon grows, because forecasting further out is harder.
-
-So the bakery should prep about 177 loaves for next week and about 190 for week 30. Put that next to what SES says about the same 24 numbers.
-
-```r title="SES says one number forever; Holt says a line"
-fit_ses <- ses(bakery, h = 6)
-
-round(rbind(ses  = as.numeric(fit_ses$mean),
-            holt = as.numeric(fit$mean)), 2)
-#>        [,1]   [,2]   [,3]   [,4]   [,5]   [,6]
-#> ses  167.03 167.03 167.03 167.03 167.03 167.03
-#> holt 176.64 179.29 181.93 184.58 187.22 189.87
+```r title="Contrast the SES and Holt forecasts"
+c(ses  = as.numeric(tail(ses(airmiles, h = 6)$mean, 1)),
+  holt = as.numeric(tail(fit$mean, 1)))
+#>      ses     holt
+#> 30513.88 43299.29
 ```
 
-`$mean` is where a forecast object keeps its point forecasts, and `rbind()` stacks the two sets of six numbers into a small matrix so they line up under each other.
+SES parks its forecast at 30,514 for every future year, roughly the last observed level. Holt, having estimated an upward trend, projects 43,299 by 1966. On a series that is clearly growing, that gap is the difference between a forecast that ignores the trend and one that respects it. A picture makes it obvious.
 
-SES answers 167.03 for week 25 and 167.03 for week 30, because a level-only model has no way to say "and it is still going up". It is not being lazy; it genuinely cannot represent a direction. Holt answers 176.64 and 189.87. By week 30 the two methods disagree by nearly 23 loaves, and the bakery's own history of climbing every month is the reason to believe Holt.
-
-That difference comes entirely from one new thing: a second component. The rest of this post is about what that component is, how it updates, and when it will lie to you.
-
-## What are the two equations actually doing?
-
-SES had one equation. Holt has two, because it has two things to keep track of, and then a third line that turns them into a forecast.
-
-Start with the level, which is the SES equation with one change. Each week, the model blends the number that just came in with the estimate it already had. The change is what "the estimate it already had" means. SES compares the news against last week's level, \(\ell_{t-1}\). Holt compares it against last week's level *plus* last week's slope, because if the series is climbing by 2.6 a week, then last week's honest guess for this week was never \(\ell_{t-1}\); it was \(\ell_{t-1} + b_{t-1}\):
-
-$$\ell_t = \alpha \, y_t + (1 - \alpha)(\ell_{t-1} + b_{t-1})$$
-
-Then the slope gets its own equation, built the same way. How much is the level moving per week? The freshest evidence is how much it just moved, \(\ell_t - \ell_{t-1}\). The prior belief is what we thought the slope was last week, \(b_{t-1}\). Blend them:
-
-$$b_t = \beta^{*} (\ell_t - \ell_{t-1}) + (1 - \beta^{*}) \, b_{t-1}$$
-
-Take those apart symbol by symbol. \(y_t\) is the actual value observed at time \(t\), so \(y_{24} = 166\) loaves. \(\ell_t\) (a script letter L, for "level") is the model's estimate of the level after seeing week \(t\). \(b_t\) is its estimate of the slope after seeing week \(t\), measured in loaves per week. \(\alpha\) (alpha) is a number between 0 and 1 deciding how much of the news moves the level, exactly as in SES. And \(\beta^{*}\) (beta-star) is a number between 0 and 1 deciding how much of the freshest slope evidence moves the slope. Both equations are weighted averages of two things whose weights add to 1, which is what makes this exponential smoothing rather than something new.
-
-Finally, the forecast. The level says where the series is now; the slope says where it is heading. Walking \(h\) periods forward means starting at the level and taking \(h\) steps of size \(b_t\):
-
-$$\hat{y}_{t+h|t} = \ell_t + h \, b_t$$
-
-The notation \(\hat{y}_{t+h|t}\) reads as "the forecast for time \(t+h\), made using data up to time \(t\)". This one line explains everything we saw in the first block. The forecasts sit on a straight line because \(h\) enters linearly. They step by exactly 2.65 each week because that step *is* \(b_t\). And SES is the special case \(b_t = 0\), which collapses the line back to a flat one.
-
-There is a second way to write those same two equations, and it is the one R actually runs. Instead of blending, work from the mistake. Last week's guess for this week was \(\ell_{t-1} + b_{t-1}\). Call the gap between that guess and reality the **forecast error**:
-
-$$e_t = y_t - (\ell_{t-1} + b_{t-1})$$
-
-Then the level and the slope each take a share of that one error:
-
-$$\ell_t = \ell_{t-1} + b_{t-1} + \alpha \, e_t \qquad b_t = b_{t-1} + \beta \, e_t$$
-
-This is the **innovations state space form**, and it is algebraically identical to the blending form above. It just makes the mechanism obvious: one surprise arrives each week, alpha decides how much of it moves the level, and beta decides how much of it bends the slope. Everything the model learns, it learns from \(e_t\).
-
-![Flow diagram of one week of Holt's method, where last week's level and slope produce a guess, the new observation produces a forecast error, and that error updates the level by alpha and the slope by beta before the forecast extends h weeks along the new slope](screenshots/Holts-Method-in-R-update.webp)
-*Figure 1: One week of Holt's method. A single forecast error is computed once, then spent twice: alpha decides how much of it moves the level, beta decides how much of it bends the slope. The updated pair becomes both the forecast and next week's starting point, which is what makes this a loop rather than a formula.*
-
-Notice the \(\beta\) in the innovations form has lost its star. That is not a typo, and it is the single most common way to get these equations wrong in practice. We will come back to it in a moment, because first we need the numbers R fitted.
-
-```r title="The four numbers holt() estimated"
-round(fit$model$par, 4)
-#>    alpha     beta        l        b 
-#>   0.0001   0.0001 110.4871   2.6463 
+```r title="Plot the rising Holt forecast"
+autoplot(fit) +
+  ggplot2::ylab("Airline miles") +
+  ggplot2::ggtitle("Holt's method forecasts a rising line")
 ```
 
-`fit$model$par` is a named vector holding everything `holt()` estimated. There are four numbers, not two. `alpha` and `beta` are the smoothing parameters from the equations. `l` and `b` are \(\ell_0\) and \(b_0\), the level and slope the model reckons the series had *just before week 1*, which the equations need to have something to start from. SES had to estimate \(\ell_0\) for the same reason; Holt needs a starting slope too. R fits all four together by minimising squared forecast error, so \(b_0 = 2.6463\) is not a guess anyone made, it is the starting slope that made the whole 24-week history fit best.
+The blue line is the point forecast, sloping upward to continue the trend of the history, wrapped in shaded prediction bands that fan out with the horizon.
 
-Both alpha and beta came out at 0.0001, which is the lower bound R allows. Read that as the optimiser saying something specific: *do not react to the wiggles*. With alpha near zero, the level almost ignores each week's surprise and just follows its own trajectory. With beta near zero, the slope barely changes at all. Watch what that looks like in the fitted slope over the final three weeks.
+[KEY INSIGHT]
+**The Holt forecast is a sloped line, not a flat level.** SES forecasts one number carried forward; Holt forecasts a level plus a slope, so its point forecast is a straight line that continues the trend of the data.
 
-```r title="The slope R fitted barely moves"
-round(tail(fit$model$states, 3), 3)
-#> Time Series:
-#> Start = 22 
-#> End = 24 
-#> Frequency = 1 
-#>          l     b
-#> 22 168.701 2.647
-#> 23 171.348 2.647
-#> 24 173.994 2.646
+**Try it:** Ask `holt()` for a 3-year forecast of `airmiles` instead of 6, and confirm each year is higher than the last.
+
+```r title="Your turn: forecast three years ahead"
+# Change the horizon to 3 years
+ex_fit <- holt(airmiles, h = 6)
+ex_fit
+# Expected: 3 rows, each Point Forecast higher than the one above it
 ```
 
-`fit$model$states` is the full history of the model's internal state, one row per week, with a column for the level `l` and a column for the slope `b`. `tail(..., 3)` shows the last three weeks. The level climbs 168.70, 171.35, 173.99, gaining about 2.65 a week. The slope sits at 2.647, 2.647, 2.646, essentially frozen.
+<details>
+<summary>Click to reveal solution</summary>
 
-So the model Holt fitted to this bakery is close to "draw the best straight line through 24 weeks and extend it". That is a legitimate answer, not a failure. The bakery's growth has been steady enough that the honest estimate of the slope is a constant, and the level after week 24 is 173.994. Add six steps of 2.646 and you are at week 30's forecast.
+```r title="Three-year airmiles forecast"
+ex_fit <- holt(airmiles, h = 3)
+ex_fit
+#>      Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#> 1961       32764.31 31311.44 34217.18 30542.33 34986.28
+#> 1962       34871.30 32688.58 37054.03 31533.11 38209.50
+#> 1963       36978.30 33978.32 39978.29 32390.22 41566.38
+```
 
-## Can you reproduce holt() by hand?
+**Explanation:** Only the horizon `h` changes. Each point forecast is about 2,107 higher than the one before, because Holt keeps adding the estimated trend at every step.
 
-The equations above are only worth trusting if they produce R's numbers. Let us take the four fitted parameters, run the innovations form across all 24 weeks in a plain `for` loop, and see whether we land where `holt()` landed.
+</details>
 
-```r title="Holt's method, hand-rolled in five lines"
-alpha <- fit$model$par[["alpha"]]
-beta  <- fit$model$par[["beta"]]
-level <- fit$model$par[["l"]]   # l_0, the starting level
-slope <- fit$model$par[["b"]]   # b_0, the starting slope
+## How do the level and trend equations work?
 
-for (t in seq_along(loaves)) {
-  error <- loaves[t] - (level + slope)        # how wrong last week's guess was
-  level <- level + slope + alpha * error      # alpha's share of the surprise
-  slope <- slope + beta * error               # beta's share of the surprise
+Holt runs two smoothing updates at every time step instead of one. The first tracks the level, just like SES. The second tracks the trend, the slope from one point to the next. Each update is a weighted blend controlled by its own dial: alpha for the level and beta for the trend.
+
+![Holt runs two smoothing updates each step: one for the level, one for the trend.](screenshots/Holts-Method-in-R-two-equations.webp)
+
+*Figure 1: Holt runs two smoothing updates each step: one for the level, one for the trend.*
+
+The level update is SES with a twist. Instead of blending the new observation with the old level, it blends the new observation with the old level plus the old trend (a one-step-ahead guess of where the level should be now). Writing the level at time $t$ as $\ell_t$ and the trend as $b_t$:
+
+$$\ell_t = \alpha\, y_t + (1 - \alpha)\,(\ell_{t-1} + b_{t-1})$$
+
+The trend update then blends the newest observed slope (how much the level just changed) with the previous trend estimate:
+
+$$b_t = \beta\,(\ell_t - \ell_{t-1}) + (1 - \beta)\,b_{t-1}$$
+
+And the forecast for any future step is the latest level plus that many steps of the latest trend:
+
+$$\hat{y}_{t+h\,|\,t} = \ell_t + h\, b_t$$
+
+Where:
+- $\ell_t$ = the level, the smoothed value at time $t$
+- $b_t$ = the trend, the smoothed slope at time $t$
+- $\alpha$ = the level dial, between 0 and 1
+- $\beta$ = the trend dial, between 0 and 1
+- $h$ = how many steps ahead you are forecasting
+
+The clearest way to feel this is to run both updates by hand on a tiny series. Below we smooth six numbers, starting the level at the first value and the trend at the first change (the second value minus the first).
+
+```r title="Run the level and trend updates by hand"
+y <- c(5, 7, 8, 11, 12, 15)
+alpha <- 0.5
+beta  <- 0.3
+level <- numeric(length(y))
+trend <- numeric(length(y))
+level[1] <- y[1]          # start the level at the first value
+trend[1] <- y[2] - y[1]   # start the trend at the first change
+
+for (t in 2:length(y)) {
+  level[t] <- alpha * y[t] + (1 - alpha) * (level[t - 1] + trend[t - 1])
+  trend[t] <- beta  * (level[t] - level[t - 1]) + (1 - beta) * trend[t - 1]
 }
-
-round(c(hand_level = level, hand_slope = slope), 3)
-#> hand_level hand_slope 
-#>    173.994      2.646 
+round(level, 3)
+#> [1]  5.000  7.000  8.500 10.675 12.311 14.583
+round(trend, 3)
+#> [1] 2.000 2.000 1.850 1.948 1.854 1.979
 ```
 
-Walk through the loop. `level` and `slope` start at \(\ell_0\) and \(b_0\), the two starting values R fitted. Each pass computes `error`, the gap between what actually happened that week and what the model would have predicted knowing only the weeks before it. Then the level moves by `alpha * error` on top of its own momentum, and the slope bends by `beta * error`. The double brackets in `par[["alpha"]]` pull out the bare number rather than a one-element named vector, which keeps the arithmetic clean.
+Walk through the third step to see the two updates in action. The level guess before seeing `y[3] = 8` is the old level plus the old trend, `7 + 2 = 9`; blending that with the new 8 gives `0.5 * 8 + 0.5 * 9 = 8.5`, the third level. The observed slope is `8.5 - 7 = 1.5`, and blending that with the old trend of 2 gives `0.3 * 1.5 + 0.7 * 2 = 1.85`, the third trend. Both estimates move a little toward the fresh data and a lot toward their own history, which is what smoothing means.
 
-After 24 passes our hand-rolled level is 173.994 and our slope is 2.646. Compare those to the last row of `fit$model$states` in the previous block: 173.994 and 2.646. The same numbers. Five lines of base R just reproduced the state that `holt()` arrived at.
+Now use those final numbers to forecast. The last level is 14.583 and the last trend is 1.979, so each future step just adds another 1.979.
 
-Now push it one step further and turn our state into a forecast, using \(\hat{y}_{t+h|t} = \ell_t + h b_t\) exactly as written.
-
-```r title="Our state, R's forecast"
-round(level + (1:6) * slope, 4)
-#> [1] 176.6402 179.2863 181.9324 184.5785 187.2246 189.8707
-round(as.numeric(fit$mean), 4)
-#> [1] 176.6402 179.2863 181.9324 184.5785 187.2246 189.8707
+```r title="Forecast by adding the trend to the level"
+last_level <- tail(level, 1)
+last_trend <- tail(trend, 1)
+round(last_level + (1:3) * last_trend, 3)
+#> [1] 16.562 18.541 20.521
 ```
 
-`(1:6)` is the vector of horizons, so `level + (1:6) * slope` evaluates the forecast equation at every \(h\) from 1 to 6 in one go. The two lines agree to all four decimals across all six weeks. The forecast equation is not an approximation of what `holt()` does; it is what `holt()` does.
+There is the forecast equation made concrete: 14.583 plus one trend is 16.562, plus two trends is 18.541, plus three is 20.521. The point forecast is nothing more than the final level extended by the final slope.
 
-Now back to that missing star. Our loop used the innovations form with the `beta` R reported, and it matched. If instead you take the blending form from the previous section and plug R's reported `beta` in where \(\beta^{*}\) belongs, you get the wrong answer, because they are not the same quantity.
+[TIP]
+**Seed the level with the first value and the trend with the first change.** Holt needs a starting level and a starting trend before the recursion can run. Setting the level to the first observation and the trend to the second value minus the first is the simplest choice, and it is close to what the forecast package uses before it fine-tunes both.
 
-> **Watch out:** `holt()` and `ets()` report \(\beta = \alpha \beta^{*}\), not \(\beta^{*}\). The textbook writes Holt's method with \(\beta^{*}\); R prints \(\beta\). To recover the textbook's \(\beta^{*}\), divide: \(\beta^{*} = \beta / \alpha\). This is also why R's constraint is \(0 < \beta < \alpha\) rather than \(0 < \beta < 1\), which surprises people who have only seen the textbook form.
+**Try it:** Smooth the same `y` vector but with a gentler trend dial of `beta = 0.1`, and watch the trend estimates settle more smoothly.
 
-That claim is testable, so test it. Recover \(\beta^{*}\) by division, then run the *blending* form and see whether it lands in the same place.
+```r title="Your turn: smooth the trend with beta 0.1"
+ex_beta  <- 0.1
+ex_level <- numeric(length(y))
+ex_trend <- numeric(length(y))
+ex_level[1] <- y[1]
+ex_trend[1] <- y[2] - y[1]
 
-```r title="The textbook form, with beta-star recovered"
-beta_star <- beta / alpha
-round(beta_star, 6)
-#> [1] 0.999998
-
-lev2 <- fit$model$par[["l"]]
-slo2 <- fit$model$par[["b"]]
-for (t in seq_along(loaves)) {
-  prev <- lev2
-  lev2 <- alpha * loaves[t] + (1 - alpha) * (prev + slo2)
-  slo2 <- beta_star * (lev2 - prev) + (1 - beta_star) * slo2
+for (t in 2:length(y)) {
+  # your code here: update ex_level, then ex_trend, using ex_beta
 }
-round(c(component_level = lev2, component_slope = slo2), 3)
-#> component_level component_slope 
-#>         173.994           2.646 
+round(ex_trend, 3)
+# Expected: 2.000 2.000 1.950 1.978 1.942 1.978
 ```
 
-The blending form lands on 173.994 and 2.646, the same state the innovations form and `holt()` both reached. The two ways of writing Holt's method really are the same method, once \(\beta^{*}\) is the right number.
+<details>
+<summary>Click to reveal solution</summary>
 
-And look at what \(\beta^{*}\) actually is here: 0.999998, essentially 1. In textbook terms that reads as "the slope reacts completely to the latest change in level", which sounds like the opposite of the frozen slope we saw. Both are true, and that is the whole point of the reparameterisation. Because alpha is near zero, the level barely reacts to anything, so \(\ell_t - \ell_{t-1}\) is itself just \(b_{t-1}\). A slope reacting fully to a change that is only ever its own previous value does not move. The product \(\beta = \alpha \beta^{*} = 0.0001\) is the number that actually describes the behaviour, which is exactly why R reports that one.
+```r title="Beta 0.1 trend solution"
+ex_beta  <- 0.1
+ex_level <- numeric(length(y))
+ex_trend <- numeric(length(y))
+ex_level[1] <- y[1]
+ex_trend[1] <- y[2] - y[1]
 
-## What does beta actually control?
-
-Beta decides how much of each week's surprise is allowed to bend the slope. Low beta means the slope is stubborn: it was fitted from the whole history and one odd week will not move it. High beta means the slope is credulous: it rewrites its opinion of the bakery's growth rate from whatever just happened.
-
-The cleanest way to see it is to pin alpha and sweep beta. We hold `alpha = 0.9` fixed so the level behaves identically in every run, then vary beta across its allowed range and look at what happens to the fitted slope and to week 30.
-
-```r title="Same level dynamics, four different betas"
-compare_beta <- function(b) {
-  f  <- holt(bakery, h = 6, alpha = 0.9, beta = b)
-  st <- tail(f$model$states, 1)
-  c(beta      = b,
-    beta_star = round(b / 0.9, 3),
-    slope     = round(unname(st[1, "b"]), 3),
-    week_30   = round(as.numeric(f$mean[6]), 2),
-    RMSE      = round(unname(accuracy(f)[, "RMSE"]), 3))
+for (t in 2:length(y)) {
+  ex_level[t] <- alpha * y[t] + (1 - alpha) * (ex_level[t - 1] + ex_trend[t - 1])
+  ex_trend[t] <- ex_beta * (ex_level[t] - ex_level[t - 1]) + (1 - ex_beta) * ex_trend[t - 1]
 }
-t(sapply(c(0.01, 0.1, 0.45, 0.85), compare_beta))
-#>      beta beta_star  slope week_30  RMSE
-#> [1,] 0.01     0.011  2.052  179.30 5.503
-#> [2,] 0.10     0.111  1.704  177.27 5.732
-#> [3,] 0.45     0.500 -1.486  158.23 6.456
-#> [4,] 0.85     0.944 -5.872  131.98 7.660
+round(ex_trend, 3)
+#> [1] 2.000 2.000 1.950 1.978 1.942 1.978
 ```
 
-The helper fits one model per beta and pulls out five things: the beta we passed, the textbook \(\beta^{*}\) it corresponds to, the final fitted slope, the week-30 forecast, and the in-sample RMSE. `accuracy()` computes fit statistics for a forecast object, and `RMSE` (root mean squared error) is the typical size of a one-week-ahead miss, in loaves. `unname()` strips the labels R attaches to those pieces so the table prints cleanly. `sapply()` runs the helper over the four betas and `t()` transposes the result so each beta is a row.
+**Explanation:** With `beta = 0.1` the trend leans 90% on its own past, so it barely reacts to each new observed slope and stays close to its starting value of 2. A small beta gives a steady, slowly changing trend.
 
-Read the `slope` column top to bottom, because it tells the story. At `beta = 0.01` the slope is 2.052 loaves a week, close to the steady growth the whole history shows. At `beta = 0.85` the slope is **-5.872**: the model now believes the bakery is losing almost six loaves a week. Nothing about the bakery changed between those two rows. The only difference is how much attention the slope pays to the most recent surprises, and the most recent surprise was week 24, where sales fell from 174 to 166. A high-beta slope reads that single drop as news about the growth rate itself and forecasts the bakery down to 131.98 loaves by week 30. That is 47 loaves below the low-beta row directly above it, and 58 below the 189.87 that `holt()` forecast back in the first section, off the very same 24 numbers.
+</details>
 
-The RMSE column settles the argument. It rises from 5.503 to 7.660 as beta climbs, so a jumpy slope does not merely produce a scarier forecast, it fits the actual history worse. This series wants a stable slope.
+## How does holt() estimate alpha and beta?
 
-> **Note:** the `beta_star` column also shows why R constrains \(\beta < \alpha\). We pinned `alpha = 0.9`, so beta could go no higher than 0.9, and `beta = 0.85` already puts \(\beta^{*}\) at 0.944. Passing `beta` larger than `alpha` would ask for \(\beta^{*} > 1\), which is not a weighted average at all.
+You do not have to guess alpha and beta. By default, `holt()` finds the pair of values (along with the starting level and trend) that make the model fit the historical data as closely as possible. It measures fit with the sum of squared errors, the total of the squared gaps between each actual value and the model's one-step-ahead forecast of it. There is no tidy formula for the best values, so R searches for them numerically. You can read the chosen values straight off the fitted model.
 
-In practice you rarely set beta by hand. You let R fit it, and then read the fitted value as a diagnostic, the same way you read alpha. A fitted beta at the lower bound says the growth rate is steady. A large fitted beta says the growth rate itself is moving around, which is worth knowing before you trust any long forecast.
-
-## Why should you damp the trend?
-
-Here is the uncomfortable part of \(\hat{y}_{t+h|t} = \ell_t + h b_t\). The forecast is a straight line, and a straight line never stops. Ask Holt for a forecast far enough out and it will confidently tell you the bakery sells any number you like.
-
-```r title="What the straight line says a year out"
-long_u <- holt(bakery, h = 52)
-long_d <- holt(bakery, h = 52, damped = TRUE)
-
-round(rbind(undamped = as.numeric(long_u$mean)[c(6, 26, 52)],
-            damped   = as.numeric(long_d$mean)[c(6, 26, 52)]), 1)
-#>           [,1]  [,2]  [,3]
-#> undamped 189.9 242.8 311.6
-#> damped   181.5 205.2 221.0
+```r title="Inspect the parameters holt() estimated"
+fit$model
+#> Holt's method
+#>
+#> Call:
+#> holt(y = airmiles, h = 6)
+#>
+#>   Smoothing parameters:
+#>     alpha = 0.8258
+#>     beta  = 0.2954
+#>
+#>   Initial states:
+#>     l = -786.1038
+#>     b = 557.3313
+#>
+#>   sigma:  1133.681
+#>
+#>      AIC     AICc      BIC
+#> 419.4924 422.8257 425.3827
 ```
 
-We fit the same data twice, once as before and once with `damped = TRUE`, ask both for a year of forecasts, and print weeks 30, 50, and 76. The undamped model says the bakery will sell **311.6 loaves** in week 76, nearly double its current 166, purely because 2.6 times 52 is 137 and nothing in the model ever says stop. No bakery grows in a straight line for a year. Ovens have capacity, the cafe chain has a finite number of cafes, and growth from a one-off contract flattens once the contract is fully ramped.
+The fit reports `alpha = 0.8258`, a fairly high level dial, which says the level should follow recent observations closely. The trend dial `beta = 0.2954` is lower, so the slope changes more gently from year to year. It also reports the initial states (`l` and `b`), `sigma` (the standard deviation of the residuals), and the AIC, AICc, and BIC model-comparison scores you can use to pit Holt against other models.
 
-Damping is the fix, and it is a small one. Add a fourth parameter \(\phi\) (phi) between 0 and 1, and shrink the slope by a factor of \(\phi\) at every step into the future:
+[NOTE]
+**The initial states are a mathematical seed, not a data value.** Do not be alarmed that the initial level here is negative (l = -786). It is simply the starting point the optimiser chose so the recursion best fits the whole steeply rising series, not a real airmiles reading. The numbers you actually forecast from are the final level and trend, which we read separately in a later section.
 
-$$\hat{y}_{t+h|t} = \ell_t + (\phi + \phi^2 + \cdots + \phi^h) \, b_t$$
+To convince yourself the optimiser is really minimising squared error, fit the model twice: once with the automatic defaults, and once with a hand-picked pair of dials. Compare their training sum of squared errors.
 
-Instead of \(h\) full steps, the forecast takes \(h\) shrinking ones. The level and slope equations get the same treatment: wherever \(b_{t-1}\) appeared, it becomes \(\phi b_{t-1}\). With \(\phi = 1\) nothing shrinks and you have ordinary Holt back, so on paper damped Holt contains plain Holt as a special case. R will not actually go there: `holt()` keeps \(\phi\) between 0.8 and 0.98 and refuses anything outside that range. The reasoning is that a \(\phi\) close to 1 is indistinguishable from no damping at all, while a small \(\phi\) damps the trend so hard the forecast flattens almost at once. With \(\phi\) slightly below 1 the near-term forecast is barely touched while the long-term one is pulled up short.
+**Try it:** Fit `holt()` with `alpha = 0.3, beta = 0.1` and compare its training sum of squared errors against the automatic fit.
 
-```r title="The damped fit adds one parameter"
-fit_damped <- holt(bakery, h = 6, damped = TRUE)
-round(fit_damped$model$par, 4)
-#>    alpha     beta      phi        l        b 
-#>   0.0001   0.0001   0.9711 106.3242   3.8262 
+```r title="Your turn: compare a hand-picked alpha and beta"
+# Fit holt() twice on airmiles: once with the defaults, once with alpha = 0.3, beta = 0.1
+# Then compare the training SSE of each with sum(residuals(...)^2)
+
+# your code here
+# Expected: the optimised fit has a much smaller SSE
 ```
 
-There are now five numbers instead of four, and the new one is `phi = 0.9711`. R fitted that from the data the same way it fitted the rest. Alpha and beta are still pinned at their lower bound, so this is still a near-deterministic trend, just one that is allowed to tire.
+<details>
+<summary>Click to reveal solution</summary>
 
-The starting slope moved too, from 2.6463 in the undamped fit to 3.8262 here. That is damping working backwards. Every week multiplies the slope by 0.9711, so to have the middle of the series still climbing at the roughly 2.6 loaves a week the data actually shows, the model has to start steeper: \(3.8262 \times 0.9711^{12} = 2.69\) by week 12. Keep going and \(3.8262 \times 0.9711^{24} = 1.89\) by week 24, which is the slope the next block reports.
-
-```r title="Damped versus undamped, six weeks out"
-round(rbind(undamped = as.numeric(fit$mean),
-            damped   = as.numeric(fit_damped$mean)), 2)
-#>            [,1]   [,2]   [,3]   [,4]   [,5]   [,6]
-#> undamped 176.64 179.29 181.93 184.58 187.22 189.87
-#> damped   173.12 174.90 176.63 178.32 179.95 181.54
+```r title="Optimised versus hand-picked SSE"
+opt   <- sum(residuals(holt(airmiles, h = 1))^2)
+fixed <- sum(residuals(holt(airmiles, h = 1, alpha = 0.3, beta = 0.1))^2)
+round(c(optimised = opt, fixed = fixed))
+#> optimised     fixed
+#>  25704657  54392849
 ```
 
-At week 25 the two differ by 3.5 loaves. By week 30 they differ by 8.3, and the damped forecast's own steps are visibly shrinking: 1.78, then 1.73, then 1.69, where the undamped model steps by 2.65 every single time. Damping does not disagree about where the bakery is. It disagrees about how long the climb lasts.
+**Explanation:** The optimised dials produce less than half the squared error of the hand-picked ones. That is exactly what the numerical search is for: it finds the alpha and beta that fit the history best, so you rarely need to set them yourself.
 
-The geometric series has a limit, which means a damped forecast has a **ceiling** it approaches but never passes:
+</details>
 
-$$\lim_{h \to \infty} \hat{y}_{t+h|t} = \ell_t + \frac{\phi}{1 - \phi} \, b_t$$
+## What is a damped trend and when should you use it?
 
-That is a claim with a number attached, so check it.
+Plain Holt has one weakness: it extends the same straight-line slope forever. Ten steps out, a hundred steps out, the forecast keeps climbing at the same rate. Real trends rarely do that; growth usually eases off. A damped trend fixes this by multiplying the trend by a damping factor, phi (between 0 and 1), at every future step, so each added slope is a little smaller than the last and the forecast line gradually flattens. Turn it on with `damped = TRUE`.
 
-```r title="The damped forecast has a ceiling, and R hits it"
-last  <- tail(fit_damped$model$states, 1)
-phi   <- fit_damped$model$par[["phi"]]
-l_end <- last[1, "l"]
-b_end <- last[1, "b"]
+The difference is invisible at short horizons but large at long ones. Compare the fifteen-year forecast of `airmiles` with and without damping.
 
-ceiling_fc <- l_end + b_end * phi / (1 - phi)
-round(c(level = unname(l_end), slope = unname(b_end),
-        phi = phi, ceiling = unname(ceiling_fc)), 3)
-#>   level   slope     phi ceiling 
-#> 171.279   1.892   0.971 234.856 
-
-far <- holt(bakery, h = 400, damped = TRUE)
-round(as.numeric(far$mean)[c(52, 200, 400)], 2)
-#> [1] 221.02 234.68 234.86
+```r title="Compare a linear and a damped long-range forecast"
+linear <- holt(airmiles, h = 15)
+damped <- holt(airmiles, h = 15, damped = TRUE)
+round(c(linear = as.numeric(tail(linear$mean, 1)),
+        damped = as.numeric(tail(damped$mean, 1))), 1)
+#>  linear  damped
+#> 62262.3 56626.8
 ```
 
-We pull the final level and slope out of the fitted states, apply the limit formula, and get a ceiling of **234.856 loaves**. Then we ask R for 400 weeks of damped forecasts: week 76 is at 221.02, week 224 has reached 234.68, and week 424 sits at 234.86. The formula predicted where the model would settle, and the model settled there. Compare that with the undamped forecast, which passed 311 loaves before its first year was out and kept going.
+Fifteen years out, the plain Holt forecast reaches 62,262 while the damped version reaches 56,627, about 5,600 lower. The damped model has been shaving a little off the slope every year, so its line bends toward the horizontal instead of shooting straight up. The estimated damping factor appears in the model summary.
 
-> **Tip:** damping is not pessimism, it is honesty about horizon. A trend estimated from 24 weeks is evidence about the next few weeks and much weaker evidence about the next few years. Damped trend methods are among the best performers in large-scale forecasting competitions for exactly this reason, which is why `ets()` includes damped variants in the family it searches.
-
-## How do you choose between SES, Holt and damped Holt?
-
-Three models, three different answers for week 30: 167.03, 189.87, 181.54. You cannot pick by eye. Two tools decide it, and they are worth understanding separately because they can disagree.
-
-The first is **AIC** (Akaike information criterion), a score that rewards fitting the data well and charges a penalty per parameter. Lower is better, and it is only comparable between models fitted to the same data.
-
-```r title="AIC and in-sample RMSE for all three"
-round(c(ses    = fit_ses$model$aic,
-        holt   = fit$model$aic,
-        damped = fit_damped$model$aic), 3)
-#>     ses    holt  damped 
-#> 167.488 159.764 160.155 
-
-round(c(ses    = accuracy(fit_ses)[, "RMSE"],
-        holt   = accuracy(fit)[, "RMSE"],
-        damped = accuracy(fit_damped)[, "RMSE"]), 3)
-#>    ses   holt damped 
-#>  5.902  4.623  4.471 
+```r title="Read the damping factor phi"
+damped$model
+#> Damped Holt's method
+#>
+#> Call:
+#> holt(y = airmiles, h = 15, damped = TRUE)
+#>
+#>   Smoothing parameters:
+#>     alpha = 0.8087
+#>     beta  = 0.3348
+#>     phi   = 0.98
+#>
+#>   Initial states:
+#>     l = -786.2858
+#>     b = 557.9213
+#>
+#>   sigma:  1173.327
+#>
+#>      AIC     AICc      BIC
+#> 421.9113 426.8525 428.9796
 ```
 
-Read the two lines against each other, because they do not agree. On AIC, plain Holt wins at 159.764, damped Holt is a hair behind at 160.155, and SES is far back at 167.488. On in-sample RMSE, the order flips at the top: damped Holt fits best at 4.471, then Holt at 4.623, then SES at 5.902.
+The fit adds a third dial, `phi = 0.98`. A phi that close to 1 means only gentle damping: the trend fades slowly. A smaller phi would flatten the forecast much faster. A quick plot shows the bend.
 
-The disagreement is the lesson. Damped Holt has one more parameter than Holt, and that extra dial gives the optimiser one more way to bend the fitted line toward the data it can already see, so it will nearly always score better on in-sample error. (Only nearly: R's \(\phi \le 0.98\) stops damped Holt from collapsing exactly onto plain Holt, so it is not guaranteed. Here it did score better.) So RMSE preferring damped Holt is close to uninformative, because it mostly reports which model had more freedom. AIC charges for that freedom, and once charged, the improvement no longer covers its cost: the 0.4-point gap says the two models are about equally good, with Holt marginally ahead on parsimony. What both agree on emphatically is that SES does not belong here.
-
-Both of those numbers are still measured on data the models were fitted to. The question the bakery actually has is about weeks nobody has seen. So hide some.
-
-```r title="Fit on the first 18 weeks, forecast the last 6"
-train <- window(bakery, end = 18)
-test  <- window(bakery, start = 19)
-
-h_train <- holt(train, h = 6)
-s_train <- ses(train, h = 6)
-d_train <- holt(train, h = 6, damped = TRUE)
-
-round(rbind(ses    = as.numeric(s_train$mean),
-            holt   = as.numeric(h_train$mean),
-            damped = as.numeric(d_train$mean),
-            actual = as.numeric(test)), 1)
-#>         [,1]  [,2]  [,3]  [,4]  [,5]  [,6]
-#> ses    154.1 154.1 154.1 154.1 154.1 154.1
-#> holt   162.1 164.9 167.7 170.4 173.2 176.0
-#> damped 161.4 163.8 166.0 168.2 170.4 172.5
-#> actual 159.0 165.0 167.0 169.0 174.0 166.0
+```r title="Plot the damped forecast"
+autoplot(damped) +
+  ggplot2::ggtitle("A damped trend flattens the long-range forecast")
 ```
 
-`window()` cuts a time series by time, so `train` is weeks 1 to 18 and `test` is weeks 19 to 24. Each model sees only the training weeks, then forecasts six ahead, and the last row is what really happened. Now the comparison is honest: none of these models has ever seen the numbers in the `actual` row.
+[WARNING]
+**An undamped trend can produce runaway long-range forecasts.** Because plain Holt projects the same slope indefinitely, a steep trend keeps compounding and the forecast can reach implausible values far out. For any horizon longer than a handful of steps, a damped trend is usually the safer, more realistic default.
 
-Look down the columns. SES sits at 154.1 while the bakery climbs past it to 174. Holt tracks the middle four weeks almost exactly (164.9 against 165, 167.7 against 167, 170.4 against 169) and then overshoots the final week, forecasting 176.0 when sales dipped to 166. Damped Holt is slightly low early and closer at the end. Score them.
+**Try it:** Fit a damped Holt model to the built-in `austres` series (quarterly Australian resident numbers) and read its estimated phi.
 
-```r title="Out-of-sample RMSE: the honest comparison"
-round(c(ses    = accuracy(s_train, test)["Test set", "RMSE"],
-        holt   = accuracy(h_train, test)["Test set", "RMSE"],
-        damped = accuracy(d_train, test)["Test set", "RMSE"]), 3)
-#>    ses   holt damped 
-#> 13.320  4.322  3.281 
+```r title="Your turn: read the damping parameter"
+# Fit a damped Holt model to the austres series, then read par["phi"]
+ex_damp <- holt(austres, h = 10)   # add damped = TRUE here
+ex_damp$model$par["phi"]
+# Expected: a phi just below 1
 ```
 
-Passing `test` as a second argument to `accuracy()` makes it score the forecasts against the held-out truth and report a `Test set` row. SES misses by 13.3 loaves on average, three times worse than either trend model. Damped Holt wins at 3.281, ahead of Holt's 4.322.
+<details>
+<summary>Click to reveal solution</summary>
 
-So the in-sample AIC narrowly preferred plain Holt and the holdout preferred damped Holt. Both comparisons are legitimate; they answer different questions, and with a 24-point series and a 6-point test set neither margin is large enough to be worth much confidence. The defensible reading is that this bakery has a real trend (every method that models one beats the method that does not, by a wide margin) and that the choice between damped and undamped is close, with damping the safer default the further out you forecast.
-
-If you would rather not run the comparison yourself, `ets()` will search the family and score it for you.
-
-```r title="What ets() picks unprompted"
-auto <- ets(bakery)
-auto$method
-#> [1] "ETS(A,A,N)"
-round(auto$aic, 3)
-#> [1] 159.764
+```r title="Damping factor for austres"
+ex_damp <- holt(austres, h = 10, damped = TRUE)
+ex_damp$model$par["phi"]
+#>       phi
+#> 0.9799998
 ```
 
-`ets()` fits the whole exponential smoothing family and selects on AIC. It chose `ETS(A,A,N)`, which reads as additive error, additive trend, no seasonality, and that is precisely Holt's linear method. Its AIC of 159.764 is identical to what `holt()` reported, because it fitted the same model. The three letters are worth knowing properly; [ETS Models in R](ETS-Models-in-R.html) walks through what each slot means and why there are thirty combinations.
+**Explanation:** Adding `damped = TRUE` estimates a phi of about 0.98 for `austres`, so its long-range forecast bends only slightly. As with `airmiles`, a phi near 1 signals light damping of a strong, persistent trend.
 
-## When does Holt's method break?
+</details>
 
-Holt models a level and a slope, and nothing else. Every failure follows from that sentence.
+## How do you read the forecast and check the fit?
 
-The first failure is the one you invite by reaching for Holt too eagerly: a series with no trend at all. The model will still fit a slope, because it has one and it must put a number in it. Here is the bakery's *other* 24 weeks, the ones from before the contract, when sales just wobbled around a stable level.
+A forecast object carries two things worth reading: how well the model fit the past, and how uncertain it is about the future. The `accuracy()` function summarises the in-sample fit with a row of error metrics.
 
-```r title="Failure 1: no trend, and Holt invents one anyway"
-flat <- ts(c(118, 124, 115, 131, 121, 109, 126, 122, 133, 117, 128, 119,
-             125, 136, 114, 123, 130, 120, 127, 116, 132, 122, 129, 121),
-           start = 1)
-
-flat_holt <- holt(flat, h = 4)
-flat_ses  <- ses(flat, h = 4)
-
-round(flat_holt$model$par, 4)
-#>    alpha     beta        l        b 
-#>   0.0001   0.0001 120.9238   0.1867 
-round(rbind(ses  = as.numeric(flat_ses$mean),
-            holt = as.numeric(flat_holt$mean)), 2)
-#>        [,1]   [,2]   [,3]   [,4]
-#> ses  123.25 123.25 123.25 123.25
-#> holt 125.59 125.78 125.96 126.15
+```r title="Summarise how well the model fit the history"
+round(accuracy(fit), 3)
+#>                   ME     RMSE     MAE   MPE  MAPE  MASE  ACF1
+#> Training set 218.615 1034.905 811.515 0.077 23.94 0.615 -0.06
 ```
 
-These 24 numbers have no trend in them; they are noise around roughly 123 loaves. Holt fitted a starting slope of **0.1867 loaves a week** regardless, and forecasts the bakery drifting up to 126.15 by week 28 while SES holds flat at 123.25. The slope is not real. It is Holt fitting a faint upward tilt to a cloud of noise, and it will keep extrapolating that tilt for as long as you ask.
+The two you will use most are RMSE (root mean squared error, about 1,035 here) and MASE. A MASE below 1 (0.615) means Holt beats a naive one-step benchmark on the training data. The MAPE of 23.94 looks high, but it is inflated by the tiny early values of `airmiles` (a small denominator makes percentage errors explode), which is a good reminder to read more than one metric.
 
-Here is the part that catches people, and it is why the two numbers in the next block matter more than they look.
+Now the trend itself. Earlier we saw each point forecast sit about 2,107 above the previous one. That constant gap is the final trend, the slope Holt projects into the future. You can confirm it two ways: by differencing the forecasts, and by reading the final trend state directly.
 
-```r title="RMSE says use Holt; AIC says do not"
-round(c(ses_aic = flat_ses$model$aic, holt_aic = flat_holt$model$aic), 3)
-#>  ses_aic holt_aic 
-#>  172.695  175.735 
-round(c(ses_rmse = accuracy(flat_ses)[, "RMSE"], holt_rmse = accuracy(flat_holt)[, "RMSE"]), 3)
-#>  ses_rmse holt_rmse 
-#>     6.578     6.448 
+```r title="The gap between forecasts is the final trend"
+round(diff(as.numeric(fit$mean)), 3)
+#> [1] 2106.996 2106.996 2106.996 2106.996 2106.996
+round(as.numeric(tail(fit$model$states[, "b"], 1)), 3)
+#> [1] 2106.996
 ```
 
-In-sample RMSE prefers Holt: 6.448 against SES's 6.578. Of course it does. Holt has two more parameters and can bend slightly toward the noise, so it *always* fits the training data at least as well. If RMSE on the fitted data were your selection rule, you would pick the model with the invented slope every time. AIC charges for those parameters and reverses the verdict: 175.735 for Holt against 172.695 for SES, a 3-point win for the simpler model. This is the whole reason model selection uses AIC or a holdout instead of in-sample error.
+Both give 2106.996. Note that this final trend (2,107) is not the initial trend `b = 557.33` printed in the model summary; the summary shows the starting seed, while the forecast uses the trend after it has been updated across the whole series. The point forecast is the final level plus this final trend, added once per step ahead.
 
-The second failure is seasonality. A slope is a straight line and a season is a repeating wave, and no amount of slope will make a line wave. Suppose the bakery's weekly numbers were quarterly ones, with a large spike every fourth quarter.
+[KEY INSIGHT]
+**The forecast is the final level plus the final trend times the horizon.** Read the last level and last trend from the fitted states, and every point forecast follows: level plus one trend, plus two trends, and so on. The model summary shows the starting seeds; the forecast uses the final states.
 
-```r title="A series with a strong quarterly cycle"
-set.seed(11)
-seas <- ts(rep(c(90, 95, 100, 140), 8) + round(rnorm(32, 0, 4)) + rep(0:7 * 2, each = 4),
-           frequency = 4, start = 1)
-as.numeric(seas)
-#>  [1]  88  95  94 135  97  93 107 144  94  95 101 143  90 100 101 146  97 107 106 145  97 105 108 151
-#> [25] 102 107 111 149 103 105 110 150
+Uncertainty is the other half. The point forecast is a clean line, but the prediction intervals around it widen with the horizon.
+
+**Try it:** Measure how much the 95% interval widens between the first and sixth forecast step.
+
+```r title="Your turn: measure how fast the band grows"
+# 95% interval width = upper 95% bound minus lower 95% bound, at step 1 and step 6
+w1 <- NA   # fill in for step 1
+w6 <- NA   # fill in for step 6
+round(c(h1 = w1, h6 = w6), 1)
+# Expected: h6 much wider than h1
 ```
 
-This builds 8 years of quarterly data: a repeating pattern of roughly 90, 95, 100, 140 (so Q4 is the big one), plus random noise via `rnorm()`, plus a gentle upward drift of 2 per year. `set.seed(11)` fixes the random numbers so you get the same series shown here. `frequency = 4` tells R these are quarters, which is how `hw()` will know a cycle is four periods long.
+<details>
+<summary>Click to reveal solution</summary>
 
-```r title="Failure 2: Holt averages the season away"
-seas_holt <- holt(seas, h = 4)
-seas_hw   <- hw(seas, h = 4)
-
-round(rbind(holt = as.numeric(seas_holt$mean),
-            hw   = as.numeric(seas_hw$mean)), 2)
-#>        [,1]   [,2]  [,3]   [,4]
-#> holt 123.29 123.99 124.7 125.40
-#> hw   104.61 109.44 113.7 154.44
-round(c(holt_RMSE = accuracy(seas_holt)[, "RMSE"],
-        hw_RMSE   = accuracy(seas_hw)[, "RMSE"]), 3)
-#> holt_RMSE   hw_RMSE 
-#>    19.303     2.780 
+```r title="Interval width at step 1 versus step 6"
+w1 <- fit$upper[1, "95%"] - fit$lower[1, "95%"]
+w6 <- fit$upper[6, "95%"] - fit$lower[6, "95%"]
+round(c(h1 = w1, h6 = w6), 1)
+#>  h1.95%  h6.95%
+#>  4443.9 18065.3
 ```
 
-Holt forecasts the next four quarters as 123.29, 123.99, 124.70, 125.40: a gentle upward line straight through the middle of a pattern that actually swings from about 103 to about 150. It has averaged the season away, because averaging is the only thing a level-and-slope model can do with a wave. `hw()` (Holt-Winters) adds a third component for the seasonal pattern and forecasts 104.61, 109.44, 113.70, and then **154.44** for the Q4 spike. The RMSE gap is not subtle: 19.303 for Holt against 2.780 for Holt-Winters, a seven-fold difference. If your series has a cycle, Holt is the wrong member of the family and [Holt-Winters in R](Holt-Winters-in-R.html) is the right one.
+**Explanation:** The 95% band is about 4,444 units wide one year out and about 18,065 units wide six years out, four times as wide. Uncertainty compounds with the horizon even though the point forecast follows a clean straight line.
 
-The third failure is more subtle: Holt's trend is **additive**, meaning it adds a fixed number of loaves per period. A business growing at 5% a week is not adding a fixed amount, it is multiplying, and the gap between those two shapes widens the further you forecast. Suppose Ridge Road opened a second location that grows that way.
+</details>
 
-```r title="Failure 3: percentage growth is not a fixed number of loaves"
-set.seed(3)
-# A second location growing 5% a week, rather than +2.6 loaves a week.
-pct <- ts(round(100 * 1.05^(0:23) + rnorm(24, 0, 3)), start = 1)
+## When should you use Holt's method (and when not)?
 
-add_fit <- holt(pct, h = 6)
-log_fit <- holt(pct, h = 6, lambda = 0, biasadj = TRUE)
+Holt's method assumes the series has a trend but no seasonality. That is the sweet spot. If the data is flat with no trend, SES is simpler and just as good. If the data also repeats a seasonal pattern, Holt will track the overall trend but flatten the season, so you need Holt-Winters instead. The diagram below turns that into a quick decision.
 
-round(rbind(additive  = as.numeric(add_fit$mean),
-            log_scale = as.numeric(log_fit$mean)), 1)
-#>            [,1]  [,2]  [,3]  [,4]  [,5]  [,6]
-#> additive  315.7 328.4 341.2 354.0 366.7 379.5
-#> log_scale 321.5 337.6 354.5 372.3 391.0 410.6
-round(c(additive  = accuracy(add_fit)[, "RMSE"],
-        log_scale = accuracy(log_fit)[, "RMSE"]), 3)
-#>  additive log_scale 
-#>     3.067     2.294
+![Choosing between SES, Holt, damped Holt, and Holt-Winters.](screenshots/Holts-Method-in-R-decision.webp)
+
+*Figure 2: Choosing between SES, Holt, damped Holt, and Holt-Winters.*
+
+To see the seasonal failure for yourself, apply Holt to the monthly `AirPassengers` series, which has both a strong trend and a strong yearly cycle. Watch the last few forecasts.
+
+```r title="Holt tracks the trend but ignores the season"
+seasonal_fit <- holt(AirPassengers, h = 12)
+round(as.numeric(tail(seasonal_fit$mean, 4)), 1)
+#> [1] 446.4 448.0 449.6 451.2
 ```
 
-The fix is to model `log(y)` and Holt the logs, since a constant additive trend on the log scale is constant percentage growth on the original scale. The `lambda` argument does the transformation inside the call: `lambda = 0` means take logs before fitting and undo them afterwards, and `biasadj = TRUE` corrects the back-transformed forecast so it is a mean rather than a median.
+The forecast climbs smoothly (446, 448, 450, 451) with no hint of the sharp summer peaks and winter troughs that define this series. Holt captured the upward trend but erased the season, which would badly mislead anyone planning around monthly demand.
 
-Compare the two rows. The additive fit steps by a flat 12.77 loaves a week and keeps stepping by 12.77 no matter how large the bakery gets, because that is the only shape it has. The log-scale fit steps by 16.1, then 16.9, then 17.8, growing as the series grows, which is what 5% a week actually looks like. It also fits the history better, 2.294 against 3.067. Multiplicative trend models exist in the ETS family too, though Hyndman advises against them in practice because they extrapolate explosively.
+On a genuine trend-only series, though, Holt earns its keep. Here we split `airmiles` into a training period and a test period, then compare Holt, damped Holt, SES, and a random-walk-with-drift baseline by their RMSE on the held-out years.
 
-The honest scope of `holt()` is therefore narrow. Use it on a series with a real, roughly linear trend and no seasonal cycle, over a horizon short enough that "the trend continues" is a defensible sentence. That is the bakery's 24 weeks, over 6 weeks, which is why 176.64 was a reasonable answer. Before reaching for it on your own data, plot the series and check both conditions. [Time Series Decomposition in R](Time-Series-Decomposition-in-R.html) is the tool for answering them when the eye is not enough.
+```r title="Compare Holt with damped, SES, and a drift baseline"
+train <- window(airmiles, end = 1955)
+test  <- window(airmiles, start = 1956)
+h <- length(test)
 
-## FAQ
+rmse <- function(f) accuracy(f, test)["Test set", "RMSE"]
+round(c(
+  holt   = rmse(holt(train, h = h)),
+  damped = rmse(holt(train, h = h, damped = TRUE)),
+  ses    = rmse(ses(train,  h = h)),
+  naive  = rmse(rwf(train,  h = h, drift = TRUE))
+), 1)
+#>   holt damped    ses  naive
+#> 1574.9 1123.9 7364.4 3827.1
+```
 
-**What is the difference between Holt's method and Holt-Winters?**
-Holt's method tracks two components, a level and a slope, using two smoothing parameters (alpha and beta). Holt-Winters adds a third component for a repeating seasonal pattern and a third parameter (gamma) to smooth it. Use `holt()` when the series trends but has no cycle; use `hw()` when it has both. In the seasonal example above, that choice was worth a seven-fold difference in RMSE.
+Both Holt variants beat SES by a wide margin on this trending data: SES posts a test RMSE of 7,364 against Holt's 1,575, because SES flattens a series that is clearly climbing. The damped version does best of all here (1,124), a reminder that damping is worth trying, not just for very long horizons.
 
-**Why is my fitted beta 0.0001?**
-That is R's lower bound, and it means the optimiser found no evidence the growth rate is changing. The model has settled on a near-constant slope, so it is behaving much like a straight line fitted through your data and extended. This is a normal, healthy result for a series with steady growth, not an error. Read it the same way you read a near-zero alpha in SES: as the fit telling you something about your data.
+[TIP]
+**An SES alpha near 1 is a hint to switch to Holt.** If `ses()` sets its alpha close to 1, the level is tracking each latest observation almost exactly, which usually means the series has a pattern SES cannot capture, often a trend. That is your cue to fit `holt()` and let a real trend term do the work.
 
-**Should I always use damped = TRUE?**
-Not always, but it is a sensible default for anything beyond a short horizon. Damping adds a single parameter, and when phi is fitted near the top of R's allowed range (0.8 to 0.98) the near-term forecast barely differs from undamped Holt while the long-term one is protected from the straight line that never stops. On the bakery's data, damping won the out-of-sample comparison (3.281 against 4.322) while losing narrowly on AIC. If your horizon is a handful of periods and AIC prefers the undamped fit, plain `holt()` is defensible.
+**Try it:** Apply `holt()` to the monthly `co2` series (Mauna Loa atmospheric CO2, which also has a strong trend and a yearly cycle) twelve steps ahead, and check the last four forecasts for any seasonal ripple.
 
-**Why does R's beta not match the beta in my textbook?**
-Because they are different quantities. The textbook (including Hyndman's fpp3) writes the slope equation with \(\beta^{*}\), while `holt()` and `ets()` report \(\beta = \alpha \beta^{*}\). Divide R's beta by R's alpha to recover the textbook's \(\beta^{*}\). This also explains R's constraint \(0 < \beta < \alpha\), which looks strange until you know that \(\beta^{*} = \beta / \alpha\) is the thing that has to stay below 1.
+```r title="Your turn: watch Holt ignore a season"
+# Fit holt() to the co2 series with h = 12
+# Then look at round(tail(..$mean, 4), 1): does it wiggle up and down, or climb smoothly?
 
-**Can Holt's method handle a series that grows by a percentage each period?**
-Not directly, because its trend is additive: it adds a fixed quantity each period rather than multiplying. Fit it to `log(y)` instead, where constant percentage growth becomes a constant additive trend, then back-transform. In the forecast package, pass `lambda = 0` to do the log transform inside the call, and add `biasadj = TRUE` so the back-transformed forecast is a mean rather than a median.
+# your code here
+# Expected: a smooth climb, no seasonal ripple
+```
 
-**Should I use holt() or ets(model = "AAN")?**
-They fit the same model, and on the bakery's data they returned an identical AIC of 159.764. Use `holt()` when you have already decided the series has a trend and no season, since the call is shorter and the arguments (`damped`, `beta`) are right there. Use `ets()` when you want the selection made for you or want to compare across the whole family on AIC.
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Holt erases the seasonal ripple"
+co2_fit <- holt(co2, h = 12)
+round(as.numeric(tail(co2_fit$mean, 4)), 1)
+#> [1] 381.0 382.8 384.7 386.5
+```
+
+**Explanation:** The four forecasts rise by a near-constant step with no up-and-down swing, so Holt has ignored the strong yearly cycle in `co2` entirely. For a seasonal series like this you would reach for Holt-Winters, which adds a seasonal term on top of the level and trend.
+
+</details>
+
+## Complete Example: forecasting Australian residents
+
+Let's put every piece together on a fresh dataset. The built-in `austres` series records the number of Australian residents (in thousands), measured each quarter from 1971 to 1993. It has a strong, smooth upward trend and no meaningful seasonal cycle, which makes it a natural fit for Holt's method. We fit the model and read its parameters first.
+
+```r title="Fit Holt's method to Australian residents"
+fc <- holt(austres, h = 8)
+fc$model
+#> Holt's method
+#>
+#> Call:
+#> holt(y = austres, h = 8)
+#>
+#>   Smoothing parameters:
+#>     alpha = 0.9999
+#>     beta  = 0.4421
+#>
+#>   Initial states:
+#>     l = 13006.2854
+#>     b = 77.9696
+#>
+#>   sigma:  10.4239
+#>
+#>      AIC     AICc      BIC
+#> 822.6457 823.3686 835.0889
+```
+
+The optimiser settles on `alpha = 0.9999`, meaning the level hugs the latest observation almost exactly, which makes sense for a population count that changes little from one quarter to the next. The trend dial `beta = 0.4421` is moderate, giving a slope that responds to genuine shifts in the growth rate. Now check the fit.
+
+```r title="Check how closely the model fit the history"
+round(accuracy(fc), 3)
+#>                  ME   RMSE   MAE    MPE  MAPE  MASE  ACF1
+#> Training set -0.891 10.187 7.507 -0.006 0.049 0.036 0.037
+```
+
+The MAPE of 0.049 says the fitted values are within about 0.05% of the actual residents, an almost perfect in-sample fit for such a smooth series. Because the trend is so strong and steady, it is worth asking whether damping changes the long-range forecast much.
+
+```r title="Compare linear and damped forecasts twelve steps out"
+fc_damped <- holt(austres, h = 12, damped = TRUE)
+round(c(linear = as.numeric(tail(holt(austres, h = 12)$mean, 1)),
+        damped = as.numeric(tail(fc_damped$mean, 1))), 1)
+#>  linear  damped
+#> 18176.5 18102.6
+```
+
+Twelve quarters out the two forecasts differ by only about 74 thousand residents (18,176 versus 18,103), because the estimated damping is light. For a short horizon like this, either is fine. Finally, read the forecast and plot it.
+
+```r title="Read the eight-quarter forecast"
+fc
+#>         Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#> 1993 Q3       17704.42 17691.06 17717.78 17683.99 17724.85
+#> 1993 Q4       17747.34 17723.90 17770.78 17711.49 17783.19
+#> 1994 Q1       17790.26 17755.87 17824.66 17737.66 17842.86
+#> 1994 Q2       17833.18 17786.83 17879.53 17762.29 17904.07
+#> 1994 Q3       17876.10 17816.80 17935.40 17785.41 17966.79
+#> 1994 Q4       17919.02 17845.84 17992.20 17807.10 18030.94
+#> 1995 Q1       17961.94 17873.99 18049.90 17827.43 18096.46
+#> 1995 Q2       18004.86 17901.28 18108.44 17846.46 18163.27
+```
+
+```r title="Plot the Australian residents forecast"
+autoplot(fc) +
+  ggplot2::ylab("Residents (thousands)") +
+  ggplot2::ggtitle("Holt's forecast of Australian residents")
+```
+
+The forecast rises by about 43 thousand residents each quarter, continuing the historical trend, with narrow prediction bands that reflect how regular the series is. That is the full loop: fit the model, inspect the dials, check the accuracy, weigh whether to damp, then read the forecast.
+
+## Practice Exercises
+
+These capstone problems combine the ideas above. Each uses fresh variable names so nothing you ran earlier gets overwritten. Try them before opening the solutions.
+
+### Exercise 1: Does damping change a steep forecast?
+
+The built-in `uspop` series records the US population (in millions) at each census from 1790 to 1970. Fit both a plain and a damped Holt model with a 5-step horizon. Compare the final forecasts, then read the damping factor.
+
+```r title="Exercise 1: linear versus damped on uspop"
+# 1. Fit holt(uspop, h = 5) and holt(uspop, h = 5, damped = TRUE)
+# 2. Compare the last point forecast of each
+# 3. Read par["phi"] from the damped model
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 1 solution"
+my_lin <- holt(uspop, h = 5)
+my_dmp <- holt(uspop, h = 5, damped = TRUE)
+round(c(linear = as.numeric(tail(my_lin$mean, 1)),
+        damped = as.numeric(tail(my_dmp$mean, 1))), 1)
+#> linear damped
+#>  324.7  298.2
+round(as.numeric(my_dmp$model$par["phi"]), 4)
+#> [1] 0.9237
+```
+
+**Explanation:** Five steps out, the plain model forecasts 324.7 million while the damped model forecasts 298.2 million. The lower phi here (0.9237, more damping than `airmiles` had) bends the steep population trend down noticeably, which is exactly the behaviour you want when a fast-growing series cannot realistically keep accelerating forever.
+
+</details>
+
+### Exercise 2: Rebuild the forecast from the final states
+
+Show that the Holt forecast really is the final level plus the final trend. Using the `fit` object from the tutorial (Holt on `airmiles`), read the last level and last trend from the fitted states, then reconstruct the first two point forecasts by hand.
+
+```r title="Exercise 2: reconstruct from the states"
+# 1. Read the final level and trend from tail(fit$model$states[, "l"]) and [, "b"]
+# 2. Compute final_level + (1:2) * final_trend
+# 3. Compare with as.numeric(fit$mean[1:2])
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 2 solution"
+final_level <- as.numeric(tail(fit$model$states[, "l"], 1))
+final_trend <- as.numeric(tail(fit$model$states[, "b"], 1))
+round(c(level = final_level, trend = final_trend), 3)
+#>     level     trend
+#> 30657.312  2106.996
+round(final_level + (1:2) * final_trend, 2)
+#> [1] 32764.31 34871.30
+as.numeric(fit$mean[1:2])
+#> [1] 32764.31 34871.30
+```
+
+**Explanation:** The final level (30,657) plus one trend (2,107) reproduces the first forecast, 32,764.31, and plus two trends reproduces the second, 34,871.30, exactly matching `fit$mean`. The forecast equation is not an approximation: it is precisely the final level extended by the final slope.
+
+</details>
+
+### Exercise 3: Which model generalises best on airmiles?
+
+Split `airmiles` into a training set (up to 1955) and a test set (1956 onward). Fit Holt, damped Holt, and SES on the training set, then compare their RMSE on the held-out years. Which would you trust for a trending series?
+
+```r title="Exercise 3: train, test, compare"
+# 1. window() airmiles into my_train (end 1955) and my_test (start 1956)
+# 2. Forecast the test length with holt(), holt(damped = TRUE), and ses()
+# 3. Compare accuracy(..., my_test)["Test set", "RMSE"]
+
+# Write your code below:
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 3 solution"
+my_train <- window(airmiles, end = 1955)
+my_test  <- window(airmiles, start = 1956)
+my_h <- length(my_test)
+
+score <- function(f) accuracy(f, my_test)["Test set", "RMSE"]
+round(c(
+  holt   = score(holt(my_train, h = my_h)),
+  damped = score(holt(my_train, h = my_h, damped = TRUE)),
+  ses    = score(ses(my_train,  h = my_h))
+), 1)
+#>   holt damped    ses
+#> 1574.9 1123.9 7364.4
+```
+
+**Explanation:** SES posts a test RMSE of 7,364 because it flattens a rising series, while both Holt variants stay under 1,600. Damped Holt wins here at 1,124. On trending data, a model with a trend term generalises far better than one without.
+
+</details>
+
+## Frequently Asked Questions
+
+### What is the difference between Holt's method and simple exponential smoothing?
+
+Simple exponential smoothing tracks a single quantity, the level, so its forecast is a flat line. Holt's method adds a second tracked quantity, the trend, and carries it forward, so its forecast is a sloped line. Put simply, SES answers "what is the level now?" while Holt answers "what is the level now, and how fast is it changing?"
+
+### What does the beta parameter do?
+
+Beta is the smoothing dial for the trend, just as alpha is the dial for the level. A large beta lets the estimated slope react quickly to recent changes in direction; a small beta keeps the slope steady and smooth, leaning on its own history. Like alpha, beta lives between 0 and 1, and `holt()` estimates it for you by minimising squared error.
+
+### Why would I damp the trend?
+
+An undamped Holt forecast projects the same slope forever, which often overshoots at long horizons because real growth tends to level off. Setting `damped = TRUE` multiplies the trend by a factor phi (just under 1) at each step, so the forecast line gradually flattens. Damping is the safer default whenever you forecast many steps ahead.
+
+### Can Holt's method handle seasonality?
+
+No. Holt models a level and a trend only, so it will track the overall direction of a seasonal series but erase the repeating up-and-down pattern. For data with a season, use Holt-Winters (which adds a seasonal term) or let `ets()` choose the components automatically.
+
+### How is holt() related to HoltWinters() and ets()?
+
+All three fit exponential smoothing models. Base R's `HoltWinters()` can fit Holt's linear trend (call it with `gamma = FALSE` to drop the seasonal part) but minimises errors slightly differently and lacks the tidy forecast object. The forecast package's `holt()` is a friendly wrapper around `ets()` restricted to the trend model, known as ETS(A,A,N): additive error, additive trend, no season. Use `holt()` when you specifically want a trend forecast, and `ets()` when you want the software to compare model forms for you.
 
 ## Summary
 
-Holt's linear trend method is SES plus a slope. That single addition turns a flat forecast into a line. It also brings one new parameter to understand and one new way to be wrong.
+Holt's method is simple exponential smoothing plus a trend: two levels of smoothing, two dials, and a forecast that follows a straight line instead of a flat one. Everything flows from the level and trend equations.
 
-| Piece | What it does | What to watch |
-|---|---|---|
-| Level \(\ell_t\) | Where the series sits now | Same role as in SES |
-| Slope \(b_t\) | How much the level moves per period | The whole reason to use Holt |
-| \(\alpha\) | How much of each surprise moves the level | Near 0 means a near-deterministic fit |
-| \(\beta\) | How much of each surprise bends the slope | R reports \(\alpha\beta^{*}\), not \(\beta^{*}\); constrained \(0 < \beta < \alpha\) |
-| \(\phi\) (damped only) | Shrinks the slope by \(\phi\) each step ahead | Gives the forecast a ceiling at \(\ell_t + \tfrac{\phi}{1-\phi} b_t\) |
-| \(\hat{y}_{t+h|t} = \ell_t + h b_t\) | The forecast: a straight line out of the level | Never stops climbing without damping |
-| `holt(y, h)` | Fits it and picks all parameters by minimising squared error | `damped = TRUE` adds \(\phi\) |
+![The moving parts of Holt's method in R.](screenshots/Holts-Method-in-R-overview-mindmap.webp)
 
-For Ridge Road Bakery, the answer to "how many for week 30" is about 190 loaves undamped, 182 damped, against SES's 167. The out-of-sample test preferred the damped answer. Use `holt()` when the series has a real trend and no seasonal cycle, prefer `damped = TRUE` as the horizon grows, select with AIC or a holdout rather than in-sample RMSE, and move to `hw()` the moment a cycle appears.
+*Figure 3: The moving parts of Holt's method in R.*
+
+| Idea | What to remember |
+|---|---|
+| The model | Level `alpha * y + (1 - alpha) * (old level + old trend)`, trend smooths the observed slope, forecast is level + h * trend |
+| Alpha | The level dial (0 to 1); high means the level follows recent data closely |
+| Beta | The trend dial (0 to 1); high means the slope reacts fast, low means it stays smooth |
+| holt() | Picks alpha, beta, and the starting states by minimising squared error |
+| Damped trend | `damped = TRUE` multiplies the trend by phi each step so long-range forecasts flatten |
+| When to use it | A series with a trend but no seasonality; use SES if flat, Holt-Winters if seasonal |
+
+The `holt()` function packages all of this into one call: it fits the level and trend, tunes both dials, and returns a forecast whose sloped line continues the trend of your data. Reach for it whenever a series is clearly climbing or falling but not repeating a seasonal cycle.
 
 ## References
 
-1. Hyndman, R. J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd ed., Section 8.2 "Methods with trend". [otexts.com/fpp3/holt.html](https://otexts.com/fpp3/holt.html). The canonical treatment of Holt's method and the damped trend, and the source of the \(\beta^{*}\) notation used here.
-2. Hyndman & Athanasopoulos, *FPP3*, Section 8.1 "Simple exponential smoothing". [otexts.com/fpp3/ses.html](https://otexts.com/fpp3/ses.html). The level-only model Holt extends; read this first if alpha is unfamiliar.
-3. Hyndman & Athanasopoulos, *FPP3*, Section 8.4 "A taxonomy of exponential smoothing methods". [otexts.com/fpp3/taxonomy.html](https://otexts.com/fpp3/taxonomy.html). Where Holt's method sits in the ETS family and what `ETS(A,A,N)` means.
-4. Hyndman, R. J. & Khandakar, Y. "Automatic Time Series Forecasting: The forecast Package for R." *Journal of Statistical Software* 27(3), 2008. [jstatsoft.org/article/view/v027i03](https://www.jstatsoft.org/article/view/v027i03). The paper behind `ets()` and `holt()`, including the state space form and the parameter constraints.
-5. Hyndman, R. J., Koehler, A. B., Snyder, R. D. & Grose, S. "A state space framework for automatic forecasting using exponential smoothing methods." *International Journal of Forecasting* 18(3), 2002, pp. 439-454. [robjhyndman.com/papers/hksg.pdf](https://robjhyndman.com/papers/hksg.pdf). Where the innovations state space form used in this post's hand-rolled loop comes from.
-6. `forecast` package on CRAN. [cran.r-project.org/package=forecast](https://cran.r-project.org/package=forecast). Current version plus the full reference manual and changelog.
-7. `ses()` / `holt()` / `hw()` function reference. [pkg.robjhyndman.com/forecast/reference/ses.html](https://pkg.robjhyndman.com/forecast/reference/ses.html). Every argument of `holt()`, including `damped`, `lambda`, and `biasadj`.
+1. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 2nd edition, Section 7.2: Trend methods (Holt's linear trend). [Link](https://otexts.com/fpp2/holt.html)
+2. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd edition, Section 8.2: Methods with trend. [Link](https://otexts.com/fpp3/holt.html)
+3. Hyndman, R.J. et al. forecast package documentation, `ses()`, `holt()`, and `hw()` reference. [Link](https://pkg.robjhyndman.com/forecast/reference/ses.html)
+4. Holt, C.C. *Forecasting seasonals and trends by exponentially weighted moving averages*. International Journal of Forecasting, 20(1), 5-10 (2004; originally 1957). [Link](https://doi.org/10.1016/j.ijforecast.2003.09.015)
+5. NIST/SEMATECH *e-Handbook of Statistical Methods*, Section 6.4.3.3: Double Exponential Smoothing. [Link](https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc433.htm)
+6. forecast package on CRAN. [Link](https://cran.r-project.org/package=forecast)
+7. R Core Team. `airmiles` and `austres` datasets, R datasets package documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/airmiles.html)
 
 ## Continue Learning
 
-- [Exponential Smoothing in R](Exponential-Smoothing-in-R.html), the level-only method Holt extends. It builds alpha and the level from scratch on this same bakery, and ends where this post begins.
-- [Holt-Winters in R](Holt-Winters-in-R.html), the next component along. Add a seasonal term when your series repeats on a fixed cycle, as the quarterly failure above showed.
-- [ETS Models in R](ETS-Models-in-R.html), the family that contains all of these. `ETS(A,A,N)` is Holt's method; the post explains the other twenty-nine combinations and how `ets()` chooses.
+- [Exponential Smoothing in R](Exponential-Smoothing-in-R.html): the parent lesson on simple exponential smoothing, the level-only base case that Holt's method extends.
+- [ETS Models in R](ETS-Models-in-R.html): the `ets()` function generalises Holt, choosing the error, trend, and seasonal components automatically.
+- [Holt-Winters in R](Holt-Winters-in-R.html): add a seasonal term on top of the level and trend for series that repeat a yearly or weekly cycle.
