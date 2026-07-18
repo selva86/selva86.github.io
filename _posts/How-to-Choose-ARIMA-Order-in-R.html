@@ -1,0 +1,1187 @@
+---
+title: "How to Choose ARIMA Order (p,d,q) in R: ACF and PACF"
+description: "Choose ARIMA order step by step in R: find d with the ADF and KPSS tests, read p from the PACF, q from the ACF, then confirm the residuals are white noise."
+keywords: "choose ARIMA order, ARIMA p d q, ACF and PACF, identify ARIMA order in R, PACF cutoff, ACF cutoff, ndiffs, ADF test, KPSS test, Box-Jenkins method"
+mathjax: true
+webr: true
+curriculum_id: "3.8.11"
+post_type: "C"
+auto_link_terms: "choose ARIMA order|choosing ARIMA order|ARIMA order selection|identify ARIMA order|select the ARIMA order|pick p and q|choosing p and q|PACF cutoff|ACF cutoff|Box-Jenkins method|identify p, d, q|reading ACF and PACF plots|order of an ARIMA model"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Choose ARIMA Order"
+sidebar_order: "15"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Choosing an ARIMA order means fixing the three integers in ARIMA(p, d, q): d is how many times you difference the series to make it stationary, p (read from the <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">PACF plot</a>) is the number of autoregressive terms, and q (read from the ACF plot) is the number of moving-average terms. A residual white-noise check then confirms the order is good.</p>
+
+<h2>What does choosing an ARIMA order actually mean?</h2>
+
+<p>An ARIMA model is written ARIMA(p, d, q), and those three numbers are the only thing you have to decide. Everything else, the coefficients and the forecasts, R estimates for you once the order is set. So the whole job of "fitting an ARIMA model" really comes down to picking three small integers. This tutorial gives you a repeatable procedure for picking them instead of guessing.</p>
+
+<p>The quickest way to see the goal is to let R pick an order automatically, then spend the rest of the tutorial learning to reproduce and judge that choice by hand. We will use the built-in <code>Nile</code> series, the annual flow of the river Nile from 1871 to 1970. This post assumes you already know what the AR, I, and MA pieces do; if not, read <a href="ARIMA-in-R.html">ARIMA in R</a> first, then come back here for the order-selection recipe.</p>
+
+<div class="webr-container" data-block-title="Let R pick an order automatically">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Let R pick an order automatically</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+library(ggplot2)
+auto.arima(Nile)
+#&gt; Series: Nile 
+#&gt; ARIMA(1,1,1) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1      ma1
+#&gt;       0.2544  -0.8741
+#&gt; s.e.  0.1194   0.0605
+#&gt; 
+#&gt; sigma^2 = 20177:  log likelihood = -630.63
+#&gt; AIC=1267.25   AICc=1267.51   BIC=1275.04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R settled on <code>ARIMA(1,1,1)</code>. That is a fine answer, but a black-box answer. By the end of this tutorial you will be able to derive an order like it yourself, understand why each number was chosen, and know when to trust or override the automatic pick.</p>
+
+<p>The whole process is four steps, always in the same order. Keep this table close; each section below is one row of it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Question</th>
+<th>Tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Find d</td>
+<td>How many differences make it stationary?</td>
+<td>ADF and KPSS tests, <code>ndiffs()</code></td>
+</tr>
+<tr>
+<td>2. Find p</td>
+<td>How many autoregressive terms?</td>
+<td>the PACF plot</td>
+</tr>
+<tr>
+<td>3. Find q</td>
+<td>How many moving-average terms?</td>
+<td>the ACF plot</td>
+</tr>
+<tr>
+<td>4. Confirm</td>
+<td>Is this order actually good?</td>
+<td>AICc and a residual check</td>
+</tr>
+</tbody>
+</table>
+
+<p>The diagram below shows how those four steps flow into one another, including the loop back you take when the final check fails.</p>
+
+<p><img src="screenshots/How-to-Choose-ARIMA-Order-in-R-workflow.webp" alt="The four-step workflow for choosing an ARIMA order" class="img-responsive img-zoomable" loading="lazy" width="2246" height="580" /></p>
+
+<p><em>Figure 1: The four-step workflow for choosing an ARIMA order.</em></p>
+
+<p>Before we start, here is a look at the raw numbers so you can picture the series behind that model.</p>
+
+<div class="webr-container" data-block-title="Peek at the Nile series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Peek at the Nile series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(as.numeric(Nile), 10)
+#&gt;  [1] 1120 1160  963 1210 1160 1160  813 1230 1370 1140</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The flow bounces around a high level early on, then tends to sit lower later in the record. That downward shift is a form of non-stationarity, and handling it is exactly what Step 1 is for.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Choosing an order is identification, not guessing.</strong> The ACF and PACF plots show patterns that are characteristic of the process that generated the data, and Box and Jenkins built a procedure to read those patterns. You are following a recipe, not flipping a coin.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run an automatic fit on the <code>LakeHuron</code> series (annual lake levels) and read off its (p, d, q) from the label.</p>
+<div class="webr-container" data-block-title="Your turn: read an ARIMA label">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read an ARIMA label</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit an automatic model to LakeHuron and read its (p, d, q).
+# Swap Nile below for LakeHuron, then run.
+ex_series &lt;- Nile   # change Nile to LakeHuron
+auto.arima(ex_series)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Automatic fit on LakeHuron">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Automatic fit on LakeHuron</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auto.arima(LakeHuron)
+#&gt; Series: LakeHuron 
+#&gt; ARIMA(0,1,0) 
+#&gt; 
+#&gt; sigma^2 = 0.5588:  log likelihood = -109.11
+#&gt; AIC=220.22   AICc=220.26   BIC=222.79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> LakeHuron gets <code>ARIMA(0,1,0)</code>, which reads as p = 0, d = 1, q = 0. That is a pure random walk: difference once, and no AR or MA terms are needed. Sometimes the right order really is that simple.</p>
+
+</details>
+</section>
+
+<h2>Step 1: how do you find d, the order of differencing?</h2>
+
+<p>The AR and MA parts of an ARIMA model both assume the series is stationary, meaning its average level and its amount of wobble stay roughly constant over time, with no trend drifting up or down. The Nile flow fails that test because its level shifts down partway through the record. The fix is differencing: instead of modeling the raw values, we model the change from one year to the next.</p>
+
+<p>$$y'_t = y_t - y_{t-1}$$</p>
+
+<p>Here $y_t$ is this year's value, $y_{t-1}$ is the previous year's value, and $y'_t$ is the difference between them, the change from one year to the next. The <code>d</code> in ARIMA(p, d, q) is just how many times you apply that operation. Most series need d = 0 or d = 1, and only rarely d = 2. Let us first look at the raw Nile flow to confirm the trend by eye.</p>
+
+<div class="webr-container" data-block-title="Plot the raw Nile series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the raw Nile series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(Nile) + ggtitle(&quot;Annual flow of the Nile, 1871 to 1970&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows the level dropping around the year 1900, so the mean is not constant. Eyeballing is a start, but a formal test is more reliable. The <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">Augmented Dickey-Fuller</a> (ADF) test from the tseries package checks for a unit root, which is the mathematical signature of a series that needs differencing.</p>
+
+<div class="webr-container" data-block-title="Run the ADF test on the levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the ADF test on the levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(tseries))
+adf.test(Nile)
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  Nile
+#&gt; Dickey-Fuller = -3.3657, Lag order = 4, p-value = 0.0642
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ADF <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> is that the series is non-stationary, and its alternative is stationary. The p-value of 0.0642 sits just above 0.05, so we cannot reject the null: the ADF test does not consider the raw Nile stationary. A second test, the KPSS test, comes at the question from the opposite direction, and running both together is good practice.</p>
+
+<div class="webr-container" data-block-title="Run the KPSS test on the levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the KPSS test on the levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kpss.test(Nile)
+#&gt; 	KPSS Test for Level Stationarity
+#&gt; 
+#&gt; data:  Nile
+#&gt; KPSS Level = 0.96543, Truncation lag parameter = 4, p-value = 0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The KPSS null hypothesis is the reverse of ADF: it assumes the series IS stationary, so a small p-value is evidence AGAINST stationarity. Here the KPSS p-value is 0.01, which rejects stationarity. Both tests now agree the raw series needs differencing.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The ADF and KPSS tests point in opposite directions by design.</strong> The ADF null is that the series is non-stationary, while the KPSS null is that it is stationary. So "difference it" looks like a large ADF p-value AND a small KPSS p-value. Reading the two tests the same way is a classic error that leads to the wrong d.</div></div>
+
+<p>Rather than run and read the tests yourself, you can let the forecast package choose d for you. The <code>ndiffs()</code> function applies a stationarity test repeatedly and returns the number of differences required.</p>
+
+<div class="webr-container" data-block-title="Ask ndiffs how many differences are needed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ask ndiffs how many differences are needed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(Nile)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It returns 1, matching the d that <code>auto.arima()</code> chose at the top. Now let us confirm that a single difference actually does the job by re-running the ADF test on the differenced series. The <code>diff()</code> function turns levels into year-to-year changes.</p>
+
+<div class="webr-container" data-block-title="Difference once and re-test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Difference once and re-test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_diff &lt;- diff(Nile)
+adf.test(nile_diff)
+#&gt; 	Augmented Dickey-Fuller Test
+#&gt; 
+#&gt; data:  nile_diff
+#&gt; Dickey-Fuller = -6.5924, Lag order = 4, p-value = 0.01
+#&gt; alternative hypothesis: stationary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value drops to 0.01, so the differenced series clears the ADF test comfortably. We have our answer: d = 1, and we will do all further reading on <code>nile_diff</code>, the differenced series stored above.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Difference the smallest number of times that makes the series stationary, and no more.</strong> Over-differencing injects fake negative correlation into the series and inflates the variance, which then misleads the ACF and PACF you are about to read. When <code>ndiffs()</code> says 1, resist the urge to difference again.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>ndiffs()</code> to find how many differences the <code>nhtemp</code> series (yearly temperatures in New Haven) needs.</p>
+<div class="webr-container" data-block-title="Your turn: find d for nhtemp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find d for nhtemp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: use ndiffs() to see how many differences nhtemp needs.
+# Replace the series below, then run.
+ndiffs(Nile)   # change Nile to nhtemp</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Differences needed for nhtemp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Differences needed for nhtemp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(nhtemp)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>nhtemp</code> needs one difference to remove its slow warming trend, so d = 1. Like most real series, a single difference is enough.</p>
+
+</details>
+</section>
+
+<h2>What do the ACF and PACF actually measure?</h2>
+
+<p>With the series made stationary, two plots do the rest of the work. They are the autocorrelation function (ACF) and the <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">partial autocorrelation function</a> (PACF), and together they are the heart of choosing p and q. If you want a slow, from-scratch treatment of these two plots, see the dedicated <a href="ACF-and-PACF-in-R.html">ACF and PACF guide</a>; here we cover just enough to use them for order selection.</p>
+
+<p>The ACF at lag k measures how correlated the series is with a copy of itself shifted k steps back. The PACF at lag k measures the same correlation but strips out the influence of all the shorter lags in between, so it captures only the direct link between a value and the one k steps earlier. That "direct link only" distinction is what makes the two plots tell you different things.</p>
+
+<p>Both plots come with a shaded band, usually drawn as blue dashed lines. The band marks the range where a spike is small enough to be plausibly just noise. Its width is $\pm 1.96/\sqrt{n}$ for a series of length n, so a bar that pokes past the band is a "significant" spike worth paying attention to, while bars inside the band are treated as zero.</p>
+
+<p>Two words describe how a plot behaves, and you need both:</p>
+
+<ul>
+
+<li><strong>Cuts off:</strong> the bars are significant up to some lag, then drop abruptly inside the band and stay there.</li>
+
+<li><strong>Tails off:</strong> the bars shrink gradually toward zero over many lags, often while alternating sign, without a clean break.</li>
+
+</ul>
+
+<p>The <code>ggtsdisplay()</code> helper shows the series alongside both plots in a single view, which is the fastest way to inspect them. Let us look at the differenced Nile.</p>
+
+<div class="webr-container" data-block-title="Show the series with its ACF and PACF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the series with its ACF and PACF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggtsdisplay(nile_diff)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In that display, the ACF (bottom left) and PACF (bottom right) are what we will read in the next two steps. The sections that follow teach the exact rule for turning each plot into a number.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The Nile difference has 99 observations. Compute the width of the significance band for it.</p>
+<div class="webr-container" data-block-title="Your turn: compute the significance band">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute the significance band</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: compute the +/- band width 1.96 / sqrt(n) for n = 99.
+# Fill in n, then run.
+round(1.96 / sqrt(100), 3)   # change 100 to 99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Band width for 99 observations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Band width for 99 observations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(1.96 / sqrt(99), 3)
+#&gt; [1] 0.197</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The band sits at about plus or minus 0.197, so any ACF or PACF bar larger than roughly 0.2 in size counts as a significant spike for the differenced Nile.</p>
+
+</details>
+</section>
+
+<h2>Step 2: how do you read the PACF to choose p?</h2>
+
+<p>The rule for the autoregressive order is short: for a pure AR(p) process, the PACF cuts off sharply after lag p, while the ACF tails off gradually. So you find p by counting how many PACF spikes stick out past the band before it drops to near zero.</p>
+
+<p>The cleanest way to trust that rule is to see it on data where we know the answer. Let us simulate a pure AR(2) series, whose PACF should show exactly two spikes and then nothing.</p>
+
+<div class="webr-container" data-block-title="Simulate an AR(2) and plot its PACF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate an AR(2) and plot its PACF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2027)
+s_ar2 &lt;- arima.sim(model = list(ar = c(0.6, -0.3)), n = 300)
+ggPacf(s_ar2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows two clear bars, then a drop inside the band. The numbers make it exact.</p>
+
+<div class="webr-container" data-block-title="PACF values of the AR(2) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PACF values of the AR(2) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Pacf(s_ar2, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  0.474 -0.351 -0.013 -0.080  0.006 -0.026</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For 300 points the band is about plus or minus 0.113. R's PACF output starts at lag 1 (there is no lag-0 term, unlike the ACF you will see in Step 3), so these six values are lags 1 through 6. The first two (0.474 and -0.351), the PACF at lags 1 and 2, clear the band easily, and everything from lag 3 on sits inside. Two significant spikes, then a cutoff, is the textbook AR(2) fingerprint, so p = 2. That matches the two AR coefficients we used to build the series.</p>
+
+<p>Now apply the same reading to the differenced Nile. Recall its PACF from the display above; here are the numbers.</p>
+
+<div class="webr-container" data-block-title="PACF values of the differenced Nile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PACF values of the differenced Nile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Pacf(nile_diff, plot = FALSE)$acf[1:6], 3)
+#&gt; [1] -0.402 -0.246 -0.119 -0.173 -0.155 -0.074</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Against a band of about plus or minus 0.2, the lag-1 bar (-0.402) is clearly significant, lag 2 (-0.246) is marginal, and the rest fade slowly rather than dropping off a cliff. There is no crisp cutoff here, which is the PACF tailing off. A tailing PACF points away from a large AR order, so p is small, most likely 0. We will let the ACF make the case for an MA term instead.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The PACF isolates the direct link at each lag, which is why an autoregressive process shows a clean cutoff.</strong> An AR(2) value depends directly only on the two before it, so once you account for those, lag 3 and beyond add nothing, and the PACF collapses to zero right after lag 2.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate a pure AR(1) series and read its PACF. How many spikes stick out before it cuts off?</p>
+<div class="webr-container" data-block-title="Your turn: read the PACF of an AR(1)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the PACF of an AR(1)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: simulate an AR(1) and count the significant PACF spikes.
+set.seed(11)
+ex_ar1 &lt;- arima.sim(model = list(ar = 0.7), n = 300)
+round(Pacf(ex_ar1, plot = FALSE)$acf[1:6], 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="PACF values of the AR(1) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PACF values of the AR(1) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_ar1 &lt;- arima.sim(model = list(ar = 0.7), n = 300)
+round(Pacf(ex_ar1, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  0.685  0.036  0.041 -0.112 -0.042 -0.017</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only the lag-1 value (0.685) clears the band; everything after is inside it. One spike, then a cutoff, means p = 1, exactly the AR(1) we simulated.</p>
+
+</details>
+</section>
+
+<h2>Step 3: how do you read the ACF to choose q?</h2>
+
+<p>The rule for the moving-average order mirrors Step 2, with the two plots swapped: for a pure MA(q) process, the ACF cuts off sharply after lag q, while the PACF tails off gradually. So you count how many ACF spikes stick out before it drops inside the band.</p>
+
+<p>Let us confirm on a simulated MA(1), whose ACF should spike once and then cut off.</p>
+
+<div class="webr-container" data-block-title="Simulate an MA(1) and plot its ACF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate an MA(1) and plot its ACF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+s_ma1 &lt;- arima.sim(model = list(ma = 0.7), n = 300)
+ggAcf(s_ma1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows a single tall bar at lag 1, then a drop into the band. Here are the numbers.</p>
+
+<div class="webr-container" data-block-title="ACF values of the MA(1) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ACF values of the MA(1) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Acf(s_ma1, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  1.000  0.502  0.111  0.073  0.056 -0.055</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first value is always 1.000, the correlation of the series with itself at lag 0, so ignore it. The lag-1 value (0.502) is a clear spike, and from lag 2 on the bars sit at or inside the plus or minus 0.113 band. One significant spike, then a cutoff, is the MA(1) fingerprint, so q = 1.</p>
+
+<p>Now read the ACF of the differenced Nile.</p>
+
+<div class="webr-container" data-block-title="ACF values of the differenced Nile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ACF values of the differenced Nile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Acf(nile_diff, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  1.000 -0.402 -0.044  0.027 -0.088  0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ignoring the lag-0 value of 1.000, only the lag-1 bar (-0.402) clears the band of about plus or minus 0.2; every later bar is well inside it. That is a clean cutoff after lag 1, the signature of an MA(1). Put together with the tailing PACF from Step 2, the differenced Nile reads as MA(1), which means a candidate order of ARIMA(0, 1, 1): zero AR terms, one difference, one MA term.</p>
+
+<p>The table below is the full reading rule. It is worth memorizing, because it covers every case you will meet.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>ACF behavior</th>
+<th>PACF behavior</th>
+<th>Suggested model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tails off gradually</td>
+<td>Cuts off after lag p</td>
+<td>AR(p)</td>
+</tr>
+<tr>
+<td>Cuts off after lag q</td>
+<td>Tails off gradually</td>
+<td>MA(q)</td>
+</tr>
+<tr>
+<td>Tails off gradually</td>
+<td>Tails off gradually</td>
+<td>Mixed ARMA (compare by AICc)</td>
+</tr>
+</tbody>
+</table>
+
+<p>The diagram below turns that table into a decision you can follow at a glance.</p>
+
+<p><img src="screenshots/How-to-Choose-ARIMA-Order-in-R-acf-pacf-rules.webp" alt="How the ACF and PACF point to AR, MA, or ARMA" class="img-responsive img-zoomable" loading="lazy" width="1208" height="1276" /></p>
+
+<p><em>Figure 2: How the ACF and PACF point to an AR, MA, or mixed ARMA model.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Real ACF and PACF plots are rarely as tidy as textbook ones.</strong> Simulated series give crisp cutoffs; real data gives marginal spikes and slow tails. Use the plots to shortlist two or three candidate orders, then let Step 4 pick the winner. Do not agonize over whether a single borderline bar counts.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate a pure MA(2) series and read its ACF. How many spikes clear the band?</p>
+<div class="webr-container" data-block-title="Your turn: read the ACF of an MA(2)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the ACF of an MA(2)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: simulate an MA(2) and count the significant ACF spikes.
+set.seed(77)
+ex_ma2 &lt;- arima.sim(model = list(ma = c(0.7, 0.5)), n = 300)
+round(Acf(ex_ma2, plot = FALSE)$acf[1:6], 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ACF values of the MA(2) series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ACF values of the MA(2) series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+ex_ma2 &lt;- arima.sim(model = list(ma = c(0.7, 0.5)), n = 300)
+round(Acf(ex_ma2, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  1.000  0.622  0.268 -0.052 -0.051 -0.061</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Ignoring the lag-0 value, the lag-1 (0.622) and lag-2 (0.268) bars both clear the band, and everything after is inside it. Two significant spikes, then a cutoff, means q = 2.</p>
+
+</details>
+</section>
+
+<h2>Step 4: how do you confirm the order with AICc and residual checks?</h2>
+
+<p>Reading the plots gave us a candidate, ARIMA(0, 1, 1), but a candidate is not a verdict. Step 4 tests it two ways. First, compare a shortlist of nearby orders by their AICc, a score that rewards good fit and penalizes needless complexity, where lower is better. Let us line up the ACF-suggested model against a few neighbors.</p>
+
+<div class="webr-container" data-block-title="Compare candidate orders by AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare candidate orders by AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(&quot;ARIMA(0,1,1)&quot; = Arima(Nile, order = c(0,1,1))$aicc,
+  &quot;ARIMA(1,1,1)&quot; = Arima(Nile, order = c(1,1,1))$aicc,
+  &quot;ARIMA(1,1,0)&quot; = Arima(Nile, order = c(1,1,0))$aicc,
+  &quot;ARIMA(2,1,1)&quot; = Arima(Nile, order = c(2,1,1))$aicc)
+#&gt; ARIMA(0,1,1) ARIMA(1,1,1) ARIMA(1,1,0) ARIMA(2,1,1) 
+#&gt;     1269.216     1267.507     1281.605     1269.322 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lowest score belongs to <code>ARIMA(1,1,1)</code> at 1267.51, the same model <code>auto.arima()</code> picked. Our hand-read <code>ARIMA(0,1,1)</code> comes in at 1269.22, higher by only 1.71. A widely used rule of thumb says that when two models are within about 2 AICc points, they are essentially indistinguishable, so the tie-breaker is simplicity. The <code>ARIMA(0,1,1)</code> uses one coefficient instead of two, so the parsimonious choice is to keep the model our ACF identified.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Only compare AICc between models that share the same d.</strong> Differencing changes the data the model is fit to, so the AICc of an ARIMA(0, 1, 1) and an ARIMA(2, 0, 0) are measured on different scales and cannot be compared. Decide d first, then compare orders within that fixed d.</div></div>
+
+<p>The second test is the decisive one. A good model leaves behind residuals, the leftover one-step errors, that look like pure random noise. If a pattern remains, the model missed something. The <code>checkresiduals()</code> function runs a <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">Ljung-Box test</a> and draws the diagnostic plots in one call.</p>
+
+<div class="webr-container" data-block-title="Fit ARIMA(0,1,1) and check its residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit ARIMA(0,1,1) and check its residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_fit &lt;- Arima(Nile, order = c(0,1,1))
+nile_fit
+#&gt; Series: Nile 
+#&gt; ARIMA(0,1,1) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1
+#&gt;       -0.7329
+#&gt; s.e.   0.1143
+#&gt; 
+#&gt; sigma^2 = 20810:  log likelihood = -632.55
+#&gt; AIC=1269.09   AICc=1269.22   BIC=1274.28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Run the residual diagnostic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the residual diagnostic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(nile_fit)
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from ARIMA(0,1,1)
+#&gt; Q* = 13.387, df = 9, p-value = 0.1458
+#&gt; 
+#&gt; Model df: 1.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Ljung-Box null hypothesis is that the residuals are just noise, so here we WANT a large p-value. At 0.1458 we cannot find leftover structure, which means the residuals pass as white noise and the order is confirmed. The plots it draws, a residual series with its own ACF and a histogram, should show no obvious pattern to back that up.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The residual white-noise check is the real judge of an order.</strong> The ACF and PACF only nominate candidates. A model whose residuals still carry structure is wrong no matter how good its AICc looks, and a model whose residuals are clean is trustworthy even if a rival scores a hair lower.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the <code>ARIMA(1,1,1)</code> that <code>auto.arima()</code> preferred and read its AICc. How far below the 1269.22 of <code>ARIMA(0,1,1)</code> does it really sit?</p>
+<div class="webr-container" data-block-title="Your turn: check the rival AICc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check the rival AICc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit ARIMA(1,1,1) to Nile and read its AICc.
+# Change the order below, then run.
+ex_alt &lt;- Arima(Nile, order = c(0,1,1))   # change c(0,1,1) to c(1,1,1)
+ex_alt$aicc</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AICc of the rival ARIMA(1,1,1)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AICc of the rival ARIMA(1,1,1)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alt &lt;- Arima(Nile, order = c(1,1,1))
+ex_alt$aicc
+#&gt; [1] 1267.507</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The rival scores 1267.51 against 1269.22, a gap of 1.71. That is inside the 2-point rule of thumb, so the two models are practically tied and the simpler ARIMA(0,1,1) is the better everyday choice.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: choosing an order for BJsales end to end</h2>
+
+<p>Let us run the full four-step procedure once more on a fresh series, this time landing on a different shape of model. The built-in <code>BJsales</code> series is a sales record from Box and Jenkins themselves, the statisticians who created this whole method. First, plot it.</p>
+
+<div class="webr-container" data-block-title="Plot the BJsales series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the BJsales series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(BJsales) + ggtitle(&quot;BJsales: a Box and Jenkins sales series&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The series climbs steadily, a clear trend, so Step 1 will call for differencing. Let <code>ndiffs()</code> decide.</p>
+
+<div class="webr-container" data-block-title="Step 1: find d for BJsales">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: find d for BJsales</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(BJsales)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One difference. Now inspect the differenced series with the combined display, then read the two plots.</p>
+
+<div class="webr-container" data-block-title="Step 2 and 3: display the differenced series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2 and 3: display the differenced series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bj_diff &lt;- diff(BJsales)
+ggtsdisplay(bj_diff)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="PACF values of the differenced BJsales">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PACF values of the differenced BJsales</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Pacf(bj_diff, plot = FALSE)$acf[1:8], 3)
+#&gt; [1]  0.312  0.200  0.109  0.138 -0.003  0.010 -0.048  0.071</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="ACF values of the differenced BJsales">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ACF values of the differenced BJsales</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Acf(bj_diff, plot = FALSE)$acf[1:8], 3)
+#&gt; [1] 1.000 0.312 0.278 0.226 0.252 0.150 0.134 0.063</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The band here is about plus or minus 0.16. The PACF has two bars above it (0.312 and 0.200) and then drops inside, which looks like a cutoff after lag 2. The ACF, ignoring lag 0, stays positive and fades slowly, which is a tail. A PACF cutoff with a tailing ACF points to AR(2), so our shortlist starts with ARIMA(2, 1, 0). Let us compare it against a few neighbors by AICc.</p>
+
+<div class="webr-container" data-block-title="Step 4: compare candidate orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 4: compare candidate orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(&quot;ARIMA(2,1,0)&quot; = Arima(BJsales, order = c(2,1,0))$aicc,
+  &quot;ARIMA(1,1,1)&quot; = Arima(BJsales, order = c(1,1,1))$aicc,
+  &quot;ARIMA(1,1,0)&quot; = Arima(BJsales, order = c(1,1,0))$aicc,
+  &quot;ARIMA(0,1,1)&quot; = Arima(BJsales, order = c(0,1,1))$aicc)
+#&gt; ARIMA(2,1,0) ARIMA(1,1,1) ARIMA(1,1,0) ARIMA(0,1,1) 
+#&gt;     520.0883     514.9016     526.2086     533.3479 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the numbers overrule the eyeball read. The AR(2) we shortlisted scores 520.09, but the mixed <code>ARIMA(1,1,1)</code> scores 514.90, better by more than 5 points, well past the 2-point rule. When a plot suggests one thing and AICc strongly prefers another, follow the data: revise the choice to ARIMA(1, 1, 1). Confirm it with a residual check.</p>
+
+<div class="webr-container" data-block-title="Confirm the revised model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the revised model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bj_fit &lt;- Arima(BJsales, order = c(1,1,1))
+checkresiduals(bj_fit)
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from ARIMA(1,1,1)
+#&gt; Q* = 5.8814, df = 8, p-value = 0.6605
+#&gt; 
+#&gt; Model df: 2.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Ljung-Box p-value of 0.6605 is comfortably large, so the residuals are white noise and ARIMA(1, 1, 1) is confirmed. With the order settled, <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> is one call.</p>
+
+<div class="webr-container" data-block-title="Forecast the next eight periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the next eight periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">forecast(bj_fit, h = 8)
+#&gt;     Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; 151       262.8620 261.1427 264.5814 260.2325 265.4915
+#&gt; 152       263.0046 260.2677 265.7415 258.8189 267.1903
+#&gt; 153       263.1301 259.4297 266.8304 257.4709 268.7893
+#&gt; 154       263.2405 258.5953 267.8857 256.1363 270.3447
+#&gt; 155       263.3377 257.7600 268.9153 254.8074 271.8680
+#&gt; 156       263.4232 256.9253 269.9211 253.4855 273.3608
+#&gt; 157       263.4984 256.0941 270.9028 252.1744 274.8224
+#&gt; 158       263.5647 255.2691 271.8602 250.8778 276.2516</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The point forecasts drift gently upward, continuing the trend, and the intervals widen further out as uncertainty compounds. This example carries the most important lesson of the whole tutorial: the ACF and PACF give you a smart starting shortlist, but AICc and the residual check make the final call.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Do I read the ACF for p or for q?</strong> The ACF gives you q, the moving-average order, because an MA(q) process has an ACF that cuts off after lag q. The PACF gives you p, the autoregressive order. An easy way to remember it: the Partial ACF pairs with the p term.</p>
+
+<p><strong>How do I know when an ACF or PACF spike is significant?</strong> Compare it to the shaded band, which sits at plus or minus $1.96/\sqrt{n}$. A bar that pokes past the band is significant; a bar inside the band is treated as zero. For 100 observations the band is about plus or minus 0.2.</p>
+
+<p><strong>What if both the ACF and PACF tail off gradually?</strong> That is the signature of a mixed ARMA process, where neither plot gives a clean cutoff. In that case the plots cannot pin down the order alone, so fit a small grid of candidates and pick by AICc, which is exactly what <code>auto.arima()</code> automates.</p>
+
+<p><strong>Should I read the plots on the raw series or the differenced one?</strong> Always on the differenced, stationary series. The AR and MA parts only make sense once the trend is removed, so reading the ACF and PACF of a trending raw series will mislead you.</p>
+
+<p><strong>If auto.arima() picks the order for me, why learn to read the plots?</strong> Because <code>auto.arima()</code> can be wrong, and you need to judge it. Reading the plots and residuals lets you sanity-check its answer, override it when domain knowledge or a residual failure demands, and understand what the model is actually doing.</p>
+
+<p><strong>Can I over-difference a series?</strong> Yes, and it hurts. Differencing more than needed injects artificial negative autocorrelation at lag 1 and inflates the variance, which corrupts the ACF and PACF. Trust <code>ndiffs()</code> and stop as soon as the series is stationary.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine the four steps into fuller challenges. Each starter block runs as-is so you can experiment; write your own solution, then reveal ours to compare. The exercises use their own variable names so they will not clash with the code above.</p>
+
+<h3>Exercise 1: Identify the order for lh</h3>
+
+<p>The <code>lh</code> series records luteinizing hormone levels in blood samples. Work through all four steps: find d with <code>ndiffs()</code>, read the ACF and PACF, then compare a shortlist by AICc. What does a thorough <code>auto.arima()</code> settle on, and does it match your read?</p>
+
+<div class="webr-container" data-block-title="Your turn: full workflow on lh">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: full workflow on lh</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Steps: ndiffs(lh); read Pacf(lh) and Acf(lh); compare AICc of a few
+# same-d candidates; then run auto.arima(lh, stepwise = FALSE, approximation = FALSE).
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Find d and read the plots for lh">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find d and read the plots for lh</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ndiffs(lh)
+#&gt; [1] 0
+round(Pacf(lh, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  0.576 -0.223 -0.227  0.103 -0.076  0.068
+round(Acf(lh, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  1.000  0.576  0.182 -0.145 -0.175 -0.150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Compare same-d candidates and let auto.arima decide">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare same-d candidates and let auto.arima decide</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(&quot;ARIMA(1,0,0)&quot; = Arima(lh, order = c(1,0,0))$aicc,
+  &quot;ARIMA(0,0,1)&quot; = Arima(lh, order = c(0,0,1))$aicc,
+  &quot;ARIMA(0,0,2)&quot; = Arima(lh, order = c(0,0,2))$aicc)
+#&gt; ARIMA(1,0,0) ARIMA(0,0,1) ARIMA(0,0,2) 
+#&gt;     65.30378     68.64934     63.99079 
+auto.arima(lh, stepwise = FALSE, approximation = FALSE)
+#&gt; Series: lh 
+#&gt; ARIMA(0,0,2) with non-zero mean 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ma1     ma2    mean
+#&gt;       0.6732  0.3753  2.4016
+#&gt; s.e.  0.1326  0.1291  0.1244
+#&gt; 
+#&gt; sigma^2 = 0.1943:  log likelihood = -27.53
+#&gt; AIC=63.06   AICc=63.99   BIC=70.55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The tests give d = 0, so no differencing. The plots are ambiguous: both the PACF and ACF have a strong lag-1 spike and then borderline values, so the eye cannot cleanly separate AR from MA. This is the "both tail off" case, so AICc breaks the tie. Among the candidates, ARIMA(0,0,2) scores lowest at 63.99, and the thorough <code>auto.arima()</code> agrees, landing on a pure MA(2).</p>
+
+</details>
+
+<h3>Exercise 2: Identify a mystery series</h3>
+
+<p>Run the setup below to build a series without peeking at how it was made, then use the full workflow to recover its (p, d, q). Confirm your answer with a residual check.</p>
+
+<div class="webr-container" data-block-title="Your turn: identify the mystery order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: identify the mystery order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The setup builds cap_series. Treat its order as unknown.
+set.seed(88)
+cap_series &lt;- arima.sim(model = list(ar = c(0.5, -0.35)), n = 350)
+
+# Now: find d with ndiffs(); read Pacf and Acf; compare AICc; check residuals.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Find d and read the plots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find d and read the plots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(88)
+cap_series &lt;- arima.sim(model = list(ar = c(0.5, -0.35)), n = 350)
+ndiffs(cap_series)
+#&gt; [1] 0
+round(Pacf(cap_series, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  0.453 -0.357 -0.009 -0.095  0.022  0.073
+round(Acf(cap_series, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  1.000  0.453 -0.079 -0.216 -0.174 -0.055</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Compare candidates and confirm the residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare candidates and confirm the residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(&quot;ARIMA(1,0,0)&quot; = Arima(cap_series, order = c(1,0,0))$aicc,
+  &quot;ARIMA(2,0,0)&quot; = Arima(cap_series, order = c(2,0,0))$aicc,
+  &quot;ARIMA(2,0,1)&quot; = Arima(cap_series, order = c(2,0,1))$aicc)
+#&gt; ARIMA(1,0,0) ARIMA(2,0,0) ARIMA(2,0,1) 
+#&gt;    1009.9340     962.6533     964.7075 
+checkresiduals(Arima(cap_series, order = c(2,0,0)))
+#&gt; 
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from ARIMA(2,0,0) with non-zero mean
+#&gt; Q* = 7.1404, df = 8, p-value = 0.5216
+#&gt; 
+#&gt; Model df: 2.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ndiffs()</code> gives d = 0. The PACF has two significant spikes (0.453 and -0.357) then cuts off, while the ACF tails off, the classic AR(2) fingerprint, so the read is ARIMA(2, 0, 0). AICc confirms it (962.65 beats both neighbors), and the Ljung-Box p-value of 0.5216 says the residuals are white noise. The order is ARIMA(2, 0, 0), which is exactly the process the setup simulated.</p>
+
+</details>
+
+<h3>Exercise 3: When d itself is in doubt</h3>
+
+<p><code>LakeHuron</code> is a famous puzzle. Its <code>ndiffs()</code> says difference once, yet the PACF of the raw levels shows a clean AR(2) shape. Read the PACF of the levels, note what <code>ndiffs()</code> says, then fit <code>ARIMA(2,0,0)</code> on the levels and check its residuals. Why can you NOT settle this by comparing the AICc of the two models?</p>
+
+<div class="webr-container" data-block-title="Your turn: the LakeHuron dilemma">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the LakeHuron dilemma</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read Pacf(LakeHuron); check ndiffs(LakeHuron); fit Arima(LakeHuron, c(2,0,0))
+# and run checkresiduals on it.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Read the levels and the differencing suggestion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the levels and the differencing suggestion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(Pacf(LakeHuron, plot = FALSE)$acf[1:6], 3)
+#&gt; [1]  0.832 -0.267  0.131  0.034  0.062 -0.021
+ndiffs(LakeHuron)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Fit AR(2) on the levels and check residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit AR(2) on the levels and check residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lake_fit &lt;- Arima(LakeHuron, order = c(2,0,0))
+checkresiduals(lake_fit)
+#&gt; 	Ljung-Box test
+#&gt; 
+#&gt; data:  Residuals from ARIMA(2,0,0) with non-zero mean
+#&gt; Q* = 5.9457, df = 8, p-value = 0.6533
+#&gt; 
+#&gt; Model df: 2.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The PACF of the levels cuts off after lag 2 (0.832 and -0.267 are significant), pointing to AR(2) with no differencing, while <code>ndiffs()</code> leans toward one difference. Both are defensible: this is the trend-stationary versus difference-stationary judgment call. You cannot decide it by AICc, because ARIMA(2,0,0) is fit to the levels and a differenced model is fit to the changes, so their AICc values are on different scales. Instead you judge by <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">residual diagnostics</a> and context. Here the AR(2) on the levels passes cleanly (Ljung-Box p = 0.6533), which is why it is the textbook model for this series.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Choosing an ARIMA order is a four-step routine you can run on any series: find how much differencing makes it stationary, read the PACF for the AR order, read the ACF for the MA order, then confirm with AICc and a residual check. The plots nominate; the diagnostics decide.</p>
+
+<p><img src="screenshots/How-to-Choose-ARIMA-Order-in-R-overview.webp" alt="Overview of the whole order-selection process" class="img-responsive img-zoomable" loading="lazy" width="1686" height="1002" /></p>
+
+<p><em>Figure 3: Overview of the whole order-selection process, from differencing to confirmation.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you decide</th>
+<th>Key function</th>
+<th>Reading rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Find d</td>
+<td>Order of differencing</td>
+<td><code>ndiffs()</code>, <code>adf.test()</code>, <code>kpss.test()</code></td>
+<td>Difference until stationary</td>
+</tr>
+<tr>
+<td>Find p</td>
+<td>AR order</td>
+<td><code>Pacf()</code></td>
+<td>PACF cuts off after lag p</td>
+</tr>
+<tr>
+<td>Find q</td>
+<td>MA order</td>
+<td><code>Acf()</code></td>
+<td>ACF cuts off after lag q</td>
+</tr>
+<tr>
+<td>Confirm</td>
+<td>Whether the order is good</td>
+<td><code>Arima()</code>, <code>checkresiduals()</code></td>
+<td>Lowest AICc plus white-noise residuals</td>
+</tr>
+</tbody>
+</table>
+
+<p>Keep these takeaways close:</p>
+
+<ul>
+
+<li><strong>The PACF gives p, the ACF gives q.</strong> A sharp cutoff after lag k in the PACF means p = k; a sharp cutoff in the ACF means q = k. When both tail off, it is a mixed model and AICc decides.</li>
+
+<li><strong>Always read the plots on the stationary, differenced series.</strong> Decide d first with <code>ndiffs()</code>, and only compare AICc between models that share that d.</li>
+
+<li><strong>A significant spike pokes past the plus or minus $1.96/\sqrt{n}$ band.</strong> Bars inside the band are noise.</li>
+
+<li><strong>The residual check is the final word.</strong> No order is confirmed until <code>checkresiduals()</code> shows white noise, and a small AICc gap between two passing models breaks in favor of the simpler one.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter 9.5: Non-seasonal ARIMA models and order selection. <a href="https://otexts.com/fpp3/non-seasonal-arima.html">Link</a></li>
+
+<li>Hyndman, R.J., & Khandakar, Y. - "Automatic Time Series Forecasting: The forecast Package for R." <em>Journal of Statistical Software</em>, 27(3), 2008. <a href="https://www.jstatsoft.org/article/view/v027i03">Link</a></li>
+
+<li>Box, G.E.P., Jenkins, G.M., Reinsel, G.C., & Ljung, G.M. - <em>Time Series Analysis: Forecasting and Control</em>, 5th edition. Wiley (2015). Chapter 6: Model identification.</li>
+
+<li>forecast package - <code>ndiffs()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/ndiffs.html">Link</a></li>
+
+<li>forecast package - <code>Arima()</code> reference. <a href="https://pkg.robjhyndman.com/forecast/reference/Arima.html">Link</a></li>
+
+<li>R Core Team - <code>acf()</code> and <code>pacf()</code> documentation, <em>An Introduction to R</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/acf.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ARIMA-in-R.html">ARIMA in R</a> - the companion guide on what AR, I, and MA mean and how to fit and forecast an ARIMA model.</li>
+
+<li><a href="ACF-and-PACF-in-R.html">ACF and PACF in R</a> - a from-scratch look at the two plots at the center of this workflow.</li>
+
+<li><a href="Test-Stationarity-in-R.html">Test Stationarity in R</a> - the full set of unit-root and stationarity tests behind the differencing step.</li>
+
+</ul>
+
+{% endraw %}
