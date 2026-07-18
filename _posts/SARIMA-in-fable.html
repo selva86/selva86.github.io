@@ -1,0 +1,734 @@
+---
+title: "SARIMA in fable: Seasonal ARIMA in the tidyverse"
+description: "SARIMA in fable fits seasonal ARIMA the tidyverse way: build a tsibble, fit with ARIMA(), set orders with pdq() and PDQ(), then check and forecast the model."
+keywords: "SARIMA fable, seasonal ARIMA R, ARIMA() fable, tsibble, PDQ() fable, pdq PDQ, tidyverts forecasting, seasonal ARIMA tidyverse, fable ARIMA model, report glance"
+mathjax: false
+webr: true
+curriculum_id: "FR-arim-4"
+post_type: "FR"
+auto_link_terms: "SARIMA in fable|seasonal ARIMA in fable|fable ARIMA|ARIMA() in fable|fable seasonal ARIMA|tidyverts ARIMA|SARIMA tidyverse|PDQ()|pdq()|tsibble ARIMA|fable forecasting|seasonal ARIMA tidyverse"
+auto_link_case_sensitive: false
+fr_parent: "SARIMA-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">SARIMA (seasonal ARIMA) in fable fits a seasonal ARIMA model the tidyverse way: your data lives in a tsibble, you fit with <code>model(ARIMA())</code>, and you read, check, and forecast the model with tidy verbs. This tutorial rebuilds the classic seasonal ARIMA workflow the modern way using the built-in <code>AirPassengers</code> data. The runnable blocks use base R and the forecast package; the fable blocks are marked to run in your own R session after you install <code>fable</code>, <code>tsibble</code>, and <code>feasts</code>.</p>
+
+<h2>Why fit a seasonal ARIMA the tidyverse way?</h2>
+
+<p>You may already know how to fit a seasonal ARIMA with the forecast package (that is the <a href="SARIMA-in-R.html">SARIMA in R</a> tutorial). So why learn fable? Because fable turns the whole job into one tidy pipeline: one function fits the model, tidy verbs read it, and you can fit and rank a dozen candidate models in a single call. Before any of that, here is the seasonal ARIMA you are aiming for, fit in one runnable line so you can see the target first.</p>
+
+<p>The <code>AirPassengers</code> dataset counts monthly international airline passengers from 1949 to 1960. It climbs every year and peaks every summer, so it is the textbook example of a series with both a trend and a yearly season. Let's fit an automatic seasonal ARIMA to it with the forecast package and read the label it returns.</p>
+
+<div class="webr-container" data-block-title="Fit a seasonal ARIMA the classic way">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a seasonal ARIMA the classic way</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+fit_f &lt;- auto.arima(AirPassengers)
+fit_f
+#&gt; Series: AirPassengers 
+#&gt; ARIMA(2,1,1)(0,1,0)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2      ma1
+#&gt;       0.5960  0.2143  -0.9819
+#&gt; s.e.  0.0888  0.0880   0.0292
+#&gt; 
+#&gt; sigma^2 = 132.3:  log likelihood = -504.92
+#&gt; AIC=1017.85   AICc=1018.17   BIC=1029.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The label <code>ARIMA(2,1,1)(0,1,0)[12]</code> is a seasonal ARIMA. The first bracket <code>(2,1,1)</code> is the non-seasonal part, the second bracket <code>(0,1,0)</code> is the seasonal part, and <code>[12]</code> says the season repeats every 12 observations (one year of monthly data). The <code>(0,1,0)</code> means the model took one seasonal difference: it subtracted each month from the same month a year earlier to remove the yearly pattern. That is the whole idea of a seasonal ARIMA, and it is exactly what we will rebuild with fable.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fable does the same math as the forecast package, but wraps it in a tidy pipeline.</strong> The model you just fit is the model fable will fit too. What changes is the workflow around it: <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> in, tidy verbs to read and forecast, and the ability to compare many models at once.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>auto.arima()</code> search can work on a log scale, which is often better for a series whose swings grow over time. Add <code>lambda = 0</code> (that means "take a log first") and read the seasonal part of the new label.</p>
+<div class="webr-container" data-block-title="Your turn: fit on the log scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit on the log scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- auto.arima(AirPassengers)   # add lambda = 0 for a log fit, then run
+ex_fit$arma</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Automatic model on the log scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Automatic model on the log scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">auto.arima(AirPassengers, lambda = 0)
+#&gt; Series: AirPassengers 
+#&gt; ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; Box Cox transformation: lambda= 0 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4018  -0.5569
+#&gt; s.e.   0.0896   0.0731
+#&gt; 
+#&gt; sigma^2 = 0.001371:  log likelihood = 244.7
+#&gt; AIC=-483.4   AICc=-483.21   BIC=-474.77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>lambda = 0</code> the search fits on the log scale and returns the classic <a class="auto-link" href="SARIMA-in-R.html" title="SARIMA in R: How to Fit Seasonal ARIMA Models">airline model</a>, <code>ARIMA(0,1,1)(0,1,1)[12]</code>. It has one ordinary difference, one seasonal difference, and a moving-average term in each part.</p>
+
+</details>
+</section>
+
+<h2>What is a tsibble, and how do you get your data into one?</h2>
+
+<p>fable does not work with plain <code>ts</code> objects. It works with a tsibble, which is just a tidy data frame that knows which column holds time. That time column is called the index, and its spacing (monthly, quarterly, daily) is the interval. Once your data is a tsibble, every fable verb knows how to line rows up in time for you.</p>
+
+<p>Before we convert anything, let's look at the raw series so the seasonal shape is obvious. The <code>window()</code> function pulls out a slice of a <code>ts</code> object. Here are the first two years.</p>
+
+<div class="webr-container" data-block-title="Look at the first two years">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look at the first two years</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">window(AirPassengers, end = c(1950, 12))
+#&gt;      Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
+#&gt; 1949 112 118 132 129 121 135 148 148 136 119 104 118
+#&gt; 1950 115 126 141 135 125 149 170 170 158 133 114 140</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look down any column and across any row: numbers rise toward summer (July and August) and fall in winter, and the whole level is higher in 1950 than 1949. That repeating summer peak is the season a SARIMA model captures. Now let's hand this series to fable by turning it into a tsibble.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The fable, tsibble, and feasts packages are not part of the in-browser toolkit.</strong> Run every block marked "run locally" in your own R session after installing them with install.packages(c("fable", "tsibble", "feasts")). The output shown is the real output from that run.</div></div>
+
+<pre><code class="language-r">library(dplyr)
+library(tsibble)
+library(fable)
+library(feasts)
+
+air &lt;- as_tsibble(AirPassengers)
+air
+#&gt; # A tsibble: 144 x 2 [1M]
+#&gt;       index value
+#&gt;       &lt;mth&gt; &lt;dbl&gt;
+#&gt;  1 1949 Jan   112
+#&gt;  2 1949 Feb   118
+#&gt;  3 1949 Mar   132
+#&gt;  4 1949 Apr   129
+#&gt;  5 1949 May   121
+#&gt;  6 1949 Jun   135</code></pre>
+
+<p>The <code>[1M]</code> in the header is the interval: one month between rows. The <code>index</code> column holds a month value (<code>&lt;mth&gt;</code>), and <code>value</code> holds the passenger count. That is all a tsibble is: a data frame plus a known time index. A monthly <code>ts</code> object converts straight across, so you rarely build a tsibble by hand.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The built-in <code>UKgas</code> series is quarterly UK gas consumption. Convert it to a tsibble and notice how the interval in the header changes.</p>
+<pre><code class="language-r">ex_tsbl &lt;- as_tsibble(AirPassengers)   # swap AirPassengers for UKgas, then run
+interval(ex_tsbl)</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">as_tsibble(UKgas)
+#&gt; # A tsibble: 108 x 2 [1Q]
+#&gt;      index value
+#&gt;      &lt;qtr&gt; &lt;dbl&gt;
+#&gt;  1 1960 Q1 160. 
+#&gt;  2 1960 Q2 130. 
+#&gt;  3 1960 Q3  84.8
+#&gt;  4 1960 Q4 120. </code></pre>
+
+<p><strong>Explanation:</strong> The interval is now <code>[1Q]</code>, one quarter between rows, and the index type is <code>&lt;qtr&gt;</code>. fable reads the season length from the interval, so quarterly data gets a season of 4 automatically.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a seasonal ARIMA with ARIMA() in fable?</h2>
+
+<p>Fitting in fable is one pipe. You send the tsibble into <code>model()</code>, and inside it you name the model and call <code>ARIMA()</code>. With nothing on the right of the response variable, <code>ARIMA()</code> searches for the best orders on its own, just like <code>auto.arima()</code>. The result is a mable (a "model table"), and <code>report()</code> prints the fitted model.</p>
+
+<pre><code class="language-r">fit_raw &lt;- air |&gt; model(auto = ARIMA(value))
+report(fit_raw)
+#&gt; Series: value 
+#&gt; Model: ARIMA(2,1,1)(0,1,0)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2      ma1
+#&gt;       0.5960  0.2143  -0.9819
+#&gt; s.e.  0.0888  0.0880   0.0292
+#&gt; 
+#&gt; sigma^2 estimated as 132.3:  log likelihood=-504.92
+#&gt; AIC=1017.85   AICc=1018.17   BIC=1029.35</code></pre>
+
+<p>This is the same model, <code>ARIMA(2,1,1)(0,1,0)[12]</code>, with the same coefficients as the forecast-package fit at the top of the page. Two packages, one model. The general label is <code>ARIMA(p,d,q)(P,D,Q)[m]</code>, and the diagram below shows how the pieces split apart.</p>
+
+<p><img src="screenshots/SARIMA-in-fable-notation.webp" alt="Diagram showing how the seasonal ARIMA order splits into a non-seasonal pdq part and a seasonal PDQ part" class="img-responsive img-zoomable" loading="lazy" width="1518" height="978" /></p>
+
+<p><em>Figure 1: How the (p,d,q)(P,D,Q)[m] order splits into pdq() and PDQ().</em></p>
+
+<p>The lowercase <code>(p,d,q)</code> is the non-seasonal part: short-term autoregressive terms, <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a>, and moving-average terms. The uppercase <code>(P,D,Q)</code> is the same three ideas but one season apart, and <code>[m]</code> is the season length (12 for monthly, 4 for quarterly). You will set these with the <code>pdq()</code> and <code>PDQ()</code> helpers in a moment.</p>
+
+<p>The airline series swings wider as its level rises, and a log transform steadies those swings. You add it right inside the formula: <code>ARIMA(log(value))</code>. fable remembers the transform and undoes it automatically when it forecasts.</p>
+
+<pre><code class="language-r">fit &lt;- air |&gt; model(auto = ARIMA(log(value)))
+report(fit)
+#&gt; Series: value 
+#&gt; Model: ARIMA(2,0,0)(0,1,1)[12] w/ drift 
+#&gt; Transformation: log(value) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2     sma1  constant
+#&gt;       0.5754  0.2614  -0.5553    0.0193
+#&gt; s.e.  0.0843  0.0842   0.0771    0.0015
+#&gt; 
+#&gt; sigma^2 estimated as 0.001323:  log likelihood=249.65
+#&gt; AIC=-489.29   AICc=-488.82   BIC=-474.88</code></pre>
+
+<p>On the log scale the search lands on <code>ARIMA(2,0,0)(0,1,1)[12] w/ drift</code>, and its AICc of -488.82 is lower (better) than the raw model. The <code>w/ drift</code> on the label means the model adds a constant term, so its forecasts keep climbing the way the passenger counts do instead of flattening out. We will treat this as our working model and call it <code>fit</code> for the rest of the tutorial.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>fable and auto.arima can pick different models from the same data.</strong> fable's default search is more thorough than the stepwise search in auto.arima, so it can settle on a slightly different, lower-AICc model. Both are valid seasonal ARIMA models; the numbers just guide you to the better fit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You can also hand <code>ARIMA()</code> a specific set of orders instead of letting it search. Fit a model with a non-seasonal AR term and a seasonal MA term using <code>pdq(1,1,0) + PDQ(0,1,1)</code>, then read the label.</p>
+<pre><code class="language-r">ex_spec &lt;- air |&gt; model(m = ARIMA(log(value)))   # try ~ pdq(1,1,0) + PDQ(0,1,1)
+ex_spec</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">air |&gt; model(m = ARIMA(log(value) ~ pdq(1,1,0) + PDQ(0,1,1))) |&gt; report()
+#&gt; Series: value 
+#&gt; Model: ARIMA(1,1,0)(0,1,1)[12] 
+#&gt; Transformation: log(value) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ar1     sma1
+#&gt;       -0.3395  -0.5619
+#&gt; s.e.   0.0822   0.0748
+#&gt; 
+#&gt; sigma^2 estimated as 0.001391:  log likelihood=243.74
+#&gt; AIC=-481.49   AICc=-481.3   BIC=-472.86</code></pre>
+
+<p><strong>Explanation:</strong> Putting <code>pdq(1,1,0) + PDQ(0,1,1)</code> on the right of the <code>~</code> fixes the orders instead of searching. The label confirms it: <code>ARIMA(1,1,0)(0,1,1)[12]</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you set the seasonal orders yourself and read the model?</h2>
+
+<p>When you have a model in mind, the <code>pdq()</code> and <code>PDQ()</code> specials let you spell it out. The most famous seasonal ARIMA is the airline model, <code>ARIMA(0,1,1)(0,1,1)[12]</code>: one ordinary difference, one seasonal difference, and a moving-average term in each part. You write it by putting both helpers on the right of the <code>~</code>.</p>
+
+<pre><code class="language-r">fit_manual &lt;- air |&gt; model(manual = ARIMA(log(value) ~ pdq(0,1,1) + PDQ(0,1,1)))
+report(fit_manual)
+#&gt; Series: value 
+#&gt; Model: ARIMA(0,1,1)(0,1,1)[12] 
+#&gt; Transformation: log(value) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4018  -0.5569
+#&gt; s.e.   0.0896   0.0731
+#&gt; 
+#&gt; sigma^2 estimated as 0.001371:  log likelihood=244.7
+#&gt; AIC=-483.4   AICc=-483.21   BIC=-474.77</code></pre>
+
+<p>To prove fable is not doing anything mysterious, here is the exact same model fit with base R's own <code>arima()</code> function. No fable, no tsibble, just the raw engine.</p>
+
+<div class="webr-container" data-block-title="Fit the same model in base R">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the same model in base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">arima(log(AirPassengers),
+      order = c(0, 1, 1),
+      seasonal = list(order = c(0, 1, 1), period = 12))
+#&gt; Call:
+#&gt; arima(x = log(AirPassengers), order = c(0, 1, 1), seasonal = list(order = c(0, 1, 1), period = 12))
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1     sma1
+#&gt;       -0.4018  -0.5569
+#&gt; s.e.   0.0896   0.0731
+#&gt; 
+#&gt; sigma^2 estimated as 0.001348:  log likelihood = 244.7,  aic = -483.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficients match to the last digit: <code>ma1</code> is -0.4018 and <code>sma1</code> is -0.5569 in both, and the <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> is -483.4 either way. fable is a tidy front end over the same estimation. Now let's read a fitted model without eyeballing the printout. The <code>tidy()</code> verb returns one row per coefficient as a clean table.</p>
+
+<pre><code class="language-r">tidy(fit)
+#&gt;   .model term     estimate std.error statistic  p.value
+#&gt;   &lt;chr&gt;  &lt;chr&gt;       &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 auto   ar1        0.575    0.0843       6.83 2.83e-10
+#&gt; 2 auto   ar2        0.261    0.0842       3.11 2.33e- 3
+#&gt; 3 auto   sma1      -0.555    0.0771      -7.21 3.99e-11
+#&gt; 4 auto   constant   0.0193   0.00149     13.0  2.07e-25</code></pre>
+
+<p>Every <code>p.value</code> is tiny, which means each term is doing real work in the model. When you want the model's summary numbers instead of its coefficients, <code>glance()</code> gives you one row of fit statistics.</p>
+
+<pre><code class="language-r">glance(fit) |&gt; select(.model, sigma2, log_lik, AICc, BIC)
+#&gt;   .model  sigma2 log_lik  AICc   BIC
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 auto   0.00132    250. -489. -475.</code></pre>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use AICc to compare models on the same data: lower is better.</strong> AICc rewards a model for fitting well and penalizes it for using extra terms, so it points you toward the model that explains the series without overfitting. Only compare AICc values fit to the same response (here, all on the log scale).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare the automatic model against the hand-built airline model by their AICc. Stack the two <code>glance()</code> rows together and see which is lower.</p>
+<pre><code class="language-r">ex_glance &lt;- glance(fit) |&gt; select(.model, AICc)   # add fit_manual to compare
+ex_glance</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">bind_rows(
+  glance(fit)        |&gt; select(.model, AICc),
+  glance(fit_manual) |&gt; select(.model, AICc)
+)
+#&gt;   .model  AICc
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 auto   -489.
+#&gt; 2 manual -483.</code></pre>
+
+<p><strong>Explanation:</strong> The automatic model (<code>auto</code>, AICc -489) edges out the hand-built airline model (<code>manual</code>, AICc -483), so the search found a slightly better fit than the textbook default.</p>
+
+</details>
+</section>
+
+<h2>How do you check the model's residuals?</h2>
+
+<p>A model is only trustworthy if what it leaves behind, the residuals, looks like random noise. If any pattern is left in the residuals, the model missed something. In fable, <code>augment()</code> adds the fitted values and residuals back onto your data. The <code>.innov</code> column holds the innovation residuals, which are the ones you test.</p>
+
+<pre><code class="language-r">augment(fit) |&gt; select(index, value, .fitted, .innov) |&gt; head(5)
+#&gt; # A tsibble: 5 x 4 [1M]
+#&gt;      index value .fitted  .innov
+#&gt;      &lt;mth&gt; &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 1949 Jan   112    111. 0.00460
+#&gt; 2 1949 Feb   118    117. 0.00465
+#&gt; 3 1949 Mar   132    131. 0.00476
+#&gt; 4 1949 Apr   129    128. 0.00474
+#&gt; 5 1949 May   121    120. 0.00468</code></pre>
+
+<p>The <code>.fitted</code> values sit right next to the real <code>value</code>, so you can see the model is tracking the series closely. To test the residuals formally, the <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">Ljung-Box test</a> asks whether any <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">autocorrelation</a> (correlation of the residuals with their own earlier values) is left over. A high <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> is good news: it means you cannot detect leftover pattern.</p>
+
+<pre><code class="language-r">augment(fit) |&gt; features(.innov, ljung_box, lag = 24, dof = 4)
+#&gt;   .model lb_stat lb_pvalue
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 auto      29.0    0.0868</code></pre>
+
+<p>The p-value of 0.087 is above 0.05, so the residuals pass: there is no significant autocorrelation left, and the model has captured the structure. The same test exists in base R as <code>Box.test()</code>, which you can run right here on the forecast-package fit from earlier.</p>
+
+<div class="webr-container" data-block-title="Run the Ljung-Box test in base R">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the Ljung-Box test in base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Box.test(residuals(fit_f), lag = 24, type = &quot;Ljung-Box&quot;)
+#&gt; 	Box-Ljung test
+#&gt; 
+#&gt; data:  residuals(fit_f)
+#&gt; X-squared = 37.784, df = 24, p-value = 0.03648</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the p-value is 0.037, just below 0.05. That is expected: <code>fit_f</code> is the raw-scale model from the top of the page, and its residuals still hold a little seasonal autocorrelation. The log-scale fable model above passed the same test at 0.087, which is one more reason to prefer it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>In your own session, gg_tsresiduals() draws the full residual panel in one call.</strong> It plots the residuals over time, their autocorrelation, and their histogram together, which is the fastest visual check that nothing is left behind.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The p-value depends on how many lags you test. Re-run the base R test with <code>lag = 12</code> instead of 24 and see how the result changes.</p>
+<div class="webr-container" data-block-title="Your turn: test fewer lags">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test fewer lags</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_res &lt;- residuals(fit_f)   # change lag = 24 to lag = 12, then run
+length(ex_res)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ljung-Box test at 12 lags">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ljung-Box test at 12 lags</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Box.test(residuals(fit_f), lag = 12, type = &quot;Ljung-Box&quot;)
+#&gt; 	Box-Ljung test
+#&gt; 
+#&gt; data:  residuals(fit_f)
+#&gt; X-squared = 10.973, df = 12, p-value = 0.5312</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 12 lags the p-value is 0.53, comfortably above 0.05. Testing fewer lags looks only at shorter-term autocorrelation, where this raw model looks clean; the lower p-value back at 24 lags came from the longer-range <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> it leaves behind.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast future values?</h2>
+
+<p>Forecasting is one verb: <code>forecast()</code> with a horizon <code>h</code>. Because the series is monthly, <code>h = 24</code> means two years ahead. fable returns a fable object, which carries a full probability distribution for each future month in the <code>value</code> column, plus the point forecast in <code>.mean</code>.</p>
+
+<pre><code class="language-r">fc &lt;- fit |&gt; forecast(h = 24)
+fc
+#&gt; # A fable: 24 x 4 [1M]
+#&gt; # Key:     .model [1]
+#&gt;    .model    index             value .mean
+#&gt;    &lt;chr&gt;     &lt;mth&gt;            &lt;dist&gt; &lt;dbl&gt;
+#&gt;  1 auto   1961 Jan t(N(6.1, 0.0013))  453.
+#&gt;  2 auto   1961 Feb t(N(6.1, 0.0018))  430.
+#&gt;  3 auto   1961 Mar t(N(6.2, 0.0022))  486.
+#&gt;  4 auto   1961 Apr t(N(6.2, 0.0025))  502.
+#&gt;  5 auto   1961 May t(N(6.3, 0.0028))  522.
+#&gt;  6 auto   1961 Jun  t(N(6.4, 0.003))  600.</code></pre>
+
+<p>The <code>.mean</code> column already reads in passenger counts (453, 430, and so on), not log units, because fable undid the log transform for you. The <code>value</code> column shows each forecast as a transformed <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>, <code>t(N(...))</code>. To turn a distribution into a plain <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">prediction interval</a>, pipe it through <code>hilo()</code>.</p>
+
+<pre><code class="language-r">fc |&gt; hilo(level = 95) |&gt; select(index, .mean, `95%`) |&gt; head(4)
+#&gt;      index .mean                  `95%`
+#&gt;      &lt;mth&gt; &lt;dbl&gt;                 &lt;hilo&gt;
+#&gt; 1 1961 Jan  453. [421.2056, 485.7503]95
+#&gt; 2 1961 Feb  430. [395.6490, 466.3885]95
+#&gt; 3 1961 Mar  486. [443.0038, 532.9857]95
+#&gt; 4 1961 Apr  502. [454.5652, 553.9548]95</code></pre>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Prediction intervals come back on the original scale automatically.</strong> Because you fit with a log transform, fable back-transforms both the point forecast and the interval, so 421 to 486 in January is a range of real passenger counts, not log units. To see the forecast as a chart, pipe the fable into autoplot(fc, air) in your own session.</div></div>
+
+<p>The forecast package can forecast too, and its <code>forecast()</code> returns point predictions you can run right now. Here are the first six months from the base fit.</p>
+
+<div class="webr-container" data-block-title="Forecast six months in base R">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast six months in base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit_f, n.ahead = 6)$pred
+#&gt;           Jan      Feb      Mar      Apr      May      Jun
+#&gt; 1961 445.6349 420.3950 449.1983 491.8399 503.3945 566.8624</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A 95 percent interval is wide; an 80 percent interval is tighter. Forecast one year ahead (<code>h = 12</code>) and read the 80 percent interval instead.</p>
+<pre><code class="language-r">ex_fc &lt;- fit |&gt; forecast(h = 24)   # change level to 80, then run
+ex_fc |&gt; hilo(level = 95) |&gt; nrow()</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">fit |&gt; forecast(h = 12) |&gt; hilo(level = 80) |&gt; select(index, .mean, `80%`) |&gt; head(3)
+#&gt;      index .mean                  `80%`
+#&gt;      &lt;mth&gt; &lt;dbl&gt;                 &lt;hilo&gt;
+#&gt; 1 1961 Jan  453. [431.7281, 473.9112]80
+#&gt; 2 1961 Feb  430. [407.0742, 453.2985]80
+#&gt; 3 1961 Mar  486. [457.4106, 516.1986]80</code></pre>
+
+<p><strong>Explanation:</strong> The 80 percent interval (432 to 474 in January) is narrower than the 95 percent one (421 to 486). A lower <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence level</a> buys you a tighter range at the cost of catching the truth less often.</p>
+
+</details>
+</section>
+
+<h2>How do you compare several SARIMA models at once?</h2>
+
+<p>This is where fable pulls ahead of the classic workflow. You can list several models inside one <code>model()</code> call, and fable fits them all and stores each in its own column. Here we fit the automatic model, the hand-built airline model, and a simple <a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">seasonal naive baseline</a> that just repeats last year's value.</p>
+
+<pre><code class="language-r">fits &lt;- air |&gt; model(
+  auto   = ARIMA(log(value)),
+  manual = ARIMA(log(value) ~ pdq(0,1,1) + PDQ(0,1,1)),
+  snaive = SNAIVE(value)
+)
+glance(fits) |&gt; select(.model, AICc, BIC)
+#&gt;   .model  AICc   BIC
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 auto   -489. -475.
+#&gt; 2 manual -483. -475.
+#&gt; 3 snaive   NA    NA </code></pre>
+
+<p>The seasonal naive model has no AICc because it estimates no parameters. To compare all three on equal footing, <code>accuracy()</code> reports error measures like <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">RMSE</a> (average size of the errors) and MAPE (average error as a percent).</p>
+
+<pre><code class="language-r">accuracy(fits) |&gt; select(.model, .type, RMSE, MAE, MAPE)
+#&gt;   .model .type     RMSE   MAE  MAPE
+#&gt;   &lt;chr&gt;  &lt;chr&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 auto   Training  9.93  6.99  2.53
+#&gt; 2 manual Training 10.2   7.36  2.62
+#&gt; 3 snaive Training 36.3  32.0  11.2 </code></pre>
+
+<p>The automatic model has the smallest errors: a MAPE of 2.53 percent, against 11.2 percent for the naive baseline. Fitting and ranking three seasonal ARIMA candidates took a single pipeline.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Fitting and comparing many models in one call is the reason to reach for fable.</strong> In the classic workflow each model is a separate object you juggle by hand; in fable they are columns of one mable, so ranking, forecasting, and plotting them together is one line each.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rank the three fitted models from best to worst by their MAPE using <code>arrange()</code>.</p>
+<pre><code class="language-r">ex_fits &lt;- fits   # already includes snaive; run accuracy() on it
+nrow(accuracy(ex_fits))</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">accuracy(fits) |&gt; select(.model, MAPE) |&gt; arrange(MAPE)
+#&gt;   .model  MAPE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 auto    2.53
+#&gt; 2 manual  2.62
+#&gt; 3 snaive 11.2 </code></pre>
+
+<p><strong>Explanation:</strong> <code>arrange(MAPE)</code> sorts ascending, so the smallest error is on top. The automatic model wins, the airline model is a close second, and the naive baseline trails far behind.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: forecast air passengers end to end</h2>
+
+<p>Here is the whole workflow in one place: convert the data to a tsibble, fit an automatic seasonal ARIMA on the log scale, check the report, and forecast a year ahead with intervals. This is the pattern you will reuse for any seasonal series.</p>
+
+<pre><code class="language-r">air_ce &lt;- as_tsibble(AirPassengers)
+fit_ce &lt;- air_ce |&gt; model(sarima = ARIMA(log(value)))
+report(fit_ce)
+#&gt; Series: value 
+#&gt; Model: ARIMA(2,0,0)(0,1,1)[12] w/ drift 
+#&gt; Transformation: log(value) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2     sma1  constant
+#&gt;       0.5754  0.2614  -0.5553    0.0193
+#&gt; s.e.  0.0843  0.0842   0.0771    0.0015
+#&gt; 
+#&gt; sigma^2 estimated as 0.001323:  log likelihood=249.65
+#&gt; AIC=-489.29   AICc=-488.82   BIC=-474.88</code></pre>
+
+<pre><code class="language-r">fit_ce |&gt; forecast(h = 12) |&gt; hilo(level = 95) |&gt; select(index, .mean, `95%`) |&gt; head(3)
+#&gt;      index .mean                  `95%`
+#&gt;      &lt;mth&gt; &lt;dbl&gt;                 &lt;hilo&gt;
+#&gt; 1 1961 Jan  453. [421.2056, 485.7503]95
+#&gt; 2 1961 Feb  430. [395.6490, 466.3885]95
+#&gt; 3 1961 Mar  486. [443.0038, 532.9857]95</code></pre>
+
+<p>The forecast for January 1961 is about 453 passengers, with 95 percent confidence that the true value falls between 421 and 486. That is a complete, defensible seasonal ARIMA forecast in five lines of tidy code.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These build on the whole tutorial. Each runs in your own R session with <code>fable</code>, <code>tsibble</code>, and <code>feasts</code> loaded. Try each before opening the solution.</p>
+
+<h3>Exercise 1: Forecast the quarterly UKgas series</h3>
+
+<p>Convert the built-in <code>UKgas</code> series to a tsibble, fit an automatic seasonal ARIMA on the log scale, print the report, and forecast the next 8 quarters. Notice that the season length becomes 4 on its own.</p>
+
+<pre><code class="language-r"># Convert UKgas to a tsibble, fit ARIMA(log(value)), report, forecast h = 8.
+gas &lt;- as_tsibble(UKgas)
+# your code here
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">gas &lt;- as_tsibble(UKgas)
+gas_fit &lt;- gas |&gt; model(sarima = ARIMA(log(value)))
+report(gas_fit)
+#&gt; Series: value 
+#&gt; Model: ARIMA(0,0,0)(1,1,0)[4] w/ drift 
+#&gt; Transformation: log(value) 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          sar1  constant
+#&gt;       -0.1938    0.0786
+#&gt; s.e.   0.0966    0.0102
+#&gt; 
+#&gt; sigma^2 estimated as 0.01096:  log likelihood=88.05
+#&gt; AIC=-170.1   AICc=-169.86   BIC=-162.17</code></pre>
+
+<pre><code class="language-r">gas_fit |&gt; forecast(h = 8) |&gt; as_tibble() |&gt; select(index, .mean) |&gt; head(4)
+#&gt;     index .mean
+#&gt;     &lt;qtr&gt; &lt;dbl&gt;
+#&gt; 1 1987 Q1 1249.
+#&gt; 2 1987 Q2  649.
+#&gt; 3 1987 Q3  363.
+#&gt; 4 1987 Q4  853.</code></pre>
+
+<p><strong>Explanation:</strong> The label <code>[4]</code> confirms fable read the quarterly season automatically. The forecast climbs every Q1 (winter heating) and dips every Q3, exactly the seasonal shape in the data.</p>
+
+</details>
+
+<h3>Exercise 2: Pick the better model with AICc</h3>
+
+<p>Fit two models to <code>air</code>: the automatic one, <code>ARIMA(log(value))</code>, and the airline model, <code>ARIMA(log(value) ~ pdq(0,1,1) + PDQ(0,1,1))</code>. Put both in one <code>model()</code> call, then use <code>glance()</code> and <code>arrange()</code> to rank them by AICc.</p>
+
+<pre><code class="language-r"># Fit auto and airline in one model() call, then arrange by AICc.
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">cap_fits &lt;- air |&gt; model(
+  auto     = ARIMA(log(value)),
+  airline  = ARIMA(log(value) ~ pdq(0,1,1) + PDQ(0,1,1))
+)
+glance(cap_fits) |&gt; select(.model, AICc) |&gt; arrange(AICc)
+#&gt;   .model   AICc
+#&gt;   &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 auto    -489.
+#&gt; 2 airline -483.</code></pre>
+
+<p><strong>Explanation:</strong> The automatic search wins by AICc (-489 against -483). One <code>model()</code> call fit both, and <code>arrange(AICc)</code> put the better model on top.</p>
+
+</details>
+
+<h3>Exercise 3: Test the forecast on held-out data</h3>
+
+<p>AICc measures fit on the training data. The tougher test is forecasting data the model never saw. Keep every month before January 1959 as training, fit the automatic model, forecast 24 months, and score it against the real values with <code>accuracy()</code>.</p>
+
+<pre><code class="language-r"># Filter index &lt; yearmonth(&quot;1959 Jan&quot;) for training, fit, forecast h = 24, score with accuracy(., air).
+</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">train &lt;- air |&gt; filter(index &lt; yearmonth(&quot;1959 Jan&quot;))
+cap_fc &lt;- train |&gt; model(auto = ARIMA(log(value))) |&gt; forecast(h = 24)
+accuracy(cap_fc, air) |&gt; select(.model, .type, RMSE, MAPE)
+#&gt;   .model .type  RMSE  MAPE
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 auto   Test   14.6  2.40</code></pre>
+
+<p><strong>Explanation:</strong> On the 24 held-out months the model is off by 2.40 percent (MAPE) on average. Test error is the honest measure of how a forecast will behave on the future you actually care about.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Should I use fable or the forecast package for seasonal ARIMA?</strong> Both fit the same models. Reach for fable when you want a tidy pipeline, tidy output, and the ability to fit and compare many models at once. Reach for the forecast package when you want something lighter that runs anywhere. The <a href="SARIMA-in-R.html">SARIMA in R</a> tutorial covers the forecast-package path in full.</p>
+
+<p><strong>Do I always need to write PDQ() in the formula?</strong> No. If you leave the right side of <code>ARIMA()</code> blank, it searches both the non-seasonal and seasonal orders for you. You only write <code>pdq()</code> and <code>PDQ()</code> when you want to fix specific orders. One catch: to force a non-seasonal fit you must write <code>PDQ(0, 0, 0)</code>, because simply leaving <code>PDQ()</code> out still lets the search add seasonal terms.</p>
+
+<p><strong>Why fit on the log scale with ARIMA(log(value))?</strong> When a series swings wider as its level rises (like airline passengers), a log transform makes the swings roughly constant, which suits ARIMA's assumptions. fable remembers the transform and undoes it when forecasting, so your forecasts and intervals come back in the original units.</p>
+
+<p><strong>What does the [12] or [4] in the model label mean?</strong> It is the season length, the number of steps in one full cycle. Monthly data has <code>[12]</code>, quarterly data has <code>[4]</code>, and daily data with a weekly cycle has <code>[7]</code>. fable reads it from the tsibble's interval, so you rarely set it by hand.</p>
+
+<p><strong>When should I trust the automatic model over one I choose myself?</strong> Compare them with AICc on the same data, and confirm the winner's residuals pass the Ljung-Box test. If the automatic model has a lower AICc and clean residuals, it is usually the safer choice. A model you pick by hand is worth keeping only when it matches known structure in the series and scores about as well.</p>
+
+<h2>Summary</h2>
+
+<p>Fitting a seasonal ARIMA in fable is one tidy pipeline from data to forecast. The table below maps each step to its verb.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>fable verb</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prepare data</td>
+<td><code>as_tsibble()</code></td>
+<td>Turns a series into a time-aware data frame</td>
+</tr>
+<tr>
+<td>Fit</td>
+<td><code>model(ARIMA(value))</code></td>
+<td>Searches for or fits a seasonal ARIMA</td>
+</tr>
+<tr>
+<td>Set orders</td>
+<td><code>pdq()</code> and <code>PDQ()</code></td>
+<td>Fix the non-seasonal and seasonal parts</td>
+</tr>
+<tr>
+<td>Read</td>
+<td><code>report()</code>, <code>tidy()</code>, <code>glance()</code></td>
+<td>Print the model, coefficients, and fit stats</td>
+</tr>
+<tr>
+<td>Check</td>
+<td><code>augment()</code>, <code>ljung_box</code></td>
+<td>Test that residuals are random noise</td>
+</tr>
+<tr>
+<td>Forecast</td>
+<td><code>forecast(h)</code>, <code>hilo()</code></td>
+<td>Predict ahead with prediction intervals</td>
+</tr>
+<tr>
+<td>Compare</td>
+<td><code>glance()</code>, <code>accuracy()</code></td>
+<td>Rank several models at once</td>
+</tr>
+</tbody>
+</table>
+
+<p>The diagram below shows how those steps connect, from a raw series all the way to a forecast.</p>
+
+<p><img src="screenshots/SARIMA-in-fable-workflow.webp" alt="Flowchart of the fable seasonal ARIMA workflow from a tsibble through model fitting to a forecast" class="img-responsive img-zoomable" loading="lazy" width="2138" height="986" /></p>
+
+<p><em>Figure 2: The fable seasonal ARIMA workflow, from tsibble to forecast.</em></p>
+
+<p>The one idea to carry away: fable does not change the seasonal ARIMA math, it changes the workflow around it. Tidy data goes in, tidy verbs read and check the model, and comparing many candidates is a single call rather than a pile of separate objects.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd ed. Section 9.9: Seasonal ARIMA models. <a href="https://otexts.com/fpp3/seasonal-arima.html">Link</a></li>
+
+<li>Hyndman, R.J., & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd ed. Section 9.7: ARIMA modelling in fable. <a href="https://otexts.com/fpp3/arima-r.html">Link</a></li>
+
+<li>fable documentation - ARIMA() model reference. <a href="https://fable.tidyverts.org/reference/ARIMA.html">Link</a></li>
+
+<li>tsibble documentation - Reference and vignettes. <a href="https://tsibble.tidyverts.org/">Link</a></li>
+
+<li>feasts documentation - Feature extraction and diagnostics. <a href="https://feasts.tidyverts.org/">Link</a></li>
+
+<li>R Core Team - <code>arima()</code> in the stats package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="SARIMA-in-R.html">SARIMA in R: How to Fit Seasonal ARIMA Models</a> - the same seasonal ARIMA model fit with the forecast package, with the theory of the seasonal orders in depth.</li>
+
+<li><a href="auto-arima-in-R.html">auto.arima() in R</a> - how automatic order selection searches for the best ARIMA, which is what fable's ARIMA() does under the hood.</li>
+
+<li><a href="ARIMA-Diagnostics-in-R.html">ARIMA Diagnostics in R</a> - a fuller guide to residual checks, the Ljung-Box test, and reading diagnostic plots.</li>
+
+</ul>
+
+{% endraw %}
