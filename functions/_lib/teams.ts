@@ -323,6 +323,74 @@ export async function acceptInvite(
   return { ok: true, orgId: invite.org_id };
 }
 
+// Flip an active member between admin <-> member. Never touches the owner row
+// (ownership moves only via transferOwnership).
+export async function setMemberRole(
+  db: D1Database, orgId: string, userId: string, role: "admin" | "member",
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      `UPDATE org_members SET role = ?
+        WHERE org_id = ? AND user_id = ? AND status = 'active' AND role != 'owner'`,
+    )
+    .bind(role, orgId, userId)
+    .run();
+  return (res.meta?.changes ?? 0) > 0;
+}
+
+// Transfer billing ownership to an active member. The old owner stays on the
+// team as an admin (they keep their seat; only the billing role moves). Caller
+// has already verified the requester IS the current owner.
+export async function transferOwnership(
+  db: D1Database, orgId: string, fromUserId: string, toUserId: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (fromUserId === toUserId) return { ok: false, reason: "already_owner" };
+  const target = await getMemberRole(db, orgId, toUserId);
+  if (!target) return { ok: false, reason: "not_a_member" };
+  // Order matters for crash-safety: promote the target first (two owners for an
+  // instant is harmless; zero owners is not), then demote, then repoint billing.
+  await db
+    .prepare("UPDATE org_members SET role = 'owner' WHERE org_id = ? AND user_id = ? AND status = 'active'")
+    .bind(orgId, toUserId)
+    .run();
+  await db
+    .prepare("UPDATE org_members SET role = 'admin' WHERE org_id = ? AND user_id = ? AND status = 'active'")
+    .bind(orgId, fromUserId)
+    .run();
+  await db
+    .prepare("UPDATE orgs SET owner_user_id = ? WHERE id = ?")
+    .bind(toUserId, orgId)
+    .run();
+  return { ok: true };
+}
+
+// Rolling-window invite counter (anti seat-rotation abuse). Counts every invite
+// created in the window regardless of outcome, so revoke-and-reinvite loops
+// still consume the allowance.
+export async function countRecentInvites(
+  db: D1Database, orgId: string, sinceSec: number,
+): Promise<number> {
+  const row = await db
+    .prepare("SELECT COUNT(*) AS n FROM org_invites WHERE org_id = ? AND created_at >= ?")
+    .bind(orgId, sinceSec)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+// Full pending-invite row for one email (resend path; includes the token, so
+// this must never flow into a read API response).
+export async function getPendingInviteByEmail(
+  db: D1Database, orgId: string, email: string,
+): Promise<OrgInvite | null> {
+  return await db
+    .prepare(
+      `SELECT * FROM org_invites
+        WHERE org_id = ? AND email = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    )
+    .bind(orgId, email.toLowerCase())
+    .first<OrgInvite>();
+}
+
 // Remove (soft) a member, freeing their seat for reassignment. Never removes the
 // owner. Returns false if the target is not an active non-owner member.
 export async function removeMember(

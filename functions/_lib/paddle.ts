@@ -84,6 +84,53 @@ export function paddleApiBase(apiKey: string): string {
   return apiKey.startsWith("pdl_sdbx_") ? "https://sandbox-api.paddle.com" : "https://api.paddle.com";
 }
 
+// Update (or preview an update to) the seat quantity on a teams subscription.
+// Paddle requires the COMPLETE items list; teams subscriptions carry exactly one
+// item (the per-seat price), so a single-element list is the complete list.
+// preview=true hits /subscriptions/{id}/preview (read-only, returns proration
+// amounts in update_summary / immediate_transaction); preview=false applies the
+// change with prorated_immediately + prevent_change on payment failure.
+export interface SeatUpdateResult {
+  ok: boolean;
+  status?: number;
+  data?: Record<string, unknown> | null;
+  error?: string;
+}
+
+export async function updateSubscriptionSeats(
+  env: { PADDLE_API_KEY: string },
+  subscriptionId: string,
+  priceId: string,
+  quantity: number,
+  preview: boolean,
+): Promise<SeatUpdateResult> {
+  if (!env.PADDLE_API_KEY) return { ok: false, error: "paddle_not_configured" };
+  const url = `${paddleApiBase(env.PADDLE_API_KEY)}/subscriptions/${subscriptionId}${preview ? "/preview" : ""}`;
+  try {
+    const resp = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${env.PADDLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        items: [{ price_id: priceId, quantity }],
+        proration_billing_mode: "prorated_immediately",
+        on_payment_failure: "prevent_change",
+      }),
+    });
+    const body = (await resp.json().catch(() => null)) as { data?: Record<string, unknown> } | null;
+    if (!resp.ok) {
+      console.error(`[paddle] seat update ${resp.status}: ${JSON.stringify(body).slice(0, 300)}`);
+      return { ok: false, status: resp.status, error: "paddle_error" };
+    }
+    return { ok: true, status: resp.status, data: body?.data ?? null };
+  } catch (e) {
+    console.error(`[paddle] seat update error: ${(e as Error).message}`);
+    return { ok: false, error: "network_error" };
+  }
+}
+
 // Create a customer portal session so the billing owner can manage their card,
 // invoices, and subscription. Returns the general portal URL (Paddle also
 // returns per-subscription deep links). null on failure (caller degrades to a
