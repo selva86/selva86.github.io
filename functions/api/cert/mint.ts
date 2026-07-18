@@ -20,7 +20,8 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, jsonError } from "../../_lib/errors";
-import { isProActive, getSolvedByHub, mintCertificate, getStats } from "../../_lib/db";
+import { getSolvedByHub, mintCertificate, getStats } from "../../_lib/db";
+import { resolvePro } from "../../_lib/entitlement";
 import {
   getTrack, computeTrackProgress, generatePublicId, getIssuer,
 } from "../../_lib/tracks";
@@ -59,8 +60,9 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
   const track = getTrack(trackId);
   if (!track) return jsonError(400, "unknown_track", "Unknown track");
 
-  // Pro gate (with KV flag escape for early launch).
-  const isPro = isProActive(u);
+  // Pro gate (with KV flag escape for early launch). resolvePro grants Pro for
+  // an individual plan, lifetime, OR an active team seat.
+  const isPro = (await resolvePro(context.env.DB, u)).pro;
   if (!isPro) {
     const freeAllowed = await isCertFreeFlag(context.env.KV);
     if (!freeAllowed) {

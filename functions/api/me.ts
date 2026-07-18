@@ -13,7 +13,8 @@
 
 import type { Env, RequestData } from "../_middleware";
 import { json } from "../_lib/errors";
-import { getUserById, isProActive, recordNewsletterOptIn, upsertUserFromSupabase, type User } from "../_lib/db";
+import { getUserById, recordNewsletterOptIn, upsertUserFromSupabase, type User } from "../_lib/db";
+import { resolvePro } from "../_lib/entitlement";
 import { notifyNewSignup } from "../_lib/notify";
 import { ensureHandle } from "../_lib/profile";
 
@@ -92,10 +93,13 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     }
   }
 
-  return renderMe(u);
+  return await renderMe(context.env.DB, u);
 };
 
-function renderMe(u: User): Response {
+async function renderMe(db: D1Database, u: User): Promise<Response> {
+  // resolvePro composes individual + team-seat Pro. pro/pro_until keep their
+  // existing meaning (auth-hydrate.js reads me.pro unchanged); `team` is new.
+  const ent = await resolvePro(db, u);
   return json({
     user: {
       id: u.id,
@@ -107,7 +111,9 @@ function renderMe(u: User): Response {
       current_streak_days: u.current_streak_days,
       created_at: u.created_at,
     },
-    pro: isProActive(u),
-    pro_until: u.pro_until,
+    pro: ent.pro,
+    pro_until: ent.pro_until,
+    pro_source: ent.source,
+    team: ent.team,
   });
 }

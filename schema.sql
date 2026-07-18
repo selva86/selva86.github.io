@@ -229,23 +229,74 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 -- (Apply manually with: wrangler d1 execute r-stats-prod --remote --command
 --  "ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER" -- ignore errors)
 
--- ===== teams (Phase v2; ship schema now to avoid later migration) =====
+-- ===== teams / seat management (Teams build 2026-07-19) =====
+-- An org is a bulk "All-Access for Teams" purchase. seats_purchased mirrors the
+-- Paddle subscription quantity (the BILLED seat count = source of truth). The
+-- app enforces assigned <= seats_purchased. status/current_period_end drive seat
+-- entitlement: a member holds Pro only while their org is active AND not expired.
 CREATE TABLE IF NOT EXISTS orgs (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   owner_user_id TEXT NOT NULL,
-  seats_purchased INTEGER NOT NULL,
+  seats_purchased INTEGER NOT NULL,          -- = Paddle subscription quantity (billed)
   paddle_subscription_id TEXT,
-  created_at INTEGER NOT NULL
+  paddle_customer_id TEXT,                    -- for the billing portal link
+  plan TEXT DEFAULT 'teams',
+  status TEXT NOT NULL DEFAULT 'active',      -- 'active' | 'past_due' | 'canceled'
+  current_period_end INTEGER,                 -- unix ts; seat entitlement valid until this
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER
 );
+-- UNIQUE so the webhook can ON CONFLICT(paddle_subscription_id) upsert a re-
+-- delivered subscription event onto the same org row. SQLite treats NULLs as
+-- distinct, so orgs without a sub id (should not occur) never collide.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orgs_sub ON orgs(paddle_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_orgs_owner ON orgs(owner_user_id);
+-- Existing-deploy migration (orgs shipped minimal earlier; add columns, ignore
+-- duplicate-column errors on re-run):
+--   ALTER TABLE orgs ADD COLUMN paddle_customer_id TEXT
+--   ALTER TABLE orgs ADD COLUMN plan TEXT DEFAULT 'teams'
+--   ALTER TABLE orgs ADD COLUMN status TEXT NOT NULL DEFAULT 'active'
+--   ALTER TABLE orgs ADD COLUMN current_period_end INTEGER
+--   ALTER TABLE orgs ADD COLUMN updated_at INTEGER
 
 CREATE TABLE IF NOT EXISTS org_members (
   org_id    TEXT NOT NULL,
   user_id   TEXT NOT NULL,
-  role      TEXT NOT NULL,                -- 'owner' | 'admin' | 'member'
+  role      TEXT NOT NULL,                    -- 'owner' | 'admin' | 'member'
+  status    TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'removed'
+  email     TEXT,                             -- denormalized for the admin roster UI
+  invited_by TEXT,                            -- user_id of the admin who added them
   joined_at INTEGER NOT NULL,
+  removed_at INTEGER,
   PRIMARY KEY (org_id, user_id)
 );
+CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id, status);
+-- Existing-deploy migration:
+--   ALTER TABLE org_members ADD COLUMN status TEXT NOT NULL DEFAULT 'active'
+--   ALTER TABLE org_members ADD COLUMN email TEXT
+--   ALTER TABLE org_members ADD COLUMN invited_by TEXT
+--   ALTER TABLE org_members ADD COLUMN removed_at INTEGER
+
+-- Pending seat invites. A row is a reserved seat until accepted (counts against
+-- seats), or freed on revoke/expiry. token is single-use + high-entropy. The
+-- partial UNIQUE(org_id,email WHERE pending) blocks duplicate live invites and
+-- makes invite creation atomic via INSERT OR IGNORE.
+CREATE TABLE IF NOT EXISTS org_invites (
+  token       TEXT PRIMARY KEY,               -- random 32-byte base64url, single-use
+  org_id      TEXT NOT NULL,
+  email       TEXT NOT NULL,                  -- lowercased invited email
+  role        TEXT NOT NULL DEFAULT 'member',
+  invited_by  TEXT,                           -- admin user_id
+  created_at  INTEGER NOT NULL,
+  expires_at  INTEGER NOT NULL,
+  accepted_at INTEGER,                        -- set on accept; NULL = pending
+  revoked_at  INTEGER                         -- set if the admin revokes it
+);
+CREATE INDEX IF NOT EXISTS idx_org_invites_org   ON org_invites(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_invites_email ON org_invites(email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_org_invites_pending
+  ON org_invites(org_id, email) WHERE accepted_at IS NULL AND revoked_at IS NULL;
 
 -- comments table omitted: v1 uses Giscus per Section 11 decision.
 
