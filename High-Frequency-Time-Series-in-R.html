@@ -3,8 +3,8 @@
   <head>
     <title>High-Frequency Time Series in R: Intraday xts and quantmod</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Handle intraday data in R with xts: build tick data from raw timestamps, slice by time of day, aggregate ticks into bars, and compute VWAP correctly.">
-    <meta name="Keywords" content="high-frequency time series R, intraday data R, xts intraday, quantmod R, tick data R, to.period R, VWAP in R, endpoints period.apply">
+    <meta name="Description" content="Work with intraday, high-frequency time series in R. Use xts and quantmod to build minute bars, slice by clock time, aggregate to OHLC, and compute returns.">
+    <meta name="Keywords" content="high-frequency time series R, intraday data R, xts intraday, quantmod R, to.period R, minute bars, OHLC bars R, endpoints period.apply">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -663,14 +663,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="High-Frequency Time Series in R: Intraday xts and quantmod">
-    <meta property="og:description" content="Handle intraday data in R with xts: build tick data from raw timestamps, slice by time of day, aggregate ticks into bars, and compute VWAP correctly.">
+    <meta property="og:description" content="Work with intraday, high-frequency time series in R. Use xts and quantmod to build minute bars, slice by clock time, aggregate to OHLC, and compute returns.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/High-Frequency-Time-Series-in-R.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/High-Frequency-Time-Series-in-R.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="High-Frequency Time Series in R: Intraday xts and quantmod">
-    <meta name="twitter:description" content="Handle intraday data in R with xts: build tick data from raw timestamps, slice by time of day, aggregate ticks into bars, and compute VWAP correctly.">
+    <meta name="twitter:description" content="Work with intraday, high-frequency time series in R. Use xts and quantmod to build minute bars, slice by clock time, aggregate to OHLC, and compute returns.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/High-Frequency-Time-Series-in-R.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -678,12 +678,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "High-Frequency Time Series in R: Intraday xts and quantmod",
-      "description": "Handle intraday data in R with xts: build tick data from raw timestamps, slice by time of day, aggregate ticks into bars, and compute VWAP correctly.",
+      "description": "Work with intraday, high-frequency time series in R. Use xts and quantmod to build minute bars, slice by clock time, aggregate to OHLC, and compute returns.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/High-Frequency-Time-Series-in-R.html",
-      "datePublished": "2026-07-17",
-      "dateModified": "2026-07-17",
+      "datePublished": "2026-07-18",
+      "dateModified": "2026-07-18",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -780,53 +780,37 @@
 <!-- md2html:generated -->
 
 <h1>High-Frequency Time Series in R: Intraday xts and quantmod</h1>
-<p class="lead">High-frequency time series data is data that arrives many times per second rather than once per day, which breaks the usual assumption that observations sit in evenly spaced slots. In R, the practical toolkit is <code>xts</code> for storing and slicing irregular timestamps, plus <code>quantmod</code> for fetching market data and pulling columns out of it. This post builds one trading session from raw trades and works through slicing, bar aggregation, VWAP, and the time-zone traps that quietly corrupt intraday results.</p>
-<div class="post-byline" style="color:#6b7280;font-size:14px;margin:2px 0 18px 0;line-height:1.5;">By <strong>Selva Prabhakaran</strong> &nbsp;&middot;&nbsp; Published July 17, 2026 &nbsp;&middot;&nbsp; Last updated July 17, 2026</div>
+<p class="lead">High-frequency (intraday) time series record many observations inside a single day, each stamped to the minute or second. R handles them with the <strong>xts</strong> package, a matrix indexed by real timestamps, and <strong>quantmod</strong>, a set of finance helpers built on top of xts. This tutorial builds a full trading day of minute bars from scratch, then works through slicing them by clock time and rolling them up into coarser bars. You need only base R plus xts and quantmod. The sample data is generated inline, so every block runs as you read.</p>
+<div class="post-byline" style="color:#6b7280;font-size:14px;margin:2px 0 18px 0;line-height:1.5;">By <strong>Selva Prabhakaran</strong> &nbsp;&middot;&nbsp; Published July 18, 2026 &nbsp;&middot;&nbsp; Last updated July 18, 2026</div>
 
-<p>Everything below uses one concrete session. <strong>Meridian Freight (ticker MFT) traded on Monday 2026-03-02, from 09:30 to 16:00 New York time.</strong> The exchange feed gives us one row per executed trade: a timestamp, a price near $48, and the number of shares. Trades land whenever a buyer and seller match, so the timestamps are irregular. That session also had a 20-minute trading halt starting at 11:00, which gives us a real gap to reason about instead of a hypothetical one.</p>
+<h2>What makes intraday data different from daily time series?</h2>
 
-<p>If you have not met <code>xts</code> before, the parent post <a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a> introduces it alongside <code>ts</code>, <code>zoo</code>, and <code>tsibble</code>. You do not need it to follow along: the first block below builds an <code>xts</code> from scratch and explains every argument.</p>
+<p>Daily data gives you one number per day on a tidy grid. Intraday data breaks that grid. You get dozens or thousands of stamps per day, uneven gaps at lunch and around the close, and nothing at all overnight or on weekends. A plain numeric vector cannot say <em>when</em> each value happened, so it cannot answer a simple question like "what was the price at 09:45?". The xts package fixes this by attaching a real timestamp to every value. Let us build one trading day and look at it.</p>
 
-<h2>What makes intraday data different from daily data?</h2>
+<p>The block below loads both packages, then simulates a stock's price for a standard 09:30 to 16:00 session. We create 390 one-minute timestamps (there are 390 minutes in that window), draw small random ups and downs, and add them up into a wandering price. Wrapping the price and the timestamps together with <code>xts()</code> gives us an intraday series. The <code>set.seed()</code> line just makes the random walk reproducible so your numbers match mine.</p>
 
-<p>A daily series has one slot per day, and the slots never move. That is the assumption baked into R's built-in <code>ts</code> class: give it a start date and a frequency, and it computes every timestamp by counting forward. Intraday trade data has no slots at all. A trade happens or it does not, and the gap between two trades can be a millisecond or twenty minutes.</p>
-
-<p>Here is the MFT session. The code builds it from scratch so you can run every block on this page in order.</p>
-
-<div class="webr-container" data-block-title="One session of Meridian Freight trades">
+<div class="webr-container" data-block-title="Build one trading day of minute bars">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One session of Meridian Freight trades</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build one trading day of minute bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">suppressMessages</span>(<span class="nf">library</span>(xts))</span>
-<span class="cl"><span class="nf">options</span>(xts_check_TZ <span class="o">=</span> <span class="kc">FALSE</span>)   <span class="c1"># silence a repeated note about the system time zone</span></span>
+<span class="cl"><span class="nf">suppressMessages</span>(<span class="nf">library</span>(quantmod))</span>
+<span class="cl"><span class="nf">options</span>(xts_check_TZ <span class="o">=</span> <span class="kc">FALSE</span>)   <span class="c1"># quiet a harmless timezone note</span></span>
 <span class="cl"></span>
 <span class="cl"><span class="nf">set.seed</span>(<span class="m">302</span>)</span>
-<span class="cl">session_open  <span class="o">&lt;-</span> <span class="nf">as.POSIXct</span>(<span class="s">&quot;2026-03-02 09:30:00&quot;</span>, tz <span class="o">=</span> <span class="s">&quot;America/New_York&quot;</span>)</span>
-<span class="cl">session_close <span class="o">&lt;-</span> <span class="nf">as.POSIXct</span>(<span class="s">&quot;2026-03-02 16:00:00&quot;</span>, tz <span class="o">=</span> <span class="s">&quot;America/New_York&quot;</span>)</span>
+<span class="cl">bar_times <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="nf">as.POSIXct</span>(<span class="s">&quot;2026-03-02 09:30:00&quot;</span>, tz <span class="o">=</span> <span class="s">&quot;America/New_York&quot;</span>),</span>
+<span class="cl">                 by <span class="o">=</span> <span class="s">&quot;1 min&quot;</span>, length.out <span class="o">=</span> <span class="m">390</span>)</span>
+<span class="cl">price <span class="o">&lt;-</span> <span class="m">100</span> <span class="o">+</span> <span class="nf">cumsum</span>(<span class="nf">rnorm</span>(<span class="m">390</span>, <span class="m">0</span>, <span class="m">0.05</span>))</span>
+<span class="cl">intraday <span class="o">&lt;-</span> <span class="nf">xts</span>(<span class="nf">round</span>(price, <span class="m">2</span>), order.by <span class="o">=</span> bar_times)</span>
+<span class="cl"><span class="nf">colnames</span>(intraday) <span class="o">&lt;-</span> <span class="s">&quot;price&quot;</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Trades land when they land: draw a random gap (in seconds) before each one,</span></span>
-<span class="cl"><span class="c1"># then add the gaps up to get an arrival time for every trade.</span></span>
-<span class="cl">gaps_sec <span class="o">&lt;-</span> <span class="nf">rexp</span>(<span class="m">5200</span>, rate <span class="o">=</span> <span class="m">1</span> <span class="o">/</span> <span class="m">5</span>)      <span class="c1"># gaps averaging 5 seconds</span></span>
-<span class="cl">stamps   <span class="o">&lt;-</span> session_open <span class="o">+</span> <span class="nf">cumsum</span>(gaps_sec)</span>
-<span class="cl">stamps   <span class="o">&lt;-</span> stamps[stamps <span class="o">&lt;</span> session_close]</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># MFT was halted for 20 minutes at 11:00, so no trades printed in that window.</span></span>
-<span class="cl">halt_start <span class="o">&lt;-</span> <span class="nf">as.POSIXct</span>(<span class="s">&quot;2026-03-02 11:00:00&quot;</span>, tz <span class="o">=</span> <span class="s">&quot;America/New_York&quot;</span>)</span>
-<span class="cl">halt_end   <span class="o">&lt;-</span> <span class="nf">as.POSIXct</span>(<span class="s">&quot;2026-03-02 11:20:00&quot;</span>, tz <span class="o">=</span> <span class="s">&quot;America/New_York&quot;</span>)</span>
-<span class="cl">stamps     <span class="o">&lt;-</span> stamps[stamps <span class="o">&lt;</span> halt_start <span class="o">|</span> stamps <span class="o">&gt;=</span> halt_end]</span>
-<span class="cl"></span>
-<span class="cl">n_trades <span class="o">&lt;-</span> <span class="nf">length</span>(stamps)</span>
-<span class="cl">price    <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="m">48</span> <span class="o">+</span> <span class="nf">cumsum</span>(<span class="nf">rnorm</span>(n_trades, <span class="m">0</span>, <span class="m">0.01</span>)), <span class="m">2</span>)</span>
-<span class="cl">size     <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">c</span>(<span class="m">100</span>, <span class="m">200</span>, <span class="m">300</span>, <span class="m">500</span>, <span class="m">1000</span>), n_trades, replace <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"></span>
-<span class="cl">ticks <span class="o">&lt;-</span> <span class="nf">xts</span>(<span class="nf">data.frame</span>(price <span class="o">=</span> price, size <span class="o">=</span> size), order.by <span class="o">=</span> stamps)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">head</span>(ticks, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt;                     price size</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:00 48.01  200</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:01 48.01  100</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:08 47.99  200</span></span>
-<span class="cl"><span class="nf">nrow</span>(ticks)</span>
-<span class="cl"><span class="c1">#&gt; [1] 4328</span></span></div>
+<span class="cl"><span class="nf">head</span>(intraday, <span class="m">4</span>)</span>
+<span class="cl"><span class="nf">periodicity</span>(intraday)</span>
+<span class="cl"><span class="c1">#&gt;                      price</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:00 100.01</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:31:00 100.03</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:32:00 100.02</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:33:00 100.15</span></span>
+<span class="cl"><span class="c1">#&gt; 1 minute periodicity from 2026-03-02 09:30:00 to 2026-03-02 15:59:00</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -836,22 +820,42 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>That is 4,328 trades in one session for one stock. Look at the first three timestamps: 09:30:00, then 09:30:01, then 09:30:08. One second, then seven seconds. Nothing about that spacing is regular, and no <code>frequency</code> argument could describe it.</p>
+<p>Here is what the code did. <code>seq()</code> produced 390 timestamps one minute apart, starting at the 09:30 open. <code>as.POSIXct()</code> is R's way of storing a full date plus a time of day, which is exactly what intraday data needs. <code>xts(value, order.by = timestamps)</code> bound each price to its moment. Printing the head shows the price stamped against each minute, and <code>periodicity()</code> read the index back to us: one-minute data running from 09:30 to 15:59.</p>
 
-<p>A quick note on the code, since a few pieces may be unfamiliar. <code>rexp()</code> draws random waiting times from an exponential distribution, which is the standard model for "events arriving independently at some average rate"; <code>rate = 1/5</code> means the gaps average 5 seconds. <code>cumsum()</code> adds those gaps up so each trade gets an arrival time. <code>rnorm(n, 0, 0.01)</code> draws small random price changes, and <code>cumsum()</code> turns them into a wandering price. The <code>xts(...)</code> call at the end is the important one, and the next section pulls it apart.</p>
+<p>That last line is the whole point. Because xts stores the actual clock time of every observation, it can tell you the spacing, the start, and the end without you tracking any of it by hand. A raw vector of 390 numbers knows none of that.</p>
 
-<p>Let us measure the irregularity rather than assert it. <code>index(ticks)</code> pulls out the timestamps, and <code>diff()</code> on those timestamps gives the gap before each trade.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>xts indexes each value on a real timestamp, not a row number.</strong> That is why irregular gaps, missing minutes, and mixed spacing are no problem for intraday data. The index carries the meaning; the values just ride along.</div></div>
 
-<div class="webr-container" data-block-title="How far apart are consecutive trades?">
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a small 5-row xts from the values 10, 12, 11, 13, 14, stamped one minute apart starting at 09:30, then check its periodicity.</p>
+<div class="webr-container" data-block-title="Your turn: build a mini intraday series">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How far apart are consecutive trades?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">seconds_between <span class="o">&lt;-</span> <span class="nf">as.numeric</span>(<span class="nf">diff</span>(<span class="nf">index</span>(ticks)), units <span class="o">=</span> <span class="s">&quot;secs&quot;</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">summary</span>(seconds_between)</span>
-<span class="cl"><span class="c1">#&gt;      Min.   1st Qu.    Median      Mean   3rd Qu.      Max.</span></span>
-<span class="cl"><span class="c1">#&gt; 1.280e-03 1.467e+00 3.550e+00 5.407e+00 7.095e+00 1.207e+03</span></span>
-<span class="cl"><span class="nf">max</span>(seconds_between)</span>
-<span class="cl"><span class="c1">#&gt; [1] 1207.205</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a mini intraday series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Fill in the xts() call using ex1_times and ex1_values, then run periodicity().</span></span>
+<span class="cl">ex1_times <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="nf">as.POSIXct</span>(<span class="s">&quot;2026-03-02 09:30:00&quot;</span>, tz <span class="o">=</span> <span class="s">&quot;America/New_York&quot;</span>),</span>
+<span class="cl">                 by <span class="o">=</span> <span class="s">&quot;1 min&quot;</span>, length.out <span class="o">=</span> <span class="m">5</span>)</span>
+<span class="cl">ex1_values <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">10</span>, <span class="m">12</span>, <span class="m">11</span>, <span class="m">13</span>, <span class="m">14</span>)</span>
+<span class="cl"><span class="c1"># ex1_series &lt;- xts(...)</span></span>
+<span class="cl"><span class="c1"># periodicity(ex1_series)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mini intraday series solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mini intraday series solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex1_series <span class="o">&lt;-</span> <span class="nf">xts</span>(ex1_values, order.by <span class="o">=</span> ex1_times)</span>
+<span class="cl"><span class="nf">nrow</span>(ex1_series)</span>
+<span class="cl"><span class="nf">periodicity</span>(ex1_series)</span>
+<span class="cl"><span class="c1">#&gt; [1] 5</span></span>
+<span class="cl"><span class="c1">#&gt; 1 minute periodicity from 2026-03-02 09:30:00 to 2026-03-02 09:34:00</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -861,17 +865,28 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read the summary from left to right. The shortest gap between two trades was 0.00128 seconds, roughly one millisecond. The median gap was 3.55 seconds. The longest gap was 1,207 seconds, which is 20 minutes and 7 seconds. That maximum is not noise: it is the trading halt. The feed contains no rows at all between 11:00 and 11:20, so the gap from the last trade before the halt to the first trade after it shows up as the largest number in the table.</p>
+<p><strong>Explanation:</strong> <code>xts()</code> pairs the five values with the five timestamps. <code>periodicity()</code> inspects the index and reports one-minute spacing across the short window.</p>
 
-<p>This is the first thing to internalize about high-frequency data. <strong>A gap is an absence of rows, not a row containing <code>NA</code>.</strong> Nothing in the object announces the halt. It is visible only as a stretch of time with no observations, which is why you have to go looking for it.</p>
+</details>
+</section>
 
-<p><code>xts</code> will happily report an average spacing, and the number it gives is worth seeing precisely because of how misleading it is.</p>
+<h2>How do you slice intraday data by clock time?</h2>
 
-<div class="webr-container" data-block-title="The average spacing is real, and it describes nothing">
+<p>With daily data you rarely care about the exact time. With intraday data you constantly do. You might want the first half hour, the lunch lull, or the final minutes before the close. xts lets you pull those windows using the timestamp itself, written as a plain string, so you never have to compute row positions.</p>
+
+<p>Two styles cover almost everything. The first is a <strong>date-and-time range</strong>, written as <code>&quot;start/end&quot;</code> inside the square brackets. The second is a <strong>time-of-day range</strong>, written with a leading <code>T</code>, which ignores the date and matches by clock time. Let us start with a date-time range and grab the opening 30 minutes.</p>
+
+<div class="webr-container" data-block-title="Slice the first 30 minutes by clock time">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The average spacing is real, and it describes nothing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">periodicity</span>(ticks)</span>
-<span class="cl"><span class="c1">#&gt; 3.54974722862244 seconds periodicity from 2026-03-02 09:30:00.893353 to 2026-03-02 15:59:57.598862</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Slice the first 30 minutes by clock time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">first30 <span class="o">&lt;-</span> intraday[<span class="s">&quot;2026-03-02 09:30/2026-03-02 09:59&quot;</span>]</span>
+<span class="cl"><span class="nf">nrow</span>(first30)</span>
+<span class="cl"><span class="nf">tail</span>(first30, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 30</span></span>
+<span class="cl"><span class="c1">#&gt;                      price</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:57:00  99.96</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:58:00  99.91</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:59:00 100.05</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -881,27 +896,21 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>periodicity()</code> reports the average time between observations, here 3.55 seconds. That number is arithmetically correct and practically useless: not one trade in this session arrived exactly 3.55 seconds after the previous one, and the spacing ranges over six orders of magnitude, from a millisecond to twenty minutes. Treat <code>periodicity()</code> on tick data as a rough scale check ("am I looking at seconds or minutes?") and never as a frequency you could rebuild the index from.</p>
+<p>The string <code>&quot;2026-03-02 09:30/2026-03-02 09:59&quot;</code> means "every bar from 09:30 up to and including 09:59." xts read the two timestamps and returned every matching row. <code>nrow()</code> confirms 30 bars, one for each minute of the first half hour, and the tail shows the window really does stop at 09:59. You never had to know that 09:59 sits at row 30.</p>
 
-<blockquote><p><strong>Watch out:</strong> Look closely at the timestamps in that output: <code>09:30:00.893353</code>. The trades carry sub-second precision, but the earlier <code>head(ticks, 3)</code> printed them as plain <code>09:30:00</code>. R's default is to hide fractional seconds when printing. The precision is in the data; it just is not on screen unless you ask.</p></blockquote>
+<p>The <code>T</code> prefix is handy when you care about a time of day regardless of which date it falls on. It is perfect for questions like "how does this stock behave right after the open?" across many days. Here we ask for the first five minutes.</p>
 
-<h2>How do you build an xts from raw trade timestamps?</h2>
-
-<p>An <code>xts</code> object is two things bolted together: a matrix of data, and a time index that labels every row. The constructor takes the data as its first argument and the index as <code>order.by</code>. That is the whole idea, and it is why <code>xts</code> can hold irregular data when <code>ts</code> cannot: the timestamps are stored explicitly, one per row, instead of being computed from a start and a frequency.</p>
-
-<p>Let us inspect the index we just built, this time asking R to show the fractional seconds.</p>
-
-<div class="webr-container" data-block-title="The index is a real vector of instants">
+<div class="webr-container" data-block-title="Select a time-of-day window">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The index is a real vector of instants</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">options</span>(digits.secs <span class="o">=</span> <span class="m">3</span>)   <span class="c1"># show 3 decimal places on timestamps</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">index</span>(ticks)[<span class="m">1</span><span class="o">:</span><span class="m">3</span>]</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;2026-03-02 09:30:00.893 EST&quot; &quot;2026-03-02 09:30:01.911 EST&quot; &quot;2026-03-02 09:30:08.250 EST&quot;</span></span>
-<span class="cl"><span class="nf">tzone</span>(ticks)</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;America/New_York&quot;</span></span>
-<span class="cl"><span class="nf">class</span>(<span class="nf">index</span>(ticks))</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;POSIXct&quot; &quot;POSIXt&quot;</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Select a time-of-day window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">open_window <span class="o">&lt;-</span> intraday[<span class="s">&quot;T09:30/T09:34&quot;</span>]</span>
+<span class="cl">open_window</span>
+<span class="cl"><span class="c1">#&gt;                      price</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:00 100.01</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:31:00 100.03</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:32:00 100.02</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:33:00 100.15</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:34:00 100.18</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -911,26 +920,35 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Three things to take from this. First, <code>options(digits.secs = 3)</code> reveals the sub-second detail that was there all along: the first trade printed at 09:30:00.893, not 09:30:00. Second, the index is a <code>POSIXct</code> vector, which is R's type for a specific instant in time, stored underneath as the number of seconds since 1970-01-01 UTC. Third, <code>tzone()</code> shows the index carries a time zone attribute, <code>America/New_York</code>, and that the timestamps display as <code>EST</code>. Hold on to that attribute: section six is about the damage it does when it is wrong.</p>
+<p><code>&quot;T09:30/T09:34&quot;</code> selected every bar whose clock time is between 09:30 and 09:34, and returned all five. On a multi-day series the same string would pull those five minutes from <em>every</em> day at once. That is a big convenience once your data spans weeks.</p>
 
-<p>One convenience worth knowing, because raw feeds are messier than the tidy example above: <code>xts</code> sorts by time for you. You never have to check whether your rows arrived in order.</p>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An xts index always carries a timezone, so "09:30" is not absolute.</strong> We built the index in "America/New_York", so <code>T09:30</code> means 09:30 in New York. If your timestamps were stored in UTC, the same string would select a different real moment. Always know the timezone of your index before slicing by clock time.</div></div>
 
-<div class="webr-container" data-block-title="Out-of-order input comes back sorted">
+<section class="tryit-block">
+<p><strong>Try it:</strong> Select every bar between 10:00 and 10:04 using the <code>T</code> notation, then count how many bars you got.</p>
+<div class="webr-container" data-block-title="Your turn: grab a time-of-day window">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Out-of-order input comes back sorted</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">options</span>(digits.secs <span class="o">=</span> <span class="m">0</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Three timestamps deliberately out of order: 09:32, then 09:30:30, then 09:31.</span></span>
-<span class="cl">out_of_order <span class="o">&lt;-</span> <span class="nf">c</span>(session_open <span class="o">+</span> <span class="m">120</span>, session_open <span class="o">+</span> <span class="m">30</span>, session_open <span class="o">+</span> <span class="m">60</span>)</span>
-<span class="cl">out_of_order</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;2026-03-02 09:32:00 EST&quot; &quot;2026-03-02 09:30:30 EST&quot; &quot;2026-03-02 09:31:00 EST&quot;</span></span>
-<span class="cl"></span>
-<span class="cl">messy <span class="o">&lt;-</span> <span class="nf">xts</span>(<span class="nf">c</span>(<span class="m">48.10</span>, <span class="m">48.02</span>, <span class="m">48.06</span>), order.by <span class="o">=</span> out_of_order)</span>
-<span class="cl">messy</span>
-<span class="cl"><span class="c1">#&gt;                      [,1]</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:30 48.02</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:31:00 48.06</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:32:00 48.10</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: grab a time-of-day window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Use the T-notation range inside the brackets, then wrap it in nrow().</span></span>
+<span class="cl"><span class="c1"># ex2_win &lt;- intraday[&quot;T??:??/T??:??&quot;]</span></span>
+<span class="cl"><span class="c1"># nrow(ex2_win)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Time-of-day window solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Time-of-day window solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex2_win <span class="o">&lt;-</span> intraday[<span class="s">&quot;T10:00/T10:04&quot;</span>]</span>
+<span class="cl"><span class="nf">nrow</span>(ex2_win)</span>
+<span class="cl"><span class="c1">#&gt; [1] 5</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -940,28 +958,26 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The input vector went in as 09:32, 09:30:30, 09:31 with prices 48.10, 48.02, 48.06. The object came out in clock order, and critically, each price stayed with its own timestamp: 48.02 is still on the 09:30:30 row. <code>xts</code> sorted the index and carried the data along with it. That matters when you merge feeds from several venues, where nothing guarantees the combined rows arrive in time order.</p>
+<p><strong>Explanation:</strong> The range 10:00 to 10:04 spans five one-minute bars, so <code>nrow()</code> returns 5.</p>
 
-<h2>How do you grab one slice of the trading day?</h2>
+</details>
+</section>
 
-<p>Most intraday questions are about a window: the opening 15 minutes, the last hour, the minutes around a news release. <code>xts</code> has a subsetting grammar built for exactly this. You pass a character string to <code>[</code>, and it parses it as a time range rather than as row numbers.</p>
+<h2>How do you roll minute bars up into OHLC bars?</h2>
 
-<p>The general form is <code>object[&quot;from/to&quot;]</code>, where both sides are dates or timestamps written largest-unit-first (year, month, day, hour, minute, second).</p>
+<p>Minute-by-minute data is often too fine to look at directly. A common first move is to <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> it into coarser bars, say one bar every five minutes. Each bar keeps four numbers that traders live by: the <strong>open</strong> (first price in the window), the <strong>high</strong> (the peak), the <strong>low</strong> (the trough), and the <strong>close</strong> (the last price). Together they are called an OHLC bar, and they compress a busy stretch of trading into a single snapshot.</p>
 
-<div class="webr-container" data-block-title="A window of the session, by clock time">
+<p>The <code>to.period()</code> function does this rollup for you. You tell it the unit (<code>&quot;minutes&quot;</code>) and how many of them make one bar (<code>k = 5</code>), and it returns the OHLC summary. Watch it turn our 390 one-minute bars into 5-minute bars.</p>
+
+<div class="webr-container" data-block-title="Roll minute bars into 5-minute OHLC bars">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A window of the session, by clock time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">opening_15 <span class="o">&lt;-</span> ticks[<span class="s">&quot;2026-03-02 09:30/2026-03-02 09:45&quot;</span>]</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">nrow</span>(opening_15)</span>
-<span class="cl"><span class="c1">#&gt; [1] 172</span></span>
-<span class="cl"><span class="nf">head</span>(opening_15, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;                     price size</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:00 48.01  200</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:01 48.01  100</span></span>
-<span class="cl"><span class="nf">tail</span>(opening_15, <span class="m">1</span>)</span>
-<span class="cl"><span class="c1">#&gt;                     price size</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:45:44 47.95  500</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Roll minute bars into 5-minute OHLC bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">bars5 <span class="o">&lt;-</span> <span class="nf">to.period</span>(intraday, period <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">5</span>, OHLC <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"><span class="nf">head</span>(bars5, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;                     intraday.Open intraday.High intraday.Low intraday.Close</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:34:00        100.01        100.18       100.01         100.18</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:39:00        100.23        100.27       100.17         100.17</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:44:00        100.20        100.20       100.00         100.00</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -971,20 +987,330 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>172 trades printed in the opening 15 minutes. Note what we did <strong>not</strong> have to do: no <code>which()</code>, no <a class="auto-link" href="R-Comparison-Operators-in-R.html" title="R Comparison Operators: ==, !=, <, >, <=, >= Guide">comparison operators</a>, no converting timestamps to numbers. The string <code>&quot;2026-03-02 09:30/2026-03-02 09:45&quot;</code> says "from 09:30 to 09:45 on this date" and <code>xts</code> does the rest. The truncated forms are allowed too, so <code>ticks[&quot;2026-03-02&quot;]</code> would give the whole day and <code>ticks[&quot;2026-03&quot;]</code> the whole month.</p>
+<p>Each output row now summarises five minutes of trading. The first bar, stamped 09:34, opened at 100.01, reached a high of 100.18, dipped no lower than 100.01, and closed at 100.18. That single row stands in for the five one-minute prices we saw earlier. The column names carry the object name (<code>intraday.Open</code> and so on), which is just xts labelling where the data came from.</p>
 
-<p>There is a second form specifically for intraday work. Prefix a time with <code>T</code> and you select that time of day across every date in the object. Since our object holds a single session the distinction does not change the answer here, but on a multi-day object <code>[&quot;T09:30/T09:34&quot;]</code> means "these minutes of every day", which is the natural way to ask most intraday questions.</p>
+<p>Once you have OHLC bars you usually want one of the four columns on its own. quantmod ships accessor functions for exactly that: <code>Op()</code>, <code>Hi()</code>, <code>Lo()</code>, and <code>Cl()</code> pull the open, high, low, and close. Here we take just the closing price of each 5-minute bar.</p>
 
-<p>Before you use it, learn the one rule that catches everyone: <strong>the endpoint is inclusive down to the precision you wrote.</strong> <code>T09:34</code> does not mean the instant 09:34:00. It means the whole 09:34 minute, right through 09:34:59. So <code>&quot;T09:30/T09:34&quot;</code> is the five minutes 09:30:00 to 09:34:59, and <code>&quot;T09:30/T09:35&quot;</code> would be <em>six</em> minutes, not five. Off-by-one-minute windows are one of the easiest ways to quietly compare the wrong things.</p>
-
-<div class="webr-container" data-block-title="Time-of-day slicing, and the halt showing up as absence">
+<div class="webr-container" data-block-title="Extract the close of each bar">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Time-of-day slicing, and the halt showing up as absence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">nrow</span>(ticks[<span class="s">&quot;T09:30/T09:34&quot;</span>])    <span class="c1"># the first five minutes, 09:30:00 to 09:34:59</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 49</span></span>
-<span class="cl"><span class="nf">nrow</span>(ticks[<span class="s">&quot;T12:00/T12:04&quot;</span>])    <span class="c1"># five minutes at lunch</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 50</span></span>
-<span class="cl"><span class="nf">nrow</span>(ticks[<span class="s">&quot;T11:00/T11:19&quot;</span>])    <span class="c1"># the halt window, 11:00:00 to 11:19:59</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the close of each bar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">tail</span>(<span class="nf">Cl</span>(bars5), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;                     intraday.Close</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:49:00          99.49</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:54:00          99.30</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:59:00          99.20</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Cl(bars5)</code> returned only the close column, and <code>tail()</code> showed the last three 5-minute closes of the day. Reaching for <code>Cl()</code> instead of remembering which column number holds the close keeps your code readable and hard to break.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>to.period()</code> runs in fast compiled code.</strong> Aggregating a whole year of minute bars into coarser bars takes a fraction of a second, so do not hand-roll the loop yourself. Change <code>period</code> to <code>&quot;hours&quot;</code>, <code>&quot;days&quot;</code>, or <code>&quot;weeks&quot;</code> and <code>k</code> to any count to get the bars you want.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Aggregate the minute data into 15-minute bars instead of 5-minute bars, then count how many bars the day produces. (Change the <code>k</code> value.)</p>
+<div class="webr-container" data-block-title="Your turn: make 15-minute bars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: make 15-minute bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Change k so each bar spans 15 minutes, then count the bars.</span></span>
+<span class="cl">ex3_bars15 <span class="o">&lt;-</span> <span class="nf">to.period</span>(intraday, period <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">5</span>, OHLC <span class="o">=</span> <span class="kc">TRUE</span>)  <span class="c1"># change 5 to 15</span></span>
+<span class="cl"><span class="nf">nrow</span>(ex3_bars15)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fifteen-minute bars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fifteen-minute bars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex3_bars15 <span class="o">&lt;-</span> <span class="nf">to.period</span>(intraday, period <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">15</span>, OHLC <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"><span class="nf">nrow</span>(ex3_bars15)</span>
+<span class="cl"><span class="c1">#&gt; [1] 26</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 390-minute session splits into 390 / 15 = 26 fifteen-minute bars.</p>
+
+</details>
+</section>
+
+<h2>How do you summarise each period with endpoints() and period.apply()?</h2>
+
+<p>OHLC bars are one kind of summary, but sometimes you want your own statistic per period, like the average price every half hour or the highest print of each hour. Two xts functions team up for this. <code>endpoints()</code> finds the row where each period ends, and <code>period.apply()</code> runs any function you like over the chunks between those endpoints.</p>
+
+<p>Start with <code>endpoints()</code>. You give it a unit and a count, and it hands back the row positions that close each block. Below we mark the end of every 30-minute block.</p>
+
+<div class="webr-container" data-block-title="Find the last row of each 30-minute block">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the last row of each 30-minute block</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ep <span class="o">&lt;-</span> <span class="nf">endpoints</span>(intraday, on <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">30</span>)</span>
+<span class="cl">ep</span>
+<span class="cl"><span class="c1">#&gt;  [1]   0  30  60  90 120 150 180 210 240 270 300 330 360 390</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numbers are row positions, not times. The leading 0 is a convention that means "start before the first row," and then every 30th row closes a block: 30, 60, 90, and so on up to 390. Those cut points are all <code>period.apply()</code> needs to know where one 30-minute chunk stops and the next begins.</p>
+
+<p>Now feed those endpoints to <code>period.apply()</code> along with a function. We ask for the maximum price in each 30-minute block, a quick way to see the intraday peaks.</p>
+
+<div class="webr-container" data-block-title="Highest price in each 30-minute block">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Highest price in each 30-minute block</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">period.apply</span>(intraday<span class="o">$</span>price, INDEX <span class="o">=</span> ep, FUN <span class="o">=</span> max)</span>
+<span class="cl"><span class="c1">#&gt;                      price</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:59:00 100.27</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 10:29:00 100.09</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 10:59:00  99.62</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 11:29:00  99.41</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 11:59:00  99.49</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 12:29:00  99.20</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 12:59:00  99.32</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 13:29:00  99.45</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 13:59:00  99.47</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 14:29:00  99.53</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 14:59:00 100.01</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:29:00 100.24</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:59:00  99.87</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>period.apply()</code> split the price series at the endpoints and ran <code>max()</code> on each 30-minute slice, returning 13 values. Each result is stamped with the <em>last</em> timestamp of its block, so the first peak of 100.27 belongs to the 09:30 to 09:59 window. Swap <code>max</code> for <code>mean</code>, <code>min</code>, <code>sd</code>, or any function of your own, and you get that statistic per period.</p>
+
+<p>There is one cosmetic wrinkle: the results are stamped at 09:59, 10:29, and so on, one minute shy of the round boundary. <code>align.time()</code> snaps those stamps forward to the clean 30-minute mark, which reads better and lines up neatly with other series. The <code>n = 1800</code> argument is the boundary in seconds (30 minutes is 1800 seconds).</p>
+
+<div class="webr-container" data-block-title="Snap timestamps to clean 30-minute marks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Snap timestamps to clean 30-minute marks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">block_max <span class="o">&lt;-</span> <span class="nf">period.apply</span>(intraday<span class="o">$</span>price, INDEX <span class="o">=</span> ep, FUN <span class="o">=</span> max)</span>
+<span class="cl"><span class="nf">align.time</span>(block_max, n <span class="o">=</span> <span class="m">1800</span>)</span>
+<span class="cl"><span class="c1">#&gt;                      price</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 10:00:00 100.27</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 10:30:00 100.09</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 11:00:00  99.62</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 11:30:00  99.41</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 12:00:00  99.49</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 12:30:00  99.20</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 13:00:00  99.32</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 13:30:00  99.45</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 14:00:00  99.47</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 14:30:00  99.53</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:00:00 100.01</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:30:00 100.24</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 16:00:00  99.87</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same 13 values, but now stamped at 10:00, 10:30, and so on. <code>align.time()</code> did not change the numbers, only rounded each timestamp up to the next clean boundary. Aligned stamps make two series with different raw times easy to merge and compare later.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the <em>mean</em> price in each 60-minute block. (Change <code>k</code> to 60 and use <code>mean</code>.)</p>
+<div class="webr-container" data-block-title="Your turn: mean price per hour">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean price per hour</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Change k to 60, then use FUN = function(x) mean(x).</span></span>
+<span class="cl">ex4_ep <span class="o">&lt;-</span> <span class="nf">endpoints</span>(intraday, on <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">30</span>)  <span class="c1"># change 30 to 60</span></span>
+<span class="cl"><span class="nf">period.apply</span>(intraday<span class="o">$</span>price, INDEX <span class="o">=</span> ex4_ep, FUN <span class="o">=</span> <span class="kr">function</span>(x) <span class="nf">mean</span>(x))</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mean price per hour solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean price per hour solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex4_ep <span class="o">&lt;-</span> <span class="nf">endpoints</span>(intraday, on <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">60</span>)</span>
+<span class="cl"><span class="nf">period.apply</span>(intraday<span class="o">$</span>price, INDEX <span class="o">=</span> ex4_ep, FUN <span class="o">=</span> <span class="kr">function</span>(x) <span class="nf">mean</span>(x))</span>
+<span class="cl"><span class="c1">#&gt;                         price</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:59:00 100.04900</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 10:59:00  99.60233</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 11:59:00  99.31550</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 12:59:00  99.10717</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 13:59:00  99.32100</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 14:59:00  99.57150</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:59:00  99.81183</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sixty-minute endpoints cut the day into seven hourly blocks (the last one is short), and <code>mean()</code> reports the average price in each. Using <code>FUN = function(x) mean(x)</code> sidesteps a helper message that <code>FUN = mean</code> prints.</p>
+
+</details>
+</section>
+
+<h2>How do you compute intraday returns safely?</h2>
+
+<p>A price level tells you where the stock is; a <strong>return</strong> tells you how much it moved from one bar to the next. Returns are the raw material for volatility, risk, and most trading signals, so getting them right matters. The safe, idiomatic way to get bar-to-bar returns from an xts is quantmod's <code>Delt()</code> function, which computes the percentage change for you.</p>
+
+<div class="webr-container" data-block-title="Compute one-minute returns with Delt()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute one-minute returns with Delt()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">rets <span class="o">&lt;-</span> <span class="nf">Delt</span>(intraday<span class="o">$</span>price)</span>
+<span class="cl"><span class="nf">head</span>(rets, <span class="m">4</span>)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">sd</span>(rets, na.rm <span class="o">=</span> <span class="kc">TRUE</span>), <span class="m">5</span>)</span>
+<span class="cl"><span class="c1">#&gt;                     Delt.1.arithmetic</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:00                NA</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:31:00      1.999800e-04</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:32:00     -9.997001e-05</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:33:00      1.299740e-03</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.00048</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Delt()</code> returned the fractional change from each bar to the one before it. The first value is <code>NA</code> because there is no earlier bar to compare against, which is correct rather than a bug. The numbers print in scientific notation because they are small: <code>1.999800e-04</code> means about +0.0002, or roughly +0.02%. That tiny scale is normal for one-minute returns. The final line, <code>sd()</code> of the returns, is a plain measure of how bumpy the minute-to-minute moves were: about 0.00048.</p>
+
+<p>If you want the raw price <em>change</em> rather than a percentage, subtract each price from the one before it. Running <code>diff()</code> directly on an <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">xts object</a> can be fragile, so the reliable habit is to pull out the plain numbers with <code>as.numeric()</code>, difference those, then wrap the result back into an xts. The leading <code>NA</code> keeps the length correct.</p>
+
+<div class="webr-container" data-block-title="Price change per minute from the numeric vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Price change per minute from the numeric vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">chg <span class="o">&lt;-</span> <span class="nf">xts</span>(<span class="nf">c</span>(<span class="kc">NA</span>, <span class="nf">diff</span>(<span class="nf">as.numeric</span>(intraday<span class="o">$</span>price))), order.by <span class="o">=</span> <span class="nf">index</span>(intraday))</span>
+<span class="cl"><span class="nf">colnames</span>(chg) <span class="o">&lt;-</span> <span class="s">&quot;change&quot;</span></span>
+<span class="cl"><span class="nf">head</span>(chg, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt;                     change</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:00     NA</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:31:00   0.02</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:32:00  -0.01</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:33:00   0.13</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>as.numeric(intraday$price)</code> dropped the timestamps and gave a plain vector. <code>diff()</code> on that vector produced the minute-to-minute price changes, and we glued a leading <code>NA</code> on the front so it lines up with the original 390 rows. Re-wrapping in <code>xts()</code> with <code>index(intraday)</code> restored the timestamps. The price rose 0.02 in the first minute, slipped 0.01 in the next, and jumped 0.13 after that.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The first return of any series is always NA, and per-bar intraday returns are tiny.</strong> Both facts are features, not errors. The <code>NA</code> marks the missing "previous bar," and the small magnitudes reflect how little price moves in a single minute. Aggregate returns over longer windows if you need bigger, more legible numbers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute <em>log returns</em> (the difference of the logged prices) using the same numeric-vector pattern, and show the first four.</p>
+<div class="webr-container" data-block-title="Your turn: log returns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: log returns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Take diff() of log(as.numeric(intraday$price)) with a leading NA, wrap in xts().</span></span>
+<span class="cl"><span class="c1"># ex5_logret &lt;- xts(c(NA, diff(log(as.numeric(intraday$price)))), order.by = index(intraday))</span></span>
+<span class="cl"><span class="c1"># head(ex5_logret, 4)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Log returns solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log returns solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex5_logret <span class="o">&lt;-</span> <span class="nf">xts</span>(<span class="nf">c</span>(<span class="kc">NA</span>, <span class="nf">diff</span>(<span class="nf">log</span>(<span class="nf">as.numeric</span>(intraday<span class="o">$</span>price)))), order.by <span class="o">=</span> <span class="nf">index</span>(intraday))</span>
+<span class="cl"><span class="nf">colnames</span>(ex5_logret) <span class="o">&lt;-</span> <span class="s">&quot;log_return&quot;</span></span>
+<span class="cl"><span class="nf">head</span>(ex5_logret, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt;                        log_return</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:00            NA</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:31:00  1.999600e-04</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:32:00 -9.997501e-05</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:33:00  1.298896e-03</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Logging first, then <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a>, gives log returns, which add up nicely across time. For tiny moves they are almost identical to the simple returns from <code>Delt()</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you fill gaps and missing bars?</h2>
+
+<p>Real intraday feeds are rarely complete. If no trade happens in some minute, that bar is simply absent, so your series has holes. Before you compute returns or aggregate, you usually want a bar for every minute, with missing ones filled sensibly. Let us first create some gaps by dropping a handful of minutes.</p>
+
+<div class="webr-container" data-block-title="Create a series with missing minutes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a series with missing minutes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">gappy <span class="o">&lt;-</span> intraday[<span class="o">-</span><span class="nf">c</span>(<span class="m">5</span>, <span class="m">6</span>, <span class="m">7</span>, <span class="m">20</span>, <span class="m">21</span>)]</span>
+<span class="cl"><span class="nf">nrow</span>(gappy)</span>
+<span class="cl"><span class="c1">#&gt; [1] 385</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We removed five rows, so <code>gappy</code> has 385 bars instead of 390. Now minutes 5, 6, 7, 20, and 21 are gone. The task is to put those minutes back as empty slots, then fill them.</p>
+
+<p>The trick is to <code>merge()</code> the gappy series onto a complete grid of every minute, which inserts <code>NA</code> wherever a bar is missing. Then <code>na.locf()</code> (last observation carried forward) fills each hole with the most recent known price, which is the standard assumption for a no-trade minute: the price simply held. We build the full grid as an empty xts that has the complete index but no data.</p>
+
+<div class="webr-container" data-block-title="Fill gaps by carrying the last price forward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill gaps by carrying the last price forward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">grid <span class="o">&lt;-</span> <span class="nf">xts</span>(, order.by <span class="o">=</span> <span class="nf">index</span>(intraday))</span>
+<span class="cl">filled <span class="o">&lt;-</span> <span class="nf">na.locf</span>(<span class="nf">merge</span>(gappy, grid))</span>
+<span class="cl"><span class="nf">nrow</span>(filled)</span>
+<span class="cl"><span class="nf">sum</span>(<span class="nf">is.na</span>(filled))</span>
+<span class="cl"><span class="c1">#&gt; [1] 390</span></span>
 <span class="cl"><span class="c1">#&gt; [1] 0</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -995,23 +1321,37 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The first five minutes had 49 trades and a five-minute stretch at lunch had 50, which are comfortably similar. Notice the halt query too: the halt ran 11:00 to 11:20, and <code>&quot;T11:00/T11:19&quot;</code> covers exactly that, because <code>T11:19</code> runs through 11:19:59. Writing <code>T11:20</code> would have reached into the 11:20 minute and caught the first trades after the reopen.</p>
+<p><code>merge(gappy, grid)</code> re-indexed the gappy series onto all 390 timestamps, inserting <code>NA</code> at the five missing minutes. <code>na.locf()</code> then carried the last real price forward into each gap. The result has all 390 rows and zero remaining <code>NA</code> values, so the series is whole again and ready for analysis.</p>
 
-<p>That halt window returns <strong>zero rows</strong>. Not 20 rows of <code>NA</code>, not an error. The query is perfectly valid, and the honest answer is that nothing traded. This is the concrete version of the point from section one, and it is the single most common source of intraday bugs: code that assumes every window contains at least one row will divide by zero here, silently or loudly, depending on how lucky you are.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Forward fill cannot fix a gap at the very start.</strong> If the first bars are missing, there is no earlier value to carry forward, so they stay <code>NA</code>. In that case add <code>na.locf(x, fromLast = TRUE)</code> to backfill from the next known value instead. The exercise below shows this exact situation.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> How many trades printed in the last 10 minutes of the session, from 15:50 to 16:00? What was the price range over that window?</p>
-<details><summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Closing 10 minutes solution">
+<p><strong>Try it:</strong> Drop the first two bars, reindex onto the full grid, forward-fill, then count how many <code>NA</code> values remain. Think about why forward fill leaves some behind.</p>
+<div class="webr-container" data-block-title="Your turn: fill a series missing its opening bars">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Closing 10 minutes solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">closing_10 <span class="o">&lt;-</span> ticks[<span class="s">&quot;T15:50/T16:00&quot;</span>]</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">nrow</span>(closing_10)</span>
-<span class="cl"><span class="c1">#&gt; [1] 111</span></span>
-<span class="cl"><span class="nf">range</span>(closing_10<span class="o">$</span>price)</span>
-<span class="cl"><span class="c1">#&gt; [1] 48.42 48.54</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fill a series missing its opening bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Drop bars 1 and 2, merge onto the full grid, na.locf(), then sum(is.na(...)).</span></span>
+<span class="cl"><span class="c1"># ex6_gappy &lt;- intraday[-c(1, 2)]</span></span>
+<span class="cl"><span class="c1"># ex6_filled &lt;- na.locf(merge(ex6_gappy, xts(, order.by = index(intraday))))</span></span>
+<span class="cl"><span class="c1"># sum(is.na(ex6_filled))</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Leading-gap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Leading-gap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex6_gappy <span class="o">&lt;-</span> intraday[<span class="o">-</span><span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>)]</span>
+<span class="cl">ex6_filled <span class="o">&lt;-</span> <span class="nf">na.locf</span>(<span class="nf">merge</span>(ex6_gappy, <span class="nf">xts</span>(, order.by <span class="o">=</span> <span class="nf">index</span>(intraday))))</span>
+<span class="cl"><span class="nf">sum</span>(<span class="nf">is.na</span>(ex6_filled))</span>
+<span class="cl"><span class="c1">#&gt; [1] 2</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1021,84 +1361,58 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>111 trades in the closing 10 minutes, against 49 in the opening five. Volume <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> near the close is a real market pattern, and the <code>T</code> grammar is how you go looking for it. The price wandered between $48.42 and $48.54 over that stretch, up from the $48.01 it opened at.</p>
-
-<p>By the endpoint rule, <code>T16:00</code> does reach through 16:00:59, so this window is nominally 11 minutes. It does not matter here: the session closed at 16:00 and the last trade printed at 15:59:57, so there is nothing in that final minute to pick up. Worth checking rather than assuming, which is exactly the habit the rule is meant to build.</p>
+<p><strong>Explanation:</strong> The first two minutes have no earlier price to carry forward, so forward fill leaves them <code>NA</code>. Adding <code>fromLast = TRUE</code> would backfill those two from the third bar.</p>
 
 </details>
 </section>
 
-<h2>How do you turn ticks into bars?</h2>
+<h2>How do you load real intraday data with quantmod?</h2>
 
-<p>Almost nobody analyses raw ticks directly. 4,328 rows for one stock for one day becomes billions of rows across a real universe of names, and the tick sequence is mostly noise at that resolution. The standard move is to <strong>aggregate ticks into bars</strong>: chop the session into fixed windows and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> each window with four numbers.</p>
+<p>So far we generated data inline so everything runs in the browser. In your own work you will pull real data instead, and quantmod's <code>getSymbols()</code> is the usual door. It downloads a symbol's history from a provider such as Yahoo Finance and hands you back an xts object, ready for every technique above. Because it needs a live internet connection, run the block below in your own R session rather than expecting it to run here.</p>
 
-<p>Those four numbers are called OHLC, and each is a summary of all the ticks inside the window:</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>getSymbols()</code> needs a live connection, so it belongs in your local R session.</strong> Free sources like Yahoo mainly serve daily bars; true minute or tick data usually comes from a paid feed or a specialist package. The good news is that once the data is an xts, everything in this tutorial applies without change.</div></div>
 
-<ul>
+<pre><code class="language-r">library(quantmod)
+getSymbols(&quot;AAPL&quot;, src = &quot;yahoo&quot;, from = &quot;2026-06-01&quot;, to = &quot;2026-06-07&quot;, auto.assign = TRUE)
+periodicity(AAPL)
+tail(Cl(AAPL), 3)
+#&gt; [1] &quot;AAPL&quot;
+#&gt; Daily periodicity from 2026-06-01 to 2026-06-05
+#&gt;            AAPL.Close
+#&gt; 2026-06-03     310.26
+#&gt; 2026-06-04     311.23
+#&gt; 2026-06-05     307.34</code></pre>
 
-<li><strong>Open</strong>: the price of the first trade in the window</li>
+<p><code>getSymbols(&quot;AAPL&quot;, ...)</code> fetched Apple's prices and stored them in an xts object named <code>AAPL</code>, returning the symbol name. <code>periodicity()</code> confirms daily bars, and <code>Cl(AAPL)</code> pulls the closing price, the same accessor we used on our own bars. From here you could aggregate to weekly bars with <code>to.period()</code>, slice a date range with the bracket notation, or compute returns with <code>Delt()</code>, all exactly as you did above.</p>
 
-<li><strong>High</strong>: the highest trade price in the window</li>
-
-<li><strong>Low</strong>: the lowest trade price in the window</li>
-
-<li><strong>Close</strong>: the price of the last trade in the window</li>
-
-</ul>
-
-<p><img src="screenshots/High-Frequency-Time-Series-in-R-tick-to-bar.webp" alt="Diagram showing 49 irregular ticks inside one 5-minute window being reduced by to.period into a single bar row with Open, High, Low and Close, and a note listing what the aggregation discards" class="img-responsive img-zoomable" loading="lazy" width="2008" height="2116" /></p>
-
-<p><em>Figure 1: How 49 irregular trades between 09:30:00 and 09:34:59 collapse into one bar. The bar keeps four prices and throws away every share size, the arrival order, and the 45 prices in between.</em></p>
-
-<p><code>to.period()</code> does the aggregation. The <code>period</code> argument names the unit and <code>k</code> says how many of them make one window.</p>
-
-<div class="webr-container" data-block-title="4,328 ticks become 74 five-minute bars">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">4,328 ticks become 74 five-minute bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">bars5 <span class="o">&lt;-</span> <span class="nf">to.period</span>(ticks<span class="o">$</span>price, period <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">5</span>, OHLC <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="nf">colnames</span>(bars5) <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;Open&quot;</span>, <span class="s">&quot;High&quot;</span>, <span class="s">&quot;Low&quot;</span>, <span class="s">&quot;Close&quot;</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">head</span>(bars5, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt;                      Open  High   Low Close</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:34:55 48.01 48.01 47.93 47.97</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:39:51 47.96 48.00 47.90 47.91</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:44:58 47.91 47.93 47.84 47.93</span></span>
-<span class="cl"><span class="nf">nrow</span>(ticks)</span>
-<span class="cl"><span class="c1">#&gt; [1] 4328</span></span>
-<span class="cl"><span class="nf">nrow</span>(bars5)</span>
-<span class="cl"><span class="c1">#&gt; [1] 74</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Check the first bar against the diagram: Open 48.01, High 48.01, Low 47.93, Close 47.97. Those four numbers summarise 49 separate trades, and those are the very same 49 trades you sliced out with <code>ticks[&quot;T09:30/T09:34&quot;]</code> in the last section: the first bar covers 09:30:00 to 09:34:59, so the slice and the bar see exactly the same rows. Open 48.01 is the first of those trades, Close 47.97 the last. Across the session, 4,328 rows became 74, a roughly 58-fold reduction.</p>
-
-<p>Now the two details that catch people.</p>
-
-<p><strong>The bar count is not what you would guess.</strong> A 6.5-hour session is 390 minutes, which would be 78 five-minute bars. We got 74. The missing four are the halt: <code>to.period()</code> creates a bar only where ticks exist, so the 20 dead minutes produce no rows rather than four empty ones. Aggregation does not fill gaps, it inherits them.</p>
-
-<p><strong>The bar is stamped at its last trade, not at its window boundary.</strong> The first bar's timestamp is 09:34:55, not 09:35:00, because 09:34:55 is when the last trade inside that window happened. This is a deliberate design choice (the stamp is a real instant that really occurred), and it is also a trap when you try to line two series up. Section six fixes it.</p>
-
-<blockquote><p><strong>Note:</strong> Aggregation is lossy by construction, and the loss is the point. The four OHLC numbers deliberately discard share sizes and arrival order. If your question needs volume (VWAP is the obvious case), do not compute it from bars. Compute it from the ticks, as the next section does.</p></blockquote>
+<p>To see how aggregation carries over, here is a live exercise on our own minute data.</p>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Build one-minute bars instead of five-minute bars. How many rows do you get, and does the number make sense given the halt?</p>
-<details><summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="One-minute bars solution">
+<p><strong>Try it:</strong> Collapse the whole 390-minute session into a single daily OHLC bar using <code>to.period()</code> with <code>period = &quot;days&quot;</code>.</p>
+<div class="webr-container" data-block-title="Your turn: collapse the session into one daily bar">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-minute bars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">bars1 <span class="o">&lt;-</span> <span class="nf">to.period</span>(ticks<span class="o">$</span>price, period <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">1</span>, OHLC <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">nrow</span>(bars1)</span>
-<span class="cl"><span class="c1">#&gt; [1] 370</span></span>
-<span class="cl"><span class="nf">nrow</span>(ticks) <span class="o">/</span> <span class="nf">nrow</span>(bars1)</span>
-<span class="cl"><span class="c1">#&gt; [1] 11.6973</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: collapse the session into one daily bar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Set period to &quot;days&quot; so all 390 minute bars roll into one OHLC bar.</span></span>
+<span class="cl"><span class="c1"># ex7_daily &lt;- to.period(intraday, period = &quot;days&quot;, OHLC = TRUE)</span></span>
+<span class="cl"><span class="c1"># ex7_daily</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Daily bar solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Daily bar solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex7_daily <span class="o">&lt;-</span> <span class="nf">to.period</span>(intraday, period <span class="o">=</span> <span class="s">&quot;days&quot;</span>, OHLC <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">ex7_daily</span>
+<span class="cl"><span class="c1">#&gt;                     intraday.Open intraday.High intraday.Low intraday.Close</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:59:00        100.01        100.27        98.88           99.2</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1108,28 +1422,25 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>370 bars, and the arithmetic confirms the rule exactly. The session runs 390 minutes. The halt removes 20 of them, leaving 370. Every minute that contained at least one trade produced exactly one bar, and the 20 halted minutes produced none. Each bar now averages 11.7 ticks instead of 58.5.</p>
+<p><strong>Explanation:</strong> With <code>period = &quot;days&quot;</code> the entire session becomes one bar: it opened at 100.01, peaked at 100.27, bottomed at 98.88, and closed at 99.2. This is exactly what a daily feed would report for the day.</p>
 
 </details>
 </section>
 
-<h2>How do you compute VWAP over custom windows?</h2>
+<h2>Practice Exercises</h2>
 
-<p><code>to.period()</code> gives you OHLC, and that is all it gives you. When you need a different statistic per window, the pattern is two functions: <code>endpoints()</code> finds where each window ends, and <code>period.apply()</code> runs your function over each window.</p>
+<p>These combine several ideas from the tutorial. Each solution uses fresh variable names (prefixed <code>my_</code>) so it will not clash with the objects built above. Try each one before opening the solution.</p>
 
-<p><code>endpoints()</code> returns the <strong>row positions</strong> that close each window. It always starts with 0 and ends with the final row, which is what makes it safe to feed straight into <code>period.apply()</code>.</p>
+<h3>Exercise 1: First-hour 10-minute bars</h3>
 
-<div class="webr-container" data-block-title="Where does each 30-minute window end?">
+<p>From the first hour of trading (09:30 to 10:29), build 10-minute OHLC bars, then report how many bars you get and the highest high across them.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Where does each 30-minute window end?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ep <span class="o">&lt;-</span> <span class="nf">endpoints</span>(ticks, on <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">30</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">length</span>(ep)</span>
-<span class="cl"><span class="c1">#&gt; [1] 14</span></span>
-<span class="cl"><span class="nf">head</span>(ep, <span class="m">5</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1]    0  338  692 1050 1160</span></span>
-<span class="cl"><span class="nf">nrow</span>(ticks)</span>
-<span class="cl"><span class="c1">#&gt; [1] 4328</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1) Slice 09:30 to 10:29 with the bracket notation.</span></span>
+<span class="cl"><span class="c1"># 2) to.period(..., period = &quot;minutes&quot;, k = 10, OHLC = TRUE).</span></span>
+<span class="cl"><span class="c1"># 3) nrow() and max(Hi(...)).</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1139,34 +1450,18 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read those numbers carefully. <code>ep</code> has 14 entries, which bound 13 windows, and 13 half-hours is 6.5 hours: the full session. The values are row numbers, not times. The first window runs from row 1 to row 338; the second picks up at row 339 and closes at row 692. The leading 0 is a boundary marker rather than a real row.</p>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>The fourth window is worth a look: it ends at row 1160, only 110 rows after the third ended at 1050, while the others each hold roughly 350. That thin window is the half-hour containing the halt. Twenty of its thirty minutes had no trading, so it collected a third of the usual rows. The irregularity from section one is still visible this far down the pipeline.</p>
-
-<p>Now the statistic. <strong>VWAP</strong> is the volume-weighted average price: the average price paid per share over a window, where a trade counts in proportion to how many shares it moved. Formally, for \(n\) trades in a window with prices \(p_i\) and share sizes \(q_i\):</p>
-
-<p>\[ \text{VWAP} = \frac{\sum_{i=1}^{n} p_i q_i}{\sum_{i=1}^{n} q_i} \]</p>
-
-<p>Every symbol there: \(p_i\) is the price of trade \(i\), \(q_i\) is the number of shares in trade \(i\), \(n\) is the number of trades in the window, and \(\sum\) means "add up over all the trades". The numerator is total dollars traded and the denominator is total shares traded, so the ratio is dollars per share. Contrast that with a plain average of the prices, \(\frac{1}{n}\sum p_i\), which counts a 100-share trade and a 40,000-share trade equally.</p>
-
-<div class="webr-container" data-block-title="VWAP per 30-minute window, against a plain average">
+<div class="webr-container" data-block-title="Exercise 1 solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">VWAP per 30-minute window, against a plain average</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">vwap_of <span class="o">&lt;-</span> <span class="kr">function</span>(window) {</span>
-<span class="cl">  <span class="nf">sum</span>(window<span class="o">$</span>price <span class="o">*</span> window<span class="o">$</span>size) <span class="o">/</span> <span class="nf">sum</span>(window<span class="o">$</span>size)</span>
-<span class="cl">}</span>
-<span class="cl"></span>
-<span class="cl">vwap30  <span class="o">&lt;-</span> <span class="nf">period.apply</span>(ticks, INDEX <span class="o">=</span> ep, FUN <span class="o">=</span> vwap_of)</span>
-<span class="cl">plain30 <span class="o">&lt;-</span> <span class="nf">period.apply</span>(ticks<span class="o">$</span>price, INDEX <span class="o">=</span> ep, FUN <span class="o">=</span> <span class="kr">function</span>(x) <span class="nf">mean</span>(x))</span>
-<span class="cl"></span>
-<span class="cl">compare <span class="o">&lt;-</span> <span class="nf">merge</span>(<span class="nf">round</span>(vwap30, <span class="m">4</span>), <span class="nf">round</span>(plain30, <span class="m">4</span>))</span>
-<span class="cl"><span class="nf">colnames</span>(compare) <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;vwap&quot;</span>, <span class="s">&quot;plain_mean&quot;</span>)</span>
-<span class="cl"><span class="nf">head</span>(compare, <span class="m">4</span>)</span>
-<span class="cl"><span class="c1">#&gt;                        vwap plain_mean</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:59:54 47.9508    47.9501</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 10:29:54 48.0655    48.0651</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 10:59:58 48.0361    48.0414</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 11:29:56 48.1040    48.1032</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_firsthour <span class="o">&lt;-</span> intraday[<span class="s">&quot;2026-03-02 09:30/2026-03-02 10:29&quot;</span>]</span>
+<span class="cl">my_bars10 <span class="o">&lt;-</span> <span class="nf">to.period</span>(my_firsthour, period <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">10</span>, OHLC <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"><span class="nf">nrow</span>(my_bars10)</span>
+<span class="cl"><span class="nf">max</span>(<span class="nf">Hi</span>(my_bars10))</span>
+<span class="cl"><span class="c1">#&gt; [1] 6</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 100.27</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1176,32 +1471,20 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>period.apply()</code> called <code>vwap_of()</code> once per window, handing it the rows in that window as a small <code>xts</code> object. Inside the function, <code>window$price * window$size</code> is the dollars in each trade, <code>sum()</code> of that is total dollars, and dividing by total shares gives VWAP.</p>
+<p><strong>Explanation:</strong> The first hour holds 60 one-minute bars, which roll into six 10-minute bars. <code>Hi()</code> pulls the high of each bar, and <code>max()</code> finds the peak price of the hour, 100.27.</p>
 
-<p>And the two columns are nearly identical. 47.9508 against 47.9501 is a difference of seven hundredths of a cent. This is worth being honest about rather than glossing over: <strong>in this simulated session, VWAP tells you almost nothing a plain average would not.</strong> The reason is in how the data was built. Back in section one, <code>size</code> was drawn with <code>sample()</code> completely independently of <code>price</code>. When trade size carries no relationship to price, weighting by size changes nothing on average, so the two converge.</p>
+</details>
 
-<p>Real markets are not like that, and one trade is enough to show why. Suppose a pension fund dumps 40,000 shares at 47.80 at 09:47, in a window where everything else traded near 47.95.</p>
+<h3>Exercise 2: An intraday volatility profile</h3>
 
-<div class="webr-container" data-block-title="One institutional block, and the two averages part company">
+<p>Volatility often changes through the day. Build a simple profile: the average <em>absolute</em> one-minute return within each 30-minute block. Bigger numbers mean choppier trading.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One institutional block, and the two averages part company</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">block_trade <span class="o">&lt;-</span> <span class="nf">xts</span>(<span class="nf">data.frame</span>(price <span class="o">=</span> <span class="m">47.80</span>, size <span class="o">=</span> <span class="m">40000</span>),</span>
-<span class="cl">                   order.by <span class="o">=</span> <span class="nf">as.POSIXct</span>(<span class="s">&quot;2026-03-02 09:47:00&quot;</span>, tz <span class="o">=</span> <span class="s">&quot;America/New_York&quot;</span>))</span>
-<span class="cl">ticks_blk <span class="o">&lt;-</span> <span class="nf">rbind</span>(ticks, block_trade)</span>
-<span class="cl"></span>
-<span class="cl">ep_blk    <span class="o">&lt;-</span> <span class="nf">endpoints</span>(ticks_blk, on <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">30</span>)</span>
-<span class="cl">vwap_blk  <span class="o">&lt;-</span> <span class="nf">period.apply</span>(ticks_blk, INDEX <span class="o">=</span> ep_blk, FUN <span class="o">=</span> vwap_of)</span>
-<span class="cl">plain_blk <span class="o">&lt;-</span> <span class="nf">period.apply</span>(ticks_blk<span class="o">$</span>price, INDEX <span class="o">=</span> ep_blk, FUN <span class="o">=</span> <span class="kr">function</span>(x) <span class="nf">mean</span>(x))</span>
-<span class="cl"></span>
-<span class="cl">after <span class="o">&lt;-</span> <span class="nf">merge</span>(<span class="nf">round</span>(vwap_blk, <span class="m">4</span>), <span class="nf">round</span>(plain_blk, <span class="m">4</span>))</span>
-<span class="cl"><span class="nf">colnames</span>(after) <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;vwap&quot;</span>, <span class="s">&quot;plain_mean&quot;</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">head</span>(after, <span class="m">1</span>)     <span class="c1"># with the block trade</span></span>
-<span class="cl"><span class="c1">#&gt;                        vwap plain_mean</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:59:54 47.9158    47.9496</span></span>
-<span class="cl"><span class="nf">head</span>(compare, <span class="m">1</span>)   <span class="c1"># without it</span></span>
-<span class="cl"><span class="c1">#&gt;                        vwap plain_mean</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:59:54 47.9508    47.9501</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1) my_ret &lt;- Delt(intraday$price)</span></span>
+<span class="cl"><span class="c1"># 2) my_ep &lt;- endpoints(intraday, on = &quot;minutes&quot;, k = 30)</span></span>
+<span class="cl"><span class="c1"># 3) period.apply over abs(my_ret) with mean (na.rm = TRUE), then round.</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1211,129 +1494,30 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>One extra row out of 339 moved VWAP from 47.9508 to 47.9158, a drop of 3.5 cents, while the plain mean moved from 47.9501 to 47.9496, half of one hundredth of a cent. The reason is the weights. That half hour traded 172,500 shares in total, and the block alone was 40,000 of them, so it deserves a little under a quarter of the say in the average price paid per share. VWAP gives it exactly that. The plain mean treats it as 1 of 339 trades, worth 0.3% of the answer, and effectively ignores it.</p>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>That is the whole case for VWAP, and it is also its limit. VWAP is the price the market actually transacted at, which is why it is the standard benchmark for execution quality. It is not a robust average: a single large print moves it, by design. If you want a summary that shrugs off one big trade, VWAP is the wrong tool and you want a median or a trimmed mean instead.</p>
-
-<h2>Why do time zones and bar stamps bite intraday data?</h2>
-
-<p>Two traps in this section, and both are quiet. Neither raises an error. They just give you wrong answers.</p>
-
-<p><strong>The time zone trap.</strong> A <code>POSIXct</code> is an absolute instant, stored as seconds since 1970 in UTC. The <code>tzone</code> attribute does not change which instant it is, only how it is displayed and how a time-of-day query is interpreted.</p>
-
-<div class="webr-container" data-block-title="One instant, three ways of saying it">
+<div class="webr-container" data-block-title="Exercise 2 solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One instant, three ways of saying it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">first_trade <span class="o">&lt;-</span> <span class="nf">index</span>(ticks)[<span class="m">1</span>]</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">format</span>(first_trade, tz <span class="o">=</span> <span class="s">&quot;America/New_York&quot;</span>, usetz <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;2026-03-02 09:30:00 EST&quot;</span></span>
-<span class="cl"><span class="nf">format</span>(first_trade, tz <span class="o">=</span> <span class="s">&quot;UTC&quot;</span>, usetz <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;2026-03-02 14:30:00 UTC&quot;</span></span>
-<span class="cl"><span class="nf">format</span>(first_trade, tz <span class="o">=</span> <span class="s">&quot;Asia/Kolkata&quot;</span>, usetz <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;2026-03-02 20:00:00 IST&quot;</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The same trade, the same instant, three labels: 09:30 in New York, 14:30 in UTC, 20:00 in Kolkata. Nothing about the data changed. Now watch what happens when a time-of-day query meets the wrong zone.</p>
-
-<div class="webr-container" data-block-title="The same query, the same data, a different answer">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same query, the same data, a different answer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ticks_utc <span class="o">&lt;-</span> ticks</span>
-<span class="cl"><span class="nf">tzone</span>(ticks_utc) <span class="o">&lt;-</span> <span class="s">&quot;UTC&quot;</span>    <span class="c1"># relabel the index; the instants are untouched</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">nrow</span>(ticks[<span class="s">&quot;T09:30/T09:34&quot;</span>])         <span class="c1"># NY-stamped object, NY market open</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 49</span></span>
-<span class="cl"><span class="nf">nrow</span>(ticks_utc[<span class="s">&quot;T09:30/T09:34&quot;</span>])     <span class="c1"># UTC-stamped object, same query</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 0</span></span>
-<span class="cl"><span class="nf">nrow</span>(ticks_utc[<span class="s">&quot;T14:30/T14:34&quot;</span>])     <span class="c1"># UTC-stamped object, UTC market open</span></span>
-<span class="cl"><span class="c1">#&gt; [1] 49</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>This is the trap in three lines. Asking for the first five minutes of the session gives 49 trades when the object is stamped <code>America/New_York</code>. The identical query against the identical trades gives <strong>zero</strong> once the index is relabelled <code>UTC</code>, because 09:30 UTC is 04:30 in New York, hours before the bell. Ask for 14:30 UTC instead and the 49 trades reappear.</p>
-
-<p>Nothing errored. If you had wrapped that in an opening-range strategy, it would have returned an empty result and you might have concluded the stock did not trade. The lesson: <code>tzone</code> is not cosmetic. Set it to the exchange's zone when you build the object, and check it whenever data arrives from somewhere else. Feeds very commonly ship UTC timestamps for a market that opens at 09:30 local.</p>
-
-<blockquote><p><strong>Watch out:</strong> Trading sessions are defined in local wall-clock time, so a market opening at 09:30 New York is 13:30 UTC in summer and 14:30 UTC in winter. Storing intraday data in UTC and slicing it with fixed UTC times will silently shift your windows by an hour on daylight-saving changeovers. Keep the exchange's zone on the index and let R handle the offsets.</p></blockquote>
-
-<p><strong>The stamp alignment trap.</strong> Recall that <code>to.period()</code> stamps each bar at its last trade. That is honest but awkward: two stocks bar-aggregated over the same window get different stamps, because their last trades happened at different moments, so merging them lines nothing up. <code>align.time()</code> fixes this by rounding each stamp up to the end of its window. The <code>n</code> argument is the <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">window length</a> in seconds, so a 5-minute window is <code>n = 300</code>.</p>
-
-<div class="webr-container" data-block-title="Snapping bar stamps to the window boundary">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Snapping bar stamps to the window boundary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">head</span>(<span class="nf">index</span>(bars5), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;2026-03-02 09:34:55 EST&quot; &quot;2026-03-02 09:39:51 EST&quot; &quot;2026-03-02 09:44:58 EST&quot;</span></span>
-<span class="cl"></span>
-<span class="cl">bars5_aligned <span class="o">&lt;-</span> <span class="nf">align.time</span>(bars5, n <span class="o">=</span> <span class="m">300</span>)</span>
-<span class="cl"><span class="nf">head</span>(<span class="nf">index</span>(bars5_aligned), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;2026-03-02 09:35:00 EST&quot; &quot;2026-03-02 09:40:00 EST&quot; &quot;2026-03-02 09:45:00 EST&quot;</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The ragged stamps 09:34:55, 09:39:51, 09:44:58 became the clean grid 09:35:00, 09:40:00, 09:45:00. Now a second stock aggregated the same way lands on the same stamps and <code>merge()</code> pairs the bars correctly. The prices are untouched; only the labels moved.</p>
-
-<p>Be clear-eyed about what you traded away: the aligned stamp is a label for a window, not an instant when anything happened. No trade occurred at 09:35:00. That is fine for merging and plotting, and it is wrong if you feed those stamps to something that assumes each row marks a real event.</p>
-
-<h2>Where does quantmod actually fit?</h2>
-
-<p><code>quantmod</code> is the package most people reach for first, and it is worth being precise about what it does, because it is easy to assume it is the intraday engine. It is not. <strong><code>quantmod</code> is a data-access and convenience layer that sits on top of <code>xts</code>.</strong> Everything in the sections above was <code>xts</code> doing the work. What <code>quantmod</code> adds is a way to get market data in, and some accessors for getting columns out.</p>
-
-<p>The headline function is <code>getSymbols()</code>, which fetches from Yahoo Finance and other sources. Note the ticker change here: Meridian Freight is a stock we invented and simulated, so no real feed has ever heard of it. To show a live fetch we have to ask for a stock that actually exists, so this one block steps away from MFT and uses Apple. <code>getSymbols()</code> also needs a network connection, so it will not run in your browser. Copy it into a local R session to try it.</p>
-
-<pre><code class="language-r">suppressMessages(library(quantmod))
-
-aapl_daily &lt;- getSymbols(&quot;AAPL&quot;, src = &quot;yahoo&quot;, auto.assign = FALSE,
-                         from = &quot;2026-01-02&quot;, to = &quot;2026-01-08&quot;)
-
-head(aapl_daily[, 1:5], 3)
-#&gt;            AAPL.Open AAPL.High AAPL.Low AAPL.Close AAPL.Volume
-#&gt; 2026-01-02    272.26    277.84   269.00     271.01    37838100
-#&gt; 2026-01-05    270.64    271.51   266.14     267.26    45647200
-#&gt; 2026-01-06    267.00    267.55   262.12     262.36    52352100
-colnames(aapl_daily)
-#&gt; [1] &quot;AAPL.Open&quot;     &quot;AAPL.High&quot;     &quot;AAPL.Low&quot;      &quot;AAPL.Close&quot;    &quot;AAPL.Volume&quot;   &quot;AAPL.Adjusted&quot;</code></pre>
-
-<p>Two things to notice. <code>auto.assign = FALSE</code> makes <code>getSymbols()</code> return the object instead of silently creating a variable named <code>AAPL</code> in your workspace, which is the older default and a common surprise. And the returned object's class is <code>xts</code>. Every technique in this post applies to it directly.</p>
-
-<p>The more important thing is what that block is <strong>not</strong>. Those are daily bars, one row per trading day. Free public sources do not serve years of tick data, and <code>getSymbols()</code> intraday coverage is limited to recent days at coarse resolution where it exists at all. Genuine high-frequency history comes from paid vendors or your broker's feed, and it arrives as CSV or a database extract that you load and wrap in <code>xts()</code> yourself, exactly as the first block of this post did.</p>
-
-<p>What <code>quantmod</code> genuinely gives you day to day are accessors. <code>Cl()</code> pulls the close column, with <code>Op()</code>, <code>Hi()</code>, <code>Lo()</code>, and <code>Vo()</code> doing the obvious equivalents, and they find the right column by name so you do not hard-code positions. <code>Delt()</code> computes period-over-period returns.</p>
-
-<div class="webr-container" data-block-title="quantmod accessors, working on our own bars">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">quantmod accessors, working on our own bars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">suppressMessages</span>(<span class="nf">library</span>(quantmod))</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">head</span>(<span class="nf">Cl</span>(bars5), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt;                     Close</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:34:55 47.97</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:39:51 47.91</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:44:58 47.93</span></span>
-<span class="cl"><span class="nf">head</span>(<span class="nf">Delt</span>(<span class="nf">Cl</span>(bars5)), <span class="m">3</span>)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_ret <span class="o">&lt;-</span> <span class="nf">Delt</span>(intraday<span class="o">$</span>price)</span>
+<span class="cl">my_ep <span class="o">&lt;-</span> <span class="nf">endpoints</span>(intraday, on <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">30</span>)</span>
+<span class="cl">my_absret <span class="o">&lt;-</span> <span class="nf">period.apply</span>(<span class="nf">abs</span>(my_ret), INDEX <span class="o">=</span> my_ep, FUN <span class="o">=</span> <span class="kr">function</span>(v) <span class="nf">mean</span>(v, na.rm <span class="o">=</span> <span class="kc">TRUE</span>))</span>
+<span class="cl"><span class="nf">round</span>(my_absret, <span class="m">6</span>)</span>
 <span class="cl"><span class="c1">#&gt;                     Delt.1.arithmetic</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:34:55                NA</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:39:51     -0.0012507817</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:44:58      0.0004174494</span></span></div>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 09:59:00          0.000427</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 10:29:00          0.000414</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 10:59:00          0.000362</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 11:29:00          0.000423</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 11:59:00          0.000346</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 12:29:00          0.000421</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 12:59:00          0.000319</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 13:29:00          0.000366</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 13:59:00          0.000352</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 14:29:00          0.000319</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 14:59:00          0.000435</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:29:00          0.000330</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:59:00          0.000395</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1343,24 +1527,20 @@ colnames(aapl_daily)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>Cl(bars5)</code> found the <code>Close</code> column by name. <code>Delt()</code> returned bar-over-bar returns: the first is <code>NA</code> because there is no prior bar to compare against, then -0.00125 (the close fell from 47.97 to 47.91, about a 0.13% drop) and +0.00042. That <code>NA</code> in row one is correct and expected; every <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a> operation costs you the first observation.</p>
+<p><strong>Explanation:</strong> <code>abs(my_ret)</code> measures the size of each minute's move regardless of direction. <code>period.apply()</code> averages those sizes inside each 30-minute block, giving one volatility number per half hour. The <code>na.rm = TRUE</code> ignores the leading <code>NA</code> return.</p>
 
-<p>For a tick-level change, build it explicitly from the numeric prices rather than differencing the <code>xts</code> object.</p>
+</details>
 
-<div class="webr-container" data-block-title="Tick-to-tick price change, built explicitly">
+<h3>Exercise 3: A clean 5-minute close series, end to end</h3>
+
+<p>Put the whole workflow together. Starting from the minute series, remove a few bars to mimic missing trades, fill the gaps, aggregate to 5-minute bars, then show the last three 5-minute closes.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tick-to-tick price change, built explicitly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">tick_change <span class="o">&lt;-</span> <span class="nf">xts</span>(<span class="nf">c</span>(<span class="kc">NA</span>, <span class="nf">diff</span>(<span class="nf">as.numeric</span>(ticks<span class="o">$</span>price))), order.by <span class="o">=</span> <span class="nf">index</span>(ticks))</span>
-<span class="cl"><span class="nf">colnames</span>(tick_change) <span class="o">&lt;-</span> <span class="s">&quot;change&quot;</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">head</span>(tick_change, <span class="m">4</span>)</span>
-<span class="cl"><span class="c1">#&gt;                     change</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:00     NA</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:01   0.00</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:08  -0.02</span></span>
-<span class="cl"><span class="c1">#&gt; 2026-03-02 09:30:08   0.00</span></span>
-<span class="cl"><span class="nf">sum</span>(tick_change<span class="o">$</span>change <span class="o">!=</span> <span class="m">0</span>, na.rm <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 2726</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1) Drop a few rows to create gaps.</span></span>
+<span class="cl"><span class="c1"># 2) merge onto the full grid + na.locf() to fill.</span></span>
+<span class="cl"><span class="c1"># 3) to.period(..., k = 5) then tail(Cl(...), 3).</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1370,107 +1550,144 @@ colnames(aapl_daily)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read the pattern from the inside out. <code>as.numeric(ticks$price)</code> drops to a plain numeric vector, <code>diff()</code> gives the 4,327 changes between consecutive prices, <code>c(NA, ...)</code> puts an <code>NA</code> in front so the result is 4,328 long again and each change sits on the trade it belongs to, and <code>xts(...)</code> re-attaches the original index. The result: of the 4,327 trades that had a previous trade to compare against, 2,726 moved the price at all, so roughly 37% printed at exactly the price before them. Long runs at the same price are utterly normal in tick data and worth expecting.</p>
+<details>
+<summary>Click to reveal solution</summary>
 
-<blockquote><p><strong>Note:</strong> Building the change vector explicitly, as above, is the portable choice: <code>diff()</code> and <code>lag()</code> applied directly to an <code>xts</code> object are known to misbehave in some runtimes, including the in-browser one that powers the runnable blocks on this page. Working on the numeric vector and re-wrapping costs one extra line. It reads more plainly, and it behaves the same everywhere.</p></blockquote>
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_raw <span class="o">&lt;-</span> intraday[<span class="o">-</span><span class="nf">c</span>(<span class="m">50</span>, <span class="m">51</span>, <span class="m">100</span>)]</span>
+<span class="cl">my_full <span class="o">&lt;-</span> <span class="nf">na.locf</span>(<span class="nf">merge</span>(my_raw, <span class="nf">xts</span>(, order.by <span class="o">=</span> <span class="nf">index</span>(intraday))))</span>
+<span class="cl">my_bars <span class="o">&lt;-</span> <span class="nf">to.period</span>(my_full, period <span class="o">=</span> <span class="s">&quot;minutes&quot;</span>, k <span class="o">=</span> <span class="m">5</span>, OHLC <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"><span class="nf">tail</span>(<span class="nf">Cl</span>(my_bars), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;                     my_full.Close</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:49:00         99.49</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:54:00         99.30</span></span>
+<span class="cl"><span class="c1">#&gt; 2026-03-02 15:59:00         99.20</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> This chains four steps into one clean pipeline: create gaps, fill them by carrying prices forward, aggregate to 5-minute OHLC bars, and pull the closes. The result is a tidy, gap-free 5-minute close series ready for charting or modelling.</p>
+
+</details>
 
 <h2>FAQ</h2>
 
-<p><strong>Can I use <code>getSymbols()</code> to download real intraday tick data?</strong> Not in any serious quantity. Free public sources serve daily bars reliably; intraday coverage through <code>getSymbols()</code> is limited to recent days at coarse resolution, and true tick history is a paid product. In practice you buy the data or pull it from your broker, then load the CSV and wrap it with <code>xts()</code> yourself. The upside is that everything in this post works identically on data you loaded, because <code>getSymbols()</code> returns a plain <code>xts</code> object anyway.</p>
+<p><strong>When should I use xts instead of the base ts class for intraday data?</strong> Use xts whenever timestamps carry a time of day or the spacing is irregular, which is almost always true intraday. The base <code>ts</code> class assumes evenly spaced observations described by a single frequency, so it cannot represent 09:31 versus 09:33 or an overnight gap. xts stores each real timestamp, which is exactly what minute and tick data need.</p>
 
-<p><strong>Why does my 6.5-hour session not produce 78 five-minute bars?</strong> Because <code>to.period()</code> creates a bar only for windows that actually contain trades. Our session produced 74 rather than 78, and the four missing bars are the 20-minute halt. This is the correct behavior, but it means you cannot assume a fixed row count per day, and code that indexes bars by position will drift the moment a halt or a thin period appears. Index by time, never by row number.</p>
+<p><strong>Why not just keep intraday data in a data.frame?</strong> A data.frame can hold a timestamp column, but it will not slice by clock time or aggregate to OHLC bars for you, and filling gaps on a grid stays manual. xts builds all of that on top of the timestamp index, so <code>intraday[&quot;T09:30/T10:00&quot;]</code> and <code>to.period()</code> just work. You get less code and fewer chances to line up the wrong rows.</p>
 
-<p><strong>Should I use <code>xts</code> or <code>data.table</code> for high-frequency work?</strong> Both are used seriously. <code>xts</code> is the better fit when your work is time-indexed by nature: the date-string subsetting, <code>to.period()</code>, <code>endpoints()</code>, and <code>align.time()</code> are all built around a time index and have no clean equivalent elsewhere. <code>data.table</code> wins on raw scale, since it handles tens of millions of rows more comfortably and its <code>roll</code> joins are excellent for matching trades to quotes. A common pattern is <code>data.table</code> for heavy loading and joining, then <code>xts</code> for the time-series operations.</p>
+<p><strong>Can getSymbols() pull minute or tick data?</strong> Not from the free Yahoo source, which mainly serves daily bars. For genuine intraday history you generally need a paid data provider, an API key with a source like Alpha Vantage, or a dataset from a specialist package. Whatever the source, once the result is an xts object, every technique in this tutorial applies unchanged.</p>
 
-<p><strong>How do I handle multiple trades with the same timestamp?</strong> <code>xts</code> permits duplicate index values, so nothing breaks, but functions differ in how they treat them. If your feed reports whole seconds, several trades will genuinely share a stamp. The two honest options are to aggregate them into one row per stamp (sum the sizes, take a volume-weighted price) or to keep them and accept the duplicates. What you should not do is silently drop them: each one is a real trade, and dropping them corrupts any volume-based statistic including VWAP.</p>
+<p><strong>How do I handle timezones so my clock-time slicing is correct?</strong> Build the index with an explicit <code>tz</code> argument in <code>as.POSIXct()</code>, and confirm it with <code>tzone(x)</code>. Time-of-day slices like <code>T09:30</code> are interpreted in that timezone, so a mismatch silently shifts your window. When you merge two intraday series, make sure both share the same timezone first.</p>
 
-<p><strong>Why is my VWAP different from my broker's?</strong> Usually the trade filter, not the arithmetic. Exchanges publish condition codes that mark trades as out-of-sequence, late-reported, or auction prints, and the standard VWAP benchmark excludes several of these. Opening and closing auction volume is a common point of disagreement. Compare the total share count in your window against theirs first; if the denominators differ, the filter is the culprit rather than the formula.</p>
-
-<p><strong>Do I need <code>align.time()</code> if I only work with one stock?</strong> No. It matters when you merge, because two series bar-aggregated over the same windows carry different last-trade stamps and will not line up. For a single series, the ragged stamps are actually more informative, since each one is a real instant a trade occurred. Align when you need a shared grid; leave it alone when you do not.</p>
+<p><strong>Is there a package built specifically for high-frequency data?</strong> Yes. The <code>highfrequency</code> package adds tools aimed at tick and second-level data, including cleaning routines and realized-volatility estimators, and it works with xts objects. For the everyday tasks of slicing, aggregating, and summarising, plain xts plus quantmod is usually all you need.</p>
 
 <h2>Summary</h2>
+
+<p>This tutorial built a full day of one-minute bars from scratch and worked through the core intraday toolkit in xts and quantmod. The table maps each task to the function that does it.</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Task</th>
 <th>Function</th>
-<th>Watch out for</th>
+<th>What it gives you</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Store irregular trades</td>
-<td><code>xts(data, order.by = timestamps)</code></td>
-<td><code>order.by</code> must be <code>POSIXct</code> with the exchange's <code>tzone</code></td>
+<td>Store timestamped values</td>
+<td><code>xts()</code></td>
+<td>A time-indexed series</td>
 </tr>
 <tr>
-<td>See sub-second detail</td>
-<td><code>options(digits.secs = 3)</code></td>
-<td>Precision is stored but hidden by default</td>
+<td>Check the spacing</td>
+<td><code>periodicity()</code></td>
+<td>The detected frequency and range</td>
 </tr>
 <tr>
-<td>Measure spacing</td>
-<td><code>periodicity()</code>, <code>diff(index(x))</code></td>
-<td>The average spacing describes no actual trade</td>
+<td>Slice by date and time</td>
+<td><code>x[&quot;start/end&quot;]</code></td>
+<td>The bars in a window</td>
 </tr>
 <tr>
-<td>Slice a window</td>
-<td><code>x[&quot;2026-03-02 09:30/09:45&quot;]</code></td>
-<td>Largest unit first</td>
+<td>Slice by time of day</td>
+<td><code>x[&quot;T09:30/T10:00&quot;]</code></td>
+<td>The same clock window across days</td>
 </tr>
 <tr>
-<td>Slice a time of day</td>
-<td><code>x[&quot;T09:30/T09:34&quot;]</code></td>
-<td>The endpoint is inclusive: <code>T09:34</code> runs through 09:34:59. Interpreted in the index's <code>tzone</code></td>
+<td>Roll up to OHLC bars</td>
+<td><code>to.period()</code></td>
+<td>Open, high, low, close per period</td>
 </tr>
 <tr>
-<td>Aggregate to bars</td>
-<td><code>to.period(x, &quot;minutes&quot;, k = 5)</code></td>
-<td>Gaps produce no bar; stamps land on the last trade</td>
+<td>Pull one OHLC column</td>
+<td><code>Op()</code> <code>Hi()</code> <code>Lo()</code> <code>Cl()</code></td>
+<td>A single price series</td>
 </tr>
 <tr>
-<td>Custom per-window stat</td>
-<td><code>endpoints()</code> + <code>period.apply()</code></td>
-<td><code>endpoints()</code> returns row positions, not times</td>
+<td>Mark period boundaries</td>
+<td><code>endpoints()</code></td>
+<td>Row positions that end each block</td>
 </tr>
 <tr>
-<td>Volume-weighted price</td>
-<td><code>sum(p * q) / sum(q)</code> on ticks</td>
-<td>Compute from ticks; bars have thrown volume away</td>
+<td>Summarise per period</td>
+<td><code>period.apply()</code></td>
+<td>Any statistic per block</td>
 </tr>
 <tr>
-<td>Line up bar stamps</td>
-<td><code>align.time(x, n = 300)</code></td>
-<td>The aligned stamp is a label, not a real event</td>
+<td>Tidy the stamps</td>
+<td><code>align.time()</code></td>
+<td>Timestamps snapped to clean marks</td>
 </tr>
 <tr>
-<td>Fetch market data</td>
-<td><code>quantmod::getSymbols()</code></td>
-<td>Daily bars; needs network; true tick data is a paid feed</td>
+<td>Bar-to-bar returns</td>
+<td><code>Delt()</code></td>
+<td>Percentage change per bar</td>
+</tr>
+<tr>
+<td>Fill missing bars</td>
+<td><code>merge()</code> + <code>na.locf()</code></td>
+<td>A gap-free series on a full grid</td>
+</tr>
+<tr>
+<td>Download real prices</td>
+<td><code>getSymbols()</code></td>
+<td>Market data as an xts (run locally)</td>
 </tr>
 </tbody>
 </table>
 
-<p>The through-line: intraday data is a list of events, not a grid of slots. Gaps are missing rows rather than <code>NA</code> values, the time zone on the index changes what your queries mean, and every aggregation step throws something away that you may need later. <code>xts</code> gives you the time index and the tools to slice and aggregate it; <code>quantmod</code> gets data in and columns out. Our MFT session started as 4,328 irregular trades and ended as 74 bars, a VWAP per half hour, and a clean 5-minute grid, with the 11:00 halt visible at every stage as an absence rather than an error.</p>
+<p>The through-line is simple: xts indexes everything on real time, so once your data is an xts, slicing, aggregating, and analysing intraday series all follow the same few verbs.</p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Ryan, J. A. & Ulrich, J. M. <em>xts: eXtensible Time Series</em>. The package's own introductory vignette covers construction, subsetting, and the <code>to.period()</code> family. <a href="https://cran.r-project.org/package=xts">cran.r-project.org/package=xts</a></li>
+<li>xts on CRAN. <a href="https://cran.r-project.org/package=xts">Link</a> - the package home, with install notes and the changelog.</li>
 
-<li><em>xts FAQ</em> vignette. Short answers to the questions that bite in practice, including duplicate index values and time-zone handling. <a href="https://cran.r-project.org/web/packages/xts/vignettes/xts-faq.pdf">cran.r-project.org/web/packages/xts/vignettes/xts-faq.pdf</a></li>
+<li>xts reference manual (PDF). <a href="https://cran.r-project.org/web/packages/xts/xts.pdf">Link</a> - the full function reference for <code>to.period</code>, <code>endpoints</code>, <code>period.apply</code>, and <code>align.time</code>.</li>
 
-<li>Ulrich, J. M. <em>quantmod: Quantitative Financial Modelling Framework</em>. Reference for <code>getSymbols()</code> sources and the <code>Op</code>/<code>Hi</code>/<code>Lo</code>/<code>Cl</code>/<code>Vo</code> accessors. <a href="https://cran.r-project.org/package=quantmod">cran.r-project.org/package=quantmod</a></li>
+<li>xts documentation site, Ryan and Ulrich. <a href="https://joshuaulrich.github.io/xts/">Link</a> - worked vignettes on subsetting by time and aggregating a series.</li>
 
-<li>Zeileis, A. & Grothendieck, G. <em>zoo: S3 Infrastructure for Regular and Irregular Time Series</em>. <code>xts</code> extends <code>zoo</code>, so this is the layer underneath the index. <a href="https://cran.r-project.org/package=zoo">cran.r-project.org/package=zoo</a></li>
+<li>quantmod on CRAN. <a href="https://cran.r-project.org/package=quantmod">Link</a> - the package home for the finance helpers used here.</li>
 
-<li>R Core Team. <em>Time Zones in R</em>. The authoritative note on how <code>POSIXct</code> stores instants and what the <code>tzone</code> attribute actually controls. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/timezones.html">stat.ethz.ch/R-manual/R-devel/library/base/html/timezones.html</a></li>
+<li>quantmod reference manual (PDF). <a href="https://cran.r-project.org/web/packages/quantmod/quantmod.pdf">Link</a> - the reference pages for <code>Delt</code>, <code>Cl</code>, and <code>getSymbols</code>.</li>
 
-<li>R Core Team. <em>Date-Time Classes</em>. Definitive on <code>POSIXct</code> versus <code>POSIXlt</code>, and on <code>digits.secs</code> for sub-second printing. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html">stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html</a></li>
+<li>quantmod project site. <a href="https://www.quantmod.com/">Link</a> - examples and charting galleries built on xts.</li>
 
-<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. The standard modern reference for what comes after the data-handling stage. <a href="https://otexts.com/fpp3/">otexts.com/fpp3</a></li>
+<li>R base DateTimeClasses (POSIXct and POSIXlt). <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html">Link</a> - how R stores a date plus a time of day, which is what the xts index is built on.</li>
+
+<li>highfrequency package on CRAN. <a href="https://cran.r-project.org/web/packages/highfrequency/index.html">Link</a> - tools aimed at tick and second-level data, including realized-volatility estimators.</li>
+
+<li>Wickham, Cetinkaya-Rundel and Grolemund, R for Data Science, Dates and times. <a href="https://r4ds.hadley.nz/datetimes">Link</a> - a gentle introduction to handling dates and times in R.</li>
 
 </ol>
 
@@ -1478,17 +1695,17 @@ colnames(aapl_daily)
 
 <ul>
 
-<li><a href="Time-Series-Objects-in-R.html">Time Series Objects in R</a>, the parent post, which places <code>xts</code> next to <code>ts</code>, <code>zoo</code>, and <code>tsibble</code> and explains when each class is the right container.</li>
+<li><a href="Time-Series-Objects-in-R.html">Time Series Objects in R: ts vs xts vs zoo vs tsibble</a> - the parent tutorial that compares the four time series classes and shows when each one fits.</li>
 
-<li><a href="Visualize-Time-Series-in-R.html">Visualize Time Series in R</a>, for plotting the bars you just built, including seasonal and lag plots.</li>
+<li><a href="Time-Series-Analysis-With-R.html">Time Series Analysis With R</a> - the full analysis workflow once your data lives in an xts object.</li>
 
-<li><a href="Moving-Averages-in-R.html">Moving Averages in R</a>, the natural next step once you have a bar series: <code>rollapply()</code> and friends work on any <code>xts</code> object, including the 5-minute bars from this page.</li>
+<li><a href="Time-Series-Forecasting-With-R.html">Time Series Forecasting With R</a> - take an aggregated series and forecast where it goes next.</li>
 
 </ul>
 
 
 <aside class="continue-reading-block" data-continue-block><div class="cr-eyebrow">Continue Reading</div><a class="cr-link" data-continue-link href="#"></a></aside>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Time-Series-Objects-in-R.html"><span class="rt-title">Time Series Objects in R: ts, xts, zoo, or tsibble?</span><span class="rt-meta">Time Series &middot; 17 min read</span></a><a class="rt-card" href="Moving-Averages-in-R.html"><span class="rt-title">Moving Averages in R: Simple, Weighted, and Exponential</span><span class="rt-meta">Time Series &middot; 26 min read</span></a><a class="rt-card" href="Spectral-Analysis-in-R.html"><span class="rt-title">Spectral Analysis in R: Periodogram and Power Spectrum</span><span class="rt-meta">22 min read</span></a><a class="rt-card" href="Visualize-Time-Series-in-R.html"><span class="rt-title">Visualize Time Series in R: autoplot(), Seasonal, Lag Plots</span><span class="rt-meta">Time Series &middot; 24 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Test-Stationarity-in-R.html"><span class="rt-title">Test Stationarity in R: ADF, KPSS, and Differencing</span><span class="rt-meta">Time Series &middot; 22 min read</span></a><a class="rt-card" href="Time-Series-Decomposition-in-R.html"><span class="rt-title">Time Series Decomposition in R: STL vs Classical</span><span class="rt-meta">Time Series &middot; 15 min read</span></a><a class="rt-card" href="Visualize-Time-Series-in-R.html"><span class="rt-title">Visualize Time Series in R: autoplot(), Seasonal, Lag Plots</span><span class="rt-meta">Time Series &middot; 24 min read</span></a><a class="rt-card" href="Time-Series-EDA-in-R.html"><span class="rt-title">Time Series EDA in R: Trend, Seasonality, Autocorrelation</span><span class="rt-meta">18 min read</span></a></div></section>
 
           
 
@@ -1579,23 +1796,6 @@ colnames(aapl_daily)
   <script src="www/toc.min.js?h=e94467e3"></script>
   <!-- MathJax Script -->
   
-  <script type="text/x-mathjax-config">
-    MathJax.Hub.Config({
-      tex2jax: {
-        inlineMath: [['$','$'], ['\\(','\\)']],
-        displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true,
-        // Never treat R code as math. MathJax v2 skips <pre>/<code> but NOT the
-        // <div class="webr-editor"> code boxes, so `df$col ... fit$index` was being
-        // read as an inline `$...$` math span and mangled. Ignore all WebR code.
-        ignoreClass: "tex2jax_ignore|webr-container|webr-editor|webr-output"
-      }
-    });
-  </script>
-  <script type="text/javascript" async
-    src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
-  </script>
-
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
   <script src="www/webr-init.min.js?h=5ff751e8"></script>

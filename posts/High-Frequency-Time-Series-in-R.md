@@ -1,494 +1,585 @@
 ---
 title: "High-Frequency Time Series in R: Intraday xts and quantmod"
 slug: "High-Frequency-Time-Series-in-R"
-description: "Handle intraday data in R with xts: build tick data from raw timestamps, slice by time of day, aggregate ticks into bars, and compute VWAP correctly."
-keywords: "high-frequency time series R, intraday data R, xts intraday, quantmod R, tick data R, to.period R, VWAP in R, endpoints period.apply"
-auto_link_terms: "high-frequency time series|high-frequency data|intraday data in R|intraday time series|intraday bars|tick data|trade ticks|xts intraday|to.period|VWAP|volume-weighted average price|period.apply|align.time|getSymbols|quantmod"
+description: "Work with intraday, high-frequency time series in R. Use xts and quantmod to build minute bars, slice by clock time, aggregate to OHLC, and compute returns."
+keywords: "high-frequency time series R, intraday data R, xts intraday, quantmod R, to.period R, minute bars, OHLC bars R, endpoints period.apply"
+auto_link_terms: "high-frequency time series|intraday time series|intraday data in R|high-frequency data|minute bars|OHLC bars|intraday returns|to.period|endpoints|period.apply|align.time|aggregate to OHLC"
 auto_link_case_sensitive: false
-mathjax: true
+mathjax: false
 webr: true
-date: "2026-07-17"
+date: "2026-07-18"
 curriculum_id: "FR-foun-2"
 post_type: "FR"
 fr_parent: "Time-Series-Objects-in-R.html"
 difficulty: "Intermediate"
 ---
 
-<p class="lead">High-frequency time series data is data that arrives many times per second rather than once per day, which breaks the usual assumption that observations sit in evenly spaced slots. In R, the practical toolkit is <code>xts</code> for storing and slicing irregular timestamps, plus <code>quantmod</code> for fetching market data and pulling columns out of it. This post builds one trading session from raw trades and works through slicing, bar aggregation, VWAP, and the time-zone traps that quietly corrupt intraday results.</p>
+<p class="lead">High-frequency (intraday) time series record many observations inside a single day, each stamped to the minute or second. R handles them with the <strong>xts</strong> package, a matrix indexed by real timestamps, and <strong>quantmod</strong>, a set of finance helpers built on top of xts. This tutorial builds a full trading day of minute bars from scratch, then works through slicing them by clock time and rolling them up into coarser bars. You need only base R plus xts and quantmod. The sample data is generated inline, so every block runs as you read.</p>
 
-Everything below uses one concrete session. **Meridian Freight (ticker MFT) traded on Monday 2026-03-02, from 09:30 to 16:00 New York time.** The exchange feed gives us one row per executed trade: a timestamp, a price near $48, and the number of shares. Trades land whenever a buyer and seller match, so the timestamps are irregular. That session also had a 20-minute trading halt starting at 11:00, which gives us a real gap to reason about instead of a hypothetical one.
+## What makes intraday data different from daily time series?
 
-If you have not met `xts` before, the parent post [Time Series Objects in R](Time-Series-Objects-in-R.html) introduces it alongside `ts`, `zoo`, and `tsibble`. You do not need it to follow along: the first block below builds an `xts` from scratch and explains every argument.
+Daily data gives you one number per day on a tidy grid. Intraday data breaks that grid. You get dozens or thousands of stamps per day, uneven gaps at lunch and around the close, and nothing at all overnight or on weekends. A plain numeric vector cannot say *when* each value happened, so it cannot answer a simple question like "what was the price at 09:45?". The xts package fixes this by attaching a real timestamp to every value. Let us build one trading day and look at it.
 
-## What makes intraday data different from daily data?
+The block below loads both packages, then simulates a stock's price for a standard 09:30 to 16:00 session. We create 390 one-minute timestamps (there are 390 minutes in that window), draw small random ups and downs, and add them up into a wandering price. Wrapping the price and the timestamps together with `xts()` gives us an intraday series. The `set.seed()` line just makes the random walk reproducible so your numbers match mine.
 
-A daily series has one slot per day, and the slots never move. That is the assumption baked into R's built-in `ts` class: give it a start date and a frequency, and it computes every timestamp by counting forward. Intraday trade data has no slots at all. A trade happens or it does not, and the gap between two trades can be a millisecond or twenty minutes.
-
-Here is the MFT session. The code builds it from scratch so you can run every block on this page in order.
-
-```r title="One session of Meridian Freight trades"
+```r title="Build one trading day of minute bars"
 suppressMessages(library(xts))
-options(xts_check_TZ = FALSE)   # silence a repeated note about the system time zone
+suppressMessages(library(quantmod))
+options(xts_check_TZ = FALSE)   # quiet a harmless timezone note
 
 set.seed(302)
-session_open  <- as.POSIXct("2026-03-02 09:30:00", tz = "America/New_York")
-session_close <- as.POSIXct("2026-03-02 16:00:00", tz = "America/New_York")
+bar_times <- seq(as.POSIXct("2026-03-02 09:30:00", tz = "America/New_York"),
+                 by = "1 min", length.out = 390)
+price <- 100 + cumsum(rnorm(390, 0, 0.05))
+intraday <- xts(round(price, 2), order.by = bar_times)
+colnames(intraday) <- "price"
 
-# Trades land when they land: draw a random gap (in seconds) before each one,
-# then add the gaps up to get an arrival time for every trade.
-gaps_sec <- rexp(5200, rate = 1 / 5)      # gaps averaging 5 seconds
-stamps   <- session_open + cumsum(gaps_sec)
-stamps   <- stamps[stamps < session_close]
-
-# MFT was halted for 20 minutes at 11:00, so no trades printed in that window.
-halt_start <- as.POSIXct("2026-03-02 11:00:00", tz = "America/New_York")
-halt_end   <- as.POSIXct("2026-03-02 11:20:00", tz = "America/New_York")
-stamps     <- stamps[stamps < halt_start | stamps >= halt_end]
-
-n_trades <- length(stamps)
-price    <- round(48 + cumsum(rnorm(n_trades, 0, 0.01)), 2)
-size     <- sample(c(100, 200, 300, 500, 1000), n_trades, replace = TRUE)
-
-ticks <- xts(data.frame(price = price, size = size), order.by = stamps)
-
-head(ticks, 3)
-#>                     price size
-#> 2026-03-02 09:30:00 48.01  200
-#> 2026-03-02 09:30:01 48.01  100
-#> 2026-03-02 09:30:08 47.99  200
-nrow(ticks)
-#> [1] 4328
+head(intraday, 4)
+periodicity(intraday)
+#>                      price
+#> 2026-03-02 09:30:00 100.01
+#> 2026-03-02 09:31:00 100.03
+#> 2026-03-02 09:32:00 100.02
+#> 2026-03-02 09:33:00 100.15
+#> 1 minute periodicity from 2026-03-02 09:30:00 to 2026-03-02 15:59:00
 ```
 
-That is 4,328 trades in one session for one stock. Look at the first three timestamps: 09:30:00, then 09:30:01, then 09:30:08. One second, then seven seconds. Nothing about that spacing is regular, and no `frequency` argument could describe it.
+Here is what the code did. `seq()` produced 390 timestamps one minute apart, starting at the 09:30 open. `as.POSIXct()` is R's way of storing a full date plus a time of day, which is exactly what intraday data needs. `xts(value, order.by = timestamps)` bound each price to its moment. Printing the head shows the price stamped against each minute, and `periodicity()` read the index back to us: one-minute data running from 09:30 to 15:59.
 
-A quick note on the code, since a few pieces may be unfamiliar. `rexp()` draws random waiting times from an exponential distribution, which is the standard model for "events arriving independently at some average rate"; `rate = 1/5` means the gaps average 5 seconds. `cumsum()` adds those gaps up so each trade gets an arrival time. `rnorm(n, 0, 0.01)` draws small random price changes, and `cumsum()` turns them into a wandering price. The `xts(...)` call at the end is the important one, and the next section pulls it apart.
+That last line is the whole point. Because xts stores the actual clock time of every observation, it can tell you the spacing, the start, and the end without you tracking any of it by hand. A raw vector of 390 numbers knows none of that.
 
-Let us measure the irregularity rather than assert it. `index(ticks)` pulls out the timestamps, and `diff()` on those timestamps gives the gap before each trade.
+[KEY INSIGHT]
+**xts indexes each value on a real timestamp, not a row number.** That is why irregular gaps, missing minutes, and mixed spacing are no problem for intraday data. The index carries the meaning; the values just ride along.
 
-```r title="How far apart are consecutive trades?"
-seconds_between <- as.numeric(diff(index(ticks)), units = "secs")
+**Try it:** Build a small 5-row xts from the values 10, 12, 11, 13, 14, stamped one minute apart starting at 09:30, then check its periodicity.
 
-summary(seconds_between)
-#>      Min.   1st Qu.    Median      Mean   3rd Qu.      Max.
-#> 1.280e-03 1.467e+00 3.550e+00 5.407e+00 7.095e+00 1.207e+03
-max(seconds_between)
-#> [1] 1207.205
+```r title="Your turn: build a mini intraday series"
+# Fill in the xts() call using ex1_times and ex1_values, then run periodicity().
+ex1_times <- seq(as.POSIXct("2026-03-02 09:30:00", tz = "America/New_York"),
+                 by = "1 min", length.out = 5)
+ex1_values <- c(10, 12, 11, 13, 14)
+# ex1_series <- xts(...)
+# periodicity(ex1_series)
 ```
 
-Read the summary from left to right. The shortest gap between two trades was 0.00128 seconds, roughly one millisecond. The median gap was 3.55 seconds. The longest gap was 1,207 seconds, which is 20 minutes and 7 seconds. That maximum is not noise: it is the trading halt. The feed contains no rows at all between 11:00 and 11:20, so the gap from the last trade before the halt to the first trade after it shows up as the largest number in the table.
+<details>
+<summary>Click to reveal solution</summary>
 
-This is the first thing to internalize about high-frequency data. **A gap is an absence of rows, not a row containing `NA`.** Nothing in the object announces the halt. It is visible only as a stretch of time with no observations, which is why you have to go looking for it.
-
-`xts` will happily report an average spacing, and the number it gives is worth seeing precisely because of how misleading it is.
-
-```r title="The average spacing is real, and it describes nothing"
-periodicity(ticks)
-#> 3.54974722862244 seconds periodicity from 2026-03-02 09:30:00.893353 to 2026-03-02 15:59:57.598862
+```r title="Mini intraday series solution"
+ex1_series <- xts(ex1_values, order.by = ex1_times)
+nrow(ex1_series)
+periodicity(ex1_series)
+#> [1] 5
+#> 1 minute periodicity from 2026-03-02 09:30:00 to 2026-03-02 09:34:00
 ```
 
-`periodicity()` reports the average time between observations, here 3.55 seconds. That number is arithmetically correct and practically useless: not one trade in this session arrived exactly 3.55 seconds after the previous one, and the spacing ranges over six orders of magnitude, from a millisecond to twenty minutes. Treat `periodicity()` on tick data as a rough scale check ("am I looking at seconds or minutes?") and never as a frequency you could rebuild the index from.
-
-> **Watch out:** Look closely at the timestamps in that output: `09:30:00.893353`. The trades carry sub-second precision, but the earlier `head(ticks, 3)` printed them as plain `09:30:00`. R's default is to hide fractional seconds when printing. The precision is in the data; it just is not on screen unless you ask.
-
-## How do you build an xts from raw trade timestamps?
-
-An `xts` object is two things bolted together: a matrix of data, and a time index that labels every row. The constructor takes the data as its first argument and the index as `order.by`. That is the whole idea, and it is why `xts` can hold irregular data when `ts` cannot: the timestamps are stored explicitly, one per row, instead of being computed from a start and a frequency.
-
-Let us inspect the index we just built, this time asking R to show the fractional seconds.
-
-```r title="The index is a real vector of instants"
-options(digits.secs = 3)   # show 3 decimal places on timestamps
-
-index(ticks)[1:3]
-#> [1] "2026-03-02 09:30:00.893 EST" "2026-03-02 09:30:01.911 EST" "2026-03-02 09:30:08.250 EST"
-tzone(ticks)
-#> [1] "America/New_York"
-class(index(ticks))
-#> [1] "POSIXct" "POSIXt"
-```
-
-Three things to take from this. First, `options(digits.secs = 3)` reveals the sub-second detail that was there all along: the first trade printed at 09:30:00.893, not 09:30:00. Second, the index is a `POSIXct` vector, which is R's type for a specific instant in time, stored underneath as the number of seconds since 1970-01-01 UTC. Third, `tzone()` shows the index carries a time zone attribute, `America/New_York`, and that the timestamps display as `EST`. Hold on to that attribute: section six is about the damage it does when it is wrong.
-
-One convenience worth knowing, because raw feeds are messier than the tidy example above: `xts` sorts by time for you. You never have to check whether your rows arrived in order.
-
-```r title="Out-of-order input comes back sorted"
-options(digits.secs = 0)
-
-# Three timestamps deliberately out of order: 09:32, then 09:30:30, then 09:31.
-out_of_order <- c(session_open + 120, session_open + 30, session_open + 60)
-out_of_order
-#> [1] "2026-03-02 09:32:00 EST" "2026-03-02 09:30:30 EST" "2026-03-02 09:31:00 EST"
-
-messy <- xts(c(48.10, 48.02, 48.06), order.by = out_of_order)
-messy
-#>                      [,1]
-#> 2026-03-02 09:30:30 48.02
-#> 2026-03-02 09:31:00 48.06
-#> 2026-03-02 09:32:00 48.10
-```
-
-The input vector went in as 09:32, 09:30:30, 09:31 with prices 48.10, 48.02, 48.06. The object came out in clock order, and critically, each price stayed with its own timestamp: 48.02 is still on the 09:30:30 row. `xts` sorted the index and carried the data along with it. That matters when you merge feeds from several venues, where nothing guarantees the combined rows arrive in time order.
-
-## How do you grab one slice of the trading day?
-
-Most intraday questions are about a window: the opening 15 minutes, the last hour, the minutes around a news release. `xts` has a subsetting grammar built for exactly this. You pass a character string to `[`, and it parses it as a time range rather than as row numbers.
-
-The general form is `object["from/to"]`, where both sides are dates or timestamps written largest-unit-first (year, month, day, hour, minute, second).
-
-```r title="A window of the session, by clock time"
-opening_15 <- ticks["2026-03-02 09:30/2026-03-02 09:45"]
-
-nrow(opening_15)
-#> [1] 172
-head(opening_15, 2)
-#>                     price size
-#> 2026-03-02 09:30:00 48.01  200
-#> 2026-03-02 09:30:01 48.01  100
-tail(opening_15, 1)
-#>                     price size
-#> 2026-03-02 09:45:44 47.95  500
-```
-
-172 trades printed in the opening 15 minutes. Note what we did **not** have to do: no `which()`, no comparison operators, no converting timestamps to numbers. The string `"2026-03-02 09:30/2026-03-02 09:45"` says "from 09:30 to 09:45 on this date" and `xts` does the rest. The truncated forms are allowed too, so `ticks["2026-03-02"]` would give the whole day and `ticks["2026-03"]` the whole month.
-
-There is a second form specifically for intraday work. Prefix a time with `T` and you select that time of day across every date in the object. Since our object holds a single session the distinction does not change the answer here, but on a multi-day object `["T09:30/T09:34"]` means "these minutes of every day", which is the natural way to ask most intraday questions.
-
-Before you use it, learn the one rule that catches everyone: **the endpoint is inclusive down to the precision you wrote.** `T09:34` does not mean the instant 09:34:00. It means the whole 09:34 minute, right through 09:34:59. So `"T09:30/T09:34"` is the five minutes 09:30:00 to 09:34:59, and `"T09:30/T09:35"` would be *six* minutes, not five. Off-by-one-minute windows are one of the easiest ways to quietly compare the wrong things.
-
-```r title="Time-of-day slicing, and the halt showing up as absence"
-nrow(ticks["T09:30/T09:34"])    # the first five minutes, 09:30:00 to 09:34:59
-#> [1] 49
-nrow(ticks["T12:00/T12:04"])    # five minutes at lunch
-#> [1] 50
-nrow(ticks["T11:00/T11:19"])    # the halt window, 11:00:00 to 11:19:59
-#> [1] 0
-```
-
-The first five minutes had 49 trades and a five-minute stretch at lunch had 50, which are comfortably similar. Notice the halt query too: the halt ran 11:00 to 11:20, and `"T11:00/T11:19"` covers exactly that, because `T11:19` runs through 11:19:59. Writing `T11:20` would have reached into the 11:20 minute and caught the first trades after the reopen.
-
-That halt window returns **zero rows**. Not 20 rows of `NA`, not an error. The query is perfectly valid, and the honest answer is that nothing traded. This is the concrete version of the point from section one, and it is the single most common source of intraday bugs: code that assumes every window contains at least one row will divide by zero here, silently or loudly, depending on how lucky you are.
-
-**Try it:** How many trades printed in the last 10 minutes of the session, from 15:50 to 16:00? What was the price range over that window?
-
-<details><summary>Click to reveal solution</summary>
-
-```r title="Closing 10 minutes solution"
-closing_10 <- ticks["T15:50/T16:00"]
-
-nrow(closing_10)
-#> [1] 111
-range(closing_10$price)
-#> [1] 48.42 48.54
-```
-
-111 trades in the closing 10 minutes, against 49 in the opening five. Volume clustering near the close is a real market pattern, and the `T` grammar is how you go looking for it. The price wandered between $48.42 and $48.54 over that stretch, up from the $48.01 it opened at.
-
-By the endpoint rule, `T16:00` does reach through 16:00:59, so this window is nominally 11 minutes. It does not matter here: the session closed at 16:00 and the last trade printed at 15:59:57, so there is nothing in that final minute to pick up. Worth checking rather than assuming, which is exactly the habit the rule is meant to build.
+**Explanation:** `xts()` pairs the five values with the five timestamps. `periodicity()` inspects the index and reports one-minute spacing across the short window.
 
 </details>
 
-## How do you turn ticks into bars?
+## How do you slice intraday data by clock time?
 
-Almost nobody analyses raw ticks directly. 4,328 rows for one stock for one day becomes billions of rows across a real universe of names, and the tick sequence is mostly noise at that resolution. The standard move is to **aggregate ticks into bars**: chop the session into fixed windows and summarise each window with four numbers.
+With daily data you rarely care about the exact time. With intraday data you constantly do. You might want the first half hour, the lunch lull, or the final minutes before the close. xts lets you pull those windows using the timestamp itself, written as a plain string, so you never have to compute row positions.
 
-Those four numbers are called OHLC, and each is a summary of all the ticks inside the window:
+Two styles cover almost everything. The first is a **date-and-time range**, written as `"start/end"` inside the square brackets. The second is a **time-of-day range**, written with a leading `T`, which ignores the date and matches by clock time. Let us start with a date-time range and grab the opening 30 minutes.
 
-- **Open**: the price of the first trade in the window
-- **High**: the highest trade price in the window
-- **Low**: the lowest trade price in the window
-- **Close**: the price of the last trade in the window
+```r title="Slice the first 30 minutes by clock time"
+first30 <- intraday["2026-03-02 09:30/2026-03-02 09:59"]
+nrow(first30)
+tail(first30, 3)
+#> [1] 30
+#>                      price
+#> 2026-03-02 09:57:00  99.96
+#> 2026-03-02 09:58:00  99.91
+#> 2026-03-02 09:59:00 100.05
+```
 
-![Diagram showing 49 irregular ticks inside one 5-minute window being reduced by to.period into a single bar row with Open, High, Low and Close, and a note listing what the aggregation discards](screenshots/High-Frequency-Time-Series-in-R-tick-to-bar.webp)
+The string `"2026-03-02 09:30/2026-03-02 09:59"` means "every bar from 09:30 up to and including 09:59." xts read the two timestamps and returned every matching row. `nrow()` confirms 30 bars, one for each minute of the first half hour, and the tail shows the window really does stop at 09:59. You never had to know that 09:59 sits at row 30.
 
-*Figure 1: How 49 irregular trades between 09:30:00 and 09:34:59 collapse into one bar. The bar keeps four prices and throws away every share size, the arrival order, and the 45 prices in between.*
+The `T` prefix is handy when you care about a time of day regardless of which date it falls on. It is perfect for questions like "how does this stock behave right after the open?" across many days. Here we ask for the first five minutes.
 
-`to.period()` does the aggregation. The `period` argument names the unit and `k` says how many of them make one window.
+```r title="Select a time-of-day window"
+open_window <- intraday["T09:30/T09:34"]
+open_window
+#>                      price
+#> 2026-03-02 09:30:00 100.01
+#> 2026-03-02 09:31:00 100.03
+#> 2026-03-02 09:32:00 100.02
+#> 2026-03-02 09:33:00 100.15
+#> 2026-03-02 09:34:00 100.18
+```
 
-```r title="4,328 ticks become 74 five-minute bars"
-bars5 <- to.period(ticks$price, period = "minutes", k = 5, OHLC = TRUE)
-colnames(bars5) <- c("Open", "High", "Low", "Close")
+`"T09:30/T09:34"` selected every bar whose clock time is between 09:30 and 09:34, and returned all five. On a multi-day series the same string would pull those five minutes from *every* day at once. That is a big convenience once your data spans weeks.
 
+[WARNING]
+**An xts index always carries a timezone, so "09:30" is not absolute.** We built the index in "America/New_York", so `T09:30` means 09:30 in New York. If your timestamps were stored in UTC, the same string would select a different real moment. Always know the timezone of your index before slicing by clock time.
+
+**Try it:** Select every bar between 10:00 and 10:04 using the `T` notation, then count how many bars you got.
+
+```r title="Your turn: grab a time-of-day window"
+# Use the T-notation range inside the brackets, then wrap it in nrow().
+# ex2_win <- intraday["T??:??/T??:??"]
+# nrow(ex2_win)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Time-of-day window solution"
+ex2_win <- intraday["T10:00/T10:04"]
+nrow(ex2_win)
+#> [1] 5
+```
+
+**Explanation:** The range 10:00 to 10:04 spans five one-minute bars, so `nrow()` returns 5.
+
+</details>
+
+## How do you roll minute bars up into OHLC bars?
+
+Minute-by-minute data is often too fine to look at directly. A common first move is to summarise it into coarser bars, say one bar every five minutes. Each bar keeps four numbers that traders live by: the **open** (first price in the window), the **high** (the peak), the **low** (the trough), and the **close** (the last price). Together they are called an OHLC bar, and they compress a busy stretch of trading into a single snapshot.
+
+The `to.period()` function does this rollup for you. You tell it the unit (`"minutes"`) and how many of them make one bar (`k = 5`), and it returns the OHLC summary. Watch it turn our 390 one-minute bars into 5-minute bars.
+
+```r title="Roll minute bars into 5-minute OHLC bars"
+bars5 <- to.period(intraday, period = "minutes", k = 5, OHLC = TRUE)
 head(bars5, 3)
-#>                      Open  High   Low Close
-#> 2026-03-02 09:34:55 48.01 48.01 47.93 47.97
-#> 2026-03-02 09:39:51 47.96 48.00 47.90 47.91
-#> 2026-03-02 09:44:58 47.91 47.93 47.84 47.93
-nrow(ticks)
-#> [1] 4328
-nrow(bars5)
-#> [1] 74
+#>                     intraday.Open intraday.High intraday.Low intraday.Close
+#> 2026-03-02 09:34:00        100.01        100.18       100.01         100.18
+#> 2026-03-02 09:39:00        100.23        100.27       100.17         100.17
+#> 2026-03-02 09:44:00        100.20        100.20       100.00         100.00
 ```
 
-Check the first bar against the diagram: Open 48.01, High 48.01, Low 47.93, Close 47.97. Those four numbers summarise 49 separate trades, and those are the very same 49 trades you sliced out with `ticks["T09:30/T09:34"]` in the last section: the first bar covers 09:30:00 to 09:34:59, so the slice and the bar see exactly the same rows. Open 48.01 is the first of those trades, Close 47.97 the last. Across the session, 4,328 rows became 74, a roughly 58-fold reduction.
+Each output row now summarises five minutes of trading. The first bar, stamped 09:34, opened at 100.01, reached a high of 100.18, dipped no lower than 100.01, and closed at 100.18. That single row stands in for the five one-minute prices we saw earlier. The column names carry the object name (`intraday.Open` and so on), which is just xts labelling where the data came from.
 
-Now the two details that catch people.
+Once you have OHLC bars you usually want one of the four columns on its own. quantmod ships accessor functions for exactly that: `Op()`, `Hi()`, `Lo()`, and `Cl()` pull the open, high, low, and close. Here we take just the closing price of each 5-minute bar.
 
-**The bar count is not what you would guess.** A 6.5-hour session is 390 minutes, which would be 78 five-minute bars. We got 74. The missing four are the halt: `to.period()` creates a bar only where ticks exist, so the 20 dead minutes produce no rows rather than four empty ones. Aggregation does not fill gaps, it inherits them.
-
-**The bar is stamped at its last trade, not at its window boundary.** The first bar's timestamp is 09:34:55, not 09:35:00, because 09:34:55 is when the last trade inside that window happened. This is a deliberate design choice (the stamp is a real instant that really occurred), and it is also a trap when you try to line two series up. Section six fixes it.
-
-> **Note:** Aggregation is lossy by construction, and the loss is the point. The four OHLC numbers deliberately discard share sizes and arrival order. If your question needs volume (VWAP is the obvious case), do not compute it from bars. Compute it from the ticks, as the next section does.
-
-**Try it:** Build one-minute bars instead of five-minute bars. How many rows do you get, and does the number make sense given the halt?
-
-<details><summary>Click to reveal solution</summary>
-
-```r title="One-minute bars solution"
-bars1 <- to.period(ticks$price, period = "minutes", k = 1, OHLC = TRUE)
-
-nrow(bars1)
-#> [1] 370
-nrow(ticks) / nrow(bars1)
-#> [1] 11.6973
+```r title="Extract the close of each bar"
+tail(Cl(bars5), 3)
+#>                     intraday.Close
+#> 2026-03-02 15:49:00          99.49
+#> 2026-03-02 15:54:00          99.30
+#> 2026-03-02 15:59:00          99.20
 ```
 
-370 bars, and the arithmetic confirms the rule exactly. The session runs 390 minutes. The halt removes 20 of them, leaving 370. Every minute that contained at least one trade produced exactly one bar, and the 20 halted minutes produced none. Each bar now averages 11.7 ticks instead of 58.5.
+`Cl(bars5)` returned only the close column, and `tail()` showed the last three 5-minute closes of the day. Reaching for `Cl()` instead of remembering which column number holds the close keeps your code readable and hard to break.
+
+[TIP]
+**`to.period()` runs in fast compiled code.** Aggregating a whole year of minute bars into coarser bars takes a fraction of a second, so do not hand-roll the loop yourself. Change `period` to `"hours"`, `"days"`, or `"weeks"` and `k` to any count to get the bars you want.
+
+**Try it:** Aggregate the minute data into 15-minute bars instead of 5-minute bars, then count how many bars the day produces. (Change the `k` value.)
+
+```r title="Your turn: make 15-minute bars"
+# Change k so each bar spans 15 minutes, then count the bars.
+ex3_bars15 <- to.period(intraday, period = "minutes", k = 5, OHLC = TRUE)  # change 5 to 15
+nrow(ex3_bars15)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Fifteen-minute bars solution"
+ex3_bars15 <- to.period(intraday, period = "minutes", k = 15, OHLC = TRUE)
+nrow(ex3_bars15)
+#> [1] 26
+```
+
+**Explanation:** A 390-minute session splits into 390 / 15 = 26 fifteen-minute bars.
 
 </details>
 
-## How do you compute VWAP over custom windows?
+## How do you summarise each period with endpoints() and period.apply()?
 
-`to.period()` gives you OHLC, and that is all it gives you. When you need a different statistic per window, the pattern is two functions: `endpoints()` finds where each window ends, and `period.apply()` runs your function over each window.
+OHLC bars are one kind of summary, but sometimes you want your own statistic per period, like the average price every half hour or the highest print of each hour. Two xts functions team up for this. `endpoints()` finds the row where each period ends, and `period.apply()` runs any function you like over the chunks between those endpoints.
 
-`endpoints()` returns the **row positions** that close each window. It always starts with 0 and ends with the final row, which is what makes it safe to feed straight into `period.apply()`.
+Start with `endpoints()`. You give it a unit and a count, and it hands back the row positions that close each block. Below we mark the end of every 30-minute block.
 
-```r title="Where does each 30-minute window end?"
-ep <- endpoints(ticks, on = "minutes", k = 30)
-
-length(ep)
-#> [1] 14
-head(ep, 5)
-#> [1]    0  338  692 1050 1160
-nrow(ticks)
-#> [1] 4328
+```r title="Find the last row of each 30-minute block"
+ep <- endpoints(intraday, on = "minutes", k = 30)
+ep
+#>  [1]   0  30  60  90 120 150 180 210 240 270 300 330 360 390
 ```
 
-Read those numbers carefully. `ep` has 14 entries, which bound 13 windows, and 13 half-hours is 6.5 hours: the full session. The values are row numbers, not times. The first window runs from row 1 to row 338; the second picks up at row 339 and closes at row 692. The leading 0 is a boundary marker rather than a real row.
+The numbers are row positions, not times. The leading 0 is a convention that means "start before the first row," and then every 30th row closes a block: 30, 60, 90, and so on up to 390. Those cut points are all `period.apply()` needs to know where one 30-minute chunk stops and the next begins.
 
-The fourth window is worth a look: it ends at row 1160, only 110 rows after the third ended at 1050, while the others each hold roughly 350. That thin window is the half-hour containing the halt. Twenty of its thirty minutes had no trading, so it collected a third of the usual rows. The irregularity from section one is still visible this far down the pipeline.
+Now feed those endpoints to `period.apply()` along with a function. We ask for the maximum price in each 30-minute block, a quick way to see the intraday peaks.
 
-Now the statistic. **VWAP** is the volume-weighted average price: the average price paid per share over a window, where a trade counts in proportion to how many shares it moved. Formally, for \(n\) trades in a window with prices \(p_i\) and share sizes \(q_i\):
-
-\[
-\text{VWAP} = \frac{\sum_{i=1}^{n} p_i q_i}{\sum_{i=1}^{n} q_i}
-\]
-
-Every symbol there: \(p_i\) is the price of trade \(i\), \(q_i\) is the number of shares in trade \(i\), \(n\) is the number of trades in the window, and \(\sum\) means "add up over all the trades". The numerator is total dollars traded and the denominator is total shares traded, so the ratio is dollars per share. Contrast that with a plain average of the prices, \(\frac{1}{n}\sum p_i\), which counts a 100-share trade and a 40,000-share trade equally.
-
-```r title="VWAP per 30-minute window, against a plain average"
-vwap_of <- function(window) {
-  sum(window$price * window$size) / sum(window$size)
-}
-
-vwap30  <- period.apply(ticks, INDEX = ep, FUN = vwap_of)
-plain30 <- period.apply(ticks$price, INDEX = ep, FUN = function(x) mean(x))
-
-compare <- merge(round(vwap30, 4), round(plain30, 4))
-colnames(compare) <- c("vwap", "plain_mean")
-head(compare, 4)
-#>                        vwap plain_mean
-#> 2026-03-02 09:59:54 47.9508    47.9501
-#> 2026-03-02 10:29:54 48.0655    48.0651
-#> 2026-03-02 10:59:58 48.0361    48.0414
-#> 2026-03-02 11:29:56 48.1040    48.1032
+```r title="Highest price in each 30-minute block"
+period.apply(intraday$price, INDEX = ep, FUN = max)
+#>                      price
+#> 2026-03-02 09:59:00 100.27
+#> 2026-03-02 10:29:00 100.09
+#> 2026-03-02 10:59:00  99.62
+#> 2026-03-02 11:29:00  99.41
+#> 2026-03-02 11:59:00  99.49
+#> 2026-03-02 12:29:00  99.20
+#> 2026-03-02 12:59:00  99.32
+#> 2026-03-02 13:29:00  99.45
+#> 2026-03-02 13:59:00  99.47
+#> 2026-03-02 14:29:00  99.53
+#> 2026-03-02 14:59:00 100.01
+#> 2026-03-02 15:29:00 100.24
+#> 2026-03-02 15:59:00  99.87
 ```
 
-`period.apply()` called `vwap_of()` once per window, handing it the rows in that window as a small `xts` object. Inside the function, `window$price * window$size` is the dollars in each trade, `sum()` of that is total dollars, and dividing by total shares gives VWAP.
+`period.apply()` split the price series at the endpoints and ran `max()` on each 30-minute slice, returning 13 values. Each result is stamped with the *last* timestamp of its block, so the first peak of 100.27 belongs to the 09:30 to 09:59 window. Swap `max` for `mean`, `min`, `sd`, or any function of your own, and you get that statistic per period.
 
-And the two columns are nearly identical. 47.9508 against 47.9501 is a difference of seven hundredths of a cent. This is worth being honest about rather than glossing over: **in this simulated session, VWAP tells you almost nothing a plain average would not.** The reason is in how the data was built. Back in section one, `size` was drawn with `sample()` completely independently of `price`. When trade size carries no relationship to price, weighting by size changes nothing on average, so the two converge.
+There is one cosmetic wrinkle: the results are stamped at 09:59, 10:29, and so on, one minute shy of the round boundary. `align.time()` snaps those stamps forward to the clean 30-minute mark, which reads better and lines up neatly with other series. The `n = 1800` argument is the boundary in seconds (30 minutes is 1800 seconds).
 
-Real markets are not like that, and one trade is enough to show why. Suppose a pension fund dumps 40,000 shares at 47.80 at 09:47, in a window where everything else traded near 47.95.
-
-```r title="One institutional block, and the two averages part company"
-block_trade <- xts(data.frame(price = 47.80, size = 40000),
-                   order.by = as.POSIXct("2026-03-02 09:47:00", tz = "America/New_York"))
-ticks_blk <- rbind(ticks, block_trade)
-
-ep_blk    <- endpoints(ticks_blk, on = "minutes", k = 30)
-vwap_blk  <- period.apply(ticks_blk, INDEX = ep_blk, FUN = vwap_of)
-plain_blk <- period.apply(ticks_blk$price, INDEX = ep_blk, FUN = function(x) mean(x))
-
-after <- merge(round(vwap_blk, 4), round(plain_blk, 4))
-colnames(after) <- c("vwap", "plain_mean")
-
-head(after, 1)     # with the block trade
-#>                        vwap plain_mean
-#> 2026-03-02 09:59:54 47.9158    47.9496
-head(compare, 1)   # without it
-#>                        vwap plain_mean
-#> 2026-03-02 09:59:54 47.9508    47.9501
+```r title="Snap timestamps to clean 30-minute marks"
+block_max <- period.apply(intraday$price, INDEX = ep, FUN = max)
+align.time(block_max, n = 1800)
+#>                      price
+#> 2026-03-02 10:00:00 100.27
+#> 2026-03-02 10:30:00 100.09
+#> 2026-03-02 11:00:00  99.62
+#> 2026-03-02 11:30:00  99.41
+#> 2026-03-02 12:00:00  99.49
+#> 2026-03-02 12:30:00  99.20
+#> 2026-03-02 13:00:00  99.32
+#> 2026-03-02 13:30:00  99.45
+#> 2026-03-02 14:00:00  99.47
+#> 2026-03-02 14:30:00  99.53
+#> 2026-03-02 15:00:00 100.01
+#> 2026-03-02 15:30:00 100.24
+#> 2026-03-02 16:00:00  99.87
 ```
 
-One extra row out of 339 moved VWAP from 47.9508 to 47.9158, a drop of 3.5 cents, while the plain mean moved from 47.9501 to 47.9496, half of one hundredth of a cent. The reason is the weights. That half hour traded 172,500 shares in total, and the block alone was 40,000 of them, so it deserves a little under a quarter of the say in the average price paid per share. VWAP gives it exactly that. The plain mean treats it as 1 of 339 trades, worth 0.3% of the answer, and effectively ignores it.
+Same 13 values, but now stamped at 10:00, 10:30, and so on. `align.time()` did not change the numbers, only rounded each timestamp up to the next clean boundary. Aligned stamps make two series with different raw times easy to merge and compare later.
 
-That is the whole case for VWAP, and it is also its limit. VWAP is the price the market actually transacted at, which is why it is the standard benchmark for execution quality. It is not a robust average: a single large print moves it, by design. If you want a summary that shrugs off one big trade, VWAP is the wrong tool and you want a median or a trimmed mean instead.
+**Try it:** Compute the *mean* price in each 60-minute block. (Change `k` to 60 and use `mean`.)
 
-## Why do time zones and bar stamps bite intraday data?
-
-Two traps in this section, and both are quiet. Neither raises an error. They just give you wrong answers.
-
-**The time zone trap.** A `POSIXct` is an absolute instant, stored as seconds since 1970 in UTC. The `tzone` attribute does not change which instant it is, only how it is displayed and how a time-of-day query is interpreted.
-
-```r title="One instant, three ways of saying it"
-first_trade <- index(ticks)[1]
-
-format(first_trade, tz = "America/New_York", usetz = TRUE)
-#> [1] "2026-03-02 09:30:00 EST"
-format(first_trade, tz = "UTC", usetz = TRUE)
-#> [1] "2026-03-02 14:30:00 UTC"
-format(first_trade, tz = "Asia/Kolkata", usetz = TRUE)
-#> [1] "2026-03-02 20:00:00 IST"
+```r title="Your turn: mean price per hour"
+# Change k to 60, then use FUN = function(x) mean(x).
+ex4_ep <- endpoints(intraday, on = "minutes", k = 30)  # change 30 to 60
+period.apply(intraday$price, INDEX = ex4_ep, FUN = function(x) mean(x))
 ```
 
-The same trade, the same instant, three labels: 09:30 in New York, 14:30 in UTC, 20:00 in Kolkata. Nothing about the data changed. Now watch what happens when a time-of-day query meets the wrong zone.
+<details>
+<summary>Click to reveal solution</summary>
 
-```r title="The same query, the same data, a different answer"
-ticks_utc <- ticks
-tzone(ticks_utc) <- "UTC"    # relabel the index; the instants are untouched
-
-nrow(ticks["T09:30/T09:34"])         # NY-stamped object, NY market open
-#> [1] 49
-nrow(ticks_utc["T09:30/T09:34"])     # UTC-stamped object, same query
-#> [1] 0
-nrow(ticks_utc["T14:30/T14:34"])     # UTC-stamped object, UTC market open
-#> [1] 49
+```r title="Mean price per hour solution"
+ex4_ep <- endpoints(intraday, on = "minutes", k = 60)
+period.apply(intraday$price, INDEX = ex4_ep, FUN = function(x) mean(x))
+#>                         price
+#> 2026-03-02 09:59:00 100.04900
+#> 2026-03-02 10:59:00  99.60233
+#> 2026-03-02 11:59:00  99.31550
+#> 2026-03-02 12:59:00  99.10717
+#> 2026-03-02 13:59:00  99.32100
+#> 2026-03-02 14:59:00  99.57150
+#> 2026-03-02 15:59:00  99.81183
 ```
 
-This is the trap in three lines. Asking for the first five minutes of the session gives 49 trades when the object is stamped `America/New_York`. The identical query against the identical trades gives **zero** once the index is relabelled `UTC`, because 09:30 UTC is 04:30 in New York, hours before the bell. Ask for 14:30 UTC instead and the 49 trades reappear.
+**Explanation:** Sixty-minute endpoints cut the day into seven hourly blocks (the last one is short), and `mean()` reports the average price in each. Using `FUN = function(x) mean(x)` sidesteps a helper message that `FUN = mean` prints.
 
-Nothing errored. If you had wrapped that in an opening-range strategy, it would have returned an empty result and you might have concluded the stock did not trade. The lesson: `tzone` is not cosmetic. Set it to the exchange's zone when you build the object, and check it whenever data arrives from somewhere else. Feeds very commonly ship UTC timestamps for a market that opens at 09:30 local.
+</details>
 
-> **Watch out:** Trading sessions are defined in local wall-clock time, so a market opening at 09:30 New York is 13:30 UTC in summer and 14:30 UTC in winter. Storing intraday data in UTC and slicing it with fixed UTC times will silently shift your windows by an hour on daylight-saving changeovers. Keep the exchange's zone on the index and let R handle the offsets.
+## How do you compute intraday returns safely?
 
-**The stamp alignment trap.** Recall that `to.period()` stamps each bar at its last trade. That is honest but awkward: two stocks bar-aggregated over the same window get different stamps, because their last trades happened at different moments, so merging them lines nothing up. `align.time()` fixes this by rounding each stamp up to the end of its window. The `n` argument is the window length in seconds, so a 5-minute window is `n = 300`.
+A price level tells you where the stock is; a **return** tells you how much it moved from one bar to the next. Returns are the raw material for volatility, risk, and most trading signals, so getting them right matters. The safe, idiomatic way to get bar-to-bar returns from an xts is quantmod's `Delt()` function, which computes the percentage change for you.
 
-```r title="Snapping bar stamps to the window boundary"
-head(index(bars5), 3)
-#> [1] "2026-03-02 09:34:55 EST" "2026-03-02 09:39:51 EST" "2026-03-02 09:44:58 EST"
-
-bars5_aligned <- align.time(bars5, n = 300)
-head(index(bars5_aligned), 3)
-#> [1] "2026-03-02 09:35:00 EST" "2026-03-02 09:40:00 EST" "2026-03-02 09:45:00 EST"
-```
-
-The ragged stamps 09:34:55, 09:39:51, 09:44:58 became the clean grid 09:35:00, 09:40:00, 09:45:00. Now a second stock aggregated the same way lands on the same stamps and `merge()` pairs the bars correctly. The prices are untouched; only the labels moved.
-
-Be clear-eyed about what you traded away: the aligned stamp is a label for a window, not an instant when anything happened. No trade occurred at 09:35:00. That is fine for merging and plotting, and it is wrong if you feed those stamps to something that assumes each row marks a real event.
-
-## Where does quantmod actually fit?
-
-`quantmod` is the package most people reach for first, and it is worth being precise about what it does, because it is easy to assume it is the intraday engine. It is not. **`quantmod` is a data-access and convenience layer that sits on top of `xts`.** Everything in the sections above was `xts` doing the work. What `quantmod` adds is a way to get market data in, and some accessors for getting columns out.
-
-The headline function is `getSymbols()`, which fetches from Yahoo Finance and other sources. Note the ticker change here: Meridian Freight is a stock we invented and simulated, so no real feed has ever heard of it. To show a live fetch we have to ask for a stock that actually exists, so this one block steps away from MFT and uses Apple. `getSymbols()` also needs a network connection, so it will not run in your browser. Copy it into a local R session to try it.
-
-```r-static title="getSymbols fetches daily bars (run this locally)"
-suppressMessages(library(quantmod))
-
-aapl_daily <- getSymbols("AAPL", src = "yahoo", auto.assign = FALSE,
-                         from = "2026-01-02", to = "2026-01-08")
-
-head(aapl_daily[, 1:5], 3)
-#>            AAPL.Open AAPL.High AAPL.Low AAPL.Close AAPL.Volume
-#> 2026-01-02    272.26    277.84   269.00     271.01    37838100
-#> 2026-01-05    270.64    271.51   266.14     267.26    45647200
-#> 2026-01-06    267.00    267.55   262.12     262.36    52352100
-colnames(aapl_daily)
-#> [1] "AAPL.Open"     "AAPL.High"     "AAPL.Low"      "AAPL.Close"    "AAPL.Volume"   "AAPL.Adjusted"
-```
-
-Two things to notice. `auto.assign = FALSE` makes `getSymbols()` return the object instead of silently creating a variable named `AAPL` in your workspace, which is the older default and a common surprise. And the returned object's class is `xts`. Every technique in this post applies to it directly.
-
-The more important thing is what that block is **not**. Those are daily bars, one row per trading day. Free public sources do not serve years of tick data, and `getSymbols()` intraday coverage is limited to recent days at coarse resolution where it exists at all. Genuine high-frequency history comes from paid vendors or your broker's feed, and it arrives as CSV or a database extract that you load and wrap in `xts()` yourself, exactly as the first block of this post did.
-
-What `quantmod` genuinely gives you day to day are accessors. `Cl()` pulls the close column, with `Op()`, `Hi()`, `Lo()`, and `Vo()` doing the obvious equivalents, and they find the right column by name so you do not hard-code positions. `Delt()` computes period-over-period returns.
-
-```r title="quantmod accessors, working on our own bars"
-suppressMessages(library(quantmod))
-
-head(Cl(bars5), 3)
-#>                     Close
-#> 2026-03-02 09:34:55 47.97
-#> 2026-03-02 09:39:51 47.91
-#> 2026-03-02 09:44:58 47.93
-head(Delt(Cl(bars5)), 3)
+```r title="Compute one-minute returns with Delt()"
+rets <- Delt(intraday$price)
+head(rets, 4)
+round(sd(rets, na.rm = TRUE), 5)
 #>                     Delt.1.arithmetic
-#> 2026-03-02 09:34:55                NA
-#> 2026-03-02 09:39:51     -0.0012507817
-#> 2026-03-02 09:44:58      0.0004174494
+#> 2026-03-02 09:30:00                NA
+#> 2026-03-02 09:31:00      1.999800e-04
+#> 2026-03-02 09:32:00     -9.997001e-05
+#> 2026-03-02 09:33:00      1.299740e-03
+#> [1] 0.00048
 ```
 
-`Cl(bars5)` found the `Close` column by name. `Delt()` returned bar-over-bar returns: the first is `NA` because there is no prior bar to compare against, then -0.00125 (the close fell from 47.97 to 47.91, about a 0.13% drop) and +0.00042. That `NA` in row one is correct and expected; every differencing operation costs you the first observation.
+`Delt()` returned the fractional change from each bar to the one before it. The first value is `NA` because there is no earlier bar to compare against, which is correct rather than a bug. The numbers print in scientific notation because they are small: `1.999800e-04` means about +0.0002, or roughly +0.02%. That tiny scale is normal for one-minute returns. The final line, `sd()` of the returns, is a plain measure of how bumpy the minute-to-minute moves were: about 0.00048.
 
-For a tick-level change, build it explicitly from the numeric prices rather than differencing the `xts` object.
+If you want the raw price *change* rather than a percentage, subtract each price from the one before it. Running `diff()` directly on an xts object can be fragile, so the reliable habit is to pull out the plain numbers with `as.numeric()`, difference those, then wrap the result back into an xts. The leading `NA` keeps the length correct.
 
-```r title="Tick-to-tick price change, built explicitly"
-tick_change <- xts(c(NA, diff(as.numeric(ticks$price))), order.by = index(ticks))
-colnames(tick_change) <- "change"
-
-head(tick_change, 4)
+```r title="Price change per minute from the numeric vector"
+chg <- xts(c(NA, diff(as.numeric(intraday$price))), order.by = index(intraday))
+colnames(chg) <- "change"
+head(chg, 4)
 #>                     change
 #> 2026-03-02 09:30:00     NA
-#> 2026-03-02 09:30:01   0.00
-#> 2026-03-02 09:30:08  -0.02
-#> 2026-03-02 09:30:08   0.00
-sum(tick_change$change != 0, na.rm = TRUE)
-#> [1] 2726
+#> 2026-03-02 09:31:00   0.02
+#> 2026-03-02 09:32:00  -0.01
+#> 2026-03-02 09:33:00   0.13
 ```
 
-Read the pattern from the inside out. `as.numeric(ticks$price)` drops to a plain numeric vector, `diff()` gives the 4,327 changes between consecutive prices, `c(NA, ...)` puts an `NA` in front so the result is 4,328 long again and each change sits on the trade it belongs to, and `xts(...)` re-attaches the original index. The result: of the 4,327 trades that had a previous trade to compare against, 2,726 moved the price at all, so roughly 37% printed at exactly the price before them. Long runs at the same price are utterly normal in tick data and worth expecting.
+`as.numeric(intraday$price)` dropped the timestamps and gave a plain vector. `diff()` on that vector produced the minute-to-minute price changes, and we glued a leading `NA` on the front so it lines up with the original 390 rows. Re-wrapping in `xts()` with `index(intraday)` restored the timestamps. The price rose 0.02 in the first minute, slipped 0.01 in the next, and jumped 0.13 after that.
 
-> **Note:** Building the change vector explicitly, as above, is the portable choice: `diff()` and `lag()` applied directly to an `xts` object are known to misbehave in some runtimes, including the in-browser one that powers the runnable blocks on this page. Working on the numeric vector and re-wrapping costs one extra line. It reads more plainly, and it behaves the same everywhere.
+[KEY INSIGHT]
+**The first return of any series is always NA, and per-bar intraday returns are tiny.** Both facts are features, not errors. The `NA` marks the missing "previous bar," and the small magnitudes reflect how little price moves in a single minute. Aggregate returns over longer windows if you need bigger, more legible numbers.
+
+**Try it:** Compute *log returns* (the difference of the logged prices) using the same numeric-vector pattern, and show the first four.
+
+```r title="Your turn: log returns"
+# Take diff() of log(as.numeric(intraday$price)) with a leading NA, wrap in xts().
+# ex5_logret <- xts(c(NA, diff(log(as.numeric(intraday$price)))), order.by = index(intraday))
+# head(ex5_logret, 4)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Log returns solution"
+ex5_logret <- xts(c(NA, diff(log(as.numeric(intraday$price)))), order.by = index(intraday))
+colnames(ex5_logret) <- "log_return"
+head(ex5_logret, 4)
+#>                        log_return
+#> 2026-03-02 09:30:00            NA
+#> 2026-03-02 09:31:00  1.999600e-04
+#> 2026-03-02 09:32:00 -9.997501e-05
+#> 2026-03-02 09:33:00  1.298896e-03
+```
+
+**Explanation:** Logging first, then differencing, gives log returns, which add up nicely across time. For tiny moves they are almost identical to the simple returns from `Delt()`.
+
+</details>
+
+## How do you fill gaps and missing bars?
+
+Real intraday feeds are rarely complete. If no trade happens in some minute, that bar is simply absent, so your series has holes. Before you compute returns or aggregate, you usually want a bar for every minute, with missing ones filled sensibly. Let us first create some gaps by dropping a handful of minutes.
+
+```r title="Create a series with missing minutes"
+gappy <- intraday[-c(5, 6, 7, 20, 21)]
+nrow(gappy)
+#> [1] 385
+```
+
+We removed five rows, so `gappy` has 385 bars instead of 390. Now minutes 5, 6, 7, 20, and 21 are gone. The task is to put those minutes back as empty slots, then fill them.
+
+The trick is to `merge()` the gappy series onto a complete grid of every minute, which inserts `NA` wherever a bar is missing. Then `na.locf()` (last observation carried forward) fills each hole with the most recent known price, which is the standard assumption for a no-trade minute: the price simply held. We build the full grid as an empty xts that has the complete index but no data.
+
+```r title="Fill gaps by carrying the last price forward"
+grid <- xts(, order.by = index(intraday))
+filled <- na.locf(merge(gappy, grid))
+nrow(filled)
+sum(is.na(filled))
+#> [1] 390
+#> [1] 0
+```
+
+`merge(gappy, grid)` re-indexed the gappy series onto all 390 timestamps, inserting `NA` at the five missing minutes. `na.locf()` then carried the last real price forward into each gap. The result has all 390 rows and zero remaining `NA` values, so the series is whole again and ready for analysis.
+
+[NOTE]
+**Forward fill cannot fix a gap at the very start.** If the first bars are missing, there is no earlier value to carry forward, so they stay `NA`. In that case add `na.locf(x, fromLast = TRUE)` to backfill from the next known value instead. The exercise below shows this exact situation.
+
+**Try it:** Drop the first two bars, reindex onto the full grid, forward-fill, then count how many `NA` values remain. Think about why forward fill leaves some behind.
+
+```r title="Your turn: fill a series missing its opening bars"
+# Drop bars 1 and 2, merge onto the full grid, na.locf(), then sum(is.na(...)).
+# ex6_gappy <- intraday[-c(1, 2)]
+# ex6_filled <- na.locf(merge(ex6_gappy, xts(, order.by = index(intraday))))
+# sum(is.na(ex6_filled))
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Leading-gap solution"
+ex6_gappy <- intraday[-c(1, 2)]
+ex6_filled <- na.locf(merge(ex6_gappy, xts(, order.by = index(intraday))))
+sum(is.na(ex6_filled))
+#> [1] 2
+```
+
+**Explanation:** The first two minutes have no earlier price to carry forward, so forward fill leaves them `NA`. Adding `fromLast = TRUE` would backfill those two from the third bar.
+
+</details>
+
+## How do you load real intraday data with quantmod?
+
+So far we generated data inline so everything runs in the browser. In your own work you will pull real data instead, and quantmod's `getSymbols()` is the usual door. It downloads a symbol's history from a provider such as Yahoo Finance and hands you back an xts object, ready for every technique above. Because it needs a live internet connection, run the block below in your own R session rather than expecting it to run here.
+
+[NOTE]
+**`getSymbols()` needs a live connection, so it belongs in your local R session.** Free sources like Yahoo mainly serve daily bars; true minute or tick data usually comes from a paid feed or a specialist package. The good news is that once the data is an xts, everything in this tutorial applies without change.
+
+```r-static title="Load real daily prices with getSymbols() (run locally)"
+library(quantmod)
+getSymbols("AAPL", src = "yahoo", from = "2026-06-01", to = "2026-06-07", auto.assign = TRUE)
+periodicity(AAPL)
+tail(Cl(AAPL), 3)
+#> [1] "AAPL"
+#> Daily periodicity from 2026-06-01 to 2026-06-05
+#>            AAPL.Close
+#> 2026-06-03     310.26
+#> 2026-06-04     311.23
+#> 2026-06-05     307.34
+```
+
+`getSymbols("AAPL", ...)` fetched Apple's prices and stored them in an xts object named `AAPL`, returning the symbol name. `periodicity()` confirms daily bars, and `Cl(AAPL)` pulls the closing price, the same accessor we used on our own bars. From here you could aggregate to weekly bars with `to.period()`, slice a date range with the bracket notation, or compute returns with `Delt()`, all exactly as you did above.
+
+To see how aggregation carries over, here is a live exercise on our own minute data.
+
+**Try it:** Collapse the whole 390-minute session into a single daily OHLC bar using `to.period()` with `period = "days"`.
+
+```r title="Your turn: collapse the session into one daily bar"
+# Set period to "days" so all 390 minute bars roll into one OHLC bar.
+# ex7_daily <- to.period(intraday, period = "days", OHLC = TRUE)
+# ex7_daily
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Daily bar solution"
+ex7_daily <- to.period(intraday, period = "days", OHLC = TRUE)
+ex7_daily
+#>                     intraday.Open intraday.High intraday.Low intraday.Close
+#> 2026-03-02 15:59:00        100.01        100.27        98.88           99.2
+```
+
+**Explanation:** With `period = "days"` the entire session becomes one bar: it opened at 100.01, peaked at 100.27, bottomed at 98.88, and closed at 99.2. This is exactly what a daily feed would report for the day.
+
+</details>
+
+## Practice Exercises
+
+These combine several ideas from the tutorial. Each solution uses fresh variable names (prefixed `my_`) so it will not clash with the objects built above. Try each one before opening the solution.
+
+### Exercise 1: First-hour 10-minute bars
+
+From the first hour of trading (09:30 to 10:29), build 10-minute OHLC bars, then report how many bars you get and the highest high across them.
+
+```r title="Exercise 1 starter"
+# 1) Slice 09:30 to 10:29 with the bracket notation.
+# 2) to.period(..., period = "minutes", k = 10, OHLC = TRUE).
+# 3) nrow() and max(Hi(...)).
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 1 solution"
+my_firsthour <- intraday["2026-03-02 09:30/2026-03-02 10:29"]
+my_bars10 <- to.period(my_firsthour, period = "minutes", k = 10, OHLC = TRUE)
+nrow(my_bars10)
+max(Hi(my_bars10))
+#> [1] 6
+#> [1] 100.27
+```
+
+**Explanation:** The first hour holds 60 one-minute bars, which roll into six 10-minute bars. `Hi()` pulls the high of each bar, and `max()` finds the peak price of the hour, 100.27.
+
+</details>
+
+### Exercise 2: An intraday volatility profile
+
+Volatility often changes through the day. Build a simple profile: the average *absolute* one-minute return within each 30-minute block. Bigger numbers mean choppier trading.
+
+```r title="Exercise 2 starter"
+# 1) my_ret <- Delt(intraday$price)
+# 2) my_ep <- endpoints(intraday, on = "minutes", k = 30)
+# 3) period.apply over abs(my_ret) with mean (na.rm = TRUE), then round.
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 2 solution"
+my_ret <- Delt(intraday$price)
+my_ep <- endpoints(intraday, on = "minutes", k = 30)
+my_absret <- period.apply(abs(my_ret), INDEX = my_ep, FUN = function(v) mean(v, na.rm = TRUE))
+round(my_absret, 6)
+#>                     Delt.1.arithmetic
+#> 2026-03-02 09:59:00          0.000427
+#> 2026-03-02 10:29:00          0.000414
+#> 2026-03-02 10:59:00          0.000362
+#> 2026-03-02 11:29:00          0.000423
+#> 2026-03-02 11:59:00          0.000346
+#> 2026-03-02 12:29:00          0.000421
+#> 2026-03-02 12:59:00          0.000319
+#> 2026-03-02 13:29:00          0.000366
+#> 2026-03-02 13:59:00          0.000352
+#> 2026-03-02 14:29:00          0.000319
+#> 2026-03-02 14:59:00          0.000435
+#> 2026-03-02 15:29:00          0.000330
+#> 2026-03-02 15:59:00          0.000395
+```
+
+**Explanation:** `abs(my_ret)` measures the size of each minute's move regardless of direction. `period.apply()` averages those sizes inside each 30-minute block, giving one volatility number per half hour. The `na.rm = TRUE` ignores the leading `NA` return.
+
+</details>
+
+### Exercise 3: A clean 5-minute close series, end to end
+
+Put the whole workflow together. Starting from the minute series, remove a few bars to mimic missing trades, fill the gaps, aggregate to 5-minute bars, then show the last three 5-minute closes.
+
+```r title="Exercise 3 starter"
+# 1) Drop a few rows to create gaps.
+# 2) merge onto the full grid + na.locf() to fill.
+# 3) to.period(..., k = 5) then tail(Cl(...), 3).
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 3 solution"
+my_raw <- intraday[-c(50, 51, 100)]
+my_full <- na.locf(merge(my_raw, xts(, order.by = index(intraday))))
+my_bars <- to.period(my_full, period = "minutes", k = 5, OHLC = TRUE)
+tail(Cl(my_bars), 3)
+#>                     my_full.Close
+#> 2026-03-02 15:49:00         99.49
+#> 2026-03-02 15:54:00         99.30
+#> 2026-03-02 15:59:00         99.20
+```
+
+**Explanation:** This chains four steps into one clean pipeline: create gaps, fill them by carrying prices forward, aggregate to 5-minute OHLC bars, and pull the closes. The result is a tidy, gap-free 5-minute close series ready for charting or modelling.
+
+</details>
 
 ## FAQ
 
-**Can I use `getSymbols()` to download real intraday tick data?**
-Not in any serious quantity. Free public sources serve daily bars reliably; intraday coverage through `getSymbols()` is limited to recent days at coarse resolution, and true tick history is a paid product. In practice you buy the data or pull it from your broker, then load the CSV and wrap it with `xts()` yourself. The upside is that everything in this post works identically on data you loaded, because `getSymbols()` returns a plain `xts` object anyway.
+**When should I use xts instead of the base ts class for intraday data?** Use xts whenever timestamps carry a time of day or the spacing is irregular, which is almost always true intraday. The base `ts` class assumes evenly spaced observations described by a single frequency, so it cannot represent 09:31 versus 09:33 or an overnight gap. xts stores each real timestamp, which is exactly what minute and tick data need.
 
-**Why does my 6.5-hour session not produce 78 five-minute bars?**
-Because `to.period()` creates a bar only for windows that actually contain trades. Our session produced 74 rather than 78, and the four missing bars are the 20-minute halt. This is the correct behavior, but it means you cannot assume a fixed row count per day, and code that indexes bars by position will drift the moment a halt or a thin period appears. Index by time, never by row number.
+**Why not just keep intraday data in a data.frame?** A data.frame can hold a timestamp column, but it will not slice by clock time or aggregate to OHLC bars for you, and filling gaps on a grid stays manual. xts builds all of that on top of the timestamp index, so `intraday["T09:30/T10:00"]` and `to.period()` just work. You get less code and fewer chances to line up the wrong rows.
 
-**Should I use `xts` or `data.table` for high-frequency work?**
-Both are used seriously. `xts` is the better fit when your work is time-indexed by nature: the date-string subsetting, `to.period()`, `endpoints()`, and `align.time()` are all built around a time index and have no clean equivalent elsewhere. `data.table` wins on raw scale, since it handles tens of millions of rows more comfortably and its `roll` joins are excellent for matching trades to quotes. A common pattern is `data.table` for heavy loading and joining, then `xts` for the time-series operations.
+**Can getSymbols() pull minute or tick data?** Not from the free Yahoo source, which mainly serves daily bars. For genuine intraday history you generally need a paid data provider, an API key with a source like Alpha Vantage, or a dataset from a specialist package. Whatever the source, once the result is an xts object, every technique in this tutorial applies unchanged.
 
-**How do I handle multiple trades with the same timestamp?**
-`xts` permits duplicate index values, so nothing breaks, but functions differ in how they treat them. If your feed reports whole seconds, several trades will genuinely share a stamp. The two honest options are to aggregate them into one row per stamp (sum the sizes, take a volume-weighted price) or to keep them and accept the duplicates. What you should not do is silently drop them: each one is a real trade, and dropping them corrupts any volume-based statistic including VWAP.
+**How do I handle timezones so my clock-time slicing is correct?** Build the index with an explicit `tz` argument in `as.POSIXct()`, and confirm it with `tzone(x)`. Time-of-day slices like `T09:30` are interpreted in that timezone, so a mismatch silently shifts your window. When you merge two intraday series, make sure both share the same timezone first.
 
-**Why is my VWAP different from my broker's?**
-Usually the trade filter, not the arithmetic. Exchanges publish condition codes that mark trades as out-of-sequence, late-reported, or auction prints, and the standard VWAP benchmark excludes several of these. Opening and closing auction volume is a common point of disagreement. Compare the total share count in your window against theirs first; if the denominators differ, the filter is the culprit rather than the formula.
-
-**Do I need `align.time()` if I only work with one stock?**
-No. It matters when you merge, because two series bar-aggregated over the same windows carry different last-trade stamps and will not line up. For a single series, the ragged stamps are actually more informative, since each one is a real instant a trade occurred. Align when you need a shared grid; leave it alone when you do not.
+**Is there a package built specifically for high-frequency data?** Yes. The `highfrequency` package adds tools aimed at tick and second-level data, including cleaning routines and realized-volatility estimators, and it works with xts objects. For the everyday tasks of slicing, aggregating, and summarising, plain xts plus quantmod is usually all you need.
 
 ## Summary
 
-| Task | Function | Watch out for |
-|---|---|---|
-| Store irregular trades | `xts(data, order.by = timestamps)` | `order.by` must be `POSIXct` with the exchange's `tzone` |
-| See sub-second detail | `options(digits.secs = 3)` | Precision is stored but hidden by default |
-| Measure spacing | `periodicity()`, `diff(index(x))` | The average spacing describes no actual trade |
-| Slice a window | `x["2026-03-02 09:30/09:45"]` | Largest unit first |
-| Slice a time of day | `x["T09:30/T09:34"]` | The endpoint is inclusive: `T09:34` runs through 09:34:59. Interpreted in the index's `tzone` |
-| Aggregate to bars | `to.period(x, "minutes", k = 5)` | Gaps produce no bar; stamps land on the last trade |
-| Custom per-window stat | `endpoints()` + `period.apply()` | `endpoints()` returns row positions, not times |
-| Volume-weighted price | `sum(p * q) / sum(q)` on ticks | Compute from ticks; bars have thrown volume away |
-| Line up bar stamps | `align.time(x, n = 300)` | The aligned stamp is a label, not a real event |
-| Fetch market data | `quantmod::getSymbols()` | Daily bars; needs network; true tick data is a paid feed |
+This tutorial built a full day of one-minute bars from scratch and worked through the core intraday toolkit in xts and quantmod. The table maps each task to the function that does it.
 
-The through-line: intraday data is a list of events, not a grid of slots. Gaps are missing rows rather than `NA` values, the time zone on the index changes what your queries mean, and every aggregation step throws something away that you may need later. `xts` gives you the time index and the tools to slice and aggregate it; `quantmod` gets data in and columns out. Our MFT session started as 4,328 irregular trades and ended as 74 bars, a VWAP per half hour, and a clean 5-minute grid, with the 11:00 halt visible at every stage as an absence rather than an error.
+| Task | Function | What it gives you |
+|------|----------|-------------------|
+| Store timestamped values | `xts()` | A time-indexed series |
+| Check the spacing | `periodicity()` | The detected frequency and range |
+| Slice by date and time | `x["start/end"]` | The bars in a window |
+| Slice by time of day | `x["T09:30/T10:00"]` | The same clock window across days |
+| Roll up to OHLC bars | `to.period()` | Open, high, low, close per period |
+| Pull one OHLC column | `Op()` `Hi()` `Lo()` `Cl()` | A single price series |
+| Mark period boundaries | `endpoints()` | Row positions that end each block |
+| Summarise per period | `period.apply()` | Any statistic per block |
+| Tidy the stamps | `align.time()` | Timestamps snapped to clean marks |
+| Bar-to-bar returns | `Delt()` | Percentage change per bar |
+| Fill missing bars | `merge()` + `na.locf()` | A gap-free series on a full grid |
+| Download real prices | `getSymbols()` | Market data as an xts (run locally) |
+
+The through-line is simple: xts indexes everything on real time, so once your data is an xts, slicing, aggregating, and analysing intraday series all follow the same few verbs.
 
 ## References
 
-1. Ryan, J. A. & Ulrich, J. M. *xts: eXtensible Time Series*. The package's own introductory vignette covers construction, subsetting, and the `to.period()` family. [cran.r-project.org/package=xts](https://cran.r-project.org/package=xts)
-2. *xts FAQ* vignette. Short answers to the questions that bite in practice, including duplicate index values and time-zone handling. [cran.r-project.org/web/packages/xts/vignettes/xts-faq.pdf](https://cran.r-project.org/web/packages/xts/vignettes/xts-faq.pdf)
-3. Ulrich, J. M. *quantmod: Quantitative Financial Modelling Framework*. Reference for `getSymbols()` sources and the `Op`/`Hi`/`Lo`/`Cl`/`Vo` accessors. [cran.r-project.org/package=quantmod](https://cran.r-project.org/package=quantmod)
-4. Zeileis, A. & Grothendieck, G. *zoo: S3 Infrastructure for Regular and Irregular Time Series*. `xts` extends `zoo`, so this is the layer underneath the index. [cran.r-project.org/package=zoo](https://cran.r-project.org/package=zoo)
-5. R Core Team. *Time Zones in R*. The authoritative note on how `POSIXct` stores instants and what the `tzone` attribute actually controls. [stat.ethz.ch/R-manual/R-devel/library/base/html/timezones.html](https://stat.ethz.ch/R-manual/R-devel/library/base/html/timezones.html)
-6. R Core Team. *Date-Time Classes*. Definitive on `POSIXct` versus `POSIXlt`, and on `digits.secs` for sub-second printing. [stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html](https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html)
-7. Hyndman, R. J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd ed. The standard modern reference for what comes after the data-handling stage. [otexts.com/fpp3](https://otexts.com/fpp3/)
+1. xts on CRAN. [Link](https://cran.r-project.org/package=xts) - the package home, with install notes and the changelog.
+2. xts reference manual (PDF). [Link](https://cran.r-project.org/web/packages/xts/xts.pdf) - the full function reference for `to.period`, `endpoints`, `period.apply`, and `align.time`.
+3. xts documentation site, Ryan and Ulrich. [Link](https://joshuaulrich.github.io/xts/) - worked vignettes on subsetting by time and aggregating a series.
+4. quantmod on CRAN. [Link](https://cran.r-project.org/package=quantmod) - the package home for the finance helpers used here.
+5. quantmod reference manual (PDF). [Link](https://cran.r-project.org/web/packages/quantmod/quantmod.pdf) - the reference pages for `Delt`, `Cl`, and `getSymbols`.
+6. quantmod project site. [Link](https://www.quantmod.com/) - examples and charting galleries built on xts.
+7. R base DateTimeClasses (POSIXct and POSIXlt). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html) - how R stores a date plus a time of day, which is what the xts index is built on.
+8. highfrequency package on CRAN. [Link](https://cran.r-project.org/web/packages/highfrequency/index.html) - tools aimed at tick and second-level data, including realized-volatility estimators.
+9. Wickham, Cetinkaya-Rundel and Grolemund, R for Data Science, Dates and times. [Link](https://r4ds.hadley.nz/datetimes) - a gentle introduction to handling dates and times in R.
 
 ## Continue Learning
 
-- [Time Series Objects in R](Time-Series-Objects-in-R.html), the parent post, which places `xts` next to `ts`, `zoo`, and `tsibble` and explains when each class is the right container.
-- [Visualize Time Series in R](Visualize-Time-Series-in-R.html), for plotting the bars you just built, including seasonal and lag plots.
-- [Moving Averages in R](Moving-Averages-in-R.html), the natural next step once you have a bar series: `rollapply()` and friends work on any `xts` object, including the 5-minute bars from this page.
+- [Time Series Objects in R: ts vs xts vs zoo vs tsibble](Time-Series-Objects-in-R.html) - the parent tutorial that compares the four time series classes and shows when each one fits.
+- [Time Series Analysis With R](Time-Series-Analysis-With-R.html) - the full analysis workflow once your data lives in an xts object.
+- [Time Series Forecasting With R](Time-Series-Forecasting-With-R.html) - take an aggregated series and forecast where it goes next.
