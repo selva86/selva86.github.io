@@ -17,7 +17,7 @@
 
 import type { Env } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
-import { verifyPaddleSignature } from "../../_lib/paddle";
+import { verifyPaddleSignature, isPaddleSourceIp } from "../../_lib/paddle";
 import { getUserById, getUserByEmail } from "../../_lib/db";
 import { upsertOrgFromSubscription, updateOrgLifecycle } from "../../_lib/teams";
 import {
@@ -127,6 +127,17 @@ function teamsSeatQuantity(data: PaddleSubscriptionData, teamsPriceId?: string):
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const raw = await context.request.text();
+
+  // 0. Source-IP allowlist (Paddle's published delivery IPs; skipped in local
+  // dev where the harness posts from localhost). Signature is still primary.
+  if (context.env.ENVIRONMENT !== "dev") {
+    const ip = context.request.headers.get("CF-Connecting-IP");
+    const src = await isPaddleSourceIp(context.env, ip);
+    if (!src.allowed) {
+      console.error(`[webhook.paddle] rejected source ip ${ip} (${src.reason})`);
+      return jsonError(403, "forbidden", "Source IP not allowlisted");
+    }
+  }
 
   // 1. Verify signature over the raw body.
   const sig = context.request.headers.get("Paddle-Signature");

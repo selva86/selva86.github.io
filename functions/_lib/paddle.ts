@@ -84,6 +84,67 @@ export function paddleApiBase(apiKey: string): string {
   return apiKey.startsWith("pdl_sdbx_") ? "https://sandbox-api.paddle.com" : "https://api.paddle.com";
 }
 
+// ---- Webhook source-IP allowlist (defense-in-depth on top of signatures) ----
+//
+// Paddle publishes its delivery IPs at <api-base>/ips (data.ipv4_cidrs,
+// currently /32 entries). The endpoint is the source of truth - never
+// hard-code the list. Cached in KV for 24h. Fail-open when the list can't be
+// fetched: signature verification remains the primary control, and a webhook
+// outage would be worse than the marginal exposure.
+
+function ipv4ToInt(ip: string): number | null {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return null;
+  let n = 0;
+  for (const p of parts) {
+    const v = Number(p);
+    if (!Number.isInteger(v) || v < 0 || v > 255) return null;
+    n = (n << 8) | v;
+  }
+  return n >>> 0;
+}
+
+function cidrContains(cidr: string, ip: string): boolean {
+  const [net, lenStr] = cidr.split("/");
+  const len = lenStr === undefined ? 32 : Number(lenStr);
+  const netInt = ipv4ToInt(net);
+  const ipInt = ipv4ToInt(ip);
+  if (netInt === null || ipInt === null || !Number.isInteger(len) || len < 0 || len > 32) return false;
+  const mask = len === 0 ? 0 : (~0 << (32 - len)) >>> 0;
+  return (netInt & mask) === (ipInt & mask);
+}
+
+export async function isPaddleSourceIp(
+  env: { PADDLE_API_KEY: string; KV: KVNamespace },
+  requestIp: string | null,
+): Promise<{ allowed: boolean; reason: string }> {
+  if (!requestIp) return { allowed: true, reason: "no_ip_header" };
+  const base = paddleApiBase(env.PADDLE_API_KEY || "");
+  const cacheKey = `paddle:ips:${base}`;
+  let cidrs: string[] | null = null;
+  const cached = await env.KV.get(cacheKey).catch(() => null);
+  if (cached) {
+    try { cidrs = JSON.parse(cached) as string[]; } catch { cidrs = null; }
+  }
+  if (!cidrs) {
+    try {
+      const resp = await fetch(`${base}/ips`);
+      if (resp.ok) {
+        const data = (await resp.json()) as { data?: { ipv4_cidrs?: string[] } };
+        cidrs = data?.data?.ipv4_cidrs ?? null;
+        if (cidrs && cidrs.length) {
+          await env.KV.put(cacheKey, JSON.stringify(cidrs), { expirationTtl: 86400 }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn(`[paddle] ip list fetch failed: ${(e as Error).message}`);
+    }
+  }
+  if (!cidrs || !cidrs.length) return { allowed: true, reason: "ip_list_unavailable" };
+  const allowed = cidrs.some((c) => cidrContains(c, requestIp));
+  return { allowed, reason: allowed ? "matched" : "ip_not_allowlisted" };
+}
+
 // Update (or preview an update to) the seat quantity on a teams subscription.
 // Paddle requires the COMPLETE items list; teams subscriptions carry exactly one
 // item (the per-seat price), so a single-element list is the complete list.
