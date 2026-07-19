@@ -9,16 +9,21 @@
 // - Idempotent + replay-safe via webhook_events.id (Paddle event_id) PK.
 // - Verified against the raw request text; JSON is parsed from the same string.
 //
-// Scope: this handler fully processes TEAMS subscriptions. Individual plans
-// (pro_monthly/annual/lifetime -> users.pro_until) are acknowledged and ignored
-// for now (returned ok:true, ignored) so setting the notification destination to
-// "all subscription events" is safe; they get their own handler later.
+// Scope: TEAMS subscriptions reconcile into orgs (_lib/teams.ts). INDIVIDUAL
+// plans (Single Track / All-Access / Lifetime) fulfill through _lib/billing.ts:
+// subscription.* -> users.pro_until + subscriptions mirror; transaction.completed
+// -> lifetime grant; customer.created/updated -> users.paddle_customer_id link.
+// Everything else is acknowledged and ignored.
 
 import type { Env } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
 import { verifyPaddleSignature } from "../../_lib/paddle";
 import { getUserById, getUserByEmail } from "../../_lib/db";
 import { upsertOrgFromSubscription, updateOrgLifecycle } from "../../_lib/teams";
+import {
+  resolveSubscriptionUser, mirrorSubscription, applyIndividualEntitlement,
+  applyLifetimePurchase, linkPaddleCustomer,
+} from "../../_lib/billing";
 
 interface PaddlePrice {
   id?: string;
@@ -34,14 +39,46 @@ interface PaddleSubscriptionData {
   status?: string;
   customer_id?: string;
   current_billing_period?: { starts_at?: string; ends_at?: string } | null;
+  scheduled_change?: { action?: string; effective_at?: string } | null;
   items?: PaddleItem[];
   custom_data?: Record<string, unknown> | null;
+  // transaction.* fields (same envelope shape, different entity)
+  subscription_id?: string | null;
+  details?: { totals?: { total?: string; currency_code?: string } } | null;
+  // customer.* fields
+  email?: string;
 }
 interface PaddleEvent {
   event_id?: string;
   event_type?: string;
   occurred_at?: string;
   data?: PaddleSubscriptionData;
+}
+
+// Which individual plan a non-teams subscription or transaction is for, as
+// '<plan>_<term>' (e.g. 'allaccess_year'). Prefers the checkout custom_data we
+// set ourselves; falls back to matching item price ids against the configured
+// PADDLE_PRICE_* env vars. Null = not one of ours (do not entitle anything).
+function individualPlan(data: PaddleSubscriptionData, env: Env): string | null {
+  const plan = (data.custom_data?.plan as string | undefined) || "";
+  const term = (data.custom_data?.term as string | undefined) || "";
+  if (plan === "single" || plan === "allaccess") return `${plan}_${term || "year"}`;
+  if (plan === "lifetime") return "lifetime";
+  const byPrice: Record<string, string | undefined> = {
+    single_month: env.PADDLE_PRICE_SINGLE_MONTH,
+    single_year: env.PADDLE_PRICE_SINGLE_YEAR,
+    allaccess_month: env.PADDLE_PRICE_AA_MONTH,
+    allaccess_year: env.PADDLE_PRICE_AA_YEAR,
+    lifetime: env.PADDLE_PRICE_LIFETIME,
+  };
+  for (const item of data.items || []) {
+    const pid = item.price?.id;
+    if (!pid) continue;
+    for (const [key, envId] of Object.entries(byPrice)) {
+      if (envId && envId === pid) return key;
+    }
+  }
+  return null;
 }
 
 function isoToUnix(iso?: string | null): number | null {
@@ -124,16 +161,51 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return json({ ok: true, replay: true, event_id: eventId });
   }
 
-  // 4. Only subscription.* events are relevant here.
+  // 4. Route the event.
   const now = Math.floor(Date.now() / 1000);
+  const occurredAt = isoToUnix(event.occurred_at) ?? now;
   let processedNote = "ignored";
   try {
     if (eventType.startsWith("subscription.") && subId) {
       const teamsPriceId = (context.env as unknown as { PADDLE_TEAMS_PRICE_ID?: string }).PADDLE_TEAMS_PRICE_ID;
       const seats = teamsSeatQuantity(data, teamsPriceId);
       if (seats === null) {
-        // Not a Teams subscription (individual plan or unrelated). Acknowledge.
-        processedNote = "non_teams_ignored";
+        // Not a Teams subscription: individual-plan fulfillment.
+        const plan = individualPlan(data, context.env);
+        if (!plan) {
+          console.warn(`[webhook.paddle] sub ${subId} matches no known plan; ignoring`);
+          processedNote = "unmatched_sub_ignored";
+        } else {
+          const input = {
+            subId,
+            eventType,
+            status: data.status || "unknown",
+            customerId: data.customer_id || null,
+            periodEnd: isoToUnix(data.current_billing_period?.ends_at),
+            cancelAtPeriodEnd: data.scheduled_change?.action === "cancel",
+            plan,
+            userId: (data.custom_data?.user_id as string | undefined) || "",
+            email: (data.custom_data?.email as string | undefined) || null,
+            occurredAt,
+            nowSec: now,
+          };
+          const user = await resolveSubscriptionUser(context.env.DB, input);
+          if (!user) {
+            // No matching account: record the delivery, alert loudly. Paddle
+            // has been paid; support resolves by linking the account manually.
+            console.error(`[webhook.paddle] UNRESOLVED individual sub ${subId} (plan=${plan}, customer=${input.customerId})`);
+            processedNote = "individual_unresolved_user";
+          } else {
+            const mirrored = await mirrorSubscription(context.env.DB, { ...input, resolvedUserId: user.id });
+            if (mirrored === "stale") {
+              processedNote = "individual_stale_skipped";
+            } else {
+              await linkPaddleCustomer(context.env.DB, user.id, input.customerId);
+              const note = await applyIndividualEntitlement(context.env.DB, user, input);
+              processedNote = `individual_${note}`;
+            }
+          }
+        }
       } else {
         const status = mapStatus(data.status);
         const periodEnd = isoToUnix(data.current_billing_period?.ends_at);
@@ -184,6 +256,49 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           });
           processedNote = `teams_upsert_${status}`;
         }
+      }
+    } else if (eventType === "transaction.completed" && data.id) {
+      // Lifetime is a one-time transaction (no subscription entity). Recurring
+      // plans fulfill via subscription.* events; for those we only take the
+      // chance to link the Paddle customer id.
+      const plan = individualPlan(data, context.env);
+      const userId = (data.custom_data?.user_id as string | undefined) || "";
+      const email = (data.custom_data?.email as string | undefined) || null;
+      const user = await resolveSubscriptionUser(context.env.DB, {
+        subId: data.subscription_id || data.id, userId, customerId: data.customer_id || null, email,
+      });
+      if (plan === "lifetime") {
+        if (!user) {
+          console.error(`[webhook.paddle] UNRESOLVED lifetime txn ${data.id} (customer=${data.customer_id})`);
+          processedNote = "lifetime_unresolved_user";
+        } else {
+          const totalStr = data.details?.totals?.total;
+          await applyLifetimePurchase(context.env.DB, {
+            txnId: data.id,
+            userId: user.id,
+            customerId: data.customer_id || null,
+            amount: totalStr != null && totalStr !== "" ? parseInt(totalStr, 10) : null,
+            currency: data.details?.totals?.currency_code || null,
+            occurredAt,
+            nowSec: now,
+          });
+          await linkPaddleCustomer(context.env.DB, user.id, data.customer_id || null);
+          processedNote = "lifetime_granted";
+        }
+      } else if (user) {
+        await linkPaddleCustomer(context.env.DB, user.id, data.customer_id || null);
+        processedNote = "txn_customer_linked";
+      } else {
+        processedNote = "txn_ignored";
+      }
+    } else if ((eventType === "customer.created" || eventType === "customer.updated") && data.id && data.email) {
+      // Customer entity: link paddle_customer_id to the account with that email.
+      const user = await getUserByEmail(context.env.DB, data.email).catch(() => null);
+      if (user) {
+        await linkPaddleCustomer(context.env.DB, user.id, data.id);
+        processedNote = "customer_linked";
+      } else {
+        processedNote = "customer_no_match";
       }
     }
   } catch (e) {

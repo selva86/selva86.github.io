@@ -69,8 +69,21 @@
       el('ac-plan').innerHTML=
         '<div class="plan"><div class="pinfo"><span class="badge pro">'+ic('i-spark')+' Pro</span>'+
         '<b class="dp" style="margin-top:10px">Pro is active</b>'+
-        '<div class="psub">'+(until?('Access through <b>'+esc(fmtDate(until))+'</b>.'):'Your Pro access is active.')+'</div></div></div>'+
-        '<div class="note" style="margin-top:18px">Need to change or cancel your plan? Self-service billing arrives with the paid Program launch. Until then, <a href="mailto:selva@r-statistics.co?subject=Billing">email support</a> and we will sort it within 24 hours.</div>';
+        '<div class="psub">'+(until?('Access through <b>'+esc(fmtDate(until))+'</b>.'):'Your Pro access is active.')+'</div></div>'+
+        '<button class="btn btn-out" id="ac-portal">Manage billing</button></div>'+
+        '<div class="note" style="margin-top:18px" id="ac-portal-note">Update your card, switch plans, download invoices, or cancel from the billing portal. Anything else, <a href="mailto:support@r-statistics.co?subject=Billing">email support</a>.</div>';
+      var pb=el('ac-portal');
+      if(pb) pb.addEventListener('click',function(){
+        pb.disabled=true; pb.textContent='Opening…';
+        api('/api/billing/portal').then(function(r){
+          if(r&&r.url){ location.href=r.url; return; }
+          pb.style.display='none';
+          el('ac-portal-note').innerHTML='Self-service billing is not linked to this account yet. <a href="mailto:support@r-statistics.co?subject=Billing">Email support</a> and we will sort it within 24 hours.';
+        }).catch(function(){
+          pb.disabled=false; pb.textContent='Manage billing';
+          toast('Could not open the billing portal');
+        });
+      });
     } else {
       el('ac-plan').innerHTML=
         '<div class="plan"><div class="pinfo"><span class="badge free">Free</span>'+
