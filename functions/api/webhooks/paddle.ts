@@ -135,7 +135,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const src = await isPaddleSourceIp(context.env, ip);
     if (!src.allowed) {
       console.error(`[webhook.paddle] rejected source ip ${ip} (${src.reason})`);
-      return jsonError(403, "forbidden", "Source IP not allowlisted");
+      return jsonError(403, "forbidden", "Source IP not allowlisted."); // trailing period = union-list build marker
     }
   }
 

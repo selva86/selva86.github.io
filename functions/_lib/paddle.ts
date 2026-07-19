@@ -125,7 +125,7 @@ export async function isPaddleSourceIp(
   // (deriving one list from PADDLE_API_KEY 403'd real sandbox deliveries
   // when the key was unset on prod).
   const bases = ["https://api.paddle.com", "https://sandbox-api.paddle.com"];
-  const cacheKey = "paddle:ips:union";
+  const cacheKey = "paddle:ips:union:v2"; // v2: bypass any partial list cached by the earlier build
   let cidrs: string[] | null = null;
   const cached = await env.KV.get(cacheKey).catch(() => null);
   if (cached) {
@@ -133,20 +133,24 @@ export async function isPaddleSourceIp(
   }
   if (!cidrs) {
     const collected: string[] = [];
+    let complete = true;
     for (const base of bases) {
       try {
         const resp = await fetch(`${base}/ips`);
-        if (resp.ok) {
-          const data = (await resp.json()) as { data?: { ipv4_cidrs?: string[] } };
-          for (const c of data?.data?.ipv4_cidrs ?? []) collected.push(c);
-        }
+        const data = resp.ok ? ((await resp.json()) as { data?: { ipv4_cidrs?: string[] } }) : null;
+        const list = data?.data?.ipv4_cidrs ?? [];
+        if (!list.length) complete = false;
+        for (const c of list) collected.push(c);
       } catch (e) {
+        complete = false;
         console.warn(`[paddle] ip list fetch failed for ${base}: ${(e as Error).message}`);
       }
     }
     if (collected.length) {
       cidrs = collected;
-      await env.KV.put(cacheKey, JSON.stringify(cidrs), { expirationTtl: 86400 }).catch(() => {});
+      // Only persist a COMPLETE union - caching a partial list for 24h would
+      // silently 403 one environment's deliveries until the cache expired.
+      if (complete) await env.KV.put(cacheKey, JSON.stringify(cidrs), { expirationTtl: 86400 }).catch(() => {});
     }
   }
   if (!cidrs || !cidrs.length) return { allowed: true, reason: "ip_list_unavailable" };
