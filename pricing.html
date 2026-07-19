@@ -611,7 +611,21 @@ window.addEventListener('load',function(){setMode('annual')});
   if (!input || !cta) return;
 
   var paddle = null, ready = false, localized = false;
-  var FMT = {}; // priceId -> { total, unit } formatted strings from Paddle
+  var FMT = {}; // priceId -> { total, unit, rawTotal, rawUnit } from Paddle
+
+  // Whole-number display: compute from Paddle's raw minor-unit totals and
+  // format locally, always rounding UP so the page never shows less than
+  // checkout charges. Falls back to Paddle's own formatted string (with
+  // decimals) if Intl or the raw amount is unavailable.
+  function fmtWhole(minor, currency) {
+    try {
+      if (minor === undefined || minor === null || minor === "" || !currency) return null;
+      var digits = new Intl.NumberFormat("en", { style: "currency", currency: currency }).resolvedOptions().maximumFractionDigits;
+      var major = Number(minor) / Math.pow(10, digits);
+      if (!isFinite(major)) return null;
+      return new Intl.NumberFormat(undefined, { style: "currency", currency: currency, maximumFractionDigits: 0 }).format(Math.ceil(major));
+    } catch (e) { return null; }
+  }
 
   function seats() { var n = parseInt(input.value, 10); if (isNaN(n)) n = MIN; return Math.max(MIN, Math.min(MAX, n)); }
   function refresh() {
@@ -723,6 +737,8 @@ window.addEventListener('load',function(){setMode('annual')});
         FMT[li.price.id] = {
           total: li.formattedTotals && li.formattedTotals.total,
           unit: (li.formattedUnitTotals && li.formattedUnitTotals.total) || (li.formattedTotals && li.formattedTotals.total),
+          rawTotal: li.totals && li.totals.total,
+          rawUnit: (li.unitTotals && li.unitTotals.total) || (li.totals && li.totals.total),
         };
       });
       applyLocalized(d.currencyCode);
@@ -731,7 +747,7 @@ window.addEventListener('load',function(){setMode('annual')});
 
   function applyLocalized(currency) {
     var P = paddle.prices || {};
-    function f(id) { var e = id && FMT[id]; return e && e.total; }
+    function f(id) { var e = id && FMT[id]; return e && (fmtWhole(e.rawTotal, currency) || e.total); }
     var sM = f(P.single && P.single.month), sY = f(P.single && P.single.year);
     var aM = f(P.allaccess && P.allaccess.month), aY = f(P.allaccess && P.allaccess.year);
     if (window.PRICES) {
@@ -749,10 +765,16 @@ window.addEventListener('load',function(){setMode('annual')});
     var lf = f(P.lifetime);
     if (lf) { var b = document.querySelector(".lifetime .lp b"); if (b) b.textContent = lf; }
     var te = paddle.teamsPriceId && FMT[paddle.teamsPriceId];
-    if (te && te.unit) { var ta = document.querySelector("#teams .price .amt"); if (ta) ta.textContent = te.unit; }
+    if (te) {
+      var seatTxt = fmtWhole(te.rawUnit, currency) || te.unit;
+      if (seatTxt) { var ta = document.querySelector("#teams .price .amt"); if (ta) ta.textContent = seatTxt; }
+    }
     localized = true;
     if (typeof window.setMode === "function") window.setMode(window.mode || "annual");
-    if (te && te.total && totalEl) totalEl.textContent = seats() + " seats · " + te.total + "/yr";
+    if (te && totalEl) {
+      var totTxt = fmtWhole(te.rawTotal, currency) || te.total;
+      if (totTxt) totalEl.textContent = seats() + " seats · " + totTxt + "/yr";
+    }
   }
 
   // Localized teams total: re-preview at the new quantity (throttled) instead
@@ -766,7 +788,9 @@ window.addEventListener('load',function(){setMode('annual')});
     window.Paddle.PricePreview({ items: [{ priceId: paddle.teamsPriceId, quantity: q }] }).then(function (r) {
       if (q !== ttQty || seats() !== q) return; // stale by the time it resolved
       var li = r && r.data && r.data.details && r.data.details.lineItems && r.data.details.lineItems[0];
-      if (li && li.formattedTotals && totalEl) totalEl.textContent = q + " seats · " + li.formattedTotals.total + "/yr";
+      if (!li || !totalEl) return;
+      var t = fmtWhole(li.totals && li.totals.total, r.data.currencyCode) || (li.formattedTotals && li.formattedTotals.total);
+      if (t) totalEl.textContent = q + " seats · " + t + "/yr";
     }).catch(function () {});
   }
 
