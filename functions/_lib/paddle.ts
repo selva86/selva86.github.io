@@ -115,29 +115,38 @@ function cidrContains(cidr: string, ip: string): boolean {
 }
 
 export async function isPaddleSourceIp(
-  env: { PADDLE_API_KEY: string; KV: KVNamespace },
+  env: { KV: KVNamespace },
   requestIp: string | null,
 ): Promise<{ allowed: boolean; reason: string }> {
   if (!requestIp) return { allowed: true, reason: "no_ip_header" };
-  const base = paddleApiBase(env.PADDLE_API_KEY || "");
-  const cacheKey = `paddle:ips:${base}`;
+  // Sandbox and live publish DIFFERENT delivery IPs. Allow the union of both
+  // Paddle-owned lists: correct in either environment and immune to the
+  // account's env config drifting from the notification destination's env
+  // (deriving one list from PADDLE_API_KEY 403'd real sandbox deliveries
+  // when the key was unset on prod).
+  const bases = ["https://api.paddle.com", "https://sandbox-api.paddle.com"];
+  const cacheKey = "paddle:ips:union";
   let cidrs: string[] | null = null;
   const cached = await env.KV.get(cacheKey).catch(() => null);
   if (cached) {
     try { cidrs = JSON.parse(cached) as string[]; } catch { cidrs = null; }
   }
   if (!cidrs) {
-    try {
-      const resp = await fetch(`${base}/ips`);
-      if (resp.ok) {
-        const data = (await resp.json()) as { data?: { ipv4_cidrs?: string[] } };
-        cidrs = data?.data?.ipv4_cidrs ?? null;
-        if (cidrs && cidrs.length) {
-          await env.KV.put(cacheKey, JSON.stringify(cidrs), { expirationTtl: 86400 }).catch(() => {});
+    const collected: string[] = [];
+    for (const base of bases) {
+      try {
+        const resp = await fetch(`${base}/ips`);
+        if (resp.ok) {
+          const data = (await resp.json()) as { data?: { ipv4_cidrs?: string[] } };
+          for (const c of data?.data?.ipv4_cidrs ?? []) collected.push(c);
         }
+      } catch (e) {
+        console.warn(`[paddle] ip list fetch failed for ${base}: ${(e as Error).message}`);
       }
-    } catch (e) {
-      console.warn(`[paddle] ip list fetch failed: ${(e as Error).message}`);
+    }
+    if (collected.length) {
+      cidrs = collected;
+      await env.KV.put(cacheKey, JSON.stringify(cidrs), { expirationTtl: 86400 }).catch(() => {});
     }
   }
   if (!cidrs || !cidrs.length) return { allowed: true, reason: "ip_list_unavailable" };
