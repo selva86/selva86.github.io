@@ -27,15 +27,35 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return jsonError(503, "config_missing", "Auth config not yet provisioned");
   }
   // Paddle checkout config (all public-safe). clientToken is a browser token by
-  // design; null until provisioned, in which case the Teams tile keeps its
-  // waitlist fallback instead of opening a checkout.
-  const paddle = context.env.PADDLE_CLIENT_TOKEN
+  // design; null until provisioned, in which case the pricing tiles keep their
+  // waitlist fallback instead of opening a checkout. The environment is derived
+  // from the token itself (Paddle scopes tokens per environment: test_ =
+  // sandbox, live_ = production) — an unrecognized prefix disables checkout
+  // entirely rather than guessing, so we can never point Paddle.js at the
+  // wrong account.
+  const tok = context.env.PADDLE_CLIENT_TOKEN;
+  const paddleEnv = tok && tok.startsWith("test_") ? "sandbox" : tok && tok.startsWith("live_") ? "production" : null;
+  if (tok && !paddleEnv) console.error("[auth-config] PADDLE_CLIENT_TOKEN has an unrecognized prefix; checkout stays disabled");
+  const paddle = tok && paddleEnv
     ? {
-        clientToken: context.env.PADDLE_CLIENT_TOKEN,
-        environment: context.env.PADDLE_CLIENT_TOKEN.startsWith("test_") ? "sandbox" : "production",
+        clientToken: tok,
+        environment: paddleEnv,
         teamsPriceId: context.env.PADDLE_TEAMS_PRICE_ID || null,
         teamsSeatPriceUsd: 115,
         teamsMinSeats: 5,
+        // Individual-plan price ids (null until provisioned; each CTA activates
+        // independently so a partial rollout degrades to the waitlist, never 500s).
+        prices: {
+          single: {
+            month: context.env.PADDLE_PRICE_SINGLE_MONTH || null,
+            year: context.env.PADDLE_PRICE_SINGLE_YEAR || null,
+          },
+          allaccess: {
+            month: context.env.PADDLE_PRICE_AA_MONTH || null,
+            year: context.env.PADDLE_PRICE_AA_YEAR || null,
+          },
+          lifetime: context.env.PADDLE_PRICE_LIFETIME || null,
+        },
       }
     : null;
 

@@ -29,6 +29,11 @@ export interface Env {
   PADDLE_WEBHOOK_SECRET: string;
   PADDLE_CLIENT_TOKEN?: string;    // public client-side token (test_/live_) for Paddle.js checkout
   PADDLE_TEAMS_PRICE_ID?: string;  // teams per-seat price id, used by checkout + webhook matching
+  PADDLE_PRICE_SINGLE_MONTH?: string; // individual-plan price ids, surfaced via /api/_auth-config
+  PADDLE_PRICE_SINGLE_YEAR?: string;
+  PADDLE_PRICE_AA_MONTH?: string;
+  PADDLE_PRICE_AA_YEAR?: string;
+  PADDLE_PRICE_LIFETIME?: string;
   RAZORPAY_KEY_ID: string;
   RAZORPAY_KEY_SECRET: string;
   RAZORPAY_WEBHOOK_SECRET: string;

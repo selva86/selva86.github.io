@@ -659,9 +659,16 @@ window.addEventListener('load',function(){setMode('annual')});
 })();
 </script>
 <script>
-/* Teams seat picker + checkout. Seat math is always live. Real Paddle checkout
-   activates only when /api/_auth-config returns a paddle.clientToken; until then
-   the CTA falls through to the existing waitlist handler. */
+/* Paddle checkout + localized prices. Activates only when /api/_auth-config
+   returns paddle.clientToken; until then every CTA falls through to the
+   existing waitlist handler and the static USD prices stay as shown.
+
+   When active: one Paddle.PricePreview() fetches every configured price.
+   No country code is passed on purpose — these pages are static and
+   /api/_auth-config is edge-cached, so a server-detected country could be
+   another visitor's; Paddle auto-detects from the visitor's own IP instead.
+   Displayed amounts come straight from formattedTotals (no price math, no
+   reformatting). Individual CTAs open an overlay one-page checkout. */
 (function () {
   "use strict";
   var SEAT = 115, MIN = 5, MAX = 100;
@@ -670,15 +677,22 @@ window.addEventListener('load',function(){setMode('annual')});
   var cta = document.getElementById("teamsCta");
   if (!input || !cta) return;
 
+  var paddle = null, ready = false, localized = false;
+  var FMT = {}; // priceId -> { total, unit } formatted strings from Paddle
+
   function seats() { var n = parseInt(input.value, 10); if (isNaN(n)) n = MIN; return Math.max(MIN, Math.min(MAX, n)); }
-  function refresh() { var n = seats(); input.value = n; if (totalEl) totalEl.textContent = n + " seats · $" + (n * SEAT) + "/yr"; }
+  function refresh() {
+    var n = seats(); input.value = n;
+    if (!totalEl) return;
+    if (localized) { totalEl.textContent = n + " seats"; queueTeamsTotal(n); }
+    else totalEl.textContent = n + " seats · $" + (n * SEAT) + "/yr";
+  }
   document.querySelector("[data-seat-dec]") && document.querySelector("[data-seat-dec]").addEventListener("click", function () { input.value = seats() - 1; refresh(); });
   document.querySelector("[data-seat-inc]") && document.querySelector("[data-seat-inc]").addEventListener("click", function () { input.value = seats() + 1; refresh(); });
   input.addEventListener("input", refresh);
   input.addEventListener("change", refresh);
   refresh();
 
-  var paddle = null, ready = false;
   function readToken() {
     try {
       for (var i = 0; i < localStorage.length; i++) {
@@ -695,8 +709,19 @@ window.addEventListener('load',function(){setMode('annual')});
   }
   function jwtClaims(tok) { try { var p = tok.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(decodeURIComponent(escape(atob(p)))); } catch (e) { return {}; } }
 
+  // Which price id a plan resolves to right now (single/allaccess follow the
+  // annual/monthly toggle via the global `mode`). Null -> waitlist fallback.
+  function planPrice(plan) {
+    var P = paddle && paddle.prices || {};
+    var m = window.mode === "monthly" ? "month" : "year";
+    if (plan === "single") return P.single && P.single[m] || null;
+    if (plan === "allaccess") return P.allaccess && P.allaccess[m] || null;
+    if (plan === "lifetime") return P.lifetime || null;
+    return null;
+  }
+
   fetch("/api/_auth-config").then(function (r) { return r.json(); }).then(function (cfg) {
-    if (!cfg || !cfg.paddle || !cfg.paddle.clientToken || !cfg.paddle.teamsPriceId) return; // stay on waitlist fallback
+    if (!cfg || !cfg.paddle || !cfg.paddle.clientToken) return; // stay on waitlist fallback
     paddle = cfg.paddle;
     var s = document.createElement("script");
     s.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
@@ -706,16 +731,117 @@ window.addEventListener('load',function(){setMode('annual')});
           window.Paddle.Environment.set(paddle.environment === "sandbox" ? "sandbox" : "production");
           window.Paddle.Initialize({ token: paddle.clientToken });
           ready = true;
-          cta.textContent = "Buy " + seats() + " seats";
-          input.addEventListener("change", function () { if (ready) cta.textContent = "Buy " + seats() + " seats"; });
+          if (paddle.teamsPriceId) {
+            cta.textContent = "Buy " + seats() + " seats";
+            input.addEventListener("change", function () { if (ready) cta.textContent = "Buy " + seats() + " seats"; });
+          }
+          activateIndividualCtas();
+          previewPrices();
         }
       } catch (e) {}
     };
     document.head.appendChild(s);
   }).catch(function () {});
 
+  function activateIndividualCtas() {
+    var P = paddle.prices || {};
+    document.querySelectorAll('.tiers a[data-plan], .lifetime a[data-plan]').forEach(function (a) {
+      var plan = a.getAttribute("data-plan");
+      if (plan === "teams") return; // teams CTA handled above
+      var has = plan === "lifetime" ? P.lifetime
+        : plan === "single" ? P.single && (P.single.month || P.single.year)
+        : plan === "allaccess" ? P.allaccess && (P.allaccess.month || P.allaccess.year)
+        : null;
+      if (!has) return; // this plan not provisioned -> keep waitlist
+      if (plan === "lifetime") a.innerHTML = "Buy Lifetime &rarr;";
+      else a.textContent = "Subscribe";
+      a.addEventListener("click", function (e) {
+        if (!ready) return;
+        var priceId = planPrice(plan);
+        if (!priceId) return; // toggle position has no price id -> waitlist
+        e.preventDefault(); e.stopImmediatePropagation();
+        var tok = readToken();
+        if (!tok) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html"); return; }
+        var claims = jwtClaims(tok);
+        try {
+          window.Paddle.Checkout.open({
+            items: [{ priceId: priceId, quantity: 1 }],
+            customer: claims.email ? { email: claims.email } : undefined,
+            customData: { user_id: claims.sub || "", plan: plan, term: plan === "lifetime" ? "once" : (window.mode === "monthly" ? "month" : "year") },
+            settings: { displayMode: "overlay", variant: "one-page", successUrl: location.origin + "/welcome.html" },
+          });
+        } catch (err) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html"); }
+      }, true);
+    });
+  }
+
+  // One preview for every configured price. Teams is previewed at the current
+  // seat count; its formattedUnitTotals gives the localized per-seat figure.
+  function previewPrices() {
+    var P = paddle.prices || {};
+    var items = [];
+    [P.single && P.single.month, P.single && P.single.year,
+     P.allaccess && P.allaccess.month, P.allaccess && P.allaccess.year,
+     P.lifetime].forEach(function (id) { if (id) items.push({ priceId: id, quantity: 1 }); });
+    if (paddle.teamsPriceId) items.push({ priceId: paddle.teamsPriceId, quantity: seats() });
+    if (!items.length) return;
+    window.Paddle.PricePreview({ items: items }).then(function (r) {
+      var d = r && r.data;
+      if (!d || !d.details || !d.details.lineItems) return;
+      d.details.lineItems.forEach(function (li) {
+        FMT[li.price.id] = {
+          total: li.formattedTotals && li.formattedTotals.total,
+          unit: (li.formattedUnitTotals && li.formattedUnitTotals.total) || (li.formattedTotals && li.formattedTotals.total),
+        };
+      });
+      applyLocalized(d.currencyCode);
+    }).catch(function () { /* preview failed -> static USD stays */ });
+  }
+
+  function applyLocalized(currency) {
+    var P = paddle.prices || {};
+    function f(id) { var e = id && FMT[id]; return e && e.total; }
+    var sM = f(P.single && P.single.month), sY = f(P.single && P.single.year);
+    var aM = f(P.allaccess && P.allaccess.month), aY = f(P.allaccess && P.allaccess.year);
+    if (window.PRICES) {
+      if (sY) PRICES.annual.st.amt = sY;
+      if (sM) PRICES.monthly.st.amt = sM;
+      if (aY) PRICES.annual.aa.amt = aY;
+      if (aM) PRICES.monthly.aa.amt = aM;
+      if (currency !== "USD") {
+        // The per-month equivalents and the $149 anchor are USD framing; drop
+        // them rather than mixing currencies or doing math on Paddle's totals.
+        PRICES.annual.st.bill = "billed annually · cancel anytime";
+        PRICES.annual.aa.bill = "billed annually · cancel anytime";
+        PRICES.annual.aa.anchor = "";
+      }
+    }
+    var lf = f(P.lifetime);
+    if (lf) { var b = document.querySelector(".lifetime .lp b"); if (b) b.textContent = lf; }
+    var te = paddle.teamsPriceId && FMT[paddle.teamsPriceId];
+    if (te && te.unit) { var ta = document.querySelector("#teams .price .amt"); if (ta) ta.textContent = te.unit; }
+    localized = true;
+    if (typeof window.setMode === "function") window.setMode(window.mode || "annual");
+    if (te && te.total && totalEl) totalEl.textContent = seats() + " seats · " + te.total + "/yr";
+  }
+
+  // Localized teams total: re-preview at the new quantity (throttled) instead
+  // of multiplying on the client — Paddle's total is the only correct one.
+  var ttTimer = null, ttQty = 0;
+  function queueTeamsTotal(n) { ttQty = n; if (ttTimer) return; ttTimer = setTimeout(runTeamsTotal, 600); }
+  function runTeamsTotal() {
+    ttTimer = null;
+    var q = ttQty;
+    if (!ready || !paddle || !paddle.teamsPriceId) return;
+    window.Paddle.PricePreview({ items: [{ priceId: paddle.teamsPriceId, quantity: q }] }).then(function (r) {
+      if (q !== ttQty || seats() !== q) return; // stale by the time it resolved
+      var li = r && r.data && r.data.details && r.data.details.lineItems && r.data.details.lineItems[0];
+      if (li && li.formattedTotals && totalEl) totalEl.textContent = q + " seats · " + li.formattedTotals.total + "/yr";
+    }).catch(function () {});
+  }
+
   cta.addEventListener("click", function (e) {
-    if (!ready) return; // not provisioned -> existing waitlist handler runs
+    if (!ready || !paddle.teamsPriceId) return; // not provisioned -> existing waitlist handler runs
     e.preventDefault(); e.stopImmediatePropagation();
     var tok = readToken();
     if (!tok) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html#teams"); return; }
@@ -725,7 +851,7 @@ window.addEventListener('load',function(){setMode('annual')});
         items: [{ priceId: paddle.teamsPriceId, quantity: seats() }],
         customer: claims.email ? { email: claims.email } : undefined,
         customData: { user_id: claims.sub || "", plan: "teams" },
-        settings: { successUrl: location.origin + "/team.html" },
+        settings: { displayMode: "overlay", variant: "one-page", successUrl: location.origin + "/team.html" },
       });
     } catch (err) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html#teams"); }
   }, true);
