@@ -1,0 +1,1531 @@
+---
+title: "Combining Forecasts in R: Ensemble Averaging"
+description: "Combine ARIMA, ETS and STL forecasts in R by averaging them. See why it cuts error, when the median beats the mean, and how to build an honest combined interval."
+keywords: "combining forecasts in R, forecast combination, ensemble averaging forecasting, forecast combination puzzle, average ARIMA and ETS forecasts, weighted forecast combination, combined prediction interval, forecast ensemble R"
+mathjax: true
+webr: true
+curriculum_id: "FR-adva-6"
+post_type: "C"
+auto_link_terms: "combining forecasts in R|forecast combination|forecast combinations|ensemble averaging|combining forecasts|forecast combination puzzle|averaging forecasts|combined forecast|forecast ensemble|inverse MSE weights|Granger-Ramanathan weights|equal-weight combination|simple average forecast"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Combining Forecasts"
+sidebar_order: "28"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Combining forecasts means averaging the predictions of several models into a single number instead of picking one model and trusting it. It usually beats the average model you could have picked, because the models make mistakes in different directions and those mistakes partly cancel when you add them up.</p>
+
+<h2>What does combining forecasts actually mean?</h2>
+
+<p>Picking a forecasting model is a bet. Fit <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> and ARIMA to the same series and they will hand you different numbers for next month, and there is no reliable way to know in advance which one to trust. Combining sidesteps the bet entirely: you keep both, and you average them. Let's watch that happen on a series you have almost certainly seen before.</p>
+
+<p>We will use <code>AirPassengers</code>, which ships with R. It records the monthly total of international airline passengers, in thousands, from January 1949 to December 1960. It trends upward and it has a strong yearly cycle, which makes it a fair test for any forecasting method.</p>
+
+<p>The rule we have to follow is simple: hide some of the data, forecast it, then check. We will train on everything up to the end of 1959 and hold back the twelve months of 1960 as the answer sheet.</p>
+
+<div class="webr-container" data-block-title="Split AirPassengers into train and test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split AirPassengers into train and test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+library(fabletools)
+train &lt;- window(AirPassengers, end = c(1959, 12))
+test  &lt;- window(AirPassengers, start = c(1960, 1))
+
+c(train_months = length(train), test_months = length(test))
+#&gt; train_months  test_months
+#&gt;          132           12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>window()</code> cuts a slice out of a time series using calendar positions rather than row numbers, so <code>end = c(1959, 12)</code> means "up to and including December 1959". We now have 132 months to learn from and 12 months that the models are not allowed to see.</p>
+
+<p>Next we fit three genuinely different forecasting methods and ask each for the twelve months of 1960. You do not need to understand their internals to follow this article. All that matters is that they work in different ways, so they make different mistakes.</p>
+
+<ul>
+
+<li><code>ets()</code> fits an exponential smoothing model, which builds a forecast from weighted averages of recent values.</li>
+
+<li><code>auto.arima()</code> searches a family of <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA models</a>, which forecast from past values and past errors.</li>
+
+<li><code>stlf()</code> first splits the series into trend, season and remainder, forecasts the deseasonalised part, then puts the season back.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Fit three different models and forecast 1960">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit three different models and forecast 1960</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_ets   &lt;- forecast(ets(train),        h = 12)
+fc_arima &lt;- forecast(auto.arima(train), h = 12)
+fc_stl   &lt;- stlf(train,                 h = 12)
+
+round(cbind(Actual = test,
+            ETS    = fc_ets$mean,
+            ARIMA  = fc_arima$mean,
+            STL    = fc_stl$mean), 1)
+#&gt;          Actual   ETS ARIMA   STL
+#&gt; Jan 1960    417 411.9 424.1 416.1
+#&gt; Feb 1960    391 407.0 407.1 403.6
+#&gt; Mar 1960    419 467.3 470.8 448.2
+#&gt; Apr 1960    461 450.7 460.9 440.5
+#&gt; May 1960    472 451.5 484.9 448.8
+#&gt; Jun 1960    535 513.2 536.9 498.7
+#&gt; Jul 1960    622 569.9 612.9 544.9
+#&gt; Aug 1960    606 567.6 623.9 545.6
+#&gt; Sep 1960    508 496.1 527.9 484.1
+#&gt; Oct 1960    461 432.2 471.9 440.2
+#&gt; Nov 1960    390 376.6 426.9 401.6
+#&gt; Dec 1960    432 424.8 469.9 433.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each <code>forecast()</code> call returns an object whose <code>$mean</code> component holds the predicted values, one per future month. <code>cbind()</code> glues those three columns next to the truth so we can read across a row and see all four numbers for the same month.</p>
+
+<p>Read the July 1960 row. The truth was 622. ETS said 569.9, ARIMA said 612.9, STL said 544.9. The three models disagree by nearly 70 passengers about the same month, and every one of them undershoots. Now look at November: ETS says 376.6 and ARIMA says 426.9, and this time the truth (390) sits near the bottom rather than the top. The models are not simply ranked best to worst. They take turns being wrong.</p>
+
+<p>That is the opening for combining. If we just average the three columns, the months where one model runs high and another runs low should partly settle down.</p>
+
+<div class="webr-container" data-block-title="Average the three forecasts and score them">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average the three forecasts and score them</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">combo &lt;- (fc_ets$mean + fc_arima$mean + fc_stl$mean) / 3
+
+rmse &lt;- function(f) sqrt(mean((test - f)^2))
+
+data.frame(
+  method = c(&quot;ETS&quot;, &quot;ARIMA&quot;, &quot;STL-ETS&quot;, &quot;Combination&quot;),
+  RMSE   = round(c(rmse(fc_ets$mean), rmse(fc_arima$mean),
+                   rmse(fc_stl$mean), rmse(combo)), 2)
+)
+#&gt;        method  RMSE
+#&gt; 1         ETS 27.40
+#&gt; 2       ARIMA 23.93
+#&gt; 3     STL-ETS 34.20
+#&gt; 4 Combination 22.26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The combination is one line of arithmetic: add the three <code>$mean</code> vectors and divide by three. The <code>rmse()</code> helper is the <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">root mean squared error</a>, the usual way to score a forecast. It squares each miss, averages the squares, and takes the square root, so it is measured in passengers and bigger misses count for more. Lower is better. The row labelled STL-ETS is the <code>stlf()</code> forecast, named that way because <code>stlf()</code> uses exponential smoothing on the deseasonalised series; later tables shorten the label to STL.</p>
+
+<p>The combination scored 22.26, which is lower than all three of the models it was built from. The best single model, ARIMA, scored 23.93. So this average of three forecasts, none of which required any tuning or judgement, beat every one of its own ingredients.</p>
+
+<p><img src="screenshots/Combining-Forecasts-in-R-combination-flow.webp" alt="One training series feeds three models, and their three forecasts collapse into one number" class="img-responsive img-zoomable" loading="lazy" width="1720" height="986" /></p>
+
+<p><em>Figure 1: One training series feeds three models, and their three forecasts collapse into one number.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>You never had to know which model was best.</strong> ARIMA turned out to be the strongest single method on 1960, but nothing in the training data told you that in advance. The combination reached a better score without you making that call at all, which is the whole point of the technique.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> RMSE punishes large misses harshly because it squares them. Check whether the combination still wins under <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a>, which just averages the size of each miss without squaring.</p>
+<div class="webr-container" data-block-title="Your turn: score the same forecasts with MAE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score the same forecasts with MAE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mae &lt;- function(f) mean(abs(test - f))
+
+# Apply ex_mae() to fc_ets$mean, fc_arima$mean, fc_stl$mean and combo,
+# then round the four numbers to 2 decimals.
+# your code here
+# Expected: the combination is lowest, near 17.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="MAE comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MAE comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(ETS         = ex_mae(fc_ets$mean),
+        ARIMA       = ex_mae(fc_arima$mean),
+        STL         = ex_mae(fc_stl$mean),
+        Combination = ex_mae(combo)), 2)
+#&gt;         ETS       ARIMA         STL Combination
+#&gt;       22.80       18.53       26.48       17.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ranking is unchanged and the combination still wins, at 17.61 against ARIMA's 18.53. That matters, because a result that only appears under one error measure is usually an artefact of that measure. This one is not.</p>
+
+</details>
+</section>
+
+<h2>Why does averaging forecasts beat the models it averages?</h2>
+
+<p>The last section showed that combining worked. It did not show why, and "the errors cancel" is a slogan until you can point at the numbers. So let's point at them. We will subtract each model's forecast from the truth and look at the twelve misses, month by month.</p>
+
+<div class="webr-container" data-block-title="The error each model made each month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The error each model made each month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">errors &lt;- cbind(ETS   = test - fc_ets$mean,
+                ARIMA = test - fc_arima$mean,
+                STL   = test - fc_stl$mean)
+
+round(errors, 1)
+#&gt;            ETS ARIMA   STL
+#&gt; Jan 1960   5.1  -7.1   0.9
+#&gt; Feb 1960 -16.0 -16.1 -12.6
+#&gt; Mar 1960 -48.3 -51.8 -29.2
+#&gt; Apr 1960  10.3   0.1  20.5
+#&gt; May 1960  20.5 -12.9  23.2
+#&gt; Jun 1960  21.8  -1.9  36.3
+#&gt; Jul 1960  52.1   9.1  77.1
+#&gt; Aug 1960  38.4 -17.9  60.4
+#&gt; Sep 1960  11.9 -19.9  23.9
+#&gt; Oct 1960  28.8 -10.9  20.8
+#&gt; Nov 1960  13.4 -36.9 -11.6
+#&gt; Dec 1960   7.2 -37.9  -1.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A positive number means the model forecast too low and the truth came in above it. A negative number means the model overshot. Because <code>test</code> and each <code>$mean</code> are both monthly time series covering 1960, R lines them up by date automatically before subtracting.</p>
+
+<p>Now read December. ETS was 7.2 too low while ARIMA was 37.9 too high. Average those two and you get a miss of about 15 instead of 38. That is the cancellation, and it is happening for real in the table, not in a diagram. August is the same story with the signs flipped between <a class="auto-link" href="ETS-vs-ARIMA-in-R.html" title="ETS vs ARIMA in R: Which Forecasting Model Should You Use?">ETS and ARIMA</a>.</p>
+
+<p>March is the opposite case and it is just as important. Every model undershot by a lot: -48.3, -51.8, -29.2. There is nothing to cancel, so the average is still badly wrong. Combining rescues you from disagreement, never from a mistake all your models share.</p>
+
+<p><img src="screenshots/Combining-Forecasts-in-R-error-cancellation.webp" alt="Averaging only helps when the models are wrong in different directions" class="img-responsive img-zoomable" loading="lazy" width="1914" height="690" /></p>
+
+<p><em>Figure 2: Averaging only helps when the models are wrong in different directions.</em></p>
+
+<p>We can measure how much the models tend to agree by correlating their error columns. A correlation near 1 means two models miss together, which leaves nothing to cancel. A correlation near 0 means they miss independently.</p>
+
+<div class="webr-container" data-block-title="How correlated are the three error series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How correlated are the three error series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cor(errors), 3)
+#&gt;         ETS ARIMA   STL
+#&gt; ETS   1.000 0.676 0.878
+#&gt; ARIMA 0.676 1.000 0.719
+#&gt; STL   0.878 0.719 1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ETS and STL correlate at 0.878, the highest pair in the table, and that makes sense once you know that <code>stlf()</code> uses exponential smoothing internally on the deseasonalised series. They share most of their machinery, so they tend to miss in the same direction. ETS and ARIMA correlate at 0.676, the lowest pair, because they are genuinely different machinery. That pair is where most of the cancellation comes from.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Diversity is worth more than individual accuracy.</strong> A model that is slightly worse but wrong in a different way contributes more to a combination than a model that is slightly better but wrong in the same way as everything else you already have.</div></div>
+
+<h3>The identity that makes this a guarantee</h3>
+
+<p>So far this is an observation about one dataset. It is actually a mathematical certainty, and the proof is short enough to state. Skip to the code block below if you would rather see it than read it.</p>
+
+<p>Write $e_i$ for the error of model $i$ on some month and $\bar{e}$ for the error of the equal-weight combination. Since the combination is the average of the forecasts, its error is the average of the errors: $\bar{e} = \frac{1}{M}\sum_{i=1}^{M} e_i$. Squaring and averaging over the $M$ models gives an exact split:</p>
+
+<p>$$\text{MSE}_{\text{combo}} = \frac{1}{M}\sum_{i=1}^{M}\text{MSE}_i \;-\; \overline{\text{disagreement}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$M$ = the number of models being combined, which is 3 here</li>
+
+<li>$\text{MSE}_{\text{combo}}$ = the mean squared error of the combined forecast</li>
+
+<li>$\text{MSE}_i$ = the mean squared error of model $i$ on its own</li>
+
+<li>$\overline{\text{disagreement}}$ = the average spread of the models' forecasts around their own mean, computed month by month</li>
+
+</ul>
+
+<p>This is the ambiguity <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">decomposition</a>, known from ensemble learning [4]. Read the right hand side again: you start from the average member's error and you subtract something that can never be negative, because a spread is a squared quantity. So the combination is never worse than the average member. Not usually, not on average. Never.</p>
+
+<p>Rather than take that on faith, let's compute both sides and check that they match.</p>
+
+<div class="webr-container" data-block-title="Verify the ambiguity decomposition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the ambiguity decomposition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mse &lt;- function(f) mean((test - f)^2)
+
+members &lt;- cbind(fc_ets$mean, fc_arima$mean, fc_stl$mean)
+
+avg_member_mse &lt;- mean(c(mse(fc_ets$mean), mse(fc_arima$mean), mse(fc_stl$mean)))
+disagreement   &lt;- mean(apply(members, 1, function(row) mean((row - mean(row))^2)))
+
+round(c(average_member_mse = avg_member_mse,
+        disagreement       = disagreement,
+        predicted_combo    = avg_member_mse - disagreement,
+        actual_combo_mse   = mse(combo)), 2)
+#&gt; average_member_mse       disagreement    predicted_combo   actual_combo_mse
+#&gt;             830.90             335.57             495.33             495.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>apply(members, 1, ...)</code> line walks through the twelve months one at a time. For each month it takes the three forecasts, measures how far each sits from their own average, squares those distances and averages them. That single number is how much the models disagreed about that month, and <code>disagreement</code> is its average across the year.</p>
+
+<p>The last two numbers are identical: 495.33 and 495.33. The identity is not an approximation. The models' average error was 830.90, their disagreement was worth 335.57, and the combination collected every bit of that difference.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The guarantee covers the average member, not the best one.</strong> Combining is proven to beat the typical model in your set. It is not proven to beat whichever model happens to turn out strongest, and in the next section you will watch it fail to do exactly that.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> ETS and ARIMA had the least correlated errors, so their pair should show a large disagreement term. Run the decomposition on just those two and predict their combination's RMSE without ever averaging the forecasts.</p>
+<div class="webr-container" data-block-title="Your turn: decompose the ETS and ARIMA pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: decompose the ETS and ARIMA pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pair_members &lt;- cbind(fc_ets$mean, fc_arima$mean)
+
+# 1. ex_avg_mse: average of mse(fc_ets$mean) and mse(fc_arima$mean)
+# 2. ex_dis: same apply() pattern as above, on ex_pair_members
+# 3. print both, plus their difference, plus the square root of the difference
+# your code here
+# Expected: the square root of the difference is about 19.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pair decomposition solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pair decomposition solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_avg_mse &lt;- mean(c(mse(fc_ets$mean), mse(fc_arima$mean)))
+ex_dis     &lt;- mean(apply(ex_pair_members, 1, function(row) mean((row - mean(row))^2)))
+
+round(c(avg_member_mse = ex_avg_mse,
+        disagreement   = ex_dis,
+        combo_mse      = ex_avg_mse - ex_dis,
+        combo_rmse     = sqrt(ex_avg_mse - ex_dis)), 2)
+#&gt; avg_member_mse   disagreement      combo_mse     combo_rmse
+#&gt;         661.69         293.44         368.25          19.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The pair scores 19.19, better than the three-model combination's 22.26. Dropping STL helped, because STL was both the weakest member and the one most correlated with ETS. Keep that result in mind and stay sceptical of it: you only know STL was the weak link because you have already seen 1960. Section five asks whether you could have known it beforehand.</p>
+
+</details>
+</section>
+
+<h2>Did the combination just get lucky on this one test window?</h2>
+
+<p>One good year proves very little. The 1960 result could be a coincidence of that particular twelve months, and any honest test has to repeat the exercise on windows we have not already looked at.</p>
+
+<p>So we will roll the origin backwards. Train on everything up to the end of 1955 and forecast 1956, then train up to the end of 1956 and forecast 1957, and so on through 1960. Five separate forecasting problems, five separate scorecards, and the models get refitted from scratch every time.</p>
+
+<div class="webr-container" data-block-title="Roll the forecast origin across five years">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Roll the forecast origin across five years</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">one_year &lt;- function(end_year) {
+  tr &lt;- window(AirPassengers, end = c(end_year, 12))
+  te &lt;- window(AirPassengers, start = c(end_year + 1, 1), end = c(end_year + 1, 12))
+
+  e &lt;- forecast(ets(tr),        h = 12)$mean
+  a &lt;- forecast(auto.arima(tr), h = 12)$mean
+  s &lt;- stlf(tr,                 h = 12)$mean
+
+  r &lt;- function(f) sqrt(mean((te - f)^2))
+  c(Year = end_year + 1, ETS = r(e), ARIMA = r(a), STL = r(s), Combination = r((e + a + s) / 3))
+}
+
+roll &lt;- t(sapply(1955:1959, one_year))
+round(roll, 1)
+#&gt;      Year  ETS ARIMA  STL Combination
+#&gt; [1,] 1956 16.8  10.4 26.7        16.9
+#&gt; [2,] 1957 24.4  15.8 34.2        24.5
+#&gt; [3,] 1958 21.3  21.5 26.9        20.2
+#&gt; [4,] 1959 50.8  47.5 50.0        48.4
+#&gt; [5,] 1960 27.4  23.9 34.2        22.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>one_year()</code> packages the whole experiment for a single origin: cut the training window, cut the matching test year, refit all three models, then average them and return five numbers. <code>sapply()</code> runs it once per origin and <code>t()</code> turns the result into one row per year. This block refits three models five times, so give it a few seconds.</p>
+
+<p>The refitting matters. If we reused the models fitted on data through 1959 to forecast 1956, they would have seen the future, and the whole test would be meaningless.</p>
+
+<p>Now the summary that actually answers the question. For each year, did the combination beat the average of the three models, and did it beat whichever model happened to be best that year?</p>
+
+<div class="webr-container" data-block-title="Did the combination beat the average member and the best member">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Did the combination beat the average member and the best member</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">member_cols &lt;- roll[, c(&quot;ETS&quot;, &quot;ARIMA&quot;, &quot;STL&quot;)]
+
+data.frame(
+  year         = roll[, &quot;Year&quot;],
+  avg_member   = round(rowMeans(member_cols), 1),
+  best_member  = round(apply(member_cols, 1, min), 1),
+  combination  = round(roll[, &quot;Combination&quot;], 1),
+  beat_average = roll[, &quot;Combination&quot;] &lt; rowMeans(member_cols),
+  beat_best    = roll[, &quot;Combination&quot;] &lt; apply(member_cols, 1, min)
+)
+#&gt;   year avg_member best_member combination beat_average beat_best
+#&gt; 1 1956       18.0        10.4        16.9         TRUE     FALSE
+#&gt; 2 1957       24.8        15.8        24.5         TRUE     FALSE
+#&gt; 3 1958       23.2        21.3        20.2         TRUE      TRUE
+#&gt; 4 1959       49.4        47.5        48.4         TRUE     FALSE
+#&gt; 5 1960       28.5        23.9        22.3         TRUE      TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the <code>beat_average</code> column: five TRUEs out of five. That is the guarantee from the previous section showing up in data, exactly as the algebra promised. It could not have come out any other way.</p>
+
+<p>Now look at <code>beat_best</code>: only two TRUEs against three FALSEs. In 1956 and 1957 the combination lost badly to ARIMA on its own, 16.9 against 10.4 and 24.5 against 15.8. Averaging in two weaker models diluted a genuinely strong one.</p>
+
+<div class="webr-container" data-block-title="Average RMSE across all five origins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average RMSE across all five origins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(colMeans(roll[, -1]), 2)
+#&gt;         ETS       ARIMA         STL Combination
+#&gt;       28.13       23.84       34.39       26.45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Averaged over the five years, ARIMA scored 23.84 and the combination scored 26.45. On this series, the honest verdict is that ARIMA was consistently the strongest model and combining it with the others made things slightly worse.</p>
+
+<p>That result is the honest one, and it is the point of the section. Combining is insurance rather than a route to first place. It reliably keeps you out of the bottom half of your model set, which is worth a lot when you cannot tell in advance which model is strong. What it will not do is beat a model that was better all along, and pretending otherwise would leave you unable to explain a year like 1956.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>One series is not evidence about forecasting in general.</strong> The reason practitioners trust combination is that it has been tested across thousands of series in the M-competitions, where combinations dominate the leaderboards [6]. AirPassengers is one series with a strong clean trend, which is close to the ideal case for ARIMA.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The guarantee protects you from being average. Check the stronger everyday claim: how often did the combination beat the worst model of the three?</p>
+<div class="webr-container" data-block-title="Your turn: count wins against the worst member">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count wins against the worst member</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_worst: use apply() with max over the ETS/ARIMA/STL columns of `roll`
+# then count how many years the Combination column was below it
+# your code here
+# Expected: a single number out of 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wins against the worst member solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wins against the worst member solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_worst &lt;- apply(roll[, c(&quot;ETS&quot;, &quot;ARIMA&quot;, &quot;STL&quot;)], 1, max)
+sum(roll[, &quot;Combination&quot;] &lt; ex_worst)
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Five out of five, which also follows from the guarantee: if the combination always beats the average member, and the average is always below the worst, then the combination always beats the worst. You cannot pick the ruinous model by accident if you refuse to pick at all.</p>
+
+</details>
+</section>
+
+<h2>What happens when one of the forecasts is bad?</h2>
+
+<p>Everything so far assumed three reasonable models. Real ensembles are messier. Somebody adds a model that made sense last quarter, or a colleague's spreadsheet gets included, or a method quietly breaks when the season shifts. What does one bad member do to the average?</p>
+
+<p>Let's find out by deliberately adding two weak forecasters. A seasonal naive forecast just repeats last year's value for the same month, ignoring the trend entirely. A drift forecast draws a straight line through the first and last training points, ignoring the season entirely. Both are legitimate baselines, and both are badly suited to a series that trends and cycles at the same time.</p>
+
+<div class="webr-container" data-block-title="Add two deliberately weak members">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add two deliberately weak members</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_naive &lt;- snaive(train, h = 12)$mean
+fc_drift &lt;- rwf(train, drift = TRUE, h = 12)$mean
+
+round(c(ETS = rmse(fc_ets$mean), ARIMA = rmse(fc_arima$mean), STL = rmse(fc_stl$mean),
+        SeasonalNaive = rmse(fc_naive), Drift = rmse(fc_drift)), 2)
+#&gt;           ETS         ARIMA           STL SeasonalNaive         Drift
+#&gt;         27.40         23.93         34.20         50.71         92.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two newcomers are far worse than anything we had. Seasonal naive is at 50.71, roughly double the good models. Drift is at 92.67, nearly four times ARIMA, because a straight line simply cannot reproduce a summer peak.</p>
+
+<p>Now we combine all five, three ways. The plain mean weights every member equally, including the bad ones. The median takes the middle value of the five and ignores the rest. The trimmed mean throws away the highest and lowest forecast for each month and averages what survives.</p>
+
+<div class="webr-container" data-block-title="Compare mean, median and trimmed mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare mean, median and trimmed mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">five &lt;- cbind(fc_ets$mean, fc_arima$mean, fc_stl$mean, fc_naive, fc_drift)
+
+mean5   &lt;- rowMeans(five)
+median5 &lt;- apply(five, 1, median)
+trim5   &lt;- apply(five, 1, mean, trim = 0.2)
+
+data.frame(
+  rule = c(&quot;Mean of 5&quot;, &quot;Median of 5&quot;, &quot;Trimmed mean of 5&quot;, &quot;Mean of the 3 good ones&quot;),
+  RMSE = round(c(rmse(mean5), rmse(median5), rmse(trim5), rmse(combo)), 2)
+)
+#&gt;                      rule  RMSE
+#&gt; 1               Mean of 5 37.35
+#&gt; 2             Median of 5 32.44
+#&gt; 3       Trimmed mean of 5 32.54
+#&gt; 4 Mean of the 3 good ones 22.26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>apply(five, 1, median)</code> runs across each month's five forecasts and keeps the middle one. <code>trim = 0.2</code> tells <code>mean()</code> to discard the top 20% and bottom 20% of the values before averaging, which with five members means dropping one from each end and averaging the middle three.</p>
+
+<p>The plain mean collapsed from 22.26 to 37.35. Two bad members out of five were enough to make the combination worse than any of the three good models individually. The median and the trimmed mean both recover about half of that loss, landing near 32.5, because a single extreme forecast cannot move a middle value the way it moves an average.</p>
+
+<p>Half the damage is still damage. Look at what the bad members do to the actual numbers.</p>
+
+<div class="webr-container" data-block-title="See the drag on the first four months">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the drag on the first four months</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(head(cbind(Actual = test, Mean = mean5, Median = median5,
+                 Trimmed = trim5, Drift = fc_drift), 4), 1)
+#&gt;          Actual  Mean Median Trimmed Drift
+#&gt; Jan 1960    417 403.9  411.9   411.7 407.2
+#&gt; Feb 1960    391 393.8  407.0   405.9 409.5
+#&gt; Mar 1960    419 440.8  448.2   442.4 411.7
+#&gt; Apr 1960    461 432.4  440.5   435.1 413.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In April the truth was 461. The drift forecast said 413.9, so far below the others that it pulled the mean down to 432.4 while the median stayed at 440.5. Drift makes the same kind of error every month, because a straight line cannot climb for the summer peak, so it pulls the mean down in every row of the table.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>One broken member can poison an equal-weight mean.</strong> Because every forecast gets the same weight, a model that is wrong by 90 contributes just as much as a model that is wrong by 20. Robust rules reduce the loss, they do not remove it. Screening your members before you combine them is the real fix.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The median needs at least five members to be useful.</strong> With four members the median is just the average of the middle two, and with three it is the middle forecast, which throws away two thirds of your information. Below five members, screen bad models out by hand instead of hoping a robust rule will hide them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose only the seasonal naive model sneaks in, and the truly awful drift model does not. Combine the three good models plus seasonal naive, and compare the mean against the median. Guess which wins before you run it.</p>
+<div class="webr-container" data-block-title="Your turn: four members, mean versus median">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: four members, mean versus median</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_four &lt;- cbind(fc_ets$mean, fc_arima$mean, fc_stl$mean, fc_naive)
+
+# Compute rmse() of rowMeans(ex_four) and of apply(ex_four, 1, median)
+# your code here
+# Expected: the two numbers are close, and one of them may surprise you</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Four member mean versus median solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Four member mean versus median solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(mean4 = rmse(rowMeans(ex_four)), median4 = rmse(apply(ex_four, 1, median))), 2)
+#&gt;   mean4 median4
+#&gt;   25.08   28.89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean wins this time, 25.08 against 28.89, reversing the result from the five-member case. Seasonal naive is mediocre but not extreme, so the mean absorbs it without much harm while the median pays a real price for discarding two of the three good forecasts. Robustness is not free, and it only pays for itself when a member is genuinely far out.</p>
+
+</details>
+</section>
+
+<h2>Should you weight the forecasts by how accurate they have been?</h2>
+
+<p>Equal weights feel crude. ARIMA has looked stronger than STL all article, so surely we should give it more say. This is the most natural improvement anyone thinks of, it has a long research literature behind it, and it usually does not work. Let's see why.</p>
+
+<p>The classic scheme, from Bates and Granger's original 1969 paper [2], gives each model a weight proportional to the inverse of its squared error, so accurate models get more say:</p>
+
+<p>$$w_i = \frac{1 / \text{MSE}_i}{\sum_{j=1}^{M} 1 / \text{MSE}_j}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$w_i$ = the weight given to model $i$, and the weights sum to 1</li>
+
+<li>$\text{MSE}_i$ = the mean squared error of model $i$, measured on data the weights are allowed to see</li>
+
+</ul>
+
+<p>That last clause is doing the heavy lifting. The weights must come from data that is not the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>, otherwise we are grading our own homework. The safe source is each model's fit on the training data.</p>
+
+<div class="webr-container" data-block-title="Each model&#x27;s error on the training data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Each model&#x27;s error on the training data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train_rmse &lt;- c(ETS   = accuracy(fc_ets)[&quot;Training set&quot;, &quot;RMSE&quot;],
+                ARIMA = accuracy(fc_arima)[&quot;Training set&quot;, &quot;RMSE&quot;],
+                STL   = accuracy(fc_stl)[&quot;Training set&quot;, &quot;RMSE&quot;])
+round(train_rmse, 2)
+#&gt;   ETS ARIMA   STL
+#&gt;  9.35  9.91  9.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>accuracy()</code> on a forecast object returns a small table of error measures, and the <code>&quot;Training set&quot;</code> row is how well the model reproduced the data it was fitted to. Notice the numbers are nearly identical: 9.35, 9.91, 9.86. All three models describe the past about equally well.</p>
+
+<p>Notice also that ETS looks best in-sample at 9.35, even though ARIMA was clearly best on the future. Hold that thought.</p>
+
+<div class="webr-container" data-block-title="Turn training errors into weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn training errors into weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w &lt;- (1 / train_rmse^2) / sum(1 / train_rmse^2)
+round(w, 3)
+#&gt;   ETS ARIMA   STL
+#&gt; 0.358 0.319 0.322</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The weights land at 0.358, 0.319 and 0.322. Equal weights would be 0.333 each. Because the training errors were so similar, the scheme barely moves away from a plain average, and the tiny nudge it does make favours ETS, which was not the model that deserved it.</p>
+
+<div class="webr-container" data-block-title="Equal weights versus inverse-MSE weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equal weights versus inverse-MSE weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">weighted &lt;- w[&quot;ETS&quot;] * fc_ets$mean + w[&quot;ARIMA&quot;] * fc_arima$mean + w[&quot;STL&quot;] * fc_stl$mean
+
+round(c(equal_weights = rmse(combo), inverse_mse_weights = rmse(weighted)), 2)
+#&gt;       equal_weights inverse_mse_weights
+#&gt;               22.26               22.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Equal weights 22.26, inverse-MSE weights 22.39. The sophisticated scheme is very slightly worse. This is the forecast combination puzzle: theoretically better weighting schemes keep failing to beat the simple average in practice [5].</p>
+
+<h3>What happens if we estimate the weights properly</h3>
+
+<p>Maybe inverse-MSE is too timid. Granger and Ramanathan proposed treating the whole thing as a regression: put the actual values on the left, the member forecasts on the right, and let least squares find the weights. That is strictly more flexible, so it should do strictly better.</p>
+
+<p>To keep it honest we need a third slice of data. We will train the models on everything through 1958, forecast 1959, then fit the regression on that year. Then we apply those weights to the 1960 forecasts we already have.</p>
+
+<div class="webr-container" data-block-title="Estimate regression weights on a validation year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate regression weights on a validation year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">val_train &lt;- window(AirPassengers, end = c(1958, 12))
+val_test  &lt;- window(AirPassengers, start = c(1959, 1), end = c(1959, 12))
+
+v_ets   &lt;- forecast(ets(val_train),        h = 12)$mean
+v_arima &lt;- forecast(auto.arima(val_train), h = 12)$mean
+v_stl   &lt;- stlf(val_train,                 h = 12)$mean
+
+gr &lt;- lm(as.numeric(val_test) ~ as.numeric(v_ets) + as.numeric(v_arima) + as.numeric(v_stl))
+round(coef(gr), 3)
+#&gt;         (Intercept)   as.numeric(v_ets) as.numeric(v_arima)   as.numeric(v_stl)
+#&gt;            -214.519              -0.893              -0.065               2.624</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lm()</code> fits a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a>: the variable on the left of <code>~</code> is predicted from the variables on the right, and <code>coef()</code> pulls out the fitted intercept and slopes. Look at what the regression decided. ETS gets a weight of -0.893, meaning "whatever ETS says, move away from it". STL gets 2.624, more than double its own forecast. And there is an intercept of -214.5 on top. These are not weights in any meaningful sense. Least squares had four free parameters and only twelve months to fit, so it picked whatever coefficients minimised the error on those twelve months, however implausible they look.</p>
+
+<div class="webr-container" data-block-title="Apply the regression weights to 1960">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the regression weights to 1960</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">b &lt;- coef(gr)
+gr_forecast &lt;- b[1] + b[2] * fc_ets$mean + b[3] * fc_arima$mean + b[4] * fc_stl$mean
+
+round(c(equal_weights = rmse(combo),
+        inverse_mse   = rmse(weighted),
+        regression    = rmse(gr_forecast),
+        best_member   = min(rmse(fc_ets$mean), rmse(fc_arima$mean), rmse(fc_stl$mean))), 2)
+#&gt; equal_weights   inverse_mse    regression   best_member
+#&gt;         22.26         22.39         68.32         23.93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression weights scored 68.32, three times worse than simply averaging. The most flexible method available produced the worst forecast in this article by a wide margin, because it spent all its flexibility memorising the noise in a single validation year.</p>
+
+<p>For completeness, here is the ceiling nobody can reach. Fit the same regression directly on the 1960 test data, which is cheating, and see how good the weights could theoretically have been.</p>
+
+<div class="webr-container" data-block-title="The unreachable oracle weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The unreachable oracle weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">oracle &lt;- lm(as.numeric(test) ~ as.numeric(fc_ets$mean) +
+               as.numeric(fc_arima$mean) + as.numeric(fc_stl$mean))
+
+round(c(oracle_rmse = sqrt(mean(residuals(oracle)^2)), equal_weights = rmse(combo)), 2)
+#&gt;   oracle_rmse equal_weights
+#&gt;         12.31         22.26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The residuals of that fit are exactly the errors the oracle combination would have made, so the square root of their mean square is its RMSE. Perfect hindsight weights would have scored 12.31 against the simple average's 22.26. So there really is a much better combination in there. The problem is that finding it requires knowing the answer, and every honest attempt to estimate it from real data made things worse instead.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Estimating weights costs more than the weights are worth.</strong> Every weight you estimate is itself uncertain, and with a handful of models and a short validation window that uncertainty swamps whatever improvement better weights could deliver. Equal weights have zero estimation error, which is exactly why they are so hard to beat.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Weighting does start to pay off with lots of data and lots of models.</strong> With many candidate forecasters, long histories and genuinely large accuracy gaps between them, estimated weights can beat the simple average. The rule of thumb is that below roughly ten members with a short track record, the simple average is the sensible default.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> ARIMA was the strongest model on the test year. Try tilting the combination toward it by hand: 0.5 to ARIMA, 0.3 to ETS, 0.2 to STL. Remember this uses hindsight you would not have had.</p>
+<div class="webr-container" data-block-title="Your turn: hand-picked weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: hand-picked weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_w &lt;- c(0.5, 0.3, 0.2)
+
+# Build ex_fc as ex_w[1]*fc_arima$mean + ex_w[2]*fc_ets$mean + ex_w[3]*fc_stl$mean
+# then rmse() it, rounded to 2 decimals
+# your code here
+# Expected: better than 22.26, but you needed the answer sheet to get it</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Hand-picked weights solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hand-picked weights solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fc &lt;- ex_w[1] * fc_arima$mean + ex_w[2] * fc_ets$mean + ex_w[3] * fc_stl$mean
+round(rmse(ex_fc), 2)
+#&gt; [1] 19.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 19.85 beats the equal-weight 22.26, and it also beats every automatic weighting scheme we tried. That is not a recommendation. You chose those weights by reading the test-set scoreboard, which is the one thing you can never do with a real forecast. It does show that good weights exist, which is why researchers keep looking for a way to estimate them.</p>
+
+</details>
+</section>
+
+<h2>How do you build a prediction interval for a combined forecast?</h2>
+
+<p>A point forecast is half an answer. Anyone acting on it needs a range too. Each of our three models supplies its own 95% interval, so the tempting move is to average the lower bounds and average the upper bounds. That is wrong, and it is worth seeing why.</p>
+
+<div class="webr-container" data-block-title="Averaging the members bounds, the tempting mistake">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Averaging the members bounds, the tempting mistake</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">naive_lower &lt;- (fc_ets$lower[, 2] + fc_arima$lower[, 2] + fc_stl$lower[, 2]) / 3
+naive_upper &lt;- (fc_ets$upper[, 2] + fc_arima$upper[, 2] + fc_stl$upper[, 2]) / 3
+
+round(head(cbind(Actual = test, Lower = naive_lower,
+                 Combination = combo, Upper = naive_upper), 4), 1)
+#&gt;          Actual Lower Combination Upper
+#&gt; Jan 1960    417 393.8       417.4 440.9
+#&gt; Feb 1960    391 375.5       405.9 436.2
+#&gt; Mar 1960    419 423.7       462.1 500.6
+#&gt; Apr 1960    461 407.6       450.7 493.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>$lower</code> and <code>$upper</code> components of a forecast object are matrices with one column per <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence level</a>. Column 1 holds the 80% bounds and column 2 the 95% bounds, so <code>[, 2]</code> picks the 95% interval.</p>
+
+<p>The March row exposes the problem. The truth was 419 and the interval runs from 423.7 to 500.6, so the actual value falls outside a 95% interval entirely. That can happen once in a while by chance, but the deeper issue is structural: this interval only describes how uncertain each model is about its own forecast. It says nothing about the fact that the three models disagree with each other by 22 passengers about that very month.</p>
+
+<p>The honest way to combine uncertainty is to treat the ensemble as a mixture: with probability one third the world behaves like the <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS model</a>, with probability one third like ARIMA, and with probability one third like STL. We simulate from that mixture and read the quantiles off the pooled draws.</p>
+
+<p>First we need each model's mean and standard deviation at each horizon. The standard deviation is recoverable from the 95% bound, since a 95% upper bound sits 1.96 standard deviations above the mean.</p>
+
+<div class="webr-container" data-block-title="Recover each model&#x27;s mean and spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recover each model&#x27;s mean and spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean_mat &lt;- cbind(ETS = fc_ets$mean, ARIMA = fc_arima$mean, STL = fc_stl$mean)
+
+sd_mat &lt;- cbind(ETS   = (fc_ets$upper[, 2]   - fc_ets$mean)   / qnorm(0.975),
+                ARIMA = (fc_arima$upper[, 2] - fc_arima$mean) / qnorm(0.975),
+                STL   = (fc_stl$upper[, 2]   - fc_stl$mean)   / qnorm(0.975))
+
+round(head(sd_mat, 4), 2)
+#&gt;            ETS ARIMA   STL
+#&gt; Jan 1960 15.55 10.48 10.02
+#&gt; Feb 1960 19.46 13.14 13.82
+#&gt; Mar 1960 26.38 15.68 16.79
+#&gt; Apr 1960 28.95 17.79 19.30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>qnorm(0.975)</code> is 1.959964, the number of standard deviations that leaves 2.5% in the upper tail of a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>. Dividing the distance from the mean to the upper bound by it recovers the standard deviation. The spreads widen from January to April, which is the usual pattern: the further ahead you forecast, the less you know.</p>
+
+<p>Now the simulation. For each of the twelve months we draw four thousand futures. Each draw picks one of the three models at random, then draws a value from that model's own distribution for that month.</p>
+
+<div class="webr-container" data-block-title="Draw four thousand futures from the model mixture">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Draw four thousand futures from the model mixture</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_sim &lt;- 4000
+
+draws &lt;- sapply(1:12, function(h) {
+  pick &lt;- sample(1:3, n_sim, replace = TRUE)
+  rnorm(n_sim, mean = mean_mat[h, pick], sd = sd_mat[h, pick])
+})
+
+dim(draws)
+#&gt; [1] 4000   12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sample(1:3, n_sim, replace = TRUE)</code> chooses a model for each of the four thousand draws. Because <code>mean_mat[h, pick]</code> is indexed by that vector of choices, <code>rnorm()</code> receives four thousand mean and standard deviation pairs at once and returns one draw from each. <code>set.seed(2026)</code> fixes the random numbers so you get exactly these results.</p>
+
+<p>The result is a 4000 by 12 matrix: four thousand possible versions of 1960. The interval is just the middle 95% of each column.</p>
+
+<div class="webr-container" data-block-title="Read the interval off the pooled draws">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the interval off the pooled draws</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pooled_lower &lt;- apply(draws, 2, quantile, probs = 0.025)
+pooled_upper &lt;- apply(draws, 2, quantile, probs = 0.975)
+
+round(head(cbind(Actual = test, Lower = pooled_lower,
+                 Combination = combo, Upper = pooled_upper), 4), 1)
+#&gt;          Actual Lower Combination Upper
+#&gt; Jan 1960    417 388.8       417.4 442.8
+#&gt; Feb 1960    391 375.4       405.9 437.4
+#&gt; Mar 1960    419 417.5       462.1 506.9
+#&gt; Apr 1960    461 401.8       450.7 497.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>March now runs from 417.5 to 506.9, and the actual value of 419 sits inside it. The lower bound moved down by six passengers, which is precisely the model disagreement that the averaged-bounds version had thrown away.</p>
+
+<p>Let's measure both versions properly: how wide are they on average, and how often did they actually contain the truth?</p>
+
+<div class="webr-container" data-block-title="Compare width and real coverage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare width and real coverage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(naive_width   = mean(naive_upper - naive_lower),
+        pooled_width  = mean(pooled_upper - pooled_lower),
+        naive_cover   = mean(test &gt;= naive_lower  &amp; test &lt;= naive_upper),
+        pooled_cover  = mean(test &gt;= pooled_lower &amp; test &lt;= pooled_upper)), 3)
+#&gt;  naive_width pooled_width  naive_cover pooled_cover
+#&gt;      107.089      125.705        0.917        1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pooled interval is 125.7 passengers wide against the naive version's 107.1, about 17% wider. It captured all twelve actual values while the averaged-bounds interval captured eleven, so 91.7% coverage from something that claimed to be a 95% interval.</p>
+
+<p>Twelve months is far too small a sample to judge coverage properly, so do not read much into 11 versus 12. The structural argument is the one that should convince you: across the twelve months, the gap between the highest and the lowest member forecast averages 38 passengers, and any interval built by averaging the members' own bounds is arithmetically incapable of reflecting that.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Averaging the members' bounds is not a combined prediction interval.</strong> It produces an interval that is too narrow, because it captures only each model's uncertainty about itself and discards the disagreement between models. Pool simulated futures instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build an 80% interval instead of a 95% one from the same <code>draws</code> matrix, and check how wide it is.</p>
+<div class="webr-container" data-block-title="Your turn: an 80% combined interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: an 80% combined interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_lo and ex_hi: apply quantile() to draws at probs 0.10 and 0.90
+# then report the mean width and the coverage on `test`
+# your code here
+# Expected: much narrower than 125.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="80% combined interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">80% combined interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lo &lt;- apply(draws, 2, quantile, probs = 0.10)
+ex_hi &lt;- apply(draws, 2, quantile, probs = 0.90)
+
+round(c(width_80 = mean(ex_hi - ex_lo), cover_80 = mean(test &gt;= ex_lo &amp; test &lt;= ex_hi)), 3)
+#&gt; width_80 cover_80
+#&gt;   83.373    0.917</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 80% interval is 83.4 wide, a third narrower than the 95% one, and it still caught eleven of twelve months. Demanding less confidence buys you a tighter range. You have learned nothing new about 1960, you have simply agreed to be wrong more often.</p>
+
+</details>
+</section>
+
+<h2>Which R packages combine forecasts for you?</h2>
+
+<p>Everything so far was deliberately hand-rolled, because a combination really is just arithmetic on vectors and you should be able to see that. For production work there are packages that handle the bookkeeping, and the modern one is <code>fable</code>, which lets you write a combination as an algebraic expression over fitted models.</p>
+
+<div class="webr-container" data-block-title="Build a combination with fable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a combination with fable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(fable)
+library(tsibble)
+library(dplyr)
+
+air       &lt;- as_tsibble(AirPassengers)
+air_train &lt;- air |&gt; filter(index &lt; yearmonth(&quot;1960 Jan&quot;))
+
+fit &lt;- air_train |&gt;
+  model(ets = ETS(value), arima = ARIMA(value)) |&gt;
+  mutate(combo = (ets + arima) / 2)
+
+fit
+#&gt; # A mable: 1 x 3
+#&gt;             ets                              arima         combo
+#&gt;         &lt;model&gt;                            &lt;model&gt;       &lt;model&gt;
+#&gt; 1 &lt;ETS(M,Ad,M)&gt; &lt;ARIMA(3,0,0)(0,1,0)[12] w/ drift&gt; &lt;COMBINATION&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>|&gt;</code> is R's pipe: it feeds the value on its left into the function on its right as the first argument, so <code>air |&gt; filter(...)</code> means the same as <code>filter(air, ...)</code>. <code>as_tsibble()</code> converts the classic <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">time series object</a> into a tsibble, the tidy time series format the fable ecosystem uses. <code>model()</code> fits several models in one call and returns a <a class="auto-link" href="fable-in-R.html" title="fable in R: Tidy Time Series Forecasting with tsibble">mable</a>, a table with one column per fitted model. The clever part is the <code>mutate()</code> line: <code>(ets + arima) / 2</code> is real arithmetic on model objects, and fable stores the result as a first-class model of type <code>COMBINATION</code>.</p>
+
+<p>Because the combination is a model like any other, forecasting and scoring it need no special handling.</p>
+
+<div class="webr-container" data-block-title="Forecast and score the fable combination">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast and score the fable combination</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc &lt;- fit |&gt; forecast(h = 12)
+
+fc |&gt;
+  fabletools::accuracy(air) |&gt;
+  select(.model, RMSE, MAE, MAPE) |&gt;
+  arrange(RMSE)
+#&gt; # A tibble: 3 × 4
+#&gt;   .model  RMSE   MAE  MAPE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 arima   18.5  14.9  3.10
+#&gt; 2 combo   22.3  17.5  3.55
+#&gt; 3 ets     27.4  22.8  4.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing <code>air</code>, the full series, to <code>fabletools::accuracy()</code> is what lets it look up the true 1960 values and score each forecast against them. The ARIMA that fable selected differs from the one <code>auto.arima()</code> chose, so its score differs too. The pattern is the one we have seen all article: the combination lands between its members, well clear of the weaker one.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Both the forecast and fabletools packages define <a class="auto-link" href="yardstick-accuracy-in-R.html" title="yardstick accuracy() in R: Score Classification Models">accuracy()</a>.</strong> Whichever loads last wins, so after <code>library(fable)</code> a bare <code>accuracy()</code> call is the fabletools version and will reject a plain forecast object. Write <code>fabletools::accuracy()</code> or <code>forecast::accuracy()</code> explicitly whenever both are loaded.</div></div>
+
+<p>Here is how the main options compare.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Package</th>
+<th>How you combine</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fable</code></td>
+<td>Algebra on fitted models, <code>(ets + arima) / 2</code></td>
+<td>Modern tidy workflows, actively maintained</td>
+</tr>
+<tr>
+<td><code>forecast</code></td>
+<td>Manual arithmetic on <code>$mean</code> vectors</td>
+<td>Full control, and it is what this article used</td>
+</tr>
+<tr>
+<td><code>forecastHybrid</code></td>
+<td><code>hybridModel()</code> fits five methods and weights them</td>
+<td>A quick ensemble with no setup</td>
+</tr>
+<tr>
+<td><code>opera</code></td>
+<td>Weights updated online as new data arrives</td>
+<td>Long live series where the best model changes over time</td>
+</tr>
+<tr>
+<td><code>ForecastComb</code></td>
+<td>Fifteen schemes including eigenvector methods</td>
+<td>Research comparisons across many weighting rules</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for a package when the bookkeeping gets painful, not before.</strong> Two or three models is a one-line average you can debug in your head. Twenty models with rolling re-weighting is where <code>opera</code> starts earning its place.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a seasonal naive model to the fable combination and see what a weak third member does inside the tidy workflow.</p>
+<div class="webr-container" data-block-title="Your turn: a three-model fable combination">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a three-model fable combination</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># In one pipeline: model() with ets = ETS(value), arima = ARIMA(value),
+# snaive = SNAIVE(value), then mutate(combo3 = (ets + arima + snaive) / 3),
+# then forecast(h = 12), fabletools::accuracy(air), select(.model, RMSE), arrange(RMSE)
+# your code here
+# Expected: combo3 lands below ets, not above it</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-model fable combination solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-model fable combination solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- air_train |&gt;
+  model(ets = ETS(value), arima = ARIMA(value), snaive = SNAIVE(value)) |&gt;
+  mutate(combo3 = (ets + arima + snaive) / 3)
+
+ex_fit |&gt;
+  forecast(h = 12) |&gt;
+  fabletools::accuracy(air) |&gt;
+  select(.model, RMSE) |&gt;
+  arrange(RMSE)
+#&gt; # A tibble: 4 × 2
+#&gt;   .model  RMSE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 arima   18.5
+#&gt; 2 ets     27.4
+#&gt; 3 combo3  28.3
+#&gt; 4 snaive  50.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding seasonal naive pushed the combination from 22.3 to 28.3, now worse than ETS alone. The tidy syntax makes bad ensembles just as easy to build as good ones. Nothing in <code>fable</code> will warn you that a member is dragging the average down, so screening remains your job.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Here is the whole workflow wrapped into one reusable function. Give it a seasonal series, a forecast horizon and a combining rule, and it splits the data, fits three models, combines them and scores everything.</p>
+
+<div class="webr-container" data-block-title="A reusable combine_forecasts function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A reusable combine_forecasts function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">combine_forecasts &lt;- function(y, h, rule = &quot;mean&quot;) {
+  n     &lt;- length(y)
+  train &lt;- ts(head(y, n - h), start = start(y), frequency = frequency(y))
+  test  &lt;- ts(tail(y, h), start = time(y)[n - h + 1], frequency = frequency(y))
+
+  members &lt;- cbind(
+    ETS   = forecast(ets(train),        h = h)$mean,
+    ARIMA = forecast(auto.arima(train), h = h)$mean,
+    STL   = stlf(train,                 h = h)$mean
+  )
+
+  combined &lt;- switch(rule,
+    mean    = rowMeans(members),
+    median  = apply(members, 1, median),
+    trimmed = apply(members, 1, mean, trim = 0.2)
+  )
+
+  rmse &lt;- function(f) sqrt(mean((as.numeric(test) - as.numeric(f))^2))
+
+  data.frame(
+    method = c(colnames(members), paste0(&quot;Combination (&quot;, rule, &quot;)&quot;)),
+    RMSE   = round(c(apply(members, 2, rmse), rmse(combined)), 2),
+    row.names = NULL
+  )
+}
+
+combine_forecasts(USAccDeaths, h = 12)
+#&gt;               method   RMSE
+#&gt; 1                ETS 289.62
+#&gt; 2              ARIMA 288.83
+#&gt; 3                STL 271.88
+#&gt; 4 Combination (mean) 278.75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>USAccDeaths</code> counts monthly accidental deaths in the United States, a series with no strong trend, which makes it a completely different test from <code>AirPassengers</code>. Inside the function, <code>head()</code> and <code>tail()</code> cut the series into its first <code>n - h</code> and last <code>h</code> values, and <code>ts()</code> rebuilds each piece as a time series: <code>start(y)</code> and <code>frequency(y)</code> carry over the original calendar, and <code>time(y)[n - h + 1]</code> is the calendar time of the first test point. <code>switch()</code> picks the combining rule from the string you passed, and <code>as.numeric()</code> inside <code>rmse()</code> strips the time series attributes so the subtraction works whether <code>combined</code> came back as a series or a plain vector.</p>
+
+<p>The result is the pattern this article has been building toward, in miniature. The combination scored 278.75, below the members' average of 283.4, above the best member's 271.88. It beat two of three models without knowing in advance which two.</p>
+
+<p>One function, any series. Let's point it at a quarterly one.</p>
+
+<div class="webr-container" data-block-title="The same function on quarterly UK gas">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same function on quarterly UK gas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">combine_forecasts(UKgas, h = 8)
+#&gt;               method   RMSE
+#&gt; 1                ETS  78.32
+#&gt; 2              ARIMA  71.27
+#&gt; 3                STL 109.46
+#&gt; 4 Combination (mean)  84.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>UKgas</code> is quarterly UK gas consumption, so we hold out eight quarters instead of twelve months and the function adapts automatically through <code>frequency(y)</code>. Once again the combination at 84.05 beats the members' average of 86.35 and lands between the best and the worst member. That is the same outcome we got on <code>AirPassengers</code> and on <code>USAccDeaths</code>, on three series with quite different shapes.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Verify the guarantee on a different year</h3>
+
+<p>The ambiguity decomposition should hold for any holdout window, not just 1960. Refit all three models on data through 1958, forecast the twelve months of 1959, and confirm that <code>average member MSE - disagreement</code> equals the combination's actual MSE. Report the combination's RMSE both ways.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build my_series and my_test with window(), then reuse the
+# apply(members, 1, function(row) mean((row - mean(row))^2)) pattern.
+# Compare sqrt(avg_mse - disagreement) against a direct rmse of rowMeans().
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_series &lt;- window(AirPassengers, end = c(1958, 12))
+my_test   &lt;- window(AirPassengers, start = c(1959, 1), end = c(1959, 12))
+
+my_members &lt;- cbind(forecast(ets(my_series),        h = 12)$mean,
+                    forecast(auto.arima(my_series), h = 12)$mean,
+                    stlf(my_series,                 h = 12)$mean)
+
+my_avg_mse &lt;- mean(apply(my_members, 2, function(f) mean((my_test - f)^2)))
+my_dis     &lt;- mean(apply(my_members, 1, function(row) mean((row - mean(row))^2)))
+my_direct  &lt;- sqrt(mean((my_test - rowMeans(my_members))^2))
+
+round(c(avg_member_mse = my_avg_mse,
+        disagreement   = my_dis,
+        combo_mse      = my_avg_mse - my_dis,
+        combo_rmse     = sqrt(my_avg_mse - my_dis),
+        check_rmse     = my_direct), 2)
+#&gt; avg_member_mse   disagreement      combo_mse     combo_rmse     check_rmse
+#&gt;        2446.25          99.91        2346.34          48.44          48.44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two RMSE figures agree to the decimal, 48.44 and 48.44, so the identity holds on 1959 exactly as it did on 1960. Note how small the disagreement term is here, 99.91 against 1960's 335.57. The models largely agreed about 1959 and were largely wrong together, which is why the combination saved so little that year.</p>
+
+</details>
+
+<h3>Exercise 2: Screen out the weakest member, honestly</h3>
+
+<p>The try-it in section two showed that the ETS and ARIMA pair beat the three-model combination on 1960. Try to reach that result without cheating: use each model's training RMSE to identify the weakest member, then drop it and average the two survivors. Compare against the mean of all three.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: which.max() on the training RMSE vector names the weakest model.
+# Use setdiff() to keep the other two columns, then rowMeans() them.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_train_rmse &lt;- c(ETS   = accuracy(fc_ets)[&quot;Training set&quot;, &quot;RMSE&quot;],
+                   ARIMA = accuracy(fc_arima)[&quot;Training set&quot;, &quot;RMSE&quot;],
+                   STL   = accuracy(fc_stl)[&quot;Training set&quot;, &quot;RMSE&quot;])
+
+my_drop &lt;- names(which.max(my_train_rmse))
+my_keep &lt;- cbind(ETS = fc_ets$mean, ARIMA = fc_arima$mean, STL = fc_stl$mean)[,
+                 setdiff(names(my_train_rmse), my_drop)]
+
+cat(&quot;dropped:&quot;, my_drop, &quot;\n&quot;)
+#&gt; dropped: ARIMA
+
+round(c(mean_of_all = rmse(rowMeans(cbind(fc_ets$mean, fc_arima$mean, fc_stl$mean))),
+        screened    = rmse(rowMeans(my_keep))), 2)
+#&gt; mean_of_all    screened
+#&gt;       22.26       30.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Honest screening dropped ARIMA, which was the best model on the future and only looked worst on the past. The screened pair scored 30.05 against the unscreened 22.26, so the attempt to be clever raised the error by 35%. In-sample fit is a poor guide to out-of-sample skill, and that is the same force that makes estimated weights fail. Screening is for members you know are broken, not for members that fit the training data marginally less tightly.</p>
+
+</details>
+
+<h3>Exercise 3: Robust rules on a different series</h3>
+
+<p>Build a five-member ensemble on <code>USAccDeaths</code>, holding out 1978. Use ETS, ARIMA, STL, seasonal naive and drift, then compare the mean, median and trimmed mean. Decide which rule you would ship.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: window(USAccDeaths, end = c(1977, 12)) for the training data.
+# Reuse cbind() of the five $mean vectors, then rowMeans, median and trim = 0.2.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_tr &lt;- window(USAccDeaths, end = c(1977, 12))
+my_te &lt;- window(USAccDeaths, start = c(1978, 1))
+
+my_five &lt;- cbind(forecast(ets(my_tr),        h = 12)$mean,
+                 forecast(auto.arima(my_tr), h = 12)$mean,
+                 stlf(my_tr,                 h = 12)$mean,
+                 snaive(my_tr,               h = 12)$mean,
+                 rwf(my_tr, drift = TRUE,    h = 12)$mean)
+
+my_r &lt;- function(f) sqrt(mean((my_te - f)^2))
+
+round(c(mean5   = my_r(rowMeans(my_five)),
+        median5 = my_r(apply(my_five, 1, median)),
+        trim5   = my_r(apply(my_five, 1, mean, trim = 0.2))), 2)
+#&gt;   mean5 median5   trim5
+#&gt;  361.39  277.03  290.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The median wins clearly at 277.03, cutting 23% off the plain mean's 361.39, with the trimmed mean close behind at 290.51. This reproduces the section four result on a completely different series, which is the kind of repetition that should raise your confidence in a finding. Ship the median whenever you have five or more members and cannot vouch for all of them.</p>
+
+</details>
+
+<h2>Frequently asked questions</h2>
+
+<h3>How many forecasts should I combine?</h3>
+
+<p>Three to five is the sweet spot for most work. Two models give you one cancellation opportunity per period, which is thin. Beyond about five, each extra member changes the average less and less, so the effort goes into finding a genuinely different method rather than adding a fourth variation on exponential smoothing. If you do go past five, switch from the mean to the median, because a large ensemble is much more likely to contain a broken member.</p>
+
+<h3>Can I combine forecasts from models fitted on transformed data?</h3>
+
+<p>Yes, as long as you transform everything back to the original scale before averaging. If one model forecasts log passengers and another forecasts passengers, averaging them directly is meaningless. Exponentiate the log forecast first. Be aware that the exponential of a mean is not the mean of the exponentials, so back-transformed forecasts carry a small bias; <code>forecast()</code> handles this for you when you pass <code>lambda</code> and <code>biasadj = TRUE</code>.</p>
+
+<h3>Should I combine a machine learning model with a statistical one?</h3>
+
+<p>That is often the best pairing you can build, precisely because the two make errors for different reasons. A gradient boosting model and an ARIMA will rarely be wrong in the same direction on the same month. The only requirement is that both produce forecasts for the same periods on the same scale. Everything in this article applies unchanged, since the combination never looks inside its members.</p>
+
+<h3>My combination is worse than my single best model. What should I do?</h3>
+
+<p>First check whether you know it is your best model, or whether you only know it was best on the window you just measured. Exercise 2 above showed a model that looked worst on the training data and turned out best on the future. If you have several years of rolling evidence that one method consistently wins, then trusting it is reasonable. If you have one holdout window, you are probably looking at noise, and the combination is the safer choice.</p>
+
+<h3>Do I have to refit all the models every time new data arrives?</h3>
+
+<p>Refit on the same schedule you would use for a single model. The combination adds no new fitting requirement, it just multiplies the work by the number of members. If refitting is expensive, note that the weights in an equal-weight combination never need re-estimating, which is one more practical advantage of the simple average over anything data-driven.</p>
+
+<h3>Does this work for weekly or daily data?</h3>
+
+<p>The arithmetic is identical at any frequency. What changes is which members are worth including, since methods like <code>ets()</code> struggle with the long seasonal periods that daily and weekly data bring. For high-frequency series, build your ensemble from methods designed for it, such as <code>tbats()</code>, <a class="auto-link" href="Fourier-Terms-in-R.html" title="Fourier Terms in R: Model Complex Seasonality">dynamic harmonic regression</a>, or Prophet, then average them exactly as we did here.</p>
+
+<h2>Summary</h2>
+
+<p>Combining forecasts is one of the few techniques in forecasting that is simultaneously trivial to implement and hard to beat. The arithmetic is a single division. Everything difficult about it is knowing what it does and does not promise.</p>
+
+<p><img src="screenshots/Combining-Forecasts-in-R-choosing-a-rule.webp" alt="Choosing between the mean, the median and screening" class="img-responsive img-zoomable" loading="lazy" width="1418" height="1660" /></p>
+
+<p><em>Figure 3: Choosing between the mean, the median and screening.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>What you learned</th>
+<th>The takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>How to combine</td>
+<td>Average the <code>$mean</code> vectors of several forecast objects, then score as usual</td>
+</tr>
+<tr>
+<td>Why it works</td>
+<td>Errors of different sign cancel, and the ambiguity decomposition makes the gain exact</td>
+</tr>
+<tr>
+<td>What is guaranteed</td>
+<td>The combination can never be worse than the average member, on any data</td>
+</tr>
+<tr>
+<td>What is not guaranteed</td>
+<td>It may lose to the single best member, and on AirPassengers it lost to ARIMA 3 years in 5</td>
+</tr>
+<tr>
+<td>Which members to pick</td>
+<td>Diversity beats individual accuracy, since correlated models leave nothing to cancel</td>
+</tr>
+<tr>
+<td>When one member is bad</td>
+<td>The equal-weight mean is poisoned; use the median with 5 or more members, or screen first</td>
+</tr>
+<tr>
+<td>Whether to weight</td>
+<td>Inverse-MSE barely moved the needle, and regression weights scored 3 times worse than a simple average</td>
+</tr>
+<tr>
+<td>How to build intervals</td>
+<td>Pool simulated futures across models; averaging the members' bounds understates uncertainty</td>
+</tr>
+<tr>
+<td>Which package</td>
+<td><code>fable</code> for tidy workflows, plain <code>forecast</code> arithmetic for full control</td>
+</tr>
+</tbody>
+</table>
+
+<p>The single most useful habit from all of this is to stop treating <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a> as a decision you must get right. If you have three plausible models and no strong reason to prefer one, average them and move on to a problem where your judgement actually adds value.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, Section 13.4: Forecast combinations. <a href="https://otexts.com/fpp3/combinations.html">Link</a></li>
+
+<li>Bates, J.M. & Granger, C.W.J. The Combination of Forecasts. <em>Operational Research Quarterly</em> 20(4), 451-468 (1969). The paper that started the field; it sits behind a paywall, and reference 3 summarises its argument.</li>
+
+<li>Wang, X., Hyndman, R.J., Li, F. & Kang, Y. Forecast combinations: an over 50-year review. <em>International Journal of Forecasting</em> (2023). <a href="https://arxiv.org/abs/2205.04216">Link</a></li>
+
+<li>Krogh, A. & Vedelsby, J. Neural Network Ensembles, Cross Validation, and Active Learning. <em>NeurIPS</em> (1994), the origin of the ambiguity decomposition. <a href="https://proceedings.neurips.cc/paper/1994/hash/b8c37e33defde51cf91e1e03e51657da-Abstract.html">Link</a></li>
+
+<li>Lee, S. & Lee, T.-H. Solving the Forecast Combination Puzzle. University of California Riverside working paper 202514. <a href="https://economics.ucr.edu/repec/ucr/wpaper/202514.pdf">Link</a></li>
+
+<li>Makridakis, S., Spiliotis, E. & Assimakopoulos, V. The M4 Competition, where combinations dominated the leaderboard. Methods and results archive. <a href="https://github.com/Mcompetitions/M4-methods">Link</a></li>
+
+<li>Hyndman, R.J. <em>forecast: Forecasting Functions for Time Series and Linear Models</em>, CRAN reference manual. <a href="https://cran.r-project.org/package=forecast">Link</a></li>
+
+<li>Hyndman, R.J. R packages for forecast combinations, comparing opera and forecastHybrid. <a href="https://robjhyndman.com/hyndsight/forecast-combinations/">Link</a></li>
+
+<li>O'Hara-Wild, M., Hyndman, R.J. & Wang, E. <em>fable: Forecasting Models for Tidy Time Series</em>. <a href="https://fable.tidyverts.org/">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, Section 5.10: Time series cross-validation. <a href="https://otexts.com/fpp3/tscv.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a> covers RMSE, MAE, MAPE and MASE in depth, including which measure to trust when your series changes scale.</li>
+
+<li><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R</a> turns the five-origin test from section three into a proper automated procedure with <code>tsCV()</code>.</li>
+
+<li><a href="ETS-vs-ARIMA-in-R.html">ETS vs ARIMA in R</a> explains what the two main members of our ensemble actually do, and why their errors are so different.</li>
+
+<li><a href="Prediction-Intervals-in-R.html">Prediction Intervals in R</a> goes deeper on interval width, coverage and what breaks when residuals are not normal.</li>
+
+</ul>
+
+{% endraw %}
