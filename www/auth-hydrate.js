@@ -152,6 +152,19 @@
     document.head.appendChild(s);
   }
 
+  // Mirror the Supabase access token into a lightweight cookie so PAGE
+  // requests (which cannot send Authorization headers) can be identified at
+  // the edge. The middleware uses it to serve full Pro lesson pages to Pro
+  // users and stripped ones to everyone else. Same-origin, Lax, expires with
+  // the JWT lifetime; cleared on sign-out.
+  function syncAuthCookie(token) {
+    try {
+      document.cookie = token
+        ? 'rsc-at=' + token + '; Path=/; Max-Age=3600; SameSite=Lax; Secure'
+        : 'rsc-at=; Path=/; Max-Age=0; SameSite=Lax; Secure';
+    } catch (_) {}
+  }
+
   function readAccessToken() {
     try {
       for (let i = 0; i < localStorage.length; i++) {
@@ -288,6 +301,7 @@
       }
       sessionStorage.removeItem('rs-pending-intent');
     } catch (_) {}
+    syncAuthCookie(null);
     window.location.reload();
   }
 
@@ -389,6 +403,7 @@
     rewriteSigninLinks();
     const token = readAccessToken();
     cachedAccessToken = token;
+    syncAuthCookie(token);
     // Fetch /api/me and /api/me/stats in parallel — both gated on the same
     // bearer token. Stats failure (network, server) is non-blocking; the
     // dropdown shows the user without the XP/streak rows.

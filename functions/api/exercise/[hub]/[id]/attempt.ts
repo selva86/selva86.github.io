@@ -13,10 +13,18 @@
 import type { Env, RequestData } from "../../../../_middleware";
 import { json, err401, jsonError } from "../../../../_lib/errors";
 import { recordAttempt } from "../../../../_lib/db";
+import { resolvePro } from "../../../../_lib/entitlement";
 import {
   isValidHubSlug, isValidExerciseId, hubExists, lookupDifficulty,
   xpForDifficulty,
 } from "../../../../_lib/exercises";
+import proLessonsJson from "../../../../_data/pro-lessons.json";
+
+// Lesson hubs share their slug with the lesson page, so the Pro-lesson map is
+// also the Pro-hub map. Attempts on these hubs require an active entitlement;
+// without this, a free account could farm XP (and cert credit) from Pro
+// quizzes by POSTing directly.
+const PRO_HUBS = proLessonsJson as Record<string, boolean>;
 
 const MAX_HINTS = 10;
 
@@ -31,6 +39,11 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
   if (!hubExists(hubSlug)) return jsonError(400, "bad_slug", "Unknown hub");
   const difficulty = lookupDifficulty(hubSlug, exerciseId);
   if (!difficulty) return jsonError(400, "bad_exercise", "Unknown exercise for this hub");
+
+  if (PRO_HUBS[hubSlug]) {
+    const ent = await resolvePro(context.env.DB, u);
+    if (!ent.pro) return jsonError(402, "pro_required", "This exercise belongs to a Pro lesson");
+  }
 
   let body: { passed?: unknown; hints_used?: unknown };
   try {

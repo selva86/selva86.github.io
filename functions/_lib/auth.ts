@@ -216,6 +216,14 @@ export function extractToken(request: Request): string | null {
     const eq = part.indexOf("=");
     if (eq < 0) continue;
     const name = part.slice(0, eq).trim();
+    // rsc-at: lightweight raw-JWT mirror set by auth-hydrate.js so PAGE
+    // requests (no Authorization header possible) are identifiable at the
+    // edge for Pro lesson serving.
+    if (name === "rsc-at") {
+      const raw = part.slice(eq + 1).trim();
+      if (raw.split(".").length === 3) return raw;
+      continue;
+    }
     if (!name.startsWith("sb-") || !name.endsWith("-auth-token")) continue;
     const raw = decodeURIComponent(part.slice(eq + 1).trim());
     const token = parseSupabaseAuthCookie(raw);

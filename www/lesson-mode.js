@@ -111,7 +111,12 @@
     var contBtn = app.querySelector('.lm-cont');
 
     /* ---- Pro gating ---- */
-    var locked = (access === 'pro') && !body.classList.contains('pro');
+    // stripped = the server removed locked step content for this (non-Pro)
+    // request; the shells remain so step counts stay honest. A stripped page
+    // is always treated as locked client-side regardless of any local state.
+    var stripped = body.getAttribute('data-stripped') === '1';
+    var locked = ((access === 'pro') && !body.classList.contains('pro')) || stripped;
+    if (!stripped) { try { sessionStorage.removeItem('rsc-lm-reload:' + location.pathname); } catch (e) {} }
 
     /* ---- account gate (free courses): first 2 lessons of a course are open to
        anyone; lesson 3+ asks for a free account. Mutually exclusive with the Pro
@@ -129,7 +134,17 @@
 
     document.addEventListener('auth-hydrated', function (e) {
       var me = e.detail && e.detail.me;
-      if (me && me.pro && locked) { locked = false; render(); }
+      if (me && me.pro && locked) {
+        if (stripped) {
+          // The locked steps are not in this response. auth-hydrate has just
+          // synced the auth cookie, so one reload serves the full page
+          // server-side. Guarded so a stale entitlement can never loop.
+          try {
+            var rk = 'rsc-lm-reload:' + location.pathname;
+            if (!sessionStorage.getItem(rk)) { sessionStorage.setItem(rk, '1'); location.reload(); return; }
+          } catch (err) {}
+        } else { locked = false; render(); }
+      }
       if (me && me.user && accountLocked) { accountLocked = false; signedIn = true; render(); }
       hydrateSolved();
     });
@@ -218,6 +233,8 @@
     // reopens at step 1 (review mode) so a finished lesson is never a dead-end.
     var completedLesson = (state.furthest || 0) >= total - 1;
     var i = completedLesson ? 0 : Math.min(state.furthest || 0, total - 1);
+    // A locked viewer never resumes past the preview, whatever localStorage says.
+    if (locked) i = Math.min(i, PREVIEW_STEPS - 1);
     var showingPaywall = false;
 
     function gated(idx) {
@@ -269,6 +286,9 @@
 
     function render() {
       if (accountLocked) { renderSignInWall(); return; }
+      // Enforce the Pro wall on every render, not only on forward clicks:
+      // resume state, storage edits and re-renders all funnel through here.
+      if (locked && i >= PREVIEW_STEPS) { i = PREVIEW_STEPS - 1; renderPaywall(); return; }
       var sw = stage.querySelector('.lm-signin'); if (sw) sw.style.display = 'none';
       if (showingPaywall) { var p = stage.querySelector('.lm-paywall'); if (p) p.style.display = 'none'; showingPaywall = false; }
       steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });

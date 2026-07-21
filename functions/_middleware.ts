@@ -12,6 +12,55 @@
 import { extractToken, verifyJWT, type JWTPayload } from "./_lib/auth";
 import { getUserById, isSessionRevoked, upsertSession, type User } from "./_lib/db";
 import { parseDeviceLabel } from "./_lib/devices";
+import { resolvePro } from "./_lib/entitlement";
+import proLessonsJson from "./_data/pro-lessons.json";
+
+// Slugs of built lesson pages whose access is Pro (generated at build time by
+// Scripts/build_lessons_tracker.py). Requests for these pages get their locked
+// step content stripped server-side unless the requester proves an active Pro
+// entitlement, so the paid lesson body never reaches a non-Pro client.
+const PRO_LESSONS = proLessonsJson as Record<string, boolean>;
+const LESSON_PREVIEW_STEPS = 2; // must match PREVIEW_STEPS in www/lesson-mode.js
+
+// Resolve the requester's Pro entitlement for a page request. Fail-closed:
+// any error means "not Pro" (they get the stripped page; the client's
+// reload-once path retries after hydration). KV-cached briefly so hot lesson
+// browsing does not hit D1 on every page.
+async function serveProLesson(
+  context: { request: Request; env: Env },
+  res: Response,
+): Promise<Response> {
+  const pro = await requesterIsPro(context);
+  const out = new Response(res.body, res);
+  out.headers.set("Cache-Control", "private, no-store");
+  if (pro) return out;
+  let stepIdx = 0;
+  return new HTMLRewriter()
+    .on("body", { element(el) { el.setAttribute("data-stripped", "1"); } })
+    .on("section.lesson-step", {
+      element(el) { if (stepIdx++ >= LESSON_PREVIEW_STEPS) el.setInnerContent("", { html: false }); },
+    })
+    .transform(out);
+}
+
+async function requesterIsPro(context: { request: Request; env: Env }): Promise<boolean> {
+  try {
+    const token = extractToken(context.request);
+    if (!token) return false;
+    const payload = await verifyJWT(token, context.env as never);
+    if (!payload?.sub) return false;
+    const kvKey = `prolesson:${payload.sub}`;
+    const cached = await context.env.KV.get(kvKey);
+    if (cached === "1") return true;
+    if (cached === "0") return false;
+    const user = await getUserById(context.env.DB, payload.sub);
+    const ent = await resolvePro(context.env.DB, user);
+    await context.env.KV.put(kvKey, ent.pro ? "1" : "0", { expirationTtl: 300 });
+    return ent.pro;
+  } catch (_) {
+    return false;
+  }
+}
 
 export interface Env {
   DB: D1Database;
@@ -88,6 +137,17 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
       ? path.slice(0, -"index.html".length) // /foo/index.html -> /foo/ ; /index.html -> /
       : path.slice(0, -".html".length);      // /foo.html -> /foo
     const res = await context.next(new Request(url.toString(), context.request));
+
+    // --- Pro lesson enforcement (server-side) ---
+    // The client paywall is UX, not security: the full lesson body ships in
+    // the HTML. For Pro lessons, strip every step beyond the preview unless
+    // the requester is Pro. Responses depend on auth, so they must never be
+    // cached or served stale across entitlement states.
+    const lessonSlug = path.slice(1, -".html".length);
+    if (!path.slice(1).includes("/") && PRO_LESSONS[lessonSlug]) {
+      return serveProLesson(context, res);
+    }
+
     // Restore edge/browser caching for HTML. Worker responses default to
     // no-store; pages are static shells (auth/personalization is client-side
     // via /api/me, which stays no-store), so a short TTL + stale-while-
@@ -95,6 +155,15 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
     const out = new Response(res.body, res);
     out.headers.set("Cache-Control", "public, max-age=300, stale-while-revalidate=86400");
     return out;
+  }
+
+  // Extensionless twin of a Pro lesson page (/X serves alongside /X.html on
+  // this project) must get the identical treatment or the strip is trivially
+  // bypassed by dropping the extension.
+  const cleanSlug = path.slice(1);
+  if (context.request.method === "GET" && !cleanSlug.includes("/") && !cleanSlug.includes(".") && PRO_LESSONS[cleanSlug]) {
+    const res = await context.next();
+    return serveProLesson(context, res);
   }
 
   context.data.user = null;

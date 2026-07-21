@@ -170,6 +170,18 @@ def main():
     n_courses = len(data['courses'])
     n_lessons = sum(len(c['lessons']) for c in data['courses'])
     print('Wrote %s: %d course(s), %d lesson(s).' % (os.path.relpath(OUT, ROOT), n_courses, n_lessons))
+
+    # Pro-lesson slug map for the edge middleware (server-side content strip).
+    # Shipped inside the Worker bundle via functions/_data/, same as the
+    # exercise manifest.
+    pro = {l['slug']: True
+           for c in data['courses'] for l in c['lessons']
+           if l.get('access') == 'pro'}
+    pro_out = os.path.join(ROOT, 'functions', '_data', 'pro-lessons.json')
+    with open(pro_out, 'w', encoding='utf-8') as f:
+        json.dump(pro, f, indent=2, sort_keys=True)
+        f.write('\n')
+    print('Wrote %s: %d pro lesson page(s).' % (os.path.relpath(pro_out, ROOT), len(pro)))
     return 0
 
 
