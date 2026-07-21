@@ -172,6 +172,13 @@
           hub: 'Cross Validation Exercises', tool: 'model comparison board', time: 'about two weeks' }
       ] },
 
+    { n: 7, key: 'mleng', persona: 'ML Engineer', color: '#3b5bd9',
+      head: 'Ship and operate <em>machine learning</em> in production',
+      become: 'Take models from notebook to monitored, scaled and secured production - classical models and AI/LLM systems alike.',
+      weeks: '~8 weeks', cert: 'ML Engineering with R', track: 'ml-engineering',
+      arrive: 'You can deploy, monitor, scale and secure a model, and design an ML system end to end.',
+      stages: [] },
+
     { n: 4, key: 'ts', persona: 'Time Series', color: '#b1832f',
       head: 'Time series analysis and <em>forecasting</em>',
       become: 'Decompose, model and forecast ordered data, with prediction intervals you can stand behind.',

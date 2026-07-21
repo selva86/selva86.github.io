@@ -1,10 +1,10 @@
 (function(){
   function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   function freeHref(t){return (RM2.links&&RM2.links[t])||RM.STOP_LINKS[t]||'/tutorials/';}
-  var CV={foundations:'--core',analyst:'--core',ds:'--ds',ts:'--ts',researcher:'--res',developer:'--dev'};
-  var ROLE={foundations:'New to R',analyst:'Data Analyst',ds:'Data Scientist',ts:'Forecaster',researcher:'Researcher',developer:'R Developer'};
-  var CHIP={foundations:'Foundations',analyst:'Data Analyst track',ds:'Data Scientist track',ts:'Forecaster track',researcher:'Researcher track',developer:'R Developer track'};
-  var ALLOWED=['foundations','analyst','ds','ts','researcher','developer'];
+  var CV={foundations:'--core',analyst:'--core',ds:'--ds',ts:'--ts',researcher:'--res',developer:'--dev',mleng:'--mle'};
+  var ROLE={foundations:'New to R',analyst:'Data Analyst',ds:'Data Scientist',ts:'Forecaster',researcher:'Researcher',developer:'R Developer',mleng:'ML Engineer'};
+  var CHIP={foundations:'Foundations',analyst:'Data Analyst track',ds:'Data Scientist track',ts:'Forecaster track',researcher:'Researcher track',developer:'R Developer track',mleng:'ML Engineer track'};
+  var ALLOWED=['foundations','analyst','ds','ts','researcher','developer','mleng'];
   var UNLOCK='<a class="tag pro" href="/pricing.html" title="Unlock with Pro" onclick="event.stopPropagation()">Pro</a>';
   var ROWLOCK='<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
@@ -145,7 +145,7 @@
     // collapse so long tracks (DS = 29 sections) stay navigable. Both collapsible.
     return '<details id="rm-s'+s.n+'" class="sec '+(free?'free-sec':'pro-sec')+'"'+(free?' open':'')+'><summary><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span>'+
       '<span class="st">'+esc(s.title)+'<span class="so">'+esc(s.outcome)+'</span></span>'+
-      (free?'<span class="tag free">Free</span>':UNLOCK)+'<span class="car" aria-hidden="true"></span></summary>'+
+      (free?'':UNLOCK)+'<span class="car" aria-hidden="true"></span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return conceptRow(t,free);}).join('')+'</div></details>';
   }
 

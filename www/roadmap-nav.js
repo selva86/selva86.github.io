@@ -1,4 +1,4 @@
-/* roadmap-nav.js - upgrades the masthead "Roadmap" link into the six-roadmaps
+/* roadmap-nav.js - upgrades the masthead "Roadmap" link into the seven-roadmaps
    ladder dropdown (stages: Start / Work with data / Go deep, boxed track cards,
    certificate footer). Sibling of practice-nav.js (the Exercises panel): same
    architecture, namespaced .rn-*. Progressive enhancement: no JS / mobile ->
@@ -8,19 +8,19 @@
 
   var STAGES = [
     ["Start", [
-      {href:"/roadmap/new-to-r.html", dot:"#2056d2", name:"New to R", track:"foundations", free:1,
+      {href:"/roadmap/new-to-r.html", dot:"#2056d2", name:"New to R", track:"foundations", free:1, sf:"R-Syntax-and-First-Objects",
        p:"Syntax to functions, from zero. Feeds every other track.",
        m:"43 interactive lessons", start:1}
     ]],
     ["Work with data", [
-      {href:"/roadmap/data-analyst.html", dot:"#0f8a5f", name:"Data Analyst", track:"analyst", free:1, p:"Wrangle, visualize, report.", m:"44 interactive lessons"},
+      {href:"/roadmap/data-analyst.html", dot:"#0f8a5f", name:"Data Analyst", track:"analyst", free:1, sf:"Importing-and-Tidy-Data-in-R", p:"Wrangle, visualize, report.", m:"44 interactive lessons"},
       {href:"/roadmap/researcher.html", dot:"#7c3aed", name:"Researcher", p:"Tests, models, inference.", m:"tutorial curriculum"},
       {href:"/roadmap/forecaster.html", dot:"#0e7490", name:"Forecaster", p:"Decomposition to ARIMA.", m:"tutorial curriculum"}
     ]],
     ["Go deep", [
-      {href:"/roadmap/data-scientist.html", dot:"#be185d", name:"Data Scientist", track:"ds", p:"Machine learning end to end.", m:"178 interactive lessons"},
+      {href:"/roadmap/data-scientist.html", dot:"#be185d", name:"Data Scientist", track:"ds", sf:"Framing-a-Problem-as-ML", p:"Machine learning end to end.", m:"178 interactive lessons"},
       {href:"/roadmap/r-developer.html", dot:"#4d7c0f", name:"R Developer", p:"Packages, performance, Shiny.", m:"tutorial curriculum"},
-      {soon:1, dot:"#c3c9d4", name:"ML Engineer", p:"Production ML systems.", m:"in the works"}
+      {href:"/roadmap/ml-engineer.html", dot:"#3b5bd9", name:"ML Engineer", p:"Ship and operate ML in production.", m:"tutorial curriculum"}
     ]]
   ];
   var ARR = '<svg class="rn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
@@ -28,7 +28,7 @@
   function nodeHTML(n){
     var inner = '<span class="rn-t"><b>'+n.name+'</b></span>'+
       '<p>'+n.p+'</p><span class="rn-m" data-rn-m>'+n.m+'</span>'+
-      (n.start ? '<span class="rn-go">Start free '+ARR+'</span>' : '');
+      (n.sf ? '<span class="rn-go rn-sf" role="link" tabindex="0" data-sf="/'+n.sf+'.html" data-track="'+(n.track||'')+'">Start free '+ARR+'</span>' : '');
     if (n.soon) return '<div class="rn-node rn-soon">'+inner+'</div>';
     return '<a class="rn-node'+(n.start?' rn-start':'')+'"'+(n.track?' data-rn-track="'+n.track+'"':'')+(n.free?' data-rn-free="1"':'')+' href="'+n.href+'" role="menuitem">'+inner+'</a>';
   }
@@ -37,11 +37,23 @@
       return '<div class="rn-col"><div class="rn-sl"><span class="rn-msdot"></span>'+sg[0]+'</div>'+
         sg[1].map(nodeHTML).join('')+'</div>';
     }).join('');
-    return '<div class="rn-hd"><b>Six roadmaps, one path</b><a href="/roadmap/">Compare all six '+ARR+'</a></div>'+
+    return '<div class="rn-hd"><b>Seven roadmaps, one path</b><a href="/roadmap/">Compare all seven '+ARR+'</a></div>'+
       '<div class="rn-cols">'+cols+'</div>'+
       '<div class="rn-ft"><span>Every roadmap ends in a verifiable certificate.</span>'+
       '<a href="/roadmap/">Open the full roadmap '+ARR+'</a></div>';
   }
+
+  document.addEventListener('click', function(e){
+    var sf = e.target.closest && e.target.closest('.rn-sf'); if (!sf) return;
+    e.preventDefault(); e.stopPropagation();
+    try { if (typeof gtag === 'function') gtag('event', 'nav_start_free_click', { track: sf.getAttribute('data-track') || '' }); } catch (_) {}
+    window.location.href = sf.getAttribute('data-sf');
+  }, true);
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var sf = e.target.closest && e.target.closest('.rn-sf'); if (!sf) return;
+    e.preventDefault(); sf.click();
+  }, true);
 
   function init(){
     var link = document.querySelector('.sitenav .snav-links a[href="/roadmap/"]') || document.querySelector('.nav a[href="/roadmap/"]');
@@ -86,7 +98,7 @@
     var sheet = document.createElement('div');
     sheet.className = 'rn-sheet'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Roadmaps');
     sheet.innerHTML = '<div class="rn-sheet-hd"><span class="rn-sheet-t">Roadmaps</span><button class="rn-sheet-x" aria-label="Close">&times;</button></div>'+
-      '<div class="rn-sheet-strip">Six roadmaps, one path. Every roadmap ends in a verifiable certificate.</div>'+
+      '<div class="rn-sheet-strip">Seven roadmaps, one path. Every roadmap ends in a verifiable certificate.</div>'+
       '<div class="rn-sheet-body">'+
         STAGES.map(function(sg){
           return '<div class="rn-ssl"><span class="rn-msdot"></span>'+sg[0]+'</div>'+sg[1].map(nodeHTML).join('');

@@ -38,16 +38,18 @@ const ROLES=[
   {k:'researcher',slug:'researcher',name:'Researcher',title:'Applied Statistics in R: the Researcher Roadmap',
    desc:'Run defensible statistics in R: inference, regression, GLMs, mixed models, causal inference and Bayes. Ends in the Applied Statistics certificate.'},
   {k:'developer',slug:'r-developer',name:'R Developer',title:'Advanced R: the R Developer Roadmap',
-   desc:'Engineer production-grade R: functional and object-oriented R, packages, testing, performance and Shiny. Ends in the Advanced R certificate.'}
+   desc:'Engineer production-grade R: functional and object-oriented R, packages, testing, performance and Shiny. Ends in the Advanced R certificate.'},
+  {k:'mleng',slug:'ml-engineer',name:'ML Engineer',title:'ML Engineering in R: the Roadmap',
+   desc:'Take R models from notebook to monitored, scaled, secured production - classical ML and AI/LLM systems - with vetiver, plumber, targets and ellmer. Ends in the ML Engineering certificate.'}
 ];
 const FONTS='<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;450;500;600&family=IBM+Plex+Serif:wght@700&display=swap" rel="stylesheet">';
 const AUTHCSS='<style>.auth-anon{display:none;align-items:center}body.state-anon .auth-anon{display:inline-flex}.masthead-auth-link{font-size:14px;font-weight:600;color:var(--ink);border-bottom:2px solid var(--line);padding-bottom:1px}.masthead-auth-link:hover{border-color:var(--ink)}.nav .right{margin-left:auto;display:flex;align-items:center;gap:14px}</style>';
 const GA="<script>\n  window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}\n  gtag('js',new Date());\n  gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:1500});\n  gtag('config','G-D5XKCMN7FR');\n  (function(){var loaded=false;function load(){if(loaded)return;loaded=true;cleanup();var s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';document.head.appendChild(s);}var ev=['pointerdown','keydown','scroll','touchstart'];function cleanup(){ev.forEach(function(e){window.removeEventListener(e,load,{capture:true});});}function arm(){ev.forEach(function(e){window.addEventListener(e,load,{capture:true,once:true,passive:true});});setTimeout(load,6000);}if(document.readyState==='complete')arm();else window.addEventListener('load',arm,{once:true});})();\n</script>";
-const SHELL="<script defer src=\"/www/consent-banner.js?v=2\"></script>\n<script defer src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{\"token\": \"edf7e3d50c3e4130a913e7f144643624\"}'></script>\n<script defer src=\"/www/auth-hydrate.js?v=11\"></script>\n<script defer src=\"/www/signin-nudge.js?v=10\"></script>\n<script defer src=\"/www/persona-menu.js?v=4\"></script>";
+const SHELL="<script defer src=\"/www/consent-banner.js?v=2\"></script>\n<script defer src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{\"token\": \"edf7e3d50c3e4130a913e7f144643624\"}'></script>\n<script defer src=\"/www/auth-hydrate.js?v=14\"></script>\n<script defer src=\"/www/signin-nudge.js?v=10\"></script>\n<script defer src=\"/www/persona-menu.js?v=4\"></script>";
 function nav(){return '<nav class="nav"><div class="wrap">\n  <a class="brand" href="/"><span class="brand-mark">R</span>r-statistics<span class="co">.co</span></a>\n  <div class="links"><a href="/roadmap/" class="on">Roadmap</a><a href="/tutorials/">Tutorials</a><a href="/exercises/">Exercises</a><a href="/tools/">Tools</a></div>\n  <div class="right"><a class="btn" href="/pricing.html">Get certified <span class="a">&rarr;</span></a><span class="auth-anon"><a class="masthead-auth-link" href="/signin.html">Sign in</a></span><span class="auth-user"></span></div>\n</div></nav>';}
 function foot(){return '<footer class="foot"><div class="wrap"><span>&copy; 2016&ndash;2026 r-statistics.co</span><nav class="foot-links"><a href="/tutorials/">Tutorials</a><a href="/tools/">Tools</a><a href="/pricing.html">Pricing</a><a href="/verify/">Verify a credential</a><a href="/about/">About</a></nav></div></footer>';}
 function jsonldRoadmap(){
-  return '<script type="application/ld+json">'+JSON.stringify({"@context":"https://schema.org","@type":"WebPage",name:"R Learning Roadmap, r-statistics.co",url:ORIGIN+"/roadmap/",description:"A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher or R developer."})+'</script>\n'+
+  return '<script type="application/ld+json">'+JSON.stringify({"@context":"https://schema.org","@type":"WebPage",name:"R Learning Roadmap, r-statistics.co",url:ORIGIN+"/roadmap/",description:"A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher, R developer or ML engineer."})+'</script>\n'+
   '<script type="application/ld+json">'+JSON.stringify({"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:"Home",item:ORIGIN+"/"},{"@type":"ListItem",position:2,name:"Roadmap",item:ORIGIN+"/roadmap/"}]})+'</script>';
 }
 function jsonldRole(r){
@@ -120,10 +122,10 @@ const ROLE_MAIN=`<main class="wrap">
     <a class="primary" href="/pricing.html">Join the Program <span class="a">&rarr;</span></a>
   </div></section>
 </main>`;
-function dataScripts(render){return '<script src="/www/roadmap-data.js?v=3"></script>\n<script src="/www/roadmap-curriculum.js?v=7"></script>\n<script src="/www/'+render+'"></script>';}
+function dataScripts(render){return '<script src="/www/roadmap-data.js?v=4"></script>\n<script src="/www/roadmap-curriculum.js?v=9"></script>\n<script src="/www/'+render+'"></script>';}
 
 // --- roadmap index ---
-const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher or R developer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
+const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher, R developer or ML engineer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
   '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+RMLESSONS+'\n'+dataScripts('roadmap-f2.js?v=9')+'\n'+SHELL+'\n</body>\n</html>\n';
 F.writeFileSync(p.join(root,'roadmap','index.html'),idx);
 let n=1;
@@ -132,7 +134,7 @@ let n=1;
 ROLES.forEach(function(r){
   const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
-  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=9')+'\n'+SHELL+'\n</body>\n</html>\n';
+  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=13')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
   n++;
 });
