@@ -294,7 +294,9 @@
       steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });
       segEls.forEach(function (e, k) { e.className = k < i ? 'done' : (k === i ? 'cur' : ''); });
       curEl.textContent = i + 1;
-      midEl.textContent = 'Step ' + (i + 1) + ' of ' + total;
+      midEl.textContent = locked
+        ? 'Preview · step ' + (i + 1) + ' of ' + total
+        : 'Step ' + (i + 1) + ' of ' + total;
       backBtn.disabled = i === 0;
       var last = i === total - 1;
       contBtn.innerHTML = last ? (nextHref ? 'Next lesson &rarr;' : 'Finish &check;') : 'Continue &rarr;';

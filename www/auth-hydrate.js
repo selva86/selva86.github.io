@@ -272,6 +272,26 @@
     document.querySelectorAll('.auth-user').forEach(span => fillAuthUser(span, me.user));
   }
 
+  // Signup attribution hand-off: signin.html parks the source (page, trigger,
+  // next) in localStorage because OAuth cannot carry metadata pre-auth. On the
+  // first authenticated hydrate, post it once so the admin signup email can
+  // include it; stale entries (abandoned sign-in attempts) are dropped.
+  function postSignupContext(me, token) {
+    if (!me || !me.user || !token) return;
+    let raw = null;
+    try { raw = localStorage.getItem('rsc-signup-src'); } catch (_) {}
+    if (!raw) return;
+    try { localStorage.removeItem('rsc-signup-src'); } catch (_) {}
+    let src = null;
+    try { src = JSON.parse(raw); } catch (_) { return; }
+    if (!src || !src.ts || (Date.now() - src.ts) > 3600000) return;
+    fetch('/api/me/signup-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ page: src.signup_page || '', trigger: src.signup_trigger || '', next: src.signup_next || '' }),
+    }).catch(() => {});
+  }
+
   async function signOut() {
     try {
       const cfgResp = await fetch('/api/_auth-config');
@@ -410,6 +430,7 @@
     const [me, stats] = await Promise.all([fetchMe(token), hydrateStats(token)]);
     setAuthState(me);
     claimNewsletterOptIn(me, token);
+    postSignupContext(me, token);
     // Re-run after setAuthState because anon-state may have injected the
     // sign-in dropdown link (and saved-posts-button.js may have just
     // inserted the actionbar's "Sign in" anchor). Also re-paint stats in

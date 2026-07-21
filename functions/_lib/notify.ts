@@ -75,6 +75,23 @@ export async function notifyNewSignup(
       total = row?.n ?? null;
     } catch (_) {}
 
+    // OAuth signups carry no metadata, but the client posts the parked
+    // attribution to /api/me/signup-context within seconds of landing back.
+    // Give it a short window and pick it up from KV before sending.
+    if (!source || (!source.page && !source.trigger && !source.next)) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await new Promise((r) => setTimeout(r, 4000));
+        const raw = await env.KV.get(`signup-src:${user.id}`).catch(() => null);
+        if (raw) {
+          try {
+            const s = JSON.parse(raw) as { page?: string; trigger?: string; next?: string };
+            source = { page: s.page, trigger: s.trigger, next: s.next };
+          } catch (_) {}
+          break;
+        }
+      }
+    }
+
     const when = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
     const provider = providerLabel(user.provider);
     const safeEmail = escapeHtml(user.email);

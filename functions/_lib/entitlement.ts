@@ -65,3 +65,24 @@ export async function resolvePro(
 function teamBlock(org: Org, role: string): Entitlement["team"] {
   return { org_id: org.id, role, current_period_end: org.current_period_end };
 }
+
+// Content scope for Pro gating: "0" (no Pro), "all" (All-Access / Lifetime /
+// Teams), or a roadmap track key for a Single Track plan. The Paddle webhook
+// maintains KV `tracks:<uid>` for single-plan buyers and clears it for
+// all-catalog plans; absence of the key means unscoped Pro.
+export async function resolveScope(
+  env: { DB: D1Database; KV: KVNamespace },
+  user: User | null,
+): Promise<string> {
+  const ent = await resolvePro(env.DB, user);
+  if (!ent.pro || !user) return "0";
+  if (ent.source === "team") return "all";
+  const t = await env.KV.get(`tracks:${user.id}`).catch(() => null);
+  return t || "all";
+}
+
+// True when a scope string covers a lesson/hub's track ('any' = any Pro plan).
+export function scopeCovers(scope: string, track: string): boolean {
+  if (scope === "0") return false;
+  return scope === "all" || track === "any" || scope === track;
+}

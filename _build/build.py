@@ -1953,6 +1953,11 @@ def build_post(
             _v = str(meta.get(_key, '') or '').strip()
             if _v:
                 _attrs.append(f'{_attr}="{_v.replace(chr(34), "&quot;")}"')
+        # Pro lessons must never enter the Pagefind search index: the index is
+        # built from the full pages at CI (before the edge strip), so indexing
+        # them would leak locked text through search fragments.
+        if _acc == 'pro':
+            _attrs.append('data-pagefind-ignore')
         page_html = page_html.replace('{{LESSON_ACCESS}}', ' ' + ' '.join(_attrs))
         # Google's paywalled-content markup: Pro lessons serve the preview to
         # everyone and the full body only to entitled users (stripped at the
@@ -3182,7 +3187,7 @@ def patch_tool_pages(sections, asset_hrefs):
         if 'auth-hydrate.js' not in new_html:
             new_html = re.sub(
                 r'</body>',
-                '<script defer src="/www/auth-hydrate.js?v=14"></script></body>',
+                '<script defer src="/www/auth-hydrate.js?v=15"></script></body>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         # Refresh the chrome layout CSS so mobile-drawer rules land on tools
@@ -3323,7 +3328,7 @@ def patch_tool_pages(sections, asset_hrefs):
             f'<script defer src="/www/practice-nav.js?v=12"></script>'
             f'<script defer src="/www/roadmap-nav.js?v=5"></script>'
             # Auth state (body.state-anon/.state-pro) + avatar dropdown.
-            f'<script defer src="/www/auth-hydrate.js?v=14"></script>'
+            f'<script defer src="/www/auth-hydrate.js?v=15"></script>'
         )
         # Add the shared site footer once (skip if already present, e.g. the
         # tools landing page already gets it from gen_tools_landing).

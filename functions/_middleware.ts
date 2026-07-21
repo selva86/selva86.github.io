@@ -12,14 +12,15 @@
 import { extractToken, verifyJWT, type JWTPayload } from "./_lib/auth";
 import { getUserById, isSessionRevoked, upsertSession, type User } from "./_lib/db";
 import { parseDeviceLabel } from "./_lib/devices";
-import { resolvePro } from "./_lib/entitlement";
+import { resolveScope, scopeCovers } from "./_lib/entitlement";
 import proLessonsJson from "./_data/pro-lessons.json";
 
-// Slugs of built lesson pages whose access is Pro (generated at build time by
-// Scripts/build_lessons_tracker.py). Requests for these pages get their locked
-// step content stripped server-side unless the requester proves an active Pro
-// entitlement, so the paid lesson body never reaches a non-Pro client.
-const PRO_LESSONS = proLessonsJson as Record<string, boolean>;
+// Slug -> roadmap track key of built lesson pages whose access is Pro
+// (generated at build time by Scripts/build_lessons_tracker.py). Requests for
+// these pages get their locked step content stripped server-side unless the
+// requester's entitlement scope covers the lesson's track, so the paid lesson
+// body never reaches a non-entitled client.
+const PRO_LESSONS = proLessonsJson as Record<string, string>;
 const LESSON_PREVIEW_STEPS = 2; // must match PREVIEW_STEPS in www/lesson-mode.js
 
 // Resolve the requester's Pro entitlement for a page request. Fail-closed:
@@ -29,11 +30,12 @@ const LESSON_PREVIEW_STEPS = 2; // must match PREVIEW_STEPS in www/lesson-mode.j
 async function serveProLesson(
   context: { request: Request; env: Env },
   res: Response,
+  lessonTrack: string,
 ): Promise<Response> {
-  const pro = await requesterIsPro(context);
+  const scope = await requesterScope(context);
   const out = new Response(res.body, res);
   out.headers.set("Cache-Control", "private, no-store");
-  if (pro) return out;
+  if (scopeCovers(scope, lessonTrack)) return out;
   let stepIdx = 0;
   return new HTMLRewriter()
     .on("body", { element(el) { el.setAttribute("data-stripped", "1"); } })
@@ -43,22 +45,24 @@ async function serveProLesson(
     .transform(out);
 }
 
-async function requesterIsPro(context: { request: Request; env: Env }): Promise<boolean> {
+// Entitlement scope of the requester: "0" | "all" | <track>. Fail-closed to
+// "0" on any error; KV-cached briefly (the purchase webhook deletes the cache
+// key so an upgrade takes effect immediately).
+async function requesterScope(context: { request: Request; env: Env }): Promise<string> {
   try {
     const token = extractToken(context.request);
-    if (!token) return false;
+    if (!token) return "0";
     const payload = await verifyJWT(token, context.env as never);
-    if (!payload?.sub) return false;
+    if (!payload?.sub) return "0";
     const kvKey = `prolesson:${payload.sub}`;
     const cached = await context.env.KV.get(kvKey);
-    if (cached === "1") return true;
-    if (cached === "0") return false;
+    if (cached) return cached;
     const user = await getUserById(context.env.DB, payload.sub);
-    const ent = await resolvePro(context.env.DB, user);
-    await context.env.KV.put(kvKey, ent.pro ? "1" : "0", { expirationTtl: 300 });
-    return ent.pro;
+    const scope = await resolveScope(context.env, user);
+    await context.env.KV.put(kvKey, scope, { expirationTtl: 300 });
+    return scope;
   } catch (_) {
-    return false;
+    return "0";
   }
 }
 
@@ -145,7 +149,7 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
     // cached or served stale across entitlement states.
     const lessonSlug = path.slice(1, -".html".length);
     if (!path.slice(1).includes("/") && PRO_LESSONS[lessonSlug]) {
-      return serveProLesson(context, res);
+      return serveProLesson(context, res, PRO_LESSONS[lessonSlug]);
     }
 
     // Restore edge/browser caching for HTML. Worker responses default to
@@ -163,7 +167,7 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   const cleanSlug = path.slice(1);
   if (context.request.method === "GET" && !cleanSlug.includes("/") && !cleanSlug.includes(".") && PRO_LESSONS[cleanSlug]) {
     const res = await context.next();
-    return serveProLesson(context, res);
+    return serveProLesson(context, res, PRO_LESSONS[cleanSlug]);
   }
 
   context.data.user = null;

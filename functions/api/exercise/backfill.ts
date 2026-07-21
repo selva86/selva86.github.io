@@ -19,15 +19,16 @@
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, jsonError } from "../../_lib/errors";
 import { backfillAttempts, getStats } from "../../_lib/db";
-import { resolvePro } from "../../_lib/entitlement";
+import { resolveScope, scopeCovers } from "../../_lib/entitlement";
 import {
   isValidHubSlug, isValidExerciseId, hubExists, lookupDifficulty,
   xpForDifficulty,
 } from "../../_lib/exercises";
 import proLessonsJson from "../../_data/pro-lessons.json";
 
-// Same Pro-hub guard as attempt.ts: lesson hubs share the lesson page slug.
-const PRO_HUBS = proLessonsJson as Record<string, boolean>;
+// Same Pro-hub guard as attempt.ts: lesson hubs share the lesson page slug;
+// value = the hub's roadmap track key.
+const PRO_HUBS = proLessonsJson as Record<string, string>;
 
 const MAX_ITEMS = 200;
 
@@ -58,12 +59,13 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
     return jsonError(400, "too_many_items", `Max ${MAX_ITEMS} items per call`);
   }
 
-  // Resolve entitlement once; Pro-hub items from non-Pro users are skipped,
-  // never recorded (closes the XP/cert farming path through backfill).
+  // Resolve entitlement scope once; Pro-hub items outside the user's scope
+  // are skipped, never recorded (closes the XP/cert farming path through
+  // backfill).
   const hasProHubItems = body.items.some(
     (raw) => raw && typeof raw === "object" && PRO_HUBS[String((raw as { hub?: unknown }).hub ?? "")],
   );
-  const isPro = hasProHubItems ? (await resolvePro(context.env.DB, u)).pro : false;
+  const scope = hasProHubItems ? await resolveScope(context.env, u) : "0";
 
   const valid: Array<{ hub: string; exercise_id: string; xp: number }> = [];
   let skipped = 0;
@@ -76,7 +78,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
       skipped += 1; continue;
     }
     if (!hubExists(hub)) { skipped += 1; continue; }
-    if (PRO_HUBS[hub] && !isPro) { skipped += 1; continue; }
+    if (PRO_HUBS[hub] && !scopeCovers(scope, PRO_HUBS[hub])) { skipped += 1; continue; }
     const diff = lookupDifficulty(hub, exerciseId);
     if (!diff) { skipped += 1; continue; }
     valid.push({ hub, exercise_id: exerciseId, xp: xpForDifficulty(diff) });

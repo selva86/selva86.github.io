@@ -20,6 +20,14 @@ import { json, jsonError } from "../../_lib/errors";
 import { verifyPaddleSignature, isPaddleSourceIp } from "../../_lib/paddle";
 import { getUserById, getUserByEmail } from "../../_lib/db";
 import { notifyAdminEvent } from "../../_lib/notify";
+
+// Valid roadmap track keys for Single Track scoping (matches courses.json
+// roadmap.track values). Anything else in custom_data.track is ignored.
+const TRACK_KEYS = new Set(["ds", "ts", "researcher", "developer", "analyst", "foundations"]);
+function normalizeTrack(v: unknown): string {
+  const t = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return TRACK_KEYS.has(t) ? t : "";
+}
 import { upsertOrgFromSubscription, updateOrgLifecycle } from "../../_lib/teams";
 import {
   resolveSubscriptionUser, mirrorSubscription, applyIndividualEntitlement,
@@ -215,6 +223,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
               await linkPaddleCustomer(context.env.DB, user.id, input.customerId);
               const note = await applyIndividualEntitlement(context.env.DB, user, input);
               processedNote = `individual_${note}`;
+              // Track scope: Single plans entitle one roadmap track (chosen on
+              // the pricing page, carried in checkout custom_data); all-catalog
+              // plans clear the scope. Drop the lesson-serving scope cache so
+              // the change takes effect on the very next page load.
+              const track = normalizeTrack(data.custom_data?.track);
+              if (plan.startsWith("single") && track) {
+                await context.env.KV.put(`tracks:${user.id}`, track).catch(() => {});
+              } else if (!plan.startsWith("single")) {
+                await context.env.KV.delete(`tracks:${user.id}`).catch(() => {});
+              }
+              await context.env.KV.delete(`prolesson:${user.id}`).catch(() => {});
             }
           }
         }
@@ -296,6 +315,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           });
           await linkPaddleCustomer(context.env.DB, user.id, data.customer_id || null);
           processedNote = "lifetime_granted";
+          await context.env.KV.delete(`tracks:${user.id}`).catch(() => {});
+          await context.env.KV.delete(`prolesson:${user.id}`).catch(() => {});
         }
       } else if (user) {
         await linkPaddleCustomer(context.env.DB, user.id, data.customer_id || null);
@@ -366,6 +387,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         rows: [
           ["Event", eventType],
           ...(plan ? [["Plan", plan + (term ? " / " + term : "")] as [string, string]] : []),
+          ...(normalizeTrack(data.custom_data?.track) ? [["Track", normalizeTrack(data.custom_data?.track)] as [string, string]] : []),
           ...(money ? [["Amount", money] as [string, string]] : []),
           ...(buyer ? [["Customer", buyer] as [string, string]] : []),
           ...(subId ? [["Subscription", subId] as [string, string]] : []),
