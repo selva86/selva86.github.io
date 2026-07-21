@@ -590,6 +590,18 @@ document.querySelectorAll('.picker .chip').forEach(function(c){
 window.addEventListener('load',function(){setMode('annual')});
 </script>
 <script defer src="/www/auth-hydrate.js?v=13"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('consent', 'default', {
+  ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+  analytics_storage: 'denied', wait_for_update: 1500
+});
+gtag('config', 'G-D5XKCMN7FR');
+</script>
+<script defer src="/www/consent-banner.js?v=2"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "edf7e3d50c3e4130a913e7f144643624"}'></script>
 <script>
 /* Paddle checkout + localized prices. Activates only when /api/_auth-config
@@ -676,7 +688,21 @@ window.addEventListener('load',function(){setMode('annual')});
       try {
         if (window.Paddle) {
           window.Paddle.Environment.set(paddle.environment === "sandbox" ? "sandbox" : "production");
-          window.Paddle.Initialize({ token: paddle.clientToken });
+          window.Paddle.Initialize({ token: paddle.clientToken, eventCallback: function (ev) {
+            try {
+              if (!ev || !ev.name || typeof gtag !== "function") return;
+              var d = ev.data || {};
+              if (ev.name === "checkout.loaded") {
+                gtag("event", "begin_checkout", { currency: d.currency_code, value: d.totals && d.totals.total });
+              } else if (ev.name === "checkout.completed") {
+                gtag("event", "purchase", { transaction_id: d.transaction_id, currency: d.currency_code, value: d.totals && d.totals.total });
+              } else if (ev.name === "checkout.closed") {
+                gtag("event", "checkout_closed", {});
+              } else if (ev.name === "checkout.payment.failed") {
+                gtag("event", "checkout_payment_failed", {});
+              }
+            } catch (e) {}
+          } });
           ready = true;
           if (paddle.teamsPriceId) {
             cta.textContent = "Enroll " + seats() + " seats";
