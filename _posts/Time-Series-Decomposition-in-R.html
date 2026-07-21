@@ -19,9 +19,9 @@ sidebar_order: "8"
 
 <h2>What is time series decomposition, and why split a series apart?</h2>
 
-<p>Picture monthly airline ticket sales. Three forces push the number around at the same time. The business is growing year over year, every summer brings a travel spike, and the odd month wanders off for no clear reason. Read together they blur into one jagged line. Decomposition pulls them apart so you can study each force on its own.</p>
+<p>Picture monthly airline ticket sales. Three forces push the number around at the same time. The business is growing year over year, every summer brings a travel spike, and the odd month lands above or below what those two forces alone would predict. Read together they blur into one jagged line. Decomposition pulls them apart so you can study each force on its own.</p>
 
-<p>R ships with the perfect example built in. <code>AirPassengers</code> records the monthly total of international airline passengers from 1949 to 1960. One function call, <code>decompose()</code>, splits it apart. Run this and watch what falls out.</p>
+<p>R ships with the perfect example built in. <code>AirPassengers</code> records the monthly total of international airline passengers from 1949 to 1960. One function call, <code>decompose()</code>, splits it apart. It returns a list, and one slot of that list is named <code>figure</code>: the twelve monthly seasonal factors it worked out. Print them.</p>
 
 <div class="webr-container" data-block-title="Split the airline series in one call">
   <div class="webr-code-block">
@@ -38,7 +38,7 @@ round(components$figure, 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Those twelve numbers are the seasonal fingerprint of air travel, one factor per month from January to December. July sits at <code>1.227</code>, meaning traffic runs about 23 percent above the year's underlying level, while November's <code>0.801</code> is roughly 20 percent below it. In one line you have already learned when planes fill up. We passed <code>type = &quot;multiplicative&quot;</code> because this series' seasonal swing grows as the airline grows, and you will see exactly why in a moment.</p>
+<p>Those twelve numbers describe the repeating yearly pattern of air travel, one factor per month from January to December. July sits at <code>1.227</code>, meaning traffic runs about 23 percent above the year's underlying level, while November's <code>0.801</code> is roughly 20 percent below it. In one line you have already learned when planes fill up. We passed <code>type = &quot;multiplicative&quot;</code> because this series' seasonal swing grows as the airline grows, and you will see exactly why in a moment.</p>
 
 <p><code>decompose()</code> gave back more than the seasonal shape. It also returns a trend-cycle and a remainder, and the clearest way to meet all three is to plot them together.</p>
 
@@ -198,7 +198,7 @@ month.abb[ex_busiest]
 
 <p><em>Figure 2: Choosing an <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">additive or multiplicative</a> model.</em></p>
 
-<p>You do not have to guess. Measure the seasonal swing directly by taking, for each year, the gap between its highest and lowest month. If that gap grows over time, the series is multiplicative.</p>
+<p>You do not have to guess. Measure the seasonal swing directly by taking, for each year, the gap between its highest and lowest month. If that gap grows over time, the series is multiplicative. Three short lines do it: <code>rep(1949:1960, each = 12)</code> builds a year label for each of the 144 months, <code>split()</code> uses those labels to cut the series into twelve one-year chunks, and <code>sapply()</code> runs <code>max(x) - min(x)</code> on each chunk.</p>
 
 <div class="webr-container" data-block-title="Measure the yearly seasonal swing">
   <div class="webr-code-block">
@@ -217,7 +217,7 @@ round(spread)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The evidence is decisive. The distance between the busiest and quietest month of the year starts at 44 passengers in 1949 and grows to 232 by 1960, more than a fivefold increase. The seasonal wave is not a fixed height, it scales with the size of the airline. That is the fingerprint of a multiplicative series, which is why we chose <code>type = &quot;multiplicative&quot;</code> from the start.</p>
+<p>The evidence is decisive. The distance between the busiest and quietest month of the year starts at 44 passengers in 1949 and grows to 232 by 1960, more than a fivefold increase. The seasonal wave is not a fixed height, it scales with the size of the airline. A swing that grows with the level is exactly what a multiplicative model describes, which is why we chose <code>type = &quot;multiplicative&quot;</code> from the start.</p>
 
 <p>There is a neat trick for multiplicative series. Taking the logarithm turns multiplication into addition, because $\log(T_t \times S_t \times R_t) = \log T_t + \log S_t + \log R_t$. So a multiplicative series becomes a plain additive one on the log scale.</p>
 
@@ -288,7 +288,7 @@ round(range(ex_spread), 1)
 
 <p>The word "classical" is not decoration. This method dates to the early 20th century, and <code>decompose()</code> follows its original three-step recipe. Understanding the recipe demystifies the whole function and, just as usefully, exposes exactly where it is weak.</p>
 
-<p>Step one estimates the trend with a <strong><a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">centered moving average</a></strong>. For monthly data that means averaging a full year of values around each point, which smooths the seasonal wave and the noise away and leaves the backbone. Let's build that moving average by hand and prove it equals the trend <code>decompose()</code> gave us.</p>
+<p>Step one estimates the trend with a <strong><a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">centered moving average</a></strong>. For monthly data that means averaging a full year of values around each point, which averages the seasonal wave and the noise away and leaves the slow-moving level. Let's build that moving average by hand and prove it equals the trend <code>decompose()</code> gave us.</p>
 
 <div class="webr-container" data-block-title="Rebuild the trend as a moving average">
   <div class="webr-code-block">
@@ -306,7 +306,7 @@ all.equal(as.numeric(ma), as.numeric(components$trend))
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>all.equal()</code> returns <code>TRUE</code>, so the trend panel you saw earlier is nothing more mysterious than this weighted average. The weights <code>c(1/24, 1/12, ..., 1/12, 1/24)</code> span 13 months. The two end months get half weight so that exactly 12 months of seasonal pattern are averaged out evenly, a construction known as a 2x12 moving average.</p>
+<p><code>stats::filter()</code> slides a set of weights along a series and returns the weighted average at each position, and <code>sides = 2</code> tells it to centre the window on each point instead of only looking backwards. (We write <code>stats::</code> because several packages define their own <code>filter()</code>.) <code>all.equal()</code> then reports <code>TRUE</code>, so the trend panel you saw earlier is nothing more mysterious than this weighted average. The weights <code>c(1/24, 1/12, ..., 1/12, 1/24)</code> span 13 months. The two end months get half weight so that exactly 12 months of seasonal pattern are averaged out evenly, a construction known as a 2x12 moving average.</p>
 
 <p>If you want the formula, here it is. Feel free to skip to the next block, the code above is the whole idea.</p>
 
@@ -328,7 +328,9 @@ all.equal(as.numeric(ma), as.numeric(components$trend))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Twelve months, six at each end, are simply gone. Step two of the recipe then detrends the series (dividing it by the trend, for a multiplicative model), and step three averages those detrended values by calendar month to get the seasonal factors. Because it averages across all years, classical decomposition produces one seasonal shape and reuses it for every cycle. Those 12 factors live in <code>components$figure</code>. The <code>components$seasonal</code> slot below holds the same numbers tiled across every month of the series.</p>
+<p>Twelve values in all. On a 12-year series that is a small price, but on a three-year series it would cost you a third of the trend, including the most recent months you probably care about most.</p>
+
+<p>Step two of the recipe then detrends the series (dividing it by the trend, for a multiplicative model), and step three averages those detrended values by calendar month to get the seasonal factors. Because it averages across all years, classical decomposition produces one seasonal shape and reuses it for every cycle. Those 12 factors live in <code>components$figure</code>. The <code>components$seasonal</code> slot below holds the same numbers repeated across every month of the series. To check that, we pull out two single months with <code>window()</code>, which slices a time series by calendar position, so <code>c(1950, 1)</code> means January 1950.</p>
 
 <div class="webr-container" data-block-title="Show the seasonal shape is frozen">
   <div class="webr-code-block">
@@ -346,7 +348,7 @@ identical(as.numeric(jan_1950), as.numeric(jan_1958))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The January factor in 1950 is byte-for-byte identical to the one in 1958. For a stable series that is fine. For one whose seasonal behavior evolves, it is too rigid.</p>
+<p><code>identical()</code> returns <code>TRUE</code>: the January factor in 1950 is exactly the same number as the one in 1958. For a stable series that is fine. For one whose seasonal behavior evolves, it is too rigid.</p>
 
 <div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Classical decomposition has three built-in blind spots.</strong> It loses the trend at both ends of the series, it freezes the seasonal shape so it cannot change over the years, and a single <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> drags the moving average and every seasonal factor with it. These are exactly the gaps STL was designed to close.</div></div>
 
@@ -392,7 +394,7 @@ plot(ex_nottem)</div>
 
 <h2>How does STL decomposition work, and why is it more flexible?</h2>
 
-<p>STL stands for <strong>Seasonal and Trend decomposition using Loess</strong>. Loess is a smoothing method that fits many tiny local regressions across the data instead of one rigid global average. Swapping the moving average for Loess is what gives STL its powers: the seasonal shape is allowed to drift over time, the trend reaches all the way to the edges, and an optional robust mode down-weights outliers.</p>
+<p>STL stands for <strong>Seasonal and Trend decomposition using Loess</strong>. Loess is a smoothing method that fits many tiny local regressions across the data instead of one rigid global average. Swapping the moving average for Loess buys three things: the seasonal shape is allowed to drift over time, the trend reaches all the way to the edges, and an optional robust mode down-weights outliers.</p>
 
 <p>STL is additive only, so for the multiplicative airline series we run it on the log scale. The key argument is <code>s.window</code>, which controls how the seasonal component is allowed to change. Setting it to <code>&quot;periodic&quot;</code> forces a fixed seasonal shape, the same assumption classical decomposition makes.</p>
 
@@ -639,7 +641,8 @@ round(head(co2, 6), 1)
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose co2 and measure the trend rise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">co2_dec &lt;- decompose(co2, type = &quot;additive&quot;)
 tr &lt;- co2_dec$trend
-rise &lt;- tr[max(which(!is.na(tr)))] - tr[min(which(!is.na(tr)))]
+have &lt;- which(!is.na(tr))   # positions where the trend exists
+rise &lt;- tr[max(have)] - tr[min(have)]
 round(rise, 1)
 #&gt; [1] 47.9</div>
     <div class="webr-buttons">
@@ -913,6 +916,10 @@ rbind(
 
 <p>The classical trend is a centered moving average that needs half a season of data on each side. For monthly data that is six months, so the first six and last six trend values cannot be computed and come back as <code>NA</code>. STL does not have this gap because Loess can fit right up to the boundaries.</p>
 
+<h3>Why do I get "time series has no or less than 2 periods"?</h3>
+
+<p>This is the most common first error, and it is about the input, not the method. Both functions need a <code>ts</code> object whose <code>frequency</code> is greater than 1, plus at least two full cycles of data. A plain numeric vector, or a series built with <code>ts(x)</code> and no <code>frequency</code> argument, has a frequency of 1, so there is no season to estimate and <code>decompose()</code> stops with that message (<code>stl()</code> says "series is not periodic or has less than two periods"). Rebuild the series with the right cycle length, for example <code>ts(x, frequency = 12)</code> for monthly data, and give it at least 24 monthly values.</p>
+
 <h3>Can STL handle multiplicative seasonality?</h3>
 
 <p>Not directly, because <code>stl()</code> only does additive decomposition. The standard workaround is to decompose <code>log(series)</code>, which turns the multiplication into addition, then exponentiate the components with <code>exp()</code> to return to the original scale.</p>
@@ -925,17 +932,17 @@ rbind(
 
 <ol>
 
-<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. Chapter 3: Time series decomposition. <a href="https://otexts.com/fpp3/decomposition.html">Link</a></li>
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. Chapter 3: Time series decomposition. <a href="https://otexts.com/fpp3/decomposition.html">Link</a> - the standard reference on the moving-average trend and seasonal adjustment, with the tidyverts syntax if you move beyond base R.</li>
 
-<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. Section 3.6: STL decomposition. <a href="https://otexts.com/fpp3/stl.html">Link</a></li>
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd ed. Section 3.6: STL decomposition. <a href="https://otexts.com/fpp3/stl.html">Link</a> - read this for practical advice on choosing <code>s.window</code> and <code>t.window</code>.</li>
 
-<li>Cleveland, R.B., Cleveland, W.S., McRae, J.E. & Terpenning, I. STL: A Seasonal-Trend Decomposition Procedure Based on Loess. <em>Journal of Official Statistics</em>, 6(1), 3-73 (1990). <a href="https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf">Link</a></li>
+<li>Cleveland, R.B., Cleveland, W.S., McRae, J.E. & Terpenning, I. STL: A Seasonal-Trend Decomposition Procedure Based on Loess. <em>Journal of Official Statistics</em>, 6(1), 3-73 (1990). <a href="https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf">Link</a> - the original STL paper, for exactly how the inner and outer Loess loops work.</li>
 
-<li>R Core Team. <code>stl()</code>: Seasonal Decomposition of Time Series by Loess (stats package reference). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html">Link</a></li>
+<li>R Core Team. <code>stl()</code>: Seasonal Decomposition of Time Series by Loess (stats package reference). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html">Link</a> - the full argument list, including <code>robust</code> and the window and degree settings we did not tune here.</li>
 
-<li>R Core Team. <code>decompose()</code>: Classical Seasonal Decomposition by Moving Averages. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/decompose.html">Link</a></li>
+<li>R Core Team. <code>decompose()</code>: Classical Seasonal Decomposition by Moving Averages. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/decompose.html">Link</a> - short and worth reading once, because it states the three-step recipe in the same order we built it.</li>
 
-<li>NIST/SEMATECH. <em>e-Handbook of Statistical Methods</em>, Section 6.4.1: Introduction to time series decomposition. <a href="https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc41.htm">Link</a></li>
+<li>NIST/SEMATECH. <em>e-Handbook of Statistical Methods</em>, Section 6.4.1: Introduction to time series decomposition. <a href="https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc41.htm">Link</a> - a compact second explanation of additive versus multiplicative if the first one did not land.</li>
 
 </ol>
 

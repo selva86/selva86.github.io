@@ -20,9 +20,9 @@ difficulty: "Intermediate"
 
 ## What is time series decomposition, and why split a series apart?
 
-Picture monthly airline ticket sales. Three forces push the number around at the same time. The business is growing year over year, every summer brings a travel spike, and the odd month wanders off for no clear reason. Read together they blur into one jagged line. Decomposition pulls them apart so you can study each force on its own.
+Picture monthly airline ticket sales. Three forces push the number around at the same time. The business is growing year over year, every summer brings a travel spike, and the odd month lands above or below what those two forces alone would predict. Read together they blur into one jagged line. Decomposition pulls them apart so you can study each force on its own.
 
-R ships with the perfect example built in. `AirPassengers` records the monthly total of international airline passengers from 1949 to 1960. One function call, `decompose()`, splits it apart. Run this and watch what falls out.
+R ships with the perfect example built in. `AirPassengers` records the monthly total of international airline passengers from 1949 to 1960. One function call, `decompose()`, splits it apart. It returns a list, and one slot of that list is named `figure`: the twelve monthly seasonal factors it worked out. Print them.
 
 ```r title="Split the airline series in one call"
 components <- decompose(AirPassengers, type = "multiplicative")
@@ -30,7 +30,7 @@ round(components$figure, 3)
 #>  [1] 0.910 0.884 1.007 0.976 0.981 1.113 1.227 1.220 1.060 0.922 0.801 0.899
 ```
 
-Those twelve numbers are the seasonal fingerprint of air travel, one factor per month from January to December. July sits at `1.227`, meaning traffic runs about 23 percent above the year's underlying level, while November's `0.801` is roughly 20 percent below it. In one line you have already learned when planes fill up. We passed `type = "multiplicative"` because this series' seasonal swing grows as the airline grows, and you will see exactly why in a moment.
+Those twelve numbers describe the repeating yearly pattern of air travel, one factor per month from January to December. July sits at `1.227`, meaning traffic runs about 23 percent above the year's underlying level, while November's `0.801` is roughly 20 percent below it. In one line you have already learned when planes fill up. We passed `type = "multiplicative"` because this series' seasonal swing grows as the airline grows, and you will see exactly why in a moment.
 
 `decompose()` gave back more than the seasonal shape. It also returns a trend-cycle and a remainder, and the clearest way to meet all three is to plot them together.
 
@@ -129,7 +129,7 @@ Where $y_t$ is the observed value at time $t$, $T_t$ is the trend-cycle, $S_t$ i
 
 *Figure 2: Choosing an additive or multiplicative model.*
 
-You do not have to guess. Measure the seasonal swing directly by taking, for each year, the gap between its highest and lowest month. If that gap grows over time, the series is multiplicative.
+You do not have to guess. Measure the seasonal swing directly by taking, for each year, the gap between its highest and lowest month. If that gap grows over time, the series is multiplicative. Three short lines do it: `rep(1949:1960, each = 12)` builds a year label for each of the 144 months, `split()` uses those labels to cut the series into twelve one-year chunks, and `sapply()` runs `max(x) - min(x)` on each chunk.
 
 ```r title="Measure the yearly seasonal swing"
 yearly <- split(as.numeric(AirPassengers), rep(1949:1960, each = 12))
@@ -139,7 +139,7 @@ round(spread)
 #>   44   56   54   71   92  114  131  142  166  195  217  232
 ```
 
-The evidence is decisive. The distance between the busiest and quietest month of the year starts at 44 passengers in 1949 and grows to 232 by 1960, more than a fivefold increase. The seasonal wave is not a fixed height, it scales with the size of the airline. That is the fingerprint of a multiplicative series, which is why we chose `type = "multiplicative"` from the start.
+The evidence is decisive. The distance between the busiest and quietest month of the year starts at 44 passengers in 1949 and grows to 232 by 1960, more than a fivefold increase. The seasonal wave is not a fixed height, it scales with the size of the airline. A swing that grows with the level is exactly what a multiplicative model describes, which is why we chose `type = "multiplicative"` from the start.
 
 There is a neat trick for multiplicative series. Taking the logarithm turns multiplication into addition, because $\log(T_t \times S_t \times R_t) = \log T_t + \log S_t + \log R_t$. So a multiplicative series becomes a plain additive one on the log scale.
 
@@ -184,7 +184,7 @@ round(range(ex_spread), 1)
 
 The word "classical" is not decoration. This method dates to the early 20th century, and `decompose()` follows its original three-step recipe. Understanding the recipe demystifies the whole function and, just as usefully, exposes exactly where it is weak.
 
-Step one estimates the trend with a **centered moving average**. For monthly data that means averaging a full year of values around each point, which smooths the seasonal wave and the noise away and leaves the backbone. Let's build that moving average by hand and prove it equals the trend `decompose()` gave us.
+Step one estimates the trend with a **centered moving average**. For monthly data that means averaging a full year of values around each point, which averages the seasonal wave and the noise away and leaves the slow-moving level. Let's build that moving average by hand and prove it equals the trend `decompose()` gave us.
 
 ```r title="Rebuild the trend as a moving average"
 w <- c(1/24, rep(1/12, 11), 1/24)
@@ -193,7 +193,7 @@ all.equal(as.numeric(ma), as.numeric(components$trend))
 #> [1] TRUE
 ```
 
-`all.equal()` returns `TRUE`, so the trend panel you saw earlier is nothing more mysterious than this weighted average. The weights `c(1/24, 1/12, ..., 1/12, 1/24)` span 13 months. The two end months get half weight so that exactly 12 months of seasonal pattern are averaged out evenly, a construction known as a 2x12 moving average.
+`stats::filter()` slides a set of weights along a series and returns the weighted average at each position, and `sides = 2` tells it to centre the window on each point instead of only looking backwards. (We write `stats::` because several packages define their own `filter()`.) `all.equal()` then reports `TRUE`, so the trend panel you saw earlier is nothing more mysterious than this weighted average. The weights `c(1/24, 1/12, ..., 1/12, 1/24)` span 13 months. The two end months get half weight so that exactly 12 months of seasonal pattern are averaged out evenly, a construction known as a 2x12 moving average.
 
 If you want the formula, here it is. Feel free to skip to the next block, the code above is the whole idea.
 
@@ -206,7 +206,9 @@ sum(is.na(components$trend))
 #> [1] 12
 ```
 
-Twelve months, six at each end, are simply gone. Step two of the recipe then detrends the series (dividing it by the trend, for a multiplicative model), and step three averages those detrended values by calendar month to get the seasonal factors. Because it averages across all years, classical decomposition produces one seasonal shape and reuses it for every cycle. Those 12 factors live in `components$figure`. The `components$seasonal` slot below holds the same numbers tiled across every month of the series.
+Twelve values in all. On a 12-year series that is a small price, but on a three-year series it would cost you a third of the trend, including the most recent months you probably care about most.
+
+Step two of the recipe then detrends the series (dividing it by the trend, for a multiplicative model), and step three averages those detrended values by calendar month to get the seasonal factors. Because it averages across all years, classical decomposition produces one seasonal shape and reuses it for every cycle. Those 12 factors live in `components$figure`. The `components$seasonal` slot below holds the same numbers repeated across every month of the series. To check that, we pull out two single months with `window()`, which slices a time series by calendar position, so `c(1950, 1)` means January 1950.
 
 ```r title="Show the seasonal shape is frozen"
 jan_1950 <- window(components$seasonal, start = c(1950, 1), end = c(1950, 1))
@@ -215,7 +217,7 @@ identical(as.numeric(jan_1950), as.numeric(jan_1958))
 #> [1] TRUE
 ```
 
-The January factor in 1950 is byte-for-byte identical to the one in 1958. For a stable series that is fine. For one whose seasonal behavior evolves, it is too rigid.
+`identical()` returns `TRUE`: the January factor in 1950 is exactly the same number as the one in 1958. For a stable series that is fine. For one whose seasonal behavior evolves, it is too rigid.
 
 [WARNING]
 **Classical decomposition has three built-in blind spots.** It loses the trend at both ends of the series, it freezes the seasonal shape so it cannot change over the years, and a single outlier drags the moving average and every seasonal factor with it. These are exactly the gaps STL was designed to close.
@@ -244,7 +246,7 @@ plot(ex_nottem)
 
 ## How does STL decomposition work, and why is it more flexible?
 
-STL stands for **Seasonal and Trend decomposition using Loess**. Loess is a smoothing method that fits many tiny local regressions across the data instead of one rigid global average. Swapping the moving average for Loess is what gives STL its powers: the seasonal shape is allowed to drift over time, the trend reaches all the way to the edges, and an optional robust mode down-weights outliers.
+STL stands for **Seasonal and Trend decomposition using Loess**. Loess is a smoothing method that fits many tiny local regressions across the data instead of one rigid global average. Swapping the moving average for Loess buys three things: the seasonal shape is allowed to drift over time, the trend reaches all the way to the edges, and an optional robust mode down-weights outliers.
 
 STL is additive only, so for the multiplicative airline series we run it on the log scale. The key argument is `s.window`, which controls how the seasonal component is allowed to change. Setting it to `"periodic"` forces a fixed seasonal shape, the same assumption classical decomposition makes.
 
@@ -381,7 +383,8 @@ The seasonal swing here is only a few parts per million and does not grow as the
 ```r title="Decompose co2 and measure the trend rise"
 co2_dec <- decompose(co2, type = "additive")
 tr <- co2_dec$trend
-rise <- tr[max(which(!is.na(tr)))] - tr[min(which(!is.na(tr)))]
+have <- which(!is.na(tr))   # positions where the trend exists
+rise <- tr[max(have)] - tr[min(have)]
 round(rise, 1)
 #> [1] 47.9
 ```
@@ -539,6 +542,10 @@ Look at whether the seasonal swing grows as the series climbs. If the gap betwee
 
 The classical trend is a centered moving average that needs half a season of data on each side. For monthly data that is six months, so the first six and last six trend values cannot be computed and come back as `NA`. STL does not have this gap because Loess can fit right up to the boundaries.
 
+### Why do I get "time series has no or less than 2 periods"?
+
+This is the most common first error, and it is about the input, not the method. Both functions need a `ts` object whose `frequency` is greater than 1, plus at least two full cycles of data. A plain numeric vector, or a series built with `ts(x)` and no `frequency` argument, has a frequency of 1, so there is no season to estimate and `decompose()` stops with that message (`stl()` says "series is not periodic or has less than two periods"). Rebuild the series with the right cycle length, for example `ts(x, frequency = 12)` for monthly data, and give it at least 24 monthly values.
+
 ### Can STL handle multiplicative seasonality?
 
 Not directly, because `stl()` only does additive decomposition. The standard workaround is to decompose `log(series)`, which turns the multiplication into addition, then exponentiate the components with `exp()` to return to the original scale.
@@ -549,12 +556,12 @@ Not directly, because `stl()` only does additive decomposition. The standard wor
 
 ## References
 
-1. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd ed. Chapter 3: Time series decomposition. [Link](https://otexts.com/fpp3/decomposition.html)
-2. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd ed. Section 3.6: STL decomposition. [Link](https://otexts.com/fpp3/stl.html)
-3. Cleveland, R.B., Cleveland, W.S., McRae, J.E. & Terpenning, I. STL: A Seasonal-Trend Decomposition Procedure Based on Loess. *Journal of Official Statistics*, 6(1), 3-73 (1990). [Link](https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf)
-4. R Core Team. `stl()`: Seasonal Decomposition of Time Series by Loess (stats package reference). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html)
-5. R Core Team. `decompose()`: Classical Seasonal Decomposition by Moving Averages. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/decompose.html)
-6. NIST/SEMATECH. *e-Handbook of Statistical Methods*, Section 6.4.1: Introduction to time series decomposition. [Link](https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc41.htm)
+1. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd ed. Chapter 3: Time series decomposition. [Link](https://otexts.com/fpp3/decomposition.html) - the standard reference on the moving-average trend and seasonal adjustment, with the tidyverts syntax if you move beyond base R.
+2. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd ed. Section 3.6: STL decomposition. [Link](https://otexts.com/fpp3/stl.html) - read this for practical advice on choosing `s.window` and `t.window`.
+3. Cleveland, R.B., Cleveland, W.S., McRae, J.E. & Terpenning, I. STL: A Seasonal-Trend Decomposition Procedure Based on Loess. *Journal of Official Statistics*, 6(1), 3-73 (1990). [Link](https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf) - the original STL paper, for exactly how the inner and outer Loess loops work.
+4. R Core Team. `stl()`: Seasonal Decomposition of Time Series by Loess (stats package reference). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html) - the full argument list, including `robust` and the window and degree settings we did not tune here.
+5. R Core Team. `decompose()`: Classical Seasonal Decomposition by Moving Averages. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/decompose.html) - short and worth reading once, because it states the three-step recipe in the same order we built it.
+6. NIST/SEMATECH. *e-Handbook of Statistical Methods*, Section 6.4.1: Introduction to time series decomposition. [Link](https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc41.htm) - a compact second explanation of additive versus multiplicative if the first one did not land.
 
 ## Continue Learning
 
