@@ -1,0 +1,1455 @@
+---
+title: "TBATS in R: Forecast Multiple Seasonalities"
+description: "Fit TBATS models in R with the forecast package. Handle daily, weekly and non-integer seasonal cycles, decode the model string, and benchmark against ARIMA."
+keywords: "TBATS in R, TBATS model, multiple seasonality R, forecast package, msts, complex seasonality, time series forecasting R, BATS model, Fourier terms"
+mathjax: true
+webr: true
+curriculum_id: "FR-adva-1"
+post_type: "C"
+auto_link_terms: "TBATS|TBATS model|TBATS in R|tbats()|multiple seasonality|complex seasonality|msts()|BATS model|trigonometric seasonality|multiple seasonal periods|non-integer seasonal period|seasonal.periods"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "TBATS Model"
+sidebar_order: "21"
+---
+<!-- md2html:generated -->
+
+<p class="lead">TBATS is a <a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">forecasting model in R</a>'s forecast package built for series that repeat on more than one clock at once, like hourly data that cycles every day <em>and</em> every week. It swaps the usual <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">seasonal indices</a> for trigonometric waves, and that one substitution is what lets it handle the long, multiple, and fractional seasonal periods that <code>ets()</code> and <code>auto.arima()</code> simply refuse.</p>
+
+<p>Everything below uses only the <code>forecast</code> package and datasets that ship with it, so you can run every block right here in the page without installing or downloading anything.</p>
+
+<h2>What makes seasonality "complex", and why does ets() refuse to model it?</h2>
+
+<p>Most forecasting tutorials assume your data repeats on exactly one schedule: monthly sales that cycle every 12 months, quarterly revenue that cycles every 4 quarters. Real <a class="auto-link" href="High-Frequency-Time-Series-in-R.html" title="High-Frequency Time Series in R: Intraday xts and quantmod">high-frequency data</a> is rarely that tidy. Electricity demand rises and falls across the day, and it also follows a completely separate weekday-versus-weekend rhythm. Watch what R's standard seasonal model does when you hand it a series like that.</p>
+
+<div class="webr-container" data-block-title="Inspect a series with two seasonal cycles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect a series with two seasonal cycles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+# taylor: half-hourly electricity demand for England and Wales, summer 2000
+length(taylor)
+#&gt; [1] 4032
+
+# The two cycles that are already recorded on this series:
+attr(taylor, &quot;msts&quot;)
+#&gt; [1]  48 336
+
+# Now hand it to R's standard exponential smoothing model:
+ets(taylor)$method
+#&gt; [1] &quot;ETS(A,Ad,N)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things happened there. <code>length()</code> tells us there are 4032 observations. The <code>msts</code> attribute reports that this series carries two seasonal periods, 48 and 336. And <code>ets()</code> returned a model whose third letter is <code>N</code>.</p>
+
+<p>That <code>N</code> is the whole problem. In R's ETS notation the three letters describe the error, trend, and seasonal components, so <code>ETS(A,Ad,N)</code> means <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">additive error</a>, additive damped trend, and <strong>no <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal component</a> at all</strong>. Run that block and you will also see R print a warning: it cannot handle data with frequency greater than 24, so it ignored the seasonality and fitted a non-seasonal model instead. It did not stop with an error. It handed back a perfectly usable model that has no seasonal component in it, which means it dropped the strongest signal in the data.</p>
+
+<p>The 48 and 336 are not arbitrary. The series is recorded every half hour, so 48 half-hours make one day and 336 make one week. Both cycles are genuinely present, and we can pull them apart to prove it.</p>
+
+<div class="webr-container" data-block-title="Split the series into its two cycles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the series into its two cycles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parts &lt;- mstl(subset(taylor, end = 1008))
+colnames(parts)
+#&gt; [1] &quot;Data&quot;        &quot;Trend&quot;       &quot;Seasonal48&quot;  &quot;Seasonal336&quot; &quot;Remainder&quot;
+
+# How big is each cycle, on average, in megawatts?
+round(colMeans(abs(parts[, c(&quot;Seasonal48&quot;, &quot;Seasonal336&quot;)])), 1)
+#&gt;  Seasonal48 Seasonal336
+#&gt;      4205.9      2379.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mstl()</code> is a multi-seasonal decomposition: it peels the series into a trend plus one column per seasonal period, leaving the unexplained part as a remainder. It found both cycles and named them after their periods. The averages say the daily swing moves demand by about 4,206 MW on average while the weekly swing moves it by about 2,379 MW. The daily cycle is bigger, but the weekly one is far too large to discard, which is exactly what <code>ets()</code> just did.</p>
+
+<p>This is what forecasters mean by <strong>complex seasonality</strong>, and it shows up in three flavours:</p>
+
+<ol>
+
+<li><strong><a class="auto-link" href="Fourier-Terms-in-R.html" title="Fourier Terms in R: Model Complex Seasonality">Multiple seasonal periods</a>.</strong> Hourly data repeats every 24 hours and every 168 hours. Daily retail data repeats weekly and annually.</li>
+
+<li><strong>Long seasonal periods.</strong> Rob Hyndman notes that <code>ets()</code> caps out at a period of 24, and <code>Arima()</code> will usually run out of memory once the seasonal period goes past about 200. A yearly cycle in daily data has a period of 365.</li>
+
+<li><strong>Non-integer seasonal periods.</strong> A year is not 52 weeks, it is 52.18 weeks. It is not 365 days either, it is 365.25. Classical seasonal models need a whole number.</li>
+
+</ol>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A classical seasonal model stores one number per position in the cycle, so its cost grows with the period.</strong> To model a weekly cycle in half-hourly data the old way, you need 336 separate seasonal values, one per half-hour slot in the week. That is why long periods blow up, and why fractional periods have no home at all: there is no slot number 52.18.</div></div>
+
+<p>TBATS exists to solve exactly these three problems, and the rest of this tutorial builds it up from that starting point.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>taylor</code> series is recorded every half hour. Work out how many whole days of data it covers, and store the answer in <code>ex_days</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert half-hours to days">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert half-hours to days</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># There are 48 half-hours in a day.
+ex_days &lt;- 0   # replace 0 with your calculation
+ex_days
+# Expected: a single number somewhere between 80 and 90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Half-hours to days solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Half-hours to days solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_days &lt;- length(taylor) / 48
+ex_days
+#&gt; [1] 84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>length(taylor)</code> gives 4032 observations, and dividing by the 48 half-hours in a day gives 84 days, which is 12 complete weeks. That is why the 336-period weekly cycle is estimable here: the data contains 12 full repetitions of it.</p>
+
+</details>
+</section>
+
+<h2>What does TBATS stand for, and what does the "T" actually do?</h2>
+
+<p>TBATS is an acronym, and each letter names a component the model bolts on. Reading them in order tells you exactly what the model does to your data.</p>
+
+<p><img src="screenshots/TBATS-Model-in-R-anatomy.webp" alt="Each letter of TBATS adds one stage to the model" class="img-responsive img-zoomable" loading="lazy" width="2248" height="346" /></p>
+
+<p><em>Figure 1: Each letter of TBATS adds one stage to the model, applied in this order.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Letter</th>
+<th>Stands for</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T</strong></td>
+<td>Trigonometric</td>
+<td>Represents each seasonal cycle as a sum of sine and cosine waves instead of one value per slot</td>
+</tr>
+<tr>
+<td><strong>B</strong></td>
+<td>Box-Cox</td>
+<td>Optionally transforms the data to stabilise variance that grows with the level</td>
+</tr>
+<tr>
+<td><strong>A</strong></td>
+<td>ARMA</td>
+<td>Models any pattern still left in the residuals with an ARMA process</td>
+</tr>
+<tr>
+<td><strong>T</strong></td>
+<td>Trend</td>
+<td>A local level plus an optional slope, which can be damped</td>
+</tr>
+<tr>
+<td><strong>S</strong></td>
+<td>Seasonal</td>
+<td>The seasonal components themselves, one per period</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two words in that table will keep coming back, so pin them down now. The <strong>residuals</strong> are what is left of your data once the model's own fitted values are subtracted, one leftover number per time point. <strong>Autocorrelation</strong> means those leftovers are still predictable from each other: if a high leftover tends to be followed by another high one, there is structure the model has not accounted for. The <code>A</code> in TBATS exists to model whatever autocorrelation the other components leave behind.</p>
+
+<p>The history explains the odd letter ordering. De Livera, Hyndman and Snyder first defined a model called <strong>BATS</strong>, which stands for Box-Cox transform, ARMA errors, Trend and Seasonal components. BATS still used the classical one-value-per-slot seasonality. They then swapped that seasonality for a trigonometric version and stuck a <code>T</code> on the front. TBATS is literally BATS with trigonometric seasonality.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The A is ARMA, not ARIMA.</strong> Several popular tutorials write "ARIMA errors". The original paper specifies an ARMA(p,q) process on the residuals, with no <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a> step. The distinction matters if you are trying to match the model to the equations.</div></div>
+
+<p>So the interesting letter is the leading <code>T</code>. Here is what "trigonometric" means in practice. Any repeating shape, however lumpy, can be rebuilt by adding together sine and cosine waves of different speeds. The slowest wave completes one cycle per period. Each faster wave completes one more cycle than the one before it. Each of these waves is called a <strong>harmonic</strong>.</p>
+
+<div class="webr-container" data-block-title="Build a seasonal shape from two waves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a seasonal shape from two waves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m &lt;- 24          # a daily cycle in hourly data
+j &lt;- 1:m         # the 24 positions in one cycle
+
+wave1 &lt;- sin(2 * pi * 1 * j / m)   # harmonic 1: one full cycle per day
+wave2 &lt;- sin(2 * pi * 2 * j / m)   # harmonic 2: two full cycles per day
+
+round(head(wave1, 6), 3)
+#&gt; [1] 0.259 0.500 0.707 0.866 0.966 1.000
+round(head(wave2, 6), 3)
+#&gt; [1] 0.500 0.866 1.000 0.866 0.500 0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>2 * pi * j / m</code> term walks once around a full circle as <code>j</code> runs from 1 to <code>m</code>. Multiplying by 1 gives a wave that peaks once per day. Multiplying by 2 makes it go round twice as fast, so it peaks twice per day. You can see it in the numbers: <code>wave1</code> is still climbing at position 6, while <code>wave2</code> has already peaked at position 3 and come back to zero at position 6.</p>
+
+<p>Add a handful of these waves together with the right weights and you can approximate any daily pattern you like. That is the trick. Instead of storing 24 separate values, TBATS stores a weight for each harmonic. Instead of 336 values for a weekly cycle, it might store weights for just 6 harmonics.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A trigonometric season needs 2 numbers per harmonic, no matter how long the period is.</strong> A 336-period cycle described by 6 harmonics needs 12 stored values rather than 336. This decoupling of storage cost from period length is the single reason TBATS can forecast series that break every other seasonal model.</div></div>
+
+<h3>The seasonal equations (skip this if you only want the code)</h3>
+
+<p>If you are not interested in the math, jump to the next section. The code above is all you need to use the model.</p>
+
+<p>Each seasonal component is the sum of its harmonics, where $k_i$ is the number of harmonics kept for period $i$:</p>
+
+<p>$$s_t^{(i)} = \sum_{j=1}^{k_i} s_{j,t}^{(i)}$$</p>
+
+<p>Each harmonic is a point rotating around a circle. Two equations move it one step per time period, and both get nudged by the current error so the seasonal shape can drift:</p>
+
+<p>$$s_{j,t}^{(i)} = s_{j,t-1}^{(i)}\cos \lambda_j^{(i)} + s_{j,t-1}^{*(i)}\sin \lambda_j^{(i)} + \gamma_1^{(i)} d_t$$</p>
+
+<p>$$s_{j,t}^{<em>(i)} = -s_{j,t-1}^{(i)}\sin \lambda_j^{(i)} + s_{j,t-1}^{</em>(i)}\cos \lambda_j^{(i)} + \gamma_2^{(i)} d_t$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$s_{j,t}^{(i)}$ is the level of harmonic $j$ of seasonal period $i$ at time $t$</li>
+
+<li>$s_{j,t}^{*(i)}$ is its companion, the growth in that level, needed to let the shape change over time</li>
+
+<li>$\lambda_j^{(i)} = 2\pi j / m_i$ is the angle the harmonic advances each step, with $m_i$ the seasonal period</li>
+
+<li>$\gamma_1^{(i)}$ and $\gamma_2^{(i)}$ are smoothing parameters that control how fast the season is allowed to drift</li>
+
+<li>$d_t$ is the ARMA error process, the <code>A</code> in TBATS</li>
+
+</ul>
+
+<p>Two consequences fall straight out of these equations. First, $m_i$ appears only inside $\lambda_j^{(i)} = 2\pi j / m_i$, as a plain division. Nothing requires it to be a whole number, which is how TBATS handles a period of 52.18. Second, if you set both smoothing parameters to zero the seasonal shape freezes and never changes, which reduces TBATS to ordinary harmonic regression. The $\gamma$ terms are precisely what makes TBATS seasonality dynamic.</p>
+
+<p>The <code>B</code> for Box-Cox is a variance-stabilising transform applied before any of this, controlled by a parameter $\omega$ that R calls <code>lambda</code>:</p>
+
+<p>$$y_t^{(\omega)} = \begin{cases} (y_t^{\omega}-1)/\omega & \omega \neq 0 \\ \log y_t & \omega = 0 \end{cases}$$</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the third harmonic of the daily cycle, the wave that completes three full cycles per day, and store it in <code>ex_wave3</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build the third harmonic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build the third harmonic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># m and j are still in memory from the block above.
+ex_wave3 &lt;- rep(0, m)   # replace with the third harmonic
+round(head(ex_wave3, 4), 3)
+# Expected: the wave should peak by position 2, much earlier than wave1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Third harmonic solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Third harmonic solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wave3 &lt;- sin(2 * pi * 3 * j / m)
+round(head(ex_wave3, 4), 3)
+#&gt; [1] 0.707 1.000 0.707 0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Changing the multiplier from 2 to 3 makes the wave complete three cycles per period, so it reaches its peak of 1.000 at position 2 and is already back to zero at position 4. Higher harmonics capture finer, faster wiggles in the seasonal shape.</p>
+
+</details>
+</section>
+
+<h2>How do you fit your first TBATS model in R?</h2>
+
+<p>Before tackling two seasonal cycles, fit TBATS to a plain single-season series so you can see the machinery clearly. <code>USAccDeaths</code> is monthly accidental deaths in the US, which ships with base R and has an obvious 12-month cycle.</p>
+
+<div class="webr-container" data-block-title="Fit TBATS to a single seasonal cycle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit TBATS to a single seasonal cycle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_deaths &lt;- tbats(USAccDeaths, use.parallel = FALSE)
+fit_deaths
+#&gt; TBATS(1, {0,0}, -, {&lt;12,5&gt;})
+#&gt;
+#&gt; Call: tbats(y = USAccDeaths, use.parallel = FALSE)
+#&gt;
+#&gt; Parameters
+#&gt;   Alpha: 0.5950012
+#&gt;   Gamma-1 Values: -0.01207202
+#&gt;   Gamma-2 Values: 0.01159708
+#&gt;
+#&gt; Seed States:
+#&gt;             [,1]
+#&gt;  [1,] 9357.62824
+#&gt;  [2,] -999.76784
+#&gt;  [3,]  279.84741
+#&gt;  [4,] -193.88870
+#&gt;  [5,]  143.51408
+#&gt;  [6,]  -35.59289
+#&gt;  [7,] -279.82036
+#&gt;  [8,] -319.15409
+#&gt;  [9,] -154.24981
+#&gt; [10,]  -70.33238
+#&gt; [11,] -256.67889
+#&gt;
+#&gt; Sigma: 253.3291
+#&gt; AIC: 1132.915</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You gave <code>tbats()</code> one argument plus a speed flag and it searched for you. It tried the model with and without a Box-Cox transform, with and without a trend, with and without damping, and with different numbers of harmonics, then kept whichever combination scored the lowest <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>. AIC is a single number that rewards fitting the data closely and charges a penalty for every parameter used to do it, so lower is better, and a model only earns an extra parameter if that parameter buys more fit than it costs.</p>
+
+<p>The <strong>seed states</strong> are the starting values the model needs for every component it tracks, printed here as one column. Count them: there are exactly 11, and that is not a coincidence. One is for the <strong>level</strong>, the model's running estimate of where the series sits once season and noise are set aside, and the other 10 are 2 apiece for the 5 harmonics it chose. This is the parsimony argument from the last section, made concrete. A classical seasonal model would have needed 12 seasonal values here, and 12 is small. The gap becomes enormous when the period is 336.</p>
+
+<p><code>Alpha</code> is the smoothing parameter for the level, and the two <code>Gamma</code> values control how fast the seasonal shape is allowed to drift. Both gammas are tiny, around 0.01, which tells you the seasonal pattern in this series is almost fixed from year to year.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always pass use.parallel = FALSE for small and medium series.</strong> By default <code>tbats()</code> spins up parallel workers whenever the series is longer than 1000 points. The setup overhead often costs more than it saves, and the parallel path is known to hang in some environments. Turn it on deliberately, not by accident.</div></div>
+
+<p>Now the obvious question: is the trigonometric version actually better than the classical one? <code>bats()</code> takes exactly the same arguments and fits the classical-seasonality version, so you can compare directly.</p>
+
+<div class="webr-container" data-block-title="Compare TBATS against classical BATS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare TBATS against classical BATS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_deaths_bats &lt;- bats(USAccDeaths, use.parallel = FALSE)
+round(c(TBATS = fit_deaths$AIC, BATS = fit_deaths_bats$AIC), 2)
+#&gt;   TBATS    BATS
+#&gt; 1132.92 1138.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lower AIC is better, so TBATS wins by about 6 points on this series. It described the same seasonal pattern using 5 harmonics where BATS spent 12 seasonal values, and the penalty for those extra parameters is what pushed BATS behind.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The automatic search decided not to apply a Box-Cox transform here. Force it on with <code>use.box.cox = TRUE</code>, then check the AIC to see whether the search was right.</p>
+<div class="webr-container" data-block-title="Your turn: force the Box-Cox transform on">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: force the Box-Cox transform on</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_bc &lt;- tbats(USAccDeaths, use.parallel = FALSE)   # add use.box.cox = TRUE
+round(as.numeric(ex_fit_bc$lambda), 4)
+round(ex_fit_bc$AIC, 2)
+# Expected: a lambda very close to 0, and an AIC slightly worse than 1132.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Forced Box-Cox solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forced Box-Cox solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_bc &lt;- tbats(USAccDeaths, use.parallel = FALSE, use.box.cox = TRUE)
+round(as.numeric(ex_fit_bc$lambda), 4)
+#&gt; [1] 4e-04
+round(ex_fit_bc$AIC, 2)
+#&gt; [1] 1135.44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The chosen lambda is 0.0004, which is effectively zero and therefore effectively a log transform. The AIC rose from 1132.92 to 1135.44, so the transform cost a parameter without buying any fit. The automatic search was right to leave it off.</p>
+
+</details>
+</section>
+
+<h2>How do you read a TBATS model string?</h2>
+
+<p>The first line of that output, <code>TBATS(1, {0,0}, -, {&lt;12,5&gt;})</code>, is the model's entire specification compressed into one line. Learning to read it is the fastest way to understand what R chose for you.</p>
+
+<p><img src="screenshots/TBATS-Model-in-R-model-string.webp" alt="The four slots R prints in a TBATS model string" class="img-responsive img-zoomable" loading="lazy" width="2248" height="704" /></p>
+
+<p><em>Figure 2: The four slots R prints in a TBATS model string.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Slot</th>
+<th>Example value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>1</code></td>
+<td>The Box-Cox lambda. A bare <code>1</code> means no transformation was applied</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>{0,0}</code></td>
+<td>The ARMA orders <code>{p,q}</code> on the errors. <code>{0,0}</code> means no ARMA errors</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>-</code></td>
+<td>The <a class="auto-link" href="Holts-Method-in-R.html" title="Holt's Method in R: Forecast Trend Without Seasonality">damping parameter</a> phi. A dash means damping was not used</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>{&lt;12,5&gt;}</code></td>
+<td>One <code>&lt;period, harmonics&gt;</code> pair per seasonal cycle. Here: period 12, 5 harmonics</td>
+</tr>
+</tbody>
+</table>
+
+<p>Do not take my word for it. Every slot corresponds to a field on the fitted object, so you can read them off directly.</p>
+
+<div class="webr-container" data-block-title="Prove each slot from the fitted object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prove each slot from the fitted object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_deaths$lambda                    # slot 1: NULL means no Box-Cox
+#&gt; NULL
+fit_deaths$damping.parameter         # slot 3: NULL means no damping
+#&gt; NULL
+fit_deaths$seasonal.periods          # slot 4, the period
+#&gt; [1] 12
+fit_deaths$k.vector                  # slot 4, the harmonic count
+#&gt; [1] 5
+length(fit_deaths$ar.coefficients)   # slot 2, the AR order p
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both <code>lambda</code> and <code>damping.parameter</code> are <code>NULL</code>, which is why slots 1 and 3 printed the placeholder <code>1</code> and <code>-</code>. The period and harmonic count are stored separately as <code>seasonal.periods</code> and <code>k.vector</code>, then printed together as <code>&lt;12,5&gt;</code>. And with zero AR coefficients stored, slot 2 shows <code>{0,0}</code>.</p>
+
+<p>That third slot causes more confusion than the rest combined.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A dash in slot 3 means no damping, not "no trend".</strong> Many write-ups claim the dash indicates a missing trend. It does not. The slot prints the damping parameter phi, and it shows a dash whenever damping was not selected, whether or not a trend is present. Check <code>use.trend</code> and the presence of a <code>Beta</code> parameter to find out about the trend.</div></div>
+
+<p>Proving it takes one line. Force damping on and watch the dash turn into a number.</p>
+
+<div class="webr-container" data-block-title="Force a damped trend and watch phi appear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Force a damped trend and watch phi appear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tbats(USAccDeaths, use.parallel = FALSE, use.damped.trend = TRUE)$damping.parameter
+#&gt; [1] 0.928739</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A phi of 0.929 means each step of the trend is multiplied by 0.929 as you forecast further out, so the slope flattens toward zero instead of running away. Values close to 1 damp slowly, values near 0 damp aggressively.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit that damped model again, keep it in <code>ex_damped</code>, and print its model string with <code>as.character()</code>. Predict what will be in slot 3 before you run it.</p>
+<div class="webr-container" data-block-title="Your turn: read the damped model string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the damped model string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_damped &lt;- tbats(USAccDeaths, use.parallel = FALSE)   # add use.damped.trend = TRUE
+as.character(ex_damped)
+# Expected: slot 3 should now hold a number instead of a dash</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Damped model string solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Damped model string solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_damped &lt;- tbats(USAccDeaths, use.parallel = FALSE, use.damped.trend = TRUE)
+as.character(ex_damped)
+#&gt; [1] &quot;TBATS(1, {0,0}, 0.929, {&lt;12,5&gt;})&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Slot 3 changed from <code>-</code> to <code>0.929</code>, the rounded damping parameter. Everything else stayed the same: no Box-Cox, no ARMA errors, still 5 harmonics on a period of 12.</p>
+
+</details>
+</section>
+
+<h2>How do you model two seasonal cycles at once?</h2>
+
+<p>Now for the case TBATS was actually invented for. We will simulate five weeks of hourly page views for a website, with a daily rhythm that slowly grows stronger and a weekend lift on top of it. Simulating means we know the right answer, which makes it easy to judge whether the model found it.</p>
+
+<div class="webr-container" data-block-title="Simulate five weeks of hourly page views">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate five weeks of hourly page views</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+n_hours     &lt;- 24 * 35                    # five weeks of hourly data
+hour_index  &lt;- 0:(n_hours - 1)
+hour_of_day &lt;- hour_index %% 24           # 0 to 23 within each day
+day_of_week &lt;- (hour_index %/% 24) %% 7   # 0 to 6 within each week
+week_number &lt;- hour_index %/% 168         # which week we are in
+
+# A daily wave whose height grows a little each week:
+daily   &lt;- (80 + 6 * week_number) * sin(2 * pi * (hour_of_day - 3) / 24)
+# A flat lift on the two weekend days:
+weekend &lt;- 60 * (day_of_week %in% c(5, 6))
+
+views &lt;- round(420 + daily + weekend + rnorm(n_hours, mean = 0, sd = 12))
+
+head(views, 8)
+#&gt; [1] 370 367 401 419 433 430 468 477
+range(views)
+#&gt; [1] 293 601</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>%%</code> operator gives the remainder and <code>%/%</code> gives the integer quotient, so together they convert a running hour counter into "hour of day" and "<a class="auto-link" href="lubridate-wday-in-R.html" title="lubridate wday() in R: Day-of-Week From Dates">day of week</a>". <code>%in%</code> returns TRUE wherever a value is one of the ones listed, so <code>day_of_week %in% c(5, 6)</code> is TRUE on the two weekend days, and multiplying that by 60 turns it into a flat 60-view lift on those days only. The daily amplitude starts at 80 and grows by 6 each week, so by week five the daily swing is 30 percent larger than it was in week one. That growing amplitude is a drifting season, which is precisely the situation TBATS is designed for.</p>
+
+<p>Next we tell R about both cycles. A regular <code>ts</code> object holds only one frequency, so the <code>forecast</code> package supplies <code>msts()</code> for multi-seasonal series.</p>
+
+<div class="webr-container" data-block-title="Declare two seasonal periods with msts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Declare two seasonal periods with msts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">views_train &lt;- msts(views[1:672], seasonal.periods = c(24, 168))   # first 4 weeks
+views_test  &lt;- views[673:840]                                      # final week, held out
+
+class(views_train)
+#&gt; [1] &quot;msts&quot; &quot;ts&quot;
+attr(views_train, &quot;msts&quot;)
+#&gt; [1]  24 168</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We held out the final week so there is honest data to score against later. The object is now class <code>msts</code>, and it carries both periods: 24 for the daily cycle and 168 for the weekly one.</p>
+
+<p>Before we fit anything, one detail about <code>msts()</code> is worth seeing, because it goes wrong silently and the help page does not flag it.</p>
+
+<div class="webr-container" data-block-title="The msts single-period trap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The msts single-period trap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad &lt;- msts(views, seasonal.periods = 52.18)
+class(bad)
+#&gt; [1] &quot;ts&quot;
+frequency(bad)
+#&gt; [1] 52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look carefully. We asked for a period of 52.18, and we got back an object of class <code>ts</code>, not <code>msts</code>, with a frequency of <strong>52</strong>. The fractional part was silently discarded. <code>msts()</code> only creates a genuine multi-seasonal object when you give it more than one period; with a single period it falls back to a plain <code>ts</code>, and a plain <code>ts</code> frequency must be a whole number.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>For a single non-integer period, skip msts() and pass seasonal.periods to tbats() directly:</strong> <code>tbats(ts(x), seasonal.periods = 52.1786)</code>. Routed through <code>msts()</code> the same cycle silently becomes 52, and an error of 0.18 per year accumulates to nearly a full week of drift per decade. <code>msts()</code> earns its place only when you have two or more periods.</div></div>
+
+<p>With the data correctly declared, the fit itself is one call.</p>
+
+<div class="webr-container" data-block-title="Fit TBATS to two seasonal cycles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit TBATS to two seasonal cycles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_views &lt;- tbats(views_train, use.parallel = FALSE,
+                   use.box.cox = FALSE, use.arma.errors = FALSE)
+fit_views
+#&gt; TBATS(1, {0,0}, -, {&lt;24,7&gt;, &lt;168,6&gt;})
+#&gt;
+#&gt; Call: tbats(y = views_train, use.box.cox = FALSE, use.arma.errors = FALSE,
+#&gt;     use.parallel = FALSE)
+#&gt;
+#&gt; Parameters
+#&gt;   Alpha: 0.03481253
+#&gt;   Gamma-1 Values: -0.002920775 -0.0006837154
+#&gt;   Gamma-2 Values: 0.0007362868 -0.003046341
+#&gt;
+#&gt; Sigma: 14.78481
+#&gt; AIC: 8059.093</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Slot 4 now holds two pairs instead of one: <code>&lt;24,7&gt;</code> and <code>&lt;168,6&gt;</code>. The model kept 7 harmonics to describe the daily cycle and 6 for the weekly one. There are also two Gamma-1 values and two Gamma-2 values, one pair per seasonal component, because each cycle drifts at its own rate.</p>
+
+<p>I switched off Box-Cox and ARMA errors here purely for speed, and we will switch ARMA back on in the next section once you have seen why it matters.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>TBATS is genuinely slow, and this block is the first place you will feel it.</strong> The model refits itself many times while searching over transforms, trend options and harmonic counts. Give it a few seconds. <code>use.box.cox = FALSE</code> and <code>use.arma.errors = FALSE</code> are the two biggest speed levers, and <code>use.arma.errors = FALSE</code> alone roughly halves the work.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The model reports its seed states. Count them with <code>nrow(fit_views$seed.states)</code> and check the count against the formula <code>1 + 2 * sum(k)</code>, where <code>k</code> is the harmonic counts in <code>fit_views$k.vector</code>.</p>
+<div class="webr-container" data-block-title="Your turn: verify the seed state count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify the seed state count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_seed &lt;- 0   # replace with nrow(fit_views$seed.states)
+ex_seed
+# Expected: the two numbers below should match each other
+1 + 2 * sum(fit_views$k.vector)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seed state count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seed state count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_seed &lt;- nrow(fit_views$seed.states)
+ex_seed
+#&gt; [1] 27
+1 + 2 * sum(fit_views$k.vector)
+#&gt; [1] 27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 27 states break down as 1 for the level plus 2 for each of the 13 harmonics, since 7 plus 6 is 13. Compare that with a classical seasonal model, which would need 24 values for the daily cycle and 168 for the weekly one, so 192 in total. TBATS described the same structure with 27.</p>
+
+</details>
+</section>
+
+<h2>How do you check whether a TBATS model is any good?</h2>
+
+<p>A model that fits is not the same as a model that forecasts. Start by predicting the week we held out and scoring the result.</p>
+
+<div class="webr-container" data-block-title="Forecast the held-out week and score it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the held-out week and score it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_views &lt;- forecast(fit_views, h = 168)
+
+round(head(as.numeric(fc_views$mean), 6), 1)
+#&gt; [1] 382.4 393.8 410.4 432.6 451.6 467.3
+
+round(accuracy(fc_views, views_test), 2)
+#&gt;                 ME  RMSE   MAE   MPE MAPE MASE ACF1
+#&gt; Training set  0.51 14.78 11.57  0.05 2.74 0.58 0.23
+#&gt; Test set     -0.39 16.99 13.45 -0.58 3.29 0.68   NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>accuracy()</code> scores the fitted values against the training data on the first row and the forecasts against the held-out week on the second. The test MAPE of 3.29 percent means the forecasts were typically about 3.3 percent away from the truth. <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">RMSE</a> is the same idea in the original units rather than percentages, so the test RMSE of 16.99 says the typical miss was about 17 page views, only slightly worse than the 14.78 the model managed on the data it trained on. A small gap like that says the model generalised rather than memorised.</p>
+
+<p>One number on that first row is a warning sign though. <code>ACF1</code> is the autocorrelation of the residuals at lag 1, and 0.23 is high. If the model had extracted all the structure, the leftovers would look like random noise with no autocorrelation. Let us test that properly.</p>
+
+<div class="webr-container" data-block-title="Test the residuals for leftover structure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the residuals for leftover structure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(fit_views, plot = FALSE)
+#&gt;
+#&gt; 	Ljung-Box test
+#&gt;
+#&gt; data:  Residuals from TBATS
+#&gt; Q* = 478.26, df = 134, p-value &lt; 2.2e-16
+#&gt;
+#&gt; Model df: 0.   Total lags used: 134</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">Ljung-Box test</a> asks a single question: are these residuals indistinguishable from random noise? A small p-value says no. Here the p-value is below 2.2e-16, so the residuals still contain plenty of structure the model has not captured.</p>
+
+<p>That is a real failure, not a mistake in the code, and it has an obvious cause: we turned off ARMA errors to make the fit faster. Modelling exactly this kind of <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">leftover autocorrelation</a> is the entire job of the <code>A</code> in TBATS. Switch it back on.</p>
+
+<div class="webr-container" data-block-title="Refit with ARMA errors switched on">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit with ARMA errors switched on</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_arma &lt;- tbats(views_train, use.parallel = FALSE,
+                  use.box.cox = FALSE, use.arma.errors = TRUE)
+
+as.character(fit_arma)
+#&gt; [1] &quot;TBATS(1, {2,0}, -, {&lt;24,7&gt;, &lt;168,6&gt;})&quot;
+round(c(no_arma = fit_views$AIC, with_arma = fit_arma$AIC), 1)
+#&gt;   no_arma with_arma
+#&gt;    8059.1    8031.3
+round(as.numeric(fit_arma$ar.coefficients), 3)
+#&gt; [1] 0.209 0.136</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Slot 2 changed from <code>{0,0}</code> to <code>{2,0}</code>, meaning R added an AR(2) process to the errors: each error is now predicted from the two errors immediately before it, weighted by the coefficients 0.209 and 0.136. The AIC improved from 8059.1 to 8031.3. Now re-run the residual test on the new model.</p>
+
+<div class="webr-container" data-block-title="Re-test the residuals after adding ARMA errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Re-test the residuals after adding ARMA errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">checkresiduals(fit_arma, plot = FALSE)
+#&gt;
+#&gt; 	Ljung-Box test
+#&gt;
+#&gt; data:  Residuals from TBATS
+#&gt; Q* = 225.19, df = 134, p-value = 1.369e-06
+#&gt;
+#&gt; Model df: 0.   Total lags used: 134</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> fell from 478.26 to 225.19, so the ARMA component absorbed more than half the leftover autocorrelation. The p-value is still small, meaning some structure remains, which is common with 672 observations because the test gets very sensitive at that <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a>.</p>
+
+<p>So the AIC improved and the residuals improved. Both of those were measured on the training data, though. Score the two models on the week we held out instead.</p>
+
+<div class="webr-container" data-block-title="Score both models on the held-out week">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score both models on the held-out week</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(no_arma   = accuracy(fc_views, views_test)[&quot;Test set&quot;, &quot;RMSE&quot;],
+        with_arma = accuracy(forecast(fit_arma, h = 168), views_test)[&quot;Test set&quot;, &quot;RMSE&quot;]), 2)
+#&gt;   no_arma with_arma
+#&gt;     16.99     17.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The verdict flips. The model that scored better on AIC forecast slightly worse on data it had never seen. AIC is computed entirely from the training data, so it can prefer a model that the future does not. When the two disagree, trust the holdout.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Never judge a TBATS model by AIC alone.</strong> AIC decides which model <code>tbats()</code> returns during its internal search, and that search never sees your <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>. Always hold out a final stretch of data and score forecasts against it, exactly as we did with <code>views_test</code>.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>checkresiduals()</code> reports "Model df: 0" for TBATS objects.</strong> It does not subtract the model's estimated parameters from the degrees of freedom the way it does for ARIMA fits, so the p-value is more likely to flag a problem than it should be. Read it as a directional signal rather than a formal test.</div></div>
+
+<p>You can also pull the fitted seasonal pieces apart to see what the model learned.</p>
+
+<div class="webr-container" data-block-title="Extract the fitted components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the fitted components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">comp &lt;- tbats.components(fit_views)
+colnames(comp)
+#&gt; [1] &quot;observed&quot; &quot;level&quot;    &quot;season1&quot;  &quot;season2&quot;
+round(head(comp, 3), 2)
+#&gt;          observed  level season1 season2
+#&gt; 1.000000      370 425.59  -58.17    5.71
+#&gt; 1.005952      367 425.01  -43.17    1.04
+#&gt; 1.011905      401 425.09  -23.01   -3.23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>season1</code> is the 24-hour cycle and <code>season2</code> is the 168-hour one, matching the order you passed to <code>msts()</code>. At the very first observation the level sits at 425.59, the daily cycle pulls it down by 58.17 because it is the middle of the night, and the weekly cycle nudges it up by 5.71.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Components come back on the Box-Cox scale, not the original one.</strong> If your model selected a transform, these columns will not add up to your raw data. Here we forced <code>use.box.cox = FALSE</code>, so the scales happen to agree, but check <code>fit$lambda</code> before you trust the arithmetic.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Work out how wide each seasonal component swings by taking the range of every column of <code>tbats.components(fit_views)</code>. Which cycle dominates?</p>
+<div class="webr-container" data-block-title="Your turn: measure each component&#x27;s swing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure each component&#x27;s swing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_amp &lt;- 0   # replace with apply(..., 2, function(z) round(diff(range(z)), 1))
+ex_amp
+# Expected: a named number for each of observed, level, season1 and season2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Component amplitude solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Component amplitude solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_amp &lt;- apply(tbats.components(fit_views), 2,
+                function(z) round(diff(range(z)), 1))
+ex_amp
+#&gt; observed    level  season1  season2
+#&gt;    297.0     20.0    193.2     75.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>diff(range(z))</code> is the distance from a column's smallest value to its largest. The daily cycle swings across 193.2 page views while the weekly cycle covers only 75.8, so the daily rhythm dominates. The level barely moves at 20.0, which is right, since we simulated no real trend.</p>
+
+</details>
+</section>
+
+<h2>When should you not use TBATS?</h2>
+
+<p>TBATS has a reputation as the automatic answer for messy seasonal data. It is not, and knowing its limits will save you more time than knowing its options. Start with the limitation that bites hardest in practice.</p>
+
+<div class="webr-container" data-block-title="Show that xreg is silently ignored">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show that xreg is silently ignored</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+promo &lt;- matrix(rnorm(672), ncol = 1)   # pretend this flags promotion days
+
+fit_xreg &lt;- tbats(views_train, use.parallel = FALSE, use.box.cox = FALSE,
+                  use.arma.errors = FALSE, xreg = promo)
+
+as.character(fit_xreg)
+#&gt; [1] &quot;TBATS(1, {0,0}, -, {&lt;24,7&gt;, &lt;168,6&gt;})&quot;
+identical(fit_xreg$AIC, fit_views$AIC)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We passed an external regressor and <code>tbats()</code> accepted it without complaint. The resulting model string is the same one we got without the regressor, and <code>identical()</code> confirms the two AIC values match to the last digit. Nothing about the fit changed, and nothing was printed to say the argument had been dropped.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>TBATS cannot use <a class="auto-link" href="ARIMAX-in-R.html" title="ARIMAX in R: ARIMA with External Regressors (xreg)">external regressors</a>, and it will not tell you.</strong> No error, no warning, no message. If your forecast depends on holidays, promotions, price changes or weather, TBATS structurally cannot see them. Use <code>auto.arima()</code> with <code>fourier()</code> terms plus an <code>xreg</code> matrix instead, which handles multiple seasonality and covariates together.</div></div>
+
+<p>The second limitation is that TBATS frequently loses. Let us benchmark it honestly against three alternatives on the same held-out week. The third of them needs a word of introduction: <code>fourier()</code> builds exactly the sine and cosine harmonics we constructed by hand earlier, <code>K</code> of them for each seasonal period, and hands them to <code>auto.arima()</code> as ordinary regressor columns. That gives ARIMA multiple seasonality too, but with the harmonic weights held fixed rather than allowed to drift.</p>
+
+<div class="webr-container" data-block-title="Benchmark TBATS on the hourly series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Benchmark TBATS on the hourly series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse &lt;- function(f) round(accuracy(f, views_test)[&quot;Test set&quot;, &quot;RMSE&quot;], 2)
+
+fc_stlf   &lt;- stlf(views_train, h = 168)      # multi-seasonal STL, then ETS
+fc_snaive &lt;- snaive(views_train, h = 168)    # &quot;same as last week&quot;
+xr        &lt;- fourier(views_train, K = c(6, 6))
+fc_dhr    &lt;- forecast(auto.arima(views_train, seasonal = FALSE, xreg = xr),
+                      xreg = fourier(views_train, K = c(6, 6), h = 168))
+
+data.frame(method    = c(&quot;TBATS&quot;, &quot;stlf (STL + ETS)&quot;, &quot;snaive&quot;, &quot;ARIMA + Fourier&quot;),
+           test_RMSE = c(rmse(fc_views), rmse(fc_stlf), rmse(fc_snaive), rmse(fc_dhr)))
+#&gt;             method test_RMSE
+#&gt; 1            TBATS     16.99
+#&gt; 2 stlf (STL + ETS)     14.42
+#&gt; 3           snaive     16.22
+#&gt; 4  ARIMA + Fourier     18.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>TBATS came third. <code>stlf()</code>, which runs a multi-seasonal <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">STL decomposition</a> and then applies ETS to what remains, beat it by 15 percent and finished in a fraction of the time. Even <code>snaive()</code>, which does nothing more sophisticated than repeating last week, edged it out.</p>
+
+<p>This is not a fluke, and the reason is instructive. Our simulated weekly pattern is a fixed weekend lift that never changes shape, and both periods are exact whole numbers. Under those conditions the drifting seasonality TBATS pays parameters for buys nothing, while STL recovers the same fixed shape with a smoother that costs no model parameters at all.</p>
+
+<p>So when does TBATS actually earn its keep? When the seasonal period is not a whole number. Here is weekly data whose true annual cycle is 365.25 / 7 = 52.1786 weeks, which no <code>ts</code> object can represent.</p>
+
+<div class="webr-container" data-block-title="Simulate weekly data with a fractional annual cycle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate weekly data with a fractional annual cycle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+
+n_wk  &lt;- 52 * 6                      # six years of weekly observations
+tt    &lt;- 0:(n_wk - 1)
+sales &lt;- round(500 + 0.25 * tt +                                  # slow upward trend
+               40 * sin(2 * pi * tt / 52.1786 - 1.2) +            # annual cycle
+               15 * sin(2 * pi * 2 * tt / 52.1786) +              # second harmonic
+               rnorm(n_wk, 0, 8))
+
+sales_train &lt;- sales[1:260]          # first five years
+sales_test  &lt;- sales[261:312]        # final year, held out
+
+fit_wk &lt;- tbats(ts(sales_train), seasonal.periods = 52.1786,
+                use.parallel = FALSE, use.box.cox = FALSE, use.arma.errors = FALSE)
+as.character(fit_wk)
+#&gt; [1] &quot;TBATS(1, {0,0}, 1, {&lt;52.18,3&gt;})&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Note how the model was specified: a plain <code>ts()</code> for the data and the fractional period handed straight to <code>tbats()</code> via <code>seasonal.periods</code>, exactly as the earlier warning prescribed. Slot 4 confirms it worked, showing <code>&lt;52.18,3&gt;</code> rather than the <code>&lt;52,...&gt;</code> you would have got by routing through <code>msts()</code>. Three harmonics were enough to describe the annual shape.</p>
+
+<div class="webr-container" data-block-title="Benchmark TBATS on the fractional-period series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Benchmark TBATS on the fractional-period series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wk_rmse  &lt;- function(f) round(accuracy(f, sales_test)[&quot;Test set&quot;, &quot;RMSE&quot;], 2)
+sales_52 &lt;- ts(sales_train, frequency = 52)   # the best the alternatives can do
+
+data.frame(
+  method    = c(&quot;TBATS at 52.18&quot;, &quot;stlf at 52&quot;, &quot;snaive at 52&quot;, &quot;ARIMA + Fourier at 52&quot;),
+  test_RMSE = c(wk_rmse(forecast(fit_wk, h = 52)),
+                wk_rmse(stlf(sales_52, h = 52)),
+                wk_rmse(snaive(sales_52, h = 52)),
+                wk_rmse(forecast(auto.arima(sales_52, seasonal = FALSE,
+                                            xreg = fourier(sales_52, K = 3)),
+                                 xreg = fourier(sales_52, K = 3, h = 52)))))
+#&gt;                  method test_RMSE
+#&gt; 1        TBATS at 52.18      8.29
+#&gt; 2            stlf at 52      9.10
+#&gt; 3          snaive at 52     18.50
+#&gt; 4 ARIMA + Fourier at 52     14.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ranking flipped. TBATS now wins, and <code>snaive()</code> falls from second place to last, with more than twice the error of the winner. The reason is that every alternative had to round the period to 52, so their seasonal pattern slips by 0.18 weeks per year. Over the five-year training window that accumulates to almost a full week of drift, and their forecasts arrive out of phase. TBATS modelled 52.1786 directly and stayed aligned.</p>
+
+<p><img src="screenshots/TBATS-Model-in-R-when-to-use.webp" alt="TBATS is one of four routes to a multiple-seasonality forecast" class="img-responsive img-zoomable" loading="lazy" width="2248" height="926" /></p>
+
+<p><em>Figure 3: TBATS is one of four routes to a multiple-seasonality forecast.</em></p>
+
+<p>Putting the limitations together:</p>
+
+<ul>
+
+<li><strong>It is slow.</strong> Fitting involves a search over transforms, trend options and harmonic counts, each requiring a full optimisation. Expect seconds on small series and minutes on long ones.</li>
+
+<li><strong>It ignores covariates.</strong> No holidays, no promotions, no weather, and no warning that they were dropped.</li>
+
+<li><strong>It is univariate.</strong> One series at a time, with no cross-series information.</li>
+
+<li><strong>It is hard to interpret.</strong> Harmonic weights do not map onto anything a stakeholder recognises, unlike a seasonal index that says "December is 40 percent above average".</li>
+
+<li><strong>It is absent from fable.</strong> The modern tidyverts successor to <code>forecast</code> does not implement TBATS, so <code>forecast::tbats()</code> remains the canonical route.</li>
+
+</ul>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add classical <code>bats()</code> to the weekly comparison. It cannot represent 52.18, so fit it on <code>sales_52</code> and see how it scores.</p>
+<div class="webr-container" data-block-title="Your turn: add BATS to the weekly comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add BATS to the weekly comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bats &lt;- bats(sales_52, use.parallel = FALSE)   # add use.box.cox = FALSE
+as.character(ex_bats)
+round(accuracy(forecast(ex_bats, h = 52), sales_test)[&quot;Test set&quot;, &quot;RMSE&quot;], 2)
+# Expected: a worse RMSE than all four methods in the table above</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="BATS comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">BATS comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bats &lt;- bats(sales_52, use.parallel = FALSE, use.box.cox = FALSE)
+as.character(ex_bats)
+#&gt; [1] &quot;BATS(1, {0,0}, -, {52})&quot;
+round(accuracy(forecast(ex_bats, h = 52), sales_test)[&quot;Test set&quot;, &quot;RMSE&quot;], 2)
+#&gt; [1] 19.71</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> BATS scored 19.71, worse than every method in the table. Its model string shows <code>{52}</code>, a bare integer period with no harmonic count, because classical seasonality stores one value per slot and slots must be whole numbers. It is stuck with the same rounding error as the others, without STL's flexible smoother to compensate.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: an end-to-end weekly forecast</h2>
+
+<p>Here is the whole workflow in one place, on the fractional-period sales series where TBATS is the right tool. Split, fit, diagnose, forecast, then score.</p>
+
+<div class="webr-container" data-block-title="Fit and diagnose the final model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and diagnose the final model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_final &lt;- tbats(ts(sales_train), seasonal.periods = 52.1786,
+                   use.parallel = FALSE, use.box.cox = FALSE)
+
+as.character(fit_final)
+#&gt; [1] &quot;TBATS(1, {0,0}, 1, {&lt;52.18,3&gt;})&quot;
+round(fit_final$AIC, 1)
+#&gt; [1] 2546.7
+
+checkresiduals(fit_final, plot = FALSE)
+#&gt;
+#&gt; 	Ljung-Box test
+#&gt;
+#&gt; data:  Residuals from TBATS
+#&gt; Q* = 9.3738, df = 10, p-value = 0.497
+#&gt;
+#&gt; Model df: 0.   Total lags used: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This time we left <code>use.arma.errors</code> at its default of <code>TRUE</code>, and the search decided no ARMA component was worth keeping, so slot 2 stayed at <code>{0,0}</code>. The residual test now passes comfortably with a p-value of 0.497, meaning the leftovers are indistinguishable from noise. Compare that with the hourly model earlier, which failed the same test badly. This is what a well-specified TBATS model looks like.</p>
+
+<div class="webr-container" data-block-title="Forecast a year ahead and score it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast a year ahead and score it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_final &lt;- forecast(fit_final, h = 52, level = c(80, 95))
+
+round(head(as.numeric(fc_final$mean), 4), 1)
+#&gt; [1] 524.5 529.6 535.0 540.5
+
+round(accuracy(fc_final, sales_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt; RMSE  MAE MAPE
+#&gt; 8.29 6.75 1.16
+
+# What fraction of the held-out year fell inside the 95% interval?
+mean(sales_test &gt;= fc_final$lower[, &quot;95%&quot;] &amp; sales_test &lt;= fc_final$upper[, &quot;95%&quot;])
+#&gt; [1] 0.9230769</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A MAPE of 1.16 percent over a full year ahead is a strong result. The last line checks something the accuracy table never reports: how often the held-out values actually landed inside the stated 95 percent interval. We got 92.3 percent, a little below the promised 95, so the intervals are marginally too narrow here rather than too wide.</p>
+
+<p>That is worth flagging because the standard advice, repeated from the FPP textbook, is that TBATS intervals tend to be far too wide. On this series they were slightly too narrow. Measure your own rather than assuming.</p>
+
+<div class="webr-container" data-block-title="Plot the forecast with its intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the forecast with its intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(fc_final,
+     main = &quot;Weekly sales: 52-week TBATS forecast&quot;,
+     xlab = &quot;Week&quot;, ylab = &quot;Units&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dark band is the 80 percent interval and the lighter one the 95 percent interval. Both widen as the horizon grows, which is exactly what they should do: uncertainty compounds the further ahead you look.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Use the variable names given so nothing you write overwrites the objects above.</p>
+
+<h3>Exercise 1: Fit and decode a model on real wine data</h3>
+
+<p><code>wineind</code> ships with the forecast package and holds monthly Australian wine sales. Fit both TBATS and BATS to it, compare their AIC values, then decode the TBATS model string slot by slot. This model uses more slots than any example above, so read it carefully.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit both models to wineind, then compare AIC.
+# Hint: both functions take use.parallel = FALSE the same way.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex1_tbats &lt;- tbats(wineind, use.parallel = FALSE)
+ex1_bats  &lt;- bats(wineind, use.parallel = FALSE)
+
+c(as.character(ex1_tbats), as.character(ex1_bats))
+#&gt; [1] &quot;TBATS(0, {1,0}, 0.953, {&lt;12,5&gt;})&quot; &quot;BATS(0.005, {0,0}, -, {12})&quot;
+round(c(TBATS = ex1_tbats$AIC, BATS = ex1_bats$AIC), 1)
+#&gt;  TBATS   BATS
+#&gt; 3649.5 3670.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> TBATS wins on AIC, 3649.5 against 3670.5. Its model string uses every slot: a lambda of <code>0</code> means a log transform was applied, <code>{1,0}</code> means AR(1) errors with no MA part, <code>0.953</code> is a damping parameter, and <code>&lt;12,5&gt;</code> is the 12-month cycle described by 5 harmonics. Contrast that with the BATS string, where <code>{12}</code> is a bare period with no harmonic count, because classical seasonality has no harmonics to report.</p>
+
+</details>
+
+<h3>Exercise 2: Measure the cost of the msts trap</h3>
+
+<p>Earlier you saw that <code>msts(x, seasonal.periods = 52.18)</code> silently rounds down to 52. Now put a number on the damage. Fit the sales series both ways, show that the model strings differ, and compare their held-out RMSE.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build two models on sales_train:
+#   ex2_wrong: route the 52.18 through msts() first
+#   ex2_right: pass 52.1786 straight to tbats() on a plain ts()
+# Then compare as.character() of each, and their RMSE against sales_test.
+# Hint: use use.box.cox = FALSE and use.arma.errors = FALSE on both, to keep it quick.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex2_wrong &lt;- tbats(msts(sales_train, seasonal.periods = 52.18),
+                   use.parallel = FALSE, use.box.cox = FALSE, use.arma.errors = FALSE)
+ex2_right &lt;- tbats(ts(sales_train), seasonal.periods = 52.1786,
+                   use.parallel = FALSE, use.box.cox = FALSE, use.arma.errors = FALSE)
+
+c(as.character(ex2_wrong), as.character(ex2_right))
+#&gt; [1] &quot;TBATS(1, {0,0}, 0.999, {&lt;52,7&gt;})&quot;  &quot;TBATS(1, {0,0}, 1, {&lt;52.18,3&gt;})&quot;
+round(c(wrong = accuracy(forecast(ex2_wrong, h = 52), sales_test)[&quot;Test set&quot;, &quot;RMSE&quot;],
+        right = accuracy(forecast(ex2_right, h = 52), sales_test)[&quot;Test set&quot;, &quot;RMSE&quot;]), 2)
+#&gt; wrong right
+#&gt;  8.54  8.29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The model strings tell the story before the RMSE does. The <code>msts()</code> route produced <code>&lt;52,7&gt;</code>, a whole-number period needing 7 harmonics to chase a shape that keeps sliding out of phase. The direct route produced <code>&lt;52.18,3&gt;</code> and described the same cycle with 3. The RMSE cost is modest here at 8.54 against 8.29, roughly 3 percent, because five years is a short training window. Extend the series and the phase error accumulates, widening the gap.</p>
+
+</details>
+
+<h3>Exercise 3: Write a function that picks the better model</h3>
+
+<p>The benchmarks showed that TBATS wins on one series and loses on another, so the honest workflow is to test rather than assume. Write <code>pick_model(train, test, h)</code> that fits both TBATS and <code>stlf()</code> to <code>train</code>, scores both against <code>test</code>, and returns the two RMSE values. Then run it on both series from this tutorial.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># pick_model should:
+#   1. fit tbats() and stlf() on `train`
+#   2. forecast both h steps ahead
+#   3. return a named vector of the two test-set RMSE values
+# Hint: accuracy(f, test)[&quot;Test set&quot;, &quot;RMSE&quot;] pulls out a single score.
+
+pick_model &lt;- function(train, test, h) {
+  # your code here
+}
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pick_model &lt;- function(train, test, h) {
+  tb &lt;- forecast(tbats(train, use.parallel = FALSE, use.box.cox = FALSE,
+                       use.arma.errors = FALSE), h = h)
+  st &lt;- stlf(train, h = h)
+  round(c(TBATS = accuracy(tb, test)[&quot;Test set&quot;, &quot;RMSE&quot;],
+          stlf  = accuracy(st, test)[&quot;Test set&quot;, &quot;RMSE&quot;]), 2)
+}
+
+pick_model(views_train, views_test, 168)
+#&gt; TBATS  stlf
+#&gt; 16.99 14.42
+
+pick_model(ts(sales_train, frequency = 52), sales_test, 52)
+#&gt; TBATS  stlf
+#&gt;  8.54  9.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function reproduces both verdicts from the benchmarks above, and the weekly one adds something new. TBATS wins there at 8.54 against 9.10 even though <code>frequency = 52</code> forced it to round the period down, so its advantage on that series is not purely about representing the fraction. Wrapping the comparison in a function is what makes it cheap enough to run on every new series instead of guessing which model will win.</p>
+
+</details>
+
+<h2>FAQ</h2>
+
+<h3>What does TBATS stand for?</h3>
+
+<p>Trigonometric seasonality, Box-Cox transformation, ARMA errors, Trend and Seasonal components. The letters are not in the order the model applies them, because the name grew out of an earlier model called BATS.</p>
+
+<h3>What is the difference between BATS and TBATS?</h3>
+
+<p>BATS came first and stores classical seasonality: one value for every position in the cycle. TBATS replaces that with trigonometric terms, storing 2 values per harmonic instead. Everything else is identical, and <code>bats()</code> and <code>tbats()</code> take the same arguments. The practical consequences are that TBATS handles fractional periods, needs far fewer parameters on long cycles, and can let the seasonal shape drift.</p>
+
+<h3>Why does my tbats() output say BATS instead of TBATS?</h3>
+
+<p>Because <code>tbats()</code> compares both formulations and returns whichever scores better. On a series with no seasonality, or with a short period where classical seasonality is cheap enough, it may genuinely pick BATS. The returned object has class <code>c(&quot;tbats&quot;, &quot;bats&quot;)</code>, so this is expected behaviour rather than a bug.</p>
+
+<h3>Can TBATS handle holidays or promotions?</h3>
+
+<p>No. It cannot use external regressors at all, and passing <code>xreg</code> gives you no error and no warning while the argument is silently discarded. For holiday effects, use <code>auto.arima()</code> with <code>fourier()</code> terms for the seasonality plus an <code>xreg</code> matrix of holiday dummies.</p>
+
+<h3>Why is TBATS so slow, and how do I speed it up?</h3>
+
+<p>The fit is a search: it tries Box-Cox on and off, trend on and off, damping on and off, and steps through harmonic counts, refitting each time. The three biggest levers are <code>use.arma.errors = FALSE</code>, which skips a whole <code>auto.arima()</code> search on the residuals, <code>use.box.cox = FALSE</code>, and fixing <code>use.trend</code> yourself rather than letting R test both. Setting <code>use.parallel = FALSE</code> also helps on shorter series, where the worker setup costs more than it saves.</p>
+
+<h3>How many harmonics should I use, and can I set them manually?</h3>
+
+<p><code>tbats()</code> picks the count for you by minimising AIC, and the printed <code>&lt;period, k&gt;</code> pairs tell you what it chose. There is no argument for setting <code>k</code> directly. If you need that control, switch to <code>auto.arima()</code> with <code>fourier(x, K = c(...))</code>, where <code>K</code> is yours to choose.</p>
+
+<h3>Does TBATS handle missing values?</h3>
+
+<p>Not really. It does not error, but it warns that <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> were encountered and then uses only the longest unbroken stretch of the series. A single gap in the middle can therefore discard most of your data. Impute first, then fit.</p>
+
+<h3>Does TBATS work with zeros or negative values?</h3>
+
+<p>Yes, but the Box-Cox transform does not, so it is silently skipped on non-positive data and slot 1 will show <code>1</code>. The rest of the model works normally.</p>
+
+<h3>Should I use TBATS or Prophet for multiple seasonality?</h3>
+
+<p>They solve overlapping problems in opposite ways. Prophet fits seasonality as fixed Fourier terms in a regression, so the seasonal shape does not drift, but it takes holidays and other regressors, handles missing values and outliers without complaint, and is fast. TBATS lets the seasonal shape evolve and accepts fractional periods, but it takes no regressors at all and is much slower. If your forecast depends on holidays or promotions, that alone decides it against TBATS. If it depends on a genuinely drifting season or a period like 52.18, TBATS is the one that can represent it.</p>
+
+<h3>Is TBATS available in fable or tidymodels?</h3>
+
+<p>There is no TBATS model in <code>fable</code>; the maintainers left it off the roadmap, and the FPP3 textbook covers multiple seasonality with <code>STL()</code> and <code>ARIMA()</code> plus <code>fourier()</code> instead. In tidymodels, <code>modeltime::seasonal_reg()</code> exposes a <code>&quot;tbats&quot;</code> engine that calls <code>forecast::tbats()</code> underneath, and it inherits the same inability to use regressors.</p>
+
+<h3>Why are my TBATS prediction intervals so wide?</h3>
+
+<p>It is a known tendency, and the FPP2 textbook flags it explicitly. The fix is to measure rather than assume: count how often the held-out data actually falls inside the interval, as the complete example above does. If the intervals really are miscalibrated, <code>forecast(fit, h, bootstrap = TRUE)</code> builds simulation-based intervals instead of relying on the analytic formula.</p>
+
+<h3>What is the difference between msts() and ts()?</h3>
+
+<p>A <code>ts</code> object stores exactly one frequency and it must be a whole number. An <code>msts</code> object stores a vector of seasonal periods, which may be fractional. Use <code>msts()</code> when you have two or more periods. For a single fractional period, <code>msts()</code> will silently drop the fraction, so pass <code>seasonal.periods</code> to <code>tbats()</code> directly instead.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The problem</td>
+<td><code>ets()</code> ignores seasonality above period 24, and <code>Arima()</code> runs out of memory above roughly 200</td>
+</tr>
+<tr>
+<td>The trick</td>
+<td>Represent each season as harmonics, costing 2 parameters each instead of one per slot</td>
+</tr>
+<tr>
+<td>Multiple periods</td>
+<td><code>msts(x, seasonal.periods = c(24, 168))</code> for two or more cycles</td>
+</tr>
+<tr>
+<td>Fractional periods</td>
+<td>Pass <code>seasonal.periods</code> to <code>tbats()</code> directly; <code>msts()</code> drops the fraction silently</td>
+</tr>
+<tr>
+<td>Model string</td>
+<td><code>TBATS(lambda, {p,q}, phi, {&lt;m,k&gt;})</code>, where <code>1</code> means no transform and <code>-</code> means no damping</td>
+</tr>
+<tr>
+<td>Seed states</td>
+<td><code>1 + 2 * sum(k)</code>, the parsimony gain made visible</td>
+</tr>
+<tr>
+<td>Speed</td>
+<td><code>use.arma.errors = FALSE</code> and <code>use.box.cox = FALSE</code> are the biggest levers</td>
+</tr>
+<tr>
+<td>Validation</td>
+<td>Hold data out and score it; AIC drives the internal search but never sees your test set</td>
+</tr>
+<tr>
+<td>Diagnostics</td>
+<td><code>checkresiduals()</code>, but read its p-value loosely since it reports <code>Model df: 0</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Reach for TBATS when</strong> your series has two or more seasonal cycles, a period that is not a whole number, a period too long for <code>ets()</code> or <code>Arima()</code>, or a seasonal shape that visibly drifts over the years. The half-hourly <code>taylor</code> series we opened with qualifies twice over: two cycles at once, 48 and 336, both far past the period 24 where <code>ets()</code> stops modelling seasonality and hands you back that <code>N</code>.</p>
+
+<p><strong>Reach for something else when</strong> you need holidays or other regressors, when you need a stakeholder-readable seasonal index, when the periods are stable whole numbers and <code>stlf()</code> will do the job in a fraction of the time, or when you simply cannot afford the fitting time.</p>
+
+<p>The habit worth keeping from this tutorial is the last one: always run TBATS against <code>snaive()</code> and <code>stlf()</code> on held-out data before you ship it. It won one of our two benchmarks and lost the other, and only the holdout told us which was which.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>De Livera, A. M., Hyndman, R. J., & Snyder, R. D. Forecasting time series with complex seasonal patterns using exponential smoothing. <em>Journal of the American Statistical Association</em>, 106(496), 1513-1527 (2011). DOI 10.1198/jasa.2011.tm09771. Free working paper: <a href="https://robjhyndman.com/papers/ComplexSeasonality.pdf">Link</a> - the original TBATS paper, and the source of the seasonal state equations shown above.</li>
+
+<li>Hyndman, R. J., & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 2nd ed. Section 11.1, Complex seasonality. <a href="https://otexts.com/fpp2/complexseasonality.html">Link</a> - the textbook treatment, including the TBATS-versus-harmonic-regression comparison on electricity demand.</li>
+
+<li>Hyndman, R. J., & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 2nd ed. Section 12.1, Weekly, daily and sub-daily data. <a href="https://otexts.com/fpp2/weekly.html">Link</a> - why weekly data and its 52.18-week year are awkward for every classical model.</li>
+
+<li>forecast package reference: <code>tbats()</code>. <a href="https://pkg.robjhyndman.com/forecast/reference/tbats.html">Link</a> - the full argument list, including the <code>use.*</code> flags used throughout this tutorial.</li>
+
+<li>forecast package reference: <code>msts()</code>. <a href="https://pkg.robjhyndman.com/forecast/reference/msts.html">Link</a> - the multi-seasonal object, and the single-period fallback behind the trap in section 5.</li>
+
+<li>forecast package reference: <code>mstl()</code>. <a href="https://pkg.robjhyndman.com/forecast/reference/mstl.html">Link</a> - the multi-seasonal decomposition used to split <code>taylor</code> into its two cycles.</li>
+
+<li>Hyndman, R. J. Forecasting with long seasonal periods. <a href="https://robjhyndman.com/hyndsight/longseasonality/">Link</a> - the source of the period-24 ETS cap and the roughly-200 ARIMA memory wall.</li>
+
+<li>Hyndman, R. J. TBATS with regressors. <a href="https://robjhyndman.com/hyndsight/tbats-with-regressors/">Link</a> - the package author confirming TBATS takes no covariates, and what to use instead.</li>
+
+<li>forecast package on CRAN. <a href="https://cran.r-project.org/package=forecast">Link</a> - installation, version history and the full reference manual.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ETS-Models-in-R.html">ETS Models in R</a> covers the <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> family that TBATS extends, including the ETS letter notation we decoded in the first section.</li>
+
+<li><a href="auto-arima-in-R.html">auto.arima() in R</a> is the route to take whenever you need multiple seasonality together with holidays or other external regressors.</li>
+
+<li><a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a> goes deeper on STL and <code>mstl()</code>, the method that beat TBATS on our hourly benchmark.</li>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a> explains RMSE, MAE, MAPE and MASE, the metrics used to score every model in this tutorial.</li>
+
+</ul>
+
