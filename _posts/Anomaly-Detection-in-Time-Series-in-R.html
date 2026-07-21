@@ -1,0 +1,1981 @@
+---
+title: "Time Series Anomaly Detection in R: tsoutliers, anomalize"
+description: "Detect anomalies in time series with R. Learn the tsoutliers tso() procedure, the anomalize pipeline, additive outliers vs level shifts, and IQR vs GESD tuning."
+keywords: "time series anomaly detection in R, tsoutliers R package, anomalize R package, tso function R, level shift detection, additive outlier, GESD anomaly detection, IQR outlier detection, outlier detection time series"
+mathjax: false
+webr: true
+curriculum_id: "FR-adva-7"
+post_type: "C"
+auto_link_terms: "time series anomaly detection|anomaly detection in time series|tsoutliers|anomalize|tso()|level shift|additive outlier|temporary change|GESD|time_decompose()|time_recompose()|detect outliers in a time series|structural break"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Anomaly Detection"
+sidebar_order: "28"
+---
+<!-- md2html:generated -->
+
+<p class="lead">Time series anomaly detection finds points that break the pattern a series has already established, judging each observation against its own trend and season rather than against the overall mean. In R the tsoutliers package fits an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA model</a> and names each anomaly's shape, telling a one-off spike apart from a permanent level shift, while the anomalize package decomposes a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame and flags unusual remainders across one series or hundreds at a time.</p>
+
+<h2>Why can't a plain z-score find anomalies in a time series?</h2>
+
+<p>The Nile has been measured at Aswan every year since 1871, and its most famous feature is a permanent drop in flow around the turn of the century. Ask a z-score to find it and you get nothing at all. That failure is the whole reason time series anomaly detection is a separate subject, so it is worth watching it happen.</p>
+
+<p>A z-score is the standard textbook outlier test. You take each value, subtract the mean of the series, divide by the standard deviation, and flag anything more than three standard deviations away. The <code>Nile</code> dataset ships with R, so you can run this right now.</p>
+
+<div class="webr-container" data-block-title="Score the Nile flow series with a z-score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the Nile flow series with a z-score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(tibble)
+# Nile: the river's annual flow at Aswan, 1871 to 1970, in 100 million cubic metres
+nile_z &lt;- (Nile - mean(Nile)) / sd(Nile)
+
+sum(abs(nile_z) &gt; 3)          # how many years sit 3+ standard deviations from the mean?
+#&gt; [1] 0
+
+round(max(abs(nile_z)), 2)    # the single most extreme year, measured in standard deviations
+#&gt; [1] 2.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that carefully. <code>sum(abs(nile_z) &gt; 3)</code> counts the years whose z-score is bigger than 3 in either direction, and the answer is zero. The second line asks for the most extreme year in the whole century, and even that one is only 2.74 standard deviations out. By the textbook rule, this series is completely clean.</p>
+
+<p>It is not clean. Plot it and the problem is obvious.</p>
+
+<div class="webr-container" data-block-title="Plot the Nile series and mark 1899">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the Nile series and mark 1899</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(Nile,
+     main = &quot;Annual Nile flow at Aswan, 1871 to 1970&quot;,
+     ylab = &quot;Flow (100 million cubic metres)&quot;,
+     xlab = &quot;Year&quot;,
+     col = &quot;grey30&quot;)
+abline(v = 1899, col = &quot;firebrick&quot;, lty = 2, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><em>Figure 1: The Nile series drops to a visibly lower level after 1899 and never recovers. Construction of the Aswan Low Dam began in 1898.</em></p>
+
+<p>The series does not have a spike. It has a <strong>step</strong>. Everything after the dashed line lives at a lower level than everything before it, permanently. Let us put a number on it.</p>
+
+<div class="webr-container" data-block-title="Compare the mean before and after 1899">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the mean before and after 1899</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(mean(window(Nile, end = 1898)))     # average flow up to 1898
+#&gt; [1] 1098
+
+round(mean(window(Nile, start = 1899)))   # average flow from 1899 onwards
+#&gt; [1] 850
+
+round(sd(Nile))                           # spread of the whole series
+#&gt; [1] 169</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>window()</code> cuts a slice out of a time series by date, so the first line averages every year up to 1898 and the second averages every year from 1899 on. The gap is 248 units, which is about one and a half standard deviations of the whole series.</p>
+
+<p>Here is why the z-score missed it. The mean it subtracts, roughly 1,098 before the break and 850 after, is a single blended number computed from both halves at once. Every individual year sits close to that blend, because the shift is smaller than the year-to-year noise. No single point is extreme. The <em>pattern</em> is extreme, and a z-score cannot see patterns.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A z-score has no memory of when a point happened.</strong> Shuffle the years into random order and the z-scores come out identical, which tells you the test is throwing away the only thing that makes a time series a time series.</div></div>
+
+<p>Trend is one way a series hides its anomalies. Season is the other, and for that we need data with a repeating cycle. The <code>anomalize</code> package ships with 425 days of real CRAN download counts for 15 tidyverse packages, which is exactly that kind of data.</p>
+
+<div class="webr-container" data-block-title="Load daily CRAN download counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load daily CRAN download counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressPackageStartupMessages({
+  library(anomalize)
+  library(dplyr)
+})
+data(tidyverse_cran_downloads, package = &quot;anomalize&quot;)
+
+lub &lt;- tidyverse_cran_downloads |&gt;
+  filter(package == &quot;lubridate&quot;) |&gt;
+  ungroup() |&gt;
+  select(date, count)
+
+lub
+#&gt; # A tibble: 425 × 2
+#&gt;    date       count
+#&gt;    &lt;date&gt;     &lt;dbl&gt;
+#&gt;  1 2017-01-01   643
+#&gt;  2 2017-01-02  1350
+#&gt;  3 2017-01-03  2940
+#&gt;  4 2017-01-04  4269
+#&gt;  5 2017-01-05  3724
+#&gt;  6 2017-01-06  2326
+#&gt;  7 2017-01-07  1107
+#&gt;  8 2017-01-08  1058
+#&gt;  9 2017-01-09  2494
+#&gt; 10 2017-01-10  3237
+#&gt; # ℹ 415 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two pieces of that block may be new to you. <code>suppressPackageStartupMessages()</code> hides the banner a package prints while it loads, so the output above stays readable; delete it and nothing else changes. <code>|&gt;</code> is R's <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">native pipe</a>: <code>x |&gt; f()</code> is another way of writing <code>f(x)</code>, and chaining it lets you read a sequence of steps top to bottom instead of inside out.</p>
+
+<p><code>tidyverse_cran_downloads</code> arrives grouped by package, so <code>filter()</code> picks one package, <code>ungroup()</code> drops the grouping, and <code>select()</code> keeps the two columns we need: a date and a count. That leaves 425 daily observations for <code>lubridate</code>.</p>
+
+<p>Those numbers swing wildly, from 643 to 4,269 within a single week. That is not noise, it is a weekly cycle. Averaging by <a class="auto-link" href="lubridate-wday-in-R.html" title="lubridate wday() in R: Day-of-Week From Dates">day of week</a> makes it visible.</p>
+
+<div class="webr-container" data-block-title="Average downloads by day of week">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average downloads by day of week</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lub |&gt;
+  mutate(day = weekdays(date)) |&gt;
+  group_by(day) |&gt;
+  summarise(mean_downloads = round(mean(count))) |&gt;
+  arrange(desc(mean_downloads))
+#&gt; # A tibble: 7 × 2
+#&gt;   day       mean_downloads
+#&gt;   &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 Wednesday           5916
+#&gt; 2 Tuesday             5850
+#&gt; 3 Thursday            5651
+#&gt; 4 Monday              5258
+#&gt; 5 Friday              4437
+#&gt; 6 Sunday              2488
+#&gt; 7 Saturday            2437</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>weekdays()</code> turns each date into a day name, then <code>group_by()</code> and <code>summarise()</code> average the counts within each day. A typical Wednesday sees 5,916 downloads and a typical Saturday sees 2,437, so weekends run at roughly 40 percent of midweek. That is the season.</p>
+
+<p>Now watch what a z-score does with a series that has a season this strong.</p>
+
+<div class="webr-container" data-block-title="Ask a z-score which days are anomalies">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ask a z-score which days are anomalies</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lub_z &lt;- (lub$count - mean(lub$count)) / sd(lub$count)
+
+lub$date[abs(lub_z) &gt; 3]     # the days a z-score calls anomalies
+#&gt; [1] &quot;2017-10-30&quot; &quot;2018-02-07&quot; &quot;2018-02-28&quot;
+
+sum(lub$count == 0)          # days the download server actually returned nothing
+#&gt; [1] 9
+
+round(min(lub_z), 2)         # how extreme a zero-download day looks to a z-score
+#&gt; [1] -1.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first line lists the days the z-score flags: 2017-10-30, 2018-02-07 and 2018-02-28. Those are ordinary busy weekdays that happened to be near the top of a growing series. The next two lines are the ones that matter.</p>
+
+<p>There are <strong>nine days where the count is literally zero</strong>. A package with 5,000 downloads a day did not stop being downloaded worldwide on nine separate occasions. Those are logging failures, and they are the most obvious anomalies in the dataset. The z-score scores them at <code>-1.91</code>, comfortably inside the three-standard-deviation fence, so it flags none of them.</p>
+
+<p>The reason is the same as before, this time coming through the season rather than the trend. Zero is not far from the mean of 4,582 in standard-deviation terms, because the weekly cycle already spreads the data over a huge range. The season inflates the standard deviation, the inflated standard deviation widens the fence, and the real anomalies end up inside it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Both failures are silent.</strong> The z-score does not warn you that it ignored the season. It returns a tidy list of the wrong days, which is far more dangerous than returning nothing.</div></div>
+
+<p>Everything from here on is built on one repair: judge each point against what the series was doing <em>at that moment</em>, not against the series as a whole. Both packages in this tutorial do that, in two very different ways.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The Nile settles into a new normal after the break. Compute the mean and standard deviation of the years 1900 to 1970 only, and compare them to the whole-series numbers you saw above (mean 1,098 before the break, sd 169 overall).</p>
+<div class="webr-container" data-block-title="Your turn: summarise the post-break Nile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: summarise the post-break Nile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Cut the series down to 1900-1970, then summarise it.
+# Hint: window(Nile, start = ..., end = ...) slices a ts object by date.
+
+ex_span &lt;- Nile   # replace this with the windowed series
+round(c(mean = mean(ex_span), sd = sd(ex_span)))
+
+# Expected: a mean near 851 and an sd near 125</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Post-break Nile summary solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Post-break Nile summary solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_span &lt;- window(Nile, start = 1900, end = 1970)
+round(c(mean = mean(ex_span), sd = sd(ex_span)))
+#&gt; mean   sd 
+#&gt;  851  125 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Once you look at the post-break era on its own, the mean drops from 1,098 to 851 and the standard deviation shrinks from 169 to 125. The spread was inflated by mixing two different regimes into one series. Split them and each half is well behaved, which is precisely what a level-shift detector figures out on your behalf.</p>
+
+</details>
+</section>
+
+<h2>What shapes can a time series anomaly take?</h2>
+
+<p>Before you can detect an anomaly you have to decide what you are looking for, because "unusual point" is not one thing. A one-off spike and a permanent step both look wrong on a chart, but they mean different things and need different fixes. The <code>tsoutliers</code> package distinguishes five shapes, and knowing them is the difference between reporting "we had 17 bad days" and reporting "our traffic dropped 20 percent on March 3rd and stayed there".</p>
+
+<p>Let us build the three most common shapes from the same clean baseline so the difference is unmistakable.</p>
+
+<div class="webr-container" data-block-title="Simulate the three main anomaly shapes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate the three main anomaly shapes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+n &lt;- 80
+normal &lt;- 50 + rnorm(n, 0, 1.5)     # a flat, well-behaved series
+
+ao &lt;- normal                        # additive outlier: one point jumps
+ao[40] &lt;- ao[40] + 12
+
+ls_shift &lt;- normal                  # level shift: everything from t=40 jumps
+ls_shift[40:n] &lt;- ls_shift[40:n] + 12
+
+tc &lt;- normal                        # temporary change: jumps, then decays back
+tc[40:n] &lt;- tc[40:n] + 12 * 0.7^(0:(n - 40))
+
+op &lt;- par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+plot(normal,   type = &quot;l&quot;, main = &quot;Normal&quot;,            ylim = c(44, 66), ylab = &quot;value&quot;)
+plot(ao,       type = &quot;l&quot;, main = &quot;Additive outlier&quot;,  ylim = c(44, 66), ylab = &quot;value&quot;)
+plot(ls_shift, type = &quot;l&quot;, main = &quot;Level shift&quot;,       ylim = c(44, 66), ylab = &quot;value&quot;)
+plot(tc,       type = &quot;l&quot;, main = &quot;Temporary change&quot;,  ylim = c(44, 66), ylab = &quot;value&quot;)
+par(op)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><em>Figure 2: Three anomaly shapes built from one baseline. Only the additive outlier returns to normal immediately.</em></p>
+
+<p>Each series starts from the same <code>normal</code> baseline, so every difference you see is the anomaly and nothing else. The additive outlier adds 12 to a single point. The level shift adds 12 to that point <em>and everything after it</em>. The temporary change adds 12 and then multiplies the effect by 0.7 each step, so it fades. <code>par(mfrow = c(2, 2))</code> puts the four charts in a grid and <code>par(op)</code> restores the original settings afterwards.</p>
+
+<p>The picture is convincing, but the arithmetic is more convincing still. Here are the same three series as numbers, around the moment things go wrong.</p>
+
+<div class="webr-container" data-block-title="The three shapes as numbers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The three shapes as numbers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data.frame(t      = 39:44,
+           normal = round(normal[39:44], 1),
+           AO     = round(ao[39:44], 1),
+           LS     = round(ls_shift[39:44], 1),
+           TC     = round(tc[39:44], 1))
+#&gt;    t normal   AO   LS   TC
+#&gt; 1 39   51.4 51.4 51.4 51.4
+#&gt; 2 40   48.0 60.0 60.0 60.0
+#&gt; 3 41   47.9 47.9 59.9 56.3
+#&gt; 4 42   51.4 51.4 63.4 57.3
+#&gt; 5 43   47.8 47.8 59.8 52.0
+#&gt; 6 44   51.0 51.0 63.0 53.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Follow the four columns across row by row. At <code>t = 39</code> all four agree, because nothing has happened yet. At <code>t = 40</code> all three anomaly columns jump to 60.0 together, so at this single moment they are indistinguishable. The story splits at <code>t = 41</code>: <code>AO</code> snaps straight back to the baseline value of 47.9, <code>LS</code> stays 12 above it at 59.9 and never comes down, and <code>TC</code> sits at 56.3, part way back.</p>
+
+<p><strong>What happens after the anomaly is the only thing that tells the three apart.</strong> That is why detecting anomalies one point at a time can never classify them, and why <code>tso()</code> tests for shapes rather than points.</p>
+
+<p>Here are all five shapes the package knows about.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>What it looks like</th>
+<th>Typical cause</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AO</td>
+<td>Additive outlier</td>
+<td>One point off, next point normal</td>
+<td>Data entry error, one-off promotion, logging glitch</td>
+<td>Correct or impute the single value</td>
+</tr>
+<tr>
+<td>LS</td>
+<td>Level shift</td>
+<td>A permanent step to a new level</td>
+<td>New pricing, a dam, a tracking-code change, a market entering</td>
+<td>Do not "fix" it, model the two regimes</td>
+</tr>
+<tr>
+<td>TC</td>
+<td>Temporary change</td>
+<td>A jump that decays back over a few periods</td>
+<td>A news cycle, a viral post, a supply shock</td>
+<td>Note the event and its half-life</td>
+</tr>
+<tr>
+<td>IO</td>
+<td>Innovational outlier</td>
+<td>A shock that propagates through the model's own dynamics</td>
+<td>A disturbance that the process itself carries forward</td>
+<td>Investigate the driver, expect an echo</td>
+</tr>
+<tr>
+<td>SLS</td>
+<td>Seasonal level shift</td>
+<td>A step that only affects one season</td>
+<td>A store changing its Sunday opening hours</td>
+<td>Re-estimate the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Mislabelling a level shift as a run of additive outliers is the classic mistake.</strong> A detector tuned only for spikes will report the first few points after a step as outliers, then go quiet as the new level becomes normal. You end up "cleaning" a real business change out of your data and wondering why your forecast keeps drifting.</div></div>
+
+<p>The three you will meet most often are AO, LS and TC. Innovational outliers matter mainly in econometrics, where the model's own dynamics propagate a shock forward, and seasonal level shifts need a strongly seasonal series before they are even identifiable.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>tc</code> series above decays at a rate of 0.7 per step. Build a version that decays at 0.4, which fades roughly twice as fast, and look at how much of the original 12-unit shock survives each step.</p>
+<div class="webr-container" data-block-title="Your turn: build a faster-decaying temporary change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a faster-decaying temporary change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tc &lt;- normal
+# Replace 0.7 with 0.4 so the effect dies out faster:
+ex_tc[40:n] &lt;- ex_tc[40:n] + 12 * 0.7^(0:(n - 40))
+
+# Subtracting the baseline leaves just the anomaly's contribution:
+round(ex_tc[40:44] - normal[40:44], 2)
+
+# Expected: 12 first, then each number about 40% of the one before it</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Faster-decaying temporary change solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Faster-decaying temporary change solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tc &lt;- normal
+ex_tc[40:n] &lt;- ex_tc[40:n] + 12 * 0.4^(0:(n - 40))
+round(ex_tc[40:44] - normal[40:44], 2)
+#&gt; [1] 12.00  4.80  1.92  0.77  0.31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subtracting <code>normal</code> strips away the baseline and leaves the pure anomaly effect: 12, then 4.8, then 1.92, and so on, each one 0.4 times the last. By the fifth step only 0.31 units of a 12-unit shock remain, so this event is over in under a week. One thing to be clear about: the decay rate is not something <code>tso()</code> works out from the data. It is a fixed argument called <code>delta</code>, which defaults to 0.7, the same value the simulation above used. <code>tso()</code> estimates how big the shock was and assumes it faded at that rate, and that is what turns "something spiked" into "something spiked and was back to normal within a few days".</p>
+
+</details>
+</section>
+
+<h2>How does tso() hunt for outliers?</h2>
+
+<p><code>tso()</code> is the main function of the <code>tsoutliers</code> package. It automates a procedure published by Chen and Liu in 1993, and the idea behind it is more approachable than the paper's notation suggests.</p>
+
+<p>The procedure rests on one observation. If you fit a model that captures a series' normal behaviour, then the leftovers, the parts the model could not explain, should look like formless random noise. Any structure left in those leftovers is by definition something the model does not account for. An anomaly is exactly that.</p>
+
+<p><img src="screenshots/Anomaly-Detection-in-Time-Series-in-R-tso-procedure.webp" alt="Flowchart of the tso procedure: fit ARIMA, compute standardised residuals, test every date and type, add the worst offender as a regressor, refit, repeat" class="img-responsive img-zoomable" loading="lazy" width="2248" height="702" /></p>
+
+<p><em>Figure 3: The tso() loop: fit, test every date, absorb the worst offender, refit.</em></p>
+
+<p>Walking through the loop in plain English:</p>
+
+<ol>
+
+<li><strong>Fit an ARIMA model</strong> to the series. ARIMA is the standard model for describing how a series relates to its own recent past. <code>tso()</code> picks the model automatically, so you do not have to choose orders.</li>
+
+<li><strong>Take the residuals</strong> and standardise them, which puts them on a comparable scale.</li>
+
+<li><strong>Test every date against every shape.</strong> For each date and each anomaly type in <code>types</code>, compute a t-statistic asking "if an anomaly of this shape started here, how big would it be relative to its own uncertainty?"</li>
+
+<li><strong>Compare the largest t-statistic to <code>cval</code></strong>, the critical value. If nothing clears the bar, stop.</li>
+
+<li><strong>Absorb the winner.</strong> Add that anomaly as a regressor column, refit the ARIMA model with it included, and go back to step 2.</li>
+
+</ol>
+
+<p>The loop matters. Once a genuine anomaly is absorbed into the model, the residuals shrink, and the next round tests against a cleaner baseline. That is how the procedure separates one large real event from the smaller distortions it creates around itself.</p>
+
+<p>Enough theory. Point it at the Nile.</p>
+
+<div class="webr-container" data-block-title="Run tso() on the Nile series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run tso() on the Nile series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressPackageStartupMessages(library(tsoutliers))
+
+nile_tso &lt;- tso(Nile, types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;))
+nile_tso$outliers
+#&gt;   type ind time   coefhat     tstat
+#&gt; 1   LS  29 1899 -242.2289 -9.045372
+#&gt; 2   AO  43 1913 -399.5211 -3.306074</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two anomalies, and the first one is the century-old story the z-score could not see. <code>LS</code> at <code>time</code> 1899 is a level shift: a permanent drop of 242 units, arriving exactly when construction of the Aswan Low Dam began. The second, <code>AO</code> at 1913, is a one-off low year that returns to normal immediately.</p>
+
+<p>Compare that to the z-score's answer of "nothing unusual here". Same data, same century, and the difference is entirely in what the two methods were looking for.</p>
+
+<p>You can also print the whole fitted object to see the model underneath.</p>
+
+<div class="webr-container" data-block-title="Inspect the full tso() fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the full tso() fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_tso
+#&gt; Series: Nile 
+#&gt; Regression with ARIMA(0,0,0) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;       intercept       LS29       AO43
+#&gt;       1097.7500  -242.2289  -399.5211
+#&gt; s.e.    22.6783    26.7793   120.8446
+#&gt; 
+#&gt; sigma^2 = 14846:  log likelihood = -620.65
+#&gt; AIC=1249.29   AICc=1249.71   BIC=1259.71
+#&gt; 
+#&gt; Outliers:
+#&gt;   type ind time coefhat  tstat
+#&gt; 1   LS  29 1899  -242.2 -9.045
+#&gt; 2   AO  43 1913  -399.5 -3.306</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is an ordinary regression printout with the two outliers as predictors. <code>intercept</code> is 1097.75, which is that pre-break average you computed by hand earlier. <code>LS29</code> has a coefficient of -242.23 and a standard error of 26.78, so the step is estimated nine times more precisely than its own size. <code>ARIMA(0,0,0)</code> means that once the level shift is accounted for, nothing is left to model, no autoregressive terms and no moving-average terms. The step <em>was</em> the structure.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>We asked for three types, not all five.</strong> The default <code>types</code> argument is <code>c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;)</code>, which is what this call uses explicitly. Innovational outliers are excluded because on an annual, non-seasonal series like the Nile they are hard to distinguish from additive outliers, and adding types you cannot identify slows the search and invites false positives.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Ask <code>tso()</code> to look for additive outliers only. If the level shift is genuinely a step and not a spike, restricting the search should make it vanish from the results.</p>
+<div class="webr-container" data-block-title="Your turn: search for additive outliers only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: search for additive outliers only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run tso() on Nile with types = &quot;AO&quot; and print the outliers table.
+
+ex_ao_only &lt;- tso(Nile, types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;))   # change the types argument
+ex_ao_only$outliers
+
+# Expected: the 1899 level shift is gone, leaving one AO around 1913</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Additive outliers only solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Additive outliers only solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ao_only &lt;- tso(Nile, types = &quot;AO&quot;)
+ex_ao_only$outliers
+#&gt;   type ind time   coefhat     tstat
+#&gt; 1   AO  43 1913 -405.4265 -3.184294</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 1899 level shift has disappeared entirely, because a permanent step simply is not the shape <code>types = &quot;AO&quot;</code> searches for. The 1913 spike survives with a slightly different coefficient (-405.4 instead of -399.5), because it is now being measured against a model that never learned about the step. The lesson is blunt: a detector only ever finds shapes you asked it for, so leaving <code>LS</code> out of <code>types</code> means you will never be told about a permanent change no matter how large it is.</p>
+
+</details>
+</section>
+
+<h2>How do you read the tso() output and repair the series?</h2>
+
+<p>The outliers table has five columns and every one of them earns its place. Using the Nile result as the worked example:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Column</th>
+<th>Value in row 1</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code></td>
+<td><code>LS</code></td>
+<td>The shape: additive outlier, level shift or temporary change</td>
+</tr>
+<tr>
+<td><code>ind</code></td>
+<td><code>29</code></td>
+<td>The <strong>position</strong> in the series, counting from 1</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td><code>1899</code></td>
+<td>The <strong>calendar label</strong> for that position</td>
+</tr>
+<tr>
+<td><code>coefhat</code></td>
+<td><code>-242.2289</code></td>
+<td>The size of the effect, in the series' own units</td>
+</tr>
+<tr>
+<td><code>tstat</code></td>
+<td><code>-9.045372</code></td>
+<td>The size divided by its own standard error</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>coefhat</code> is the column you quote to another human being. It says the Nile lost 242 units of annual flow, permanently, and it is measured in the same units as the data. <code>tstat</code> is the column the algorithm uses to decide. It is just the coefficient divided by its standard error, which you can verify from the printout above.</p>
+
+<div class="webr-container" data-block-title="Recompute the t-statistic by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recompute the t-statistic by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(-242.2289 / 26.7793, 3)   # coefficient / standard error, both from the fit printout
+#&gt; [1] -9.045</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That reproduces <code>tstat</code> exactly. The number means the estimated step is 9 standard errors away from zero, so the probability of seeing a step that clean in noise alone is vanishingly small. Anything past roughly 3 is already strong evidence, so 9 is not a borderline call.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report coefhat, not tstat, to anyone outside statistics.</strong> "Flow dropped by 242 units and stayed there" lands. "The t-statistic was -9.05" does not. Keep the t-statistic for deciding, and the coefficient for explaining.</div></div>
+
+<p>So how does an anomaly actually enter the model? As a plain column of numbers. <code>outliers.effects()</code> builds those columns for you, and looking at them makes the whole method concrete.</p>
+
+<div class="webr-container" data-block-title="Turn the flagged outliers into regressor columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn the flagged outliers into regressor columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eff &lt;- outliers.effects(nile_tso$outliers, n = length(Nile))
+eff_tbl &lt;- data.frame(year = 1871:1970, LS_1899 = eff[, 1], AO_1913 = eff[, 2])
+
+subset(eff_tbl, year %in% c(1897, 1898, 1899, 1900, 1912, 1913, 1914))
+#&gt;    year LS_1899 AO_1913
+#&gt; 27 1897       0       0
+#&gt; 28 1898       0       0
+#&gt; 29 1899       1       0
+#&gt; 30 1900       1       0
+#&gt; 42 1912       1       0
+#&gt; 43 1913       1       1
+#&gt; 44 1914       1       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>outliers.effects()</code> takes the outliers table and the series length, and returns one column per anomaly. We wrap it in a data frame with the actual years so the rows are readable. Now look at the two columns.</p>
+
+<p><code>LS_1899</code> is 0 before 1899 and 1 from 1899 onward, forever. It is a switch that flips on and stays on, which is precisely what "permanent step" means as arithmetic. <code>AO_1913</code> is 0 everywhere except the single year 1913. It is a pulse.</p>
+
+<p>Multiply each column by its <code>coefhat</code> and add them to the intercept and you have reconstructed the model. That is the entire trick: <strong>an anomaly type is just a differently shaped column of ones and zeros.</strong> The level shift is a <a class="auto-link" href="ggplot2-geom_step-in-R.html" title="ggplot2 geom_step() in R: Step Function Lines">step function</a>, the additive outlier is a pulse, and a temporary change would be a pulse that decays geometrically.</p>
+
+<p>Which brings us to the practical payoff. If you know the shape and the size, you can subtract the anomaly back out. <code>tso()</code> has already done it and stored the result in <code>yadj</code>.</p>
+
+<div class="webr-container" data-block-title="Compare the original series with the repaired one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the original series with the repaired one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(window(Nile, start = 1897, end = 1902))              # what was measured
+#&gt; [1] 1030 1100  774  840  874  694
+
+round(window(nile_tso$yadj, start = 1897, end = 1902))     # with the level shift removed
+#&gt; [1] 1030 1100 1016 1082 1116  936</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two lines agree perfectly for 1897 and 1898, because the level shift had not started yet. From 1899 they diverge by roughly 242 units every single year, which is exactly <code>coefhat</code>. The adjusted series answers a specific hypothetical: what would the flow have looked like if the dam had never been built?</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Use <code>yadj</code> to model, not to report.</strong> The level shift was real, so a "repaired" Nile is a fiction. It is useful as a modelling input, because a series without the step is easier to forecast, but never hand it to someone as if it were the measurement.</div></div>
+
+<p>The last dial is <code>cval</code>, the critical value a t-statistic has to beat. <code>tso()</code> picks a default from the series length, roughly 3 for a series of 100 points. Lower it and you catch more.</p>
+
+<div class="webr-container" data-block-title="Loosen the detection threshold with cval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Loosen the detection threshold with cval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_loose &lt;- tso(Nile, types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;), cval = 2.8)
+nile_loose$outliers
+#&gt;   type ind time   coefhat      tstat
+#&gt; 1   AO   7 1877 -307.1923  -2.803343
+#&gt; 2   AO  18 1888 -321.1923  -2.931103
+#&gt; 3   LS  29 1899 -269.1637 -10.898776
+#&gt; 4   AO  43 1913 -395.0286  -3.647619
+#&gt; 5   AO  94 1964  318.9714   2.945322</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Dropping <code>cval</code> from about 3 to 2.8 takes the count from 2 to 5. The 1899 level shift is still there and now looks <em>stronger</em>, with a t-statistic of -10.9, because a better-specified model gives a cleaner estimate. But the three new additive outliers have t-statistics of 2.80, 2.93 and 2.95, all sitting barely over the new bar. Those are the definition of marginal calls.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Loosening cval manufactures outliers.</strong> Push it low enough and a random walk will report a dozen anomalies, every one of them noise. Move <code>cval</code> because you have a reason (a short series, a known-noisy sensor), never because the result looks more interesting.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Go the other way. Tighten <code>cval</code> to 4 so only overwhelming evidence survives, and see which of the two original anomalies is strong enough to make the cut.</p>
+<div class="webr-container" data-block-title="Your turn: tighten the threshold to cval = 4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighten the threshold to cval = 4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Raise cval so only very strong evidence passes.
+
+ex_strict &lt;- tso(Nile, types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;), cval = 2.8)   # change cval to 4
+ex_strict$outliers
+
+# Expected: an empty table, zero rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Strict threshold solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strict threshold solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_strict &lt;- tso(Nile, types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;), cval = 4)
+ex_strict$outliers
+#&gt; [1] type    ind     coefhat tstat  
+#&gt; &lt;0 rows&gt; (or 0-length row.names)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At <code>cval = 4</code> the table is empty, which is surprising at first because the 1899 shift had a t-statistic of -9.05, comfortably past 4. The catch is that <code>cval</code> gates <em>every</em> stage of the loop, including the first pass over the raw residuals before any anomaly has been absorbed. At that stage no single candidate clears 4, so the loop stops before it ever gets to refit, and nothing is reported. The practical lesson: <code>cval</code> is not a post-hoc filter you can crank up to keep only the best findings. It changes the search itself, so raising it too far can hide the very anomaly that would have dominated the results.</p>
+
+</details>
+</section>
+
+<h2>How does the anomalize pipeline flag anomalies in a data frame?</h2>
+
+<p><code>tso()</code> is a specialist. It takes one <code>ts</code> object, fits a model, and tells you the shape of what it found. That is exactly what you want when you have one important series and a question about it.</p>
+
+<p>It is not what you want when you have 400 dashboards refreshing every morning. For that you want speed, a tidy data frame in and out, and the ability to run every series at once. That is <code>anomalize</code>.</p>
+
+<p><img src="screenshots/Anomaly-Detection-in-Time-Series-in-R-anomalize-pipeline.webp" alt="Flowchart of the anomalize pipeline: date column plus value, time_decompose, season trend remainder, anomalize, remainder bounds and flag, time_recompose, bands on the original scale" class="img-responsive img-zoomable" loading="lazy" width="2248" height="310" /></p>
+
+<p><em>Figure 4: The three anomalize verbs and the columns each one adds.</em></p>
+
+<p>The pipeline is three verbs, and each one adds columns to your data frame rather than replacing it. Start with <code>time_decompose()</code>.</p>
+
+<div class="webr-container" data-block-title="Decompose the series into season, trend and remainder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose the series into season, trend and remainder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lub_dec &lt;- lub |&gt;
+  time_decompose(count, method = &quot;stl&quot;, frequency = &quot;auto&quot;, trend = &quot;auto&quot;)
+
+lub_dec
+#&gt; # A time tibble: 425 × 5
+#&gt; # Index:         date
+#&gt;    date       observed season trend remainder
+#&gt;    &lt;date&gt;        &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt;
+#&gt;  1 2017-01-01      643 -2078. 2474.      246.
+#&gt;  2 2017-01-02     1350   518. 2491.    -1659.
+#&gt;  3 2017-01-03     2940  1117. 2508.     -685.
+#&gt;  4 2017-01-04     4269  1220. 2524.      525.
+#&gt;  5 2017-01-05     3724   865. 2541.      318.
+#&gt;  6 2017-01-06     2326   356. 2558.     -588.
+#&gt;  7 2017-01-07     1107 -1998. 2574.      531.
+#&gt;  8 2017-01-08     1058 -2078. 2591.      545.
+#&gt;  9 2017-01-09     2494   518. 2608.     -632.
+#&gt; 10 2017-01-10     3237  1117. 2624.     -504.
+#&gt; # ℹ 415 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Alongside the table, R prints four status messages telling you it converted the tibble, picked <code>date</code> as the index, and chose <code>frequency = 7 days</code> and <code>trend = 91 days</code>. Those two choices are what <code>frequency = &quot;auto&quot;</code> and <code>trend = &quot;auto&quot;</code> resolved to: a weekly season and a quarter-long window for estimating the trend. The function inspects the spacing of your dates to pick them, which is why it needs a real <code>Date</code> column.</p>
+
+<p>The <code>method = &quot;stl&quot;</code> argument means Seasonal-Trend decomposition using Loess, a standard technique that splits a series into three additive parts. Read the row for 2017-01-01: the observed count was 643, the season contribution was -2,078 (a New Year's Day Sunday, deep in the weekend trough), the trend was 2,474, and the remainder was 246.</p>
+
+<p>Those three parts are not approximations. They add back up exactly.</p>
+
+<div class="webr-container" data-block-title="Confirm the parts sum to the observed values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the parts sum to the observed values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(head(lub_dec$season + lub_dec$trend + lub_dec$remainder, 4))
+#&gt; [1]  643 1350 2940 4269
+
+head(lub$count, 4)
+#&gt; [1]  643 1350 2940 4269</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical, to the unit. The decomposition is a lossless rewrite of the data into three interpretable pieces, and that is what makes the rest of the pipeline work.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>All the anomaly work happens on the remainder.</strong> Season and trend are the parts you <em>expect</em>, so removing them leaves only the parts you did not. Detecting an anomaly in the remainder is the corrected version of what the z-score tried and failed to do on the raw values.</div></div>
+
+<p>Now the second verb, which draws the limits.</p>
+
+<div class="webr-container" data-block-title="Flag unusual remainders with the IQR method">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag unusual remainders with the IQR method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lub_anom &lt;- lub_dec |&gt;
+  anomalize(remainder, method = &quot;iqr&quot;, alpha = 0.05, max_anoms = 0.2)
+
+lub_anom |&gt; select(date, remainder, remainder_l1, remainder_l2, anomaly)
+#&gt; # A time tibble: 425 × 5
+#&gt; # Index:         date
+#&gt;    date       remainder remainder_l1 remainder_l2 anomaly
+#&gt;    &lt;date&gt;         &lt;dbl&gt;        &lt;dbl&gt;        &lt;dbl&gt; &lt;chr&gt;  
+#&gt;  1 2017-01-01      246.       -3323.        3310. No     
+#&gt;  2 2017-01-02    -1659.       -3323.        3310. No     
+#&gt;  3 2017-01-03     -685.       -3323.        3310. No     
+#&gt;  4 2017-01-04      525.       -3323.        3310. No     
+#&gt;  5 2017-01-05      318.       -3323.        3310. No     
+#&gt;  6 2017-01-06     -588.       -3323.        3310. No     
+#&gt;  7 2017-01-07      531.       -3323.        3310. No     
+#&gt;  8 2017-01-08      545.       -3323.        3310. No     
+#&gt;  9 2017-01-09     -632.       -3323.        3310. No     
+#&gt; 10 2017-01-10     -504.       -3323.        3310. No     
+#&gt; # ℹ 415 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three new columns appear. <code>remainder_l1</code> and <code>remainder_l2</code> are the lower and upper limits, here -3,323 and 3,310, and they are the <em>same on every row</em> because the IQR method computes one pair of limits for the whole series. <code>anomaly</code> is a plain <code>&quot;Yes&quot;</code> or <code>&quot;No&quot;</code> telling you whether that row's remainder fell outside them.</p>
+
+<p>Look at 2017-01-02: a remainder of -1,659 is large, but it sits inside the fence, so the verdict is <code>No</code>. That is the pipeline working correctly. A quiet day right after New Year is unusual against the raw average and completely ordinary against its own season.</p>
+
+<div class="webr-container" data-block-title="Count how many days were flagged">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count how many days were flagged</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lub_anom |&gt; count(anomaly)
+#&gt; # A time tibble: 2 × 2
+#&gt; # Index:         date
+#&gt;   anomaly     n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 No        406
+#&gt; 2 Yes        19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nineteen days out of 425, about 4.5 percent. That is a plausible number for real operational data, and a very different answer from the z-score's three.</p>
+
+<p>The third verb translates the limits back into the units your reader thinks in.</p>
+
+<div class="webr-container" data-block-title="Recompose the bounds onto the original scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recompose the bounds onto the original scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lub_rec &lt;- lub_anom |&gt; time_recompose()
+
+lub_rec |&gt;
+  filter(anomaly == &quot;Yes&quot;) |&gt;
+  select(date, observed, recomposed_l1, recomposed_l2) |&gt;
+  mutate(across(where(is.numeric), round))
+#&gt; # A time tibble: 19 × 4
+#&gt; # Index:         date
+#&gt;    date       observed recomposed_l1 recomposed_l2
+#&gt;    &lt;date&gt;        &lt;dbl&gt;         &lt;dbl&gt;         &lt;dbl&gt;
+#&gt;  1 2017-01-12        0           199          6832
+#&gt;  2 2017-04-19     8549          1878          8512
+#&gt;  3 2017-09-01        0           813          7447
+#&gt;  4 2017-09-07     9491          1548          8181
+#&gt;  5 2017-10-30    11970          3089          9723
+#&gt;  6 2017-11-13    10267          3317          9951
+#&gt;  7 2017-11-14    11491          3927         10561
+#&gt;  8 2017-12-04    10324          3196          9829
+#&gt;  9 2017-12-05    10586          3776         10410
+#&gt; 10 2017-12-27     3692          3750         10384
+#&gt; 11 2018-01-01     1865          3095          9728
+#&gt; 12 2018-01-05        0          2970          9604
+#&gt; 13 2018-01-13     7635           817          7451
+#&gt; 14 2018-02-07    11924          5216         11849
+#&gt; 15 2018-02-08    11714          4913         11547
+#&gt; 16 2018-02-09        0          4456         11090
+#&gt; 17 2018-02-10        0          2154          8788
+#&gt; 18 2018-02-23        0          5195         11829
+#&gt; 19 2018-02-24        0          2895          9529</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>time_recompose()</code> adds the season and trend back onto the remainder limits, producing <code>recomposed_l1</code> and <code>recomposed_l2</code>: the range of counts that would have been normal <em>on that specific date</em>. Unlike the remainder limits, these move every row.</p>
+
+<p>That movement is the whole point. On 2017-01-12 the normal range was 199 to 6,832 and the count was 0, below the floor. On 2018-02-07 the normal range was 5,216 to 11,849 and the count was 11,924, just above the ceiling. A fixed threshold could never call both of those correctly, because 11,924 is a fine number in February and would be extraordinary in January.</p>
+
+<p>Notice how many of the flagged days show <code>observed</code> of exactly 0. Let us check that directly.</p>
+
+<div class="webr-container" data-block-title="Check how many zero-download days were caught">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check how many zero-download days were caught</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">zero_days &lt;- lub$date[lub$count == 0]
+
+sum(zero_days %in% lub_rec$date[lub_rec$anomaly == &quot;Yes&quot;])   # zero days that were flagged
+#&gt; [1] 7
+
+length(zero_days)                                            # zero days that exist
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Seven of the nine outage days are caught, against zero out of nine for the z-score. The two misses are worth understanding rather than glossing over: they fall on days whose seasonal expectation was already very low (a weekend in the trough), so a count of zero was not far enough below the floor to clear the limit. That is a genuine limitation of a purely statistical detector, and it is why a zero-count rule and an anomaly detector are complementary rather than redundant.</p>
+
+<p>Finally, the package draws the whole thing for you.</p>
+
+<div class="webr-container" data-block-title="Plot the flagged anomalies with their bands">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the flagged anomalies with their bands</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot_anomalies(lub_rec, time_recomposed = TRUE, alpha_dots = 0.4) +
+  ggplot2::labs(title = &quot;lubridate daily CRAN downloads, anomalies flagged&quot;,
+                x = NULL, y = &quot;downloads&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><em>Figure 5: The grey band is the recomposed normal range, which widens and narrows with the weekly cycle. Red dots are the flagged days.</em></p>
+
+<p><code>time_recomposed = TRUE</code> draws the grey band from <code>recomposed_l1</code> and <code>recomposed_l2</code>. The band narrows at weekends and widens midweek, and it drifts upward as the trend grows. That moving band is the visual version of everything this section has covered.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>anomalize needs a data frame with a date column, not a <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">ts object</a>.</strong> If your data is a <code>ts</code>, convert it first with something like <code>tibble(date = ..., value = as.numeric(my_ts))</code>. Passing a <code>ts</code> straight in will fail, because the pipeline reads the date column to work out the frequency.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The IQR limits come from the remainder's own quartiles. Compute the 25th and 75th percentiles of <code>lub_dec$remainder</code> and the distance between them, then compare that distance to the limits of -3,323 and 3,310 you saw above.</p>
+<div class="webr-container" data-block-title="Your turn: compute the remainder quartiles and IQR">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute the remainder quartiles and IQR</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Get the 25th and 75th percentiles of the remainder, then their difference.
+# Hint: quantile(x, c(0.25, 0.75)) and diff()
+
+ex_iqr &lt;- quantile(lub_dec$remainder, c(0.25, 0.75))
+round(ex_iqr)
+round(as.numeric(diff(ex_iqr)))
+
+# Expected: quartiles near -480 and 467, with a gap near 948</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Remainder quartiles and IQR solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Remainder quartiles and IQR solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iqr &lt;- quantile(lub_dec$remainder, c(0.25, 0.75))
+round(ex_iqr)
+#&gt;  25%  75% 
+#&gt; -480  467 
+round(as.numeric(diff(ex_iqr)))
+#&gt; [1] 948</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The middle half of the remainders spans just 948 units, from -480 to 467, yet the limits sit out at roughly plus and minus 3,320. That is about 3.5 IQRs on either side, which is where <code>alpha</code> comes in: <code>anomalize</code> scales the fence by <code>0.15 / alpha</code>, so <code>alpha = 0.05</code> gives a factor of 3. Two useful facts fall out of this. The limits depend only on the <em>middle</em> of the distribution, so a handful of huge outliers cannot drag them outward, and <code>alpha</code> is a direct multiplier on the fence width rather than a p-value.</p>
+
+</details>
+</section>
+
+<h2>When should you use GESD instead of IQR?</h2>
+
+<p><code>anomalize()</code> accepts a second method, <code>&quot;gesd&quot;</code>, and the choice between the two is the most consequential tuning decision in the pipeline. Both answer the same question, "which remainders are too far out?", but they go about it in opposite ways.</p>
+
+<p><strong>IQR computes its limits once.</strong> It reads the quartiles of all 425 remainders, sets a single fence from them, then applies that fence to every row. Fast, and completely deterministic.</p>
+
+<p><strong>GESD works iteratively.</strong> It finds the most extreme remainder, tests whether it is more extreme than you would expect from that many draws of a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>, removes it, recomputes the mean and standard deviation without it, and repeats. GESD stands for Generalised Extreme Studentised Deviate, and it is the test Twitter's anomaly-detection work popularised.</p>
+
+<p>That iteration solves a specific problem called masking. If your series has six catastrophic days, those six inflate the standard deviation so much that a mildly bad seventh day looks perfectly normal by comparison. The big outliers <em>mask</em> the smaller ones. GESD removes them one at a time, so the standard deviation shrinks as it goes and the smaller offenders become visible.</p>
+
+<div class="webr-container" data-block-title="Detect the same series with GESD">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect the same series with GESD</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lub_gesd &lt;- lub_dec |&gt;
+  anomalize(remainder, method = &quot;gesd&quot;, alpha = 0.05, max_anoms = 0.2) |&gt;
+  time_recompose()
+
+lub_gesd |&gt; count(anomaly)
+#&gt; # A time tibble: 2 × 2
+#&gt; # Index:         date
+#&gt;   anomaly     n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 No        395
+#&gt; 2 Yes        30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirty flagged instead of nineteen, on identical input. The obvious question is whether GESD found different days or simply more of them.</p>
+
+<div class="webr-container" data-block-title="Compare which days each method flagged">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare which days each method flagged</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iqr_dates  &lt;- lub_rec$date[lub_rec$anomaly == &quot;Yes&quot;]
+gesd_dates &lt;- lub_gesd$date[lub_gesd$anomaly == &quot;Yes&quot;]
+
+length(intersect(iqr_dates, gesd_dates))   # days both methods agree on
+#&gt; [1] 19
+
+setdiff(gesd_dates, iqr_dates)             # days only GESD found
+#&gt;  [1] &quot;2017-04-26&quot; &quot;2017-04-27&quot; &quot;2017-04-29&quot; &quot;2017-05-02&quot; &quot;2017-09-11&quot; &quot;2017-11-06&quot; &quot;2017-12-03&quot;
+#&gt;  [8] &quot;2017-12-25&quot; &quot;2017-12-26&quot; &quot;2017-12-29&quot; &quot;2018-02-28&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intersection is 19, which is every single day IQR found. <strong>GESD's set strictly contains IQR's set</strong>, and adds 11 more. This is masking made visible: those 11 days were always mildly unusual, but the huge zero-download days were inflating the spread enough to hide them. Peel the big ones off and the moderate ones surface.</p>
+
+<p>Scan the extra dates and they make sense. 2017-12-25, 2017-12-26 and 2017-12-29 are Christmas week. 2017-04-26, 04-27 and 04-29 cluster in a single week. These are real events of a smaller size, not random noise.</p>
+
+<p>Here is how the two compare in practice.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>IQR</th>
+<th>GESD</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>How limits are set</td>
+<td>Once, from the quartiles</td>
+<td>Iteratively, one point removed per round</td>
+</tr>
+<tr>
+<td>Resists masking</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Speed</td>
+<td>Very fast</td>
+<td>Slower, but fine to a few thousand points</td>
+</tr>
+<tr>
+<td>Typical result</td>
+<td>Fewer, more extreme flags</td>
+<td>More flags, including moderate ones</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Monitoring at scale, alerting on the worst</td>
+<td>Investigation, forensic passes, clustered events</td>
+</tr>
+</tbody>
+</table>
+
+<p>Whichever method you pick, <code>alpha</code> controls how permissive it is. Sweeping it makes the sensitivity concrete.</p>
+
+<div class="webr-container" data-block-title="Sweep alpha and count the anomalies">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep alpha and count the anomalies</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">for (a in c(0.025, 0.05, 0.10, 0.20)) {
+  flagged &lt;- anomalize(lub_dec, remainder, method = &quot;iqr&quot;, alpha = a, max_anoms = 0.2)
+  cat(&quot;alpha =&quot;, format(a, nsmall = 3), &quot;-&gt; anomalies:&quot;, sum(flagged$anomaly == &quot;Yes&quot;), &quot;\n&quot;)
+}
+#&gt; alpha = 0.025 -&gt; anomalies: 4 
+#&gt; alpha = 0.050 -&gt; anomalies: 19 
+#&gt; alpha = 0.100 -&gt; anomalies: 44 
+#&gt; alpha = 0.200 -&gt; anomalies: 84 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The loop reruns <code>anomalize()</code> four times and counts the flags. Halving <code>alpha</code> from 0.05 to 0.025 cuts the count from 19 to 4; doubling it to 0.10 raises it to 44. <strong><code>alpha</code> moves the answer by an order of magnitude across a perfectly reasonable range</strong>, which means it is not a setting you can leave to chance.</p>
+
+<p>The mechanism is the formula from the last exercise: the IQR fence is scaled by <code>0.15 / alpha</code>. At <code>alpha = 0.05</code> that is a factor of 3, and at <code>alpha = 0.20</code> it drops to 0.75, a fence narrower than the interquartile range itself.</p>
+
+<p>One thing to keep straight: <code>alpha</code> does not mean the same thing in both methods. Under IQR it is only that multiplier, with no probability attached to it. Under GESD it is a real <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">significance level</a>, the false-positive rate the test accepts on each round of its search. The same number therefore is not directly comparable across the two, so tune it separately per method rather than carrying a value across.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune alpha against a labelled week, not by eye.</strong> Take a stretch of history where you know what actually happened, from incident tickets or a release log, and pick the <code>alpha</code> that recovers those events without burying you in extras. Choosing it by "that looks about right" bakes your expectations into the detector.</div></div>
+
+<p>The other dial is <code>max_anoms</code>, and it works differently from <code>alpha</code> in a way that catches people out.</p>
+
+<div class="webr-container" data-block-title="See how max_anoms caps the result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See how max_anoms caps the result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">for (m in c(0.01, 0.05, 0.20)) {
+  flagged &lt;- anomalize(lub_dec, remainder, method = &quot;iqr&quot;, alpha = 0.20, max_anoms = m)
+  cat(&quot;max_anoms =&quot;, m, &quot;-&gt; anomalies:&quot;, sum(flagged$anomaly == &quot;Yes&quot;), &quot;\n&quot;)
+}
+#&gt; max_anoms = 0.01 -&gt; anomalies: 4 
+#&gt; max_anoms = 0.05 -&gt; anomalies: 21 
+#&gt; max_anoms = 0.2 -&gt; anomalies: 84 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>alpha</code> is held at 0.20 throughout, so the statistical test is identical in all three runs and would flag 84 days if left alone. Only <code>max_anoms</code> changes. At <code>0.01</code> you get 4 flags, which is 1 percent of 425. At <code>0.05</code> you get 21, which is 5 percent.</p>
+
+<p><code>max_anoms</code> is not a test. It is a hard ceiling expressed as a fraction of the series, and it keeps only the most extreme candidates up to that count.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>max_anoms silently truncates.</strong> Nothing warns you that 80 days met the statistical criterion and were dropped to honour the cap. If your flagged count lands suspiciously close to <code>max_anoms</code> times the row count, that is the ceiling talking, not the data. Raise it and rerun before you trust the number.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run GESD with a much stricter <code>alpha</code> of 0.01 and see whether it still beats IQR's 19. This tells you whether GESD's extra finds come from being iterative or just from being permissive.</p>
+<div class="webr-container" data-block-title="Your turn: run GESD with a strict alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: run GESD with a strict alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use method = &quot;gesd&quot; with alpha = 0.01, then count the flagged rows.
+
+ex_gesd_tight &lt;- anomalize(lub_dec, remainder, method = &quot;gesd&quot;, alpha = 0.05, max_anoms = 0.2)
+sum(ex_gesd_tight$anomaly == &quot;Yes&quot;)
+
+# Expected: a number in the twenties, still above IQR's 19 at the looser alpha of 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Strict GESD solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strict GESD solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gesd_tight &lt;- anomalize(lub_dec, remainder, method = &quot;gesd&quot;, alpha = 0.01, max_anoms = 0.2)
+sum(ex_gesd_tight$anomaly == &quot;Yes&quot;)
+#&gt; [1] 27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even at <code>alpha = 0.01</code>, five times stricter than the IQR run, GESD still flags 27 days against IQR's 19. So the extra detections are not the result of a looser threshold, they come from the iterative procedure genuinely un-masking days that IQR's single fixed fence could never reach. If you need to be confident you have not missed a moderate event, that is a real argument for GESD, and it costs you only compute time.</p>
+
+</details>
+</section>
+
+<h2>How do you scan many series for anomalies at once?</h2>
+
+<p>Everything so far has run on one series. Real monitoring is never one series. It is every product line, every region, every endpoint, and if your detector needs a <code>for</code> loop and a list of results to stitch back together, you will not run it daily.</p>
+
+<p>The pipeline handles this without any new functions, because the verbs respect <code>dplyr</code> grouping. <code>tidyverse_cran_downloads</code> arrives already grouped by package, so all 15 series can go through in a single pass.</p>
+
+<div class="webr-container" data-block-title="Detect anomalies across all 15 packages at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect anomalies across all 15 packages at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_anom &lt;- tidyverse_cran_downloads |&gt;
+  time_decompose(count, method = &quot;stl&quot;) |&gt;
+  anomalize(remainder, method = &quot;iqr&quot;) |&gt;
+  time_recompose()
+
+all_anom |&gt;
+  filter(anomaly == &quot;Yes&quot;) |&gt;
+  count(package, name = &quot;anomalies&quot;) |&gt;
+  arrange(desc(anomalies))
+#&gt; # A tibble: 15 × 2
+#&gt; # Groups:   package [15]
+#&gt;    package   anomalies
+#&gt;    &lt;chr&gt;         &lt;int&gt;
+#&gt;  1 broom            34
+#&gt;  2 stringr          29
+#&gt;  3 knitr            22
+#&gt;  4 tidyr            22
+#&gt;  5 tidyverse        22
+#&gt;  6 ggplot2          21
+#&gt;  7 lubridate        19
+#&gt;  8 dplyr            16
+#&gt;  9 readr            13
+#&gt; 10 tibble           13
+#&gt; 11 tidytext         13
+#&gt; 12 purrr            12
+#&gt; 13 tidyquant        12
+#&gt; 14 forcats           7
+#&gt; 15 glue              3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is 6,375 rows across 15 series, decomposed, tested and recomposed by the same three lines you ran on one package, in about a second. Each package gets its own seasonal pattern, its own trend and its own limits, because the grouping is respected at every step. <code>lubridate</code> still shows the 19 anomalies you found earlier, which confirms the grouped run and the single run agree.</p>
+
+<p>The ranking is the actual deliverable. <code>broom</code> has 34 anomalous days and <code>glue</code> has 3, so if you can only investigate two series this morning, you now know which two.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Rank by anomaly count to triage a fleet of series.</strong> Run the pipeline as a scheduled job, then sort by count and work down the list. It converts "we have 400 dashboards" into "these three need a human today", which is the only form in which anomaly detection actually gets used.</div></div>
+
+<p>Plotting a grouped result faceted by series lets you eyeball a whole fleet at once. Fifteen panels is too many to read, so take four.</p>
+
+<div class="webr-container" data-block-title="Plot anomalies for four packages side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot anomalies for four packages side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">four &lt;- tidyverse_cran_downloads |&gt;
+  filter(package %in% c(&quot;dplyr&quot;, &quot;ggplot2&quot;, &quot;tidyr&quot;, &quot;purrr&quot;))
+
+four_anom &lt;- four |&gt;
+  time_decompose(count, method = &quot;stl&quot;) |&gt;
+  anomalize(remainder, method = &quot;iqr&quot;) |&gt;
+  time_recompose()
+
+plot_anomalies(four_anom, time_recomposed = TRUE, ncol = 2, alpha_dots = 0.4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><em>Figure 6: Four packages, one pipeline, one chart. Each panel has its own band because each series was decomposed separately.</em></p>
+
+<p>Each panel carries its own grey band, sized to that package's own weekly pattern and trend. A shared y-axis and a shared threshold would have made <code>ggplot2</code>, the busiest of the four, swamp the others entirely.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Anomalies come in two flavours: counts above the ceiling and counts below the floor. Using <code>four_anom</code>, count only the <strong>spikes</strong> for each package, meaning rows where <code>observed</code> is above <code>recomposed_l2</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count spikes per package">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count spikes per package</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Keep only flagged rows where observed is ABOVE the upper bound, then count per package.
+# Hint: filter(anomaly == &quot;Yes&quot;, observed &gt; recomposed_l2) then count(package, ...)
+
+four_anom |&gt;
+  filter(anomaly == &quot;Yes&quot;) |&gt;
+  count(package, name = &quot;spikes&quot;)
+
+# Expected: four small numbers, all well below each package's total anomaly count</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Spikes per package solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spikes per package solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">four_anom |&gt;
+  filter(anomaly == &quot;Yes&quot;, observed &gt; recomposed_l2) |&gt;
+  count(package, name = &quot;spikes&quot;)
+#&gt; # A tibble: 4 × 2
+#&gt; # Groups:   package [4]
+#&gt;   package spikes
+#&gt;   &lt;chr&gt;    &lt;int&gt;
+#&gt; 1 dplyr        5
+#&gt; 2 ggplot2      1
+#&gt; 3 purrr        3
+#&gt; 4 tidyr        7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Compare these to the totals from the grouped run: <code>ggplot2</code> had 21 anomalies but only 1 is a spike, so 20 are dips. <code>tidyr</code> had 22 with 7 spikes. Across all four packages, dips outnumber spikes heavily, which fits CRAN download data where the failure mode is a mirror going offline rather than a sudden surge. Splitting flags by direction takes about ten seconds and usually tells you more about root cause than the raw count does, so make it a habit.</p>
+
+</details>
+</section>
+
+<h2>Which engine should you choose for your problem?</h2>
+
+<p>You now have two working detectors, so the question is when to reach for which. The honest way to answer it is to show each one failing at the other's job.</p>
+
+<p><img src="screenshots/Anomaly-Detection-in-Time-Series-in-R-method-choice.webp" alt="Decision flowchart: name and repair one series leads to tsoutliers tso, flag and monitor many series leads to the anomalize pipeline" class="img-responsive img-zoomable" loading="lazy" width="980" height="1234" /></p>
+
+<p><em>Figure 7: Choosing between tso() and the anomalize pipeline.</em></p>
+
+<p>Start with the failure that surprises people. Take the Nile, the series whose level shift <code>tso()</code> identified with a t-statistic of -9.05, and push it through the anomalize pipeline.</p>
+
+<div class="webr-container" data-block-title="Run the Nile through the anomalize pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the Nile through the anomalize pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_tbl &lt;- tibble::tibble(date = as.Date(paste0(1871:1970, &quot;-01-01&quot;)),
+                           flow = as.numeric(Nile))
+
+nile_anom &lt;- nile_tbl |&gt;
+  time_decompose(flow, method = &quot;stl&quot;, frequency = &quot;auto&quot;, trend = &quot;auto&quot;) |&gt;
+  anomalize(remainder, method = &quot;iqr&quot;) |&gt;
+  time_recompose()
+
+nile_anom |&gt; count(anomaly)
+#&gt; # A time tibble: 1 × 2
+#&gt; # Index:         date
+#&gt;   anomaly     n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 No        100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One row in the output, and it says <code>No</code> a hundred times. <strong>The anomalize pipeline finds nothing in the Nile.</strong> Not a weak signal, not a marginal call: zero flagged points in the series containing one of the most studied structural breaks in statistics.</p>
+
+<p>This is not a bug, and understanding why is the most useful idea in this whole tutorial. <code>time_decompose()</code> splits the series into season, trend and remainder. A level shift is, mathematically, a change in the level, so <strong>STL absorbs it into the <a class="auto-link" href="Holts-Method-in-R.html" title="Holt's Method in R: Forecast Trend Without Seasonality">trend component</a></strong>. The trend line simply steps down in 1899 and carries on. By the time <code>anomalize()</code> looks at the remainder, the shift has already been explained away, and what is left really is unremarkable noise.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A level shift is a trend change, so decomposition hides it by design.</strong> Anything the decomposition can explain will never reach the remainder, and anything that never reaches the remainder can never be flagged. <code>tso()</code> finds it because it tests for a step explicitly, as a named hypothesis, rather than looking at leftovers.</div></div>
+
+<p>Now the reverse failure. <code>tso()</code> refits an ARIMA model on every iteration of its loop, so cost grows quickly with series length and with the number of <code>types</code> you search. On 100 annual points it is instant. On 6,375 daily rows across 15 groups, where the pipeline finished in about a second, <code>tso()</code> would need a separate call per series and a noticeable wait for each. It also returns <code>ind</code>, a position, so you have to map results back to dates yourself.</p>
+
+<p>Here is the decision, laid out.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th><code>tsoutliers::tso()</code></th>
+<th><code>anomalize</code> pipeline</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input</td>
+<td>A <code>ts</code> object</td>
+<td>A data frame with a date column</td>
+</tr>
+<tr>
+<td>Question it answers</td>
+<td>What <em>kind</em> of event was this, and how big?</td>
+<td>Which rows are unusual right now?</td>
+</tr>
+<tr>
+<td>Names the shape</td>
+<td>Yes: AO, LS, TC, IO, SLS</td>
+<td>No, just Yes or No</td>
+</tr>
+<tr>
+<td>Finds level shifts</td>
+<td>Yes, that is its speciality</td>
+<td>No, decomposition absorbs them</td>
+</tr>
+<tr>
+<td>Gives a repaired series</td>
+<td>Yes, via <code>yadj</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td>Many series at once</td>
+<td>One call per series</td>
+<td>Native, respects <code>group_by()</code></td>
+</tr>
+<tr>
+<td>Comfortable size</td>
+<td>Up to a few hundred points</td>
+<td>Thousands of rows across many groups</td>
+</tr>
+<tr>
+<td>Main dial</td>
+<td><code>cval</code></td>
+<td><code>alpha</code> and <code>max_anoms</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The practical rule is short. <strong>Use <code>anomalize</code> to find out that something happened, and <code>tso()</code> to find out what it was.</strong> They are complementary, not competing, and the Complete Example below runs them exactly that way.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A third option worth knowing about.</strong> The <code>timetk</code> package offers <code>plot_anomaly_diagnostics()</code> and <code>tk_anomaly_diagnostics()</code>, which wrap the same decompose-then-IQR logic with a slightly different interface. If your project already leans on <code>timetk</code>, those functions save you a dependency. The concepts in this tutorial transfer directly.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the null result above rather than taking it on trust. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> <code>nile_anom</code> to the flagged rows and look at what comes back.</p>
+<div class="webr-container" data-block-title="Your turn: list the Nile anomalies anomalize found">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: list the Nile anomalies anomalize found</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Filter nile_anom to anomaly == &quot;Yes&quot; and select date and observed.
+
+nile_anom |&gt; select(date, observed)
+
+# Expected: a tibble with 0 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Empty flagged set solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Empty flagged set solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_anom |&gt; filter(anomaly == &quot;Yes&quot;) |&gt; select(date, observed)
+#&gt; # A time tibble: 0 × 2
+#&gt; # Index:         date
+#&gt; # ℹ 2 variables: date &lt;date&gt;, observed &lt;dbl&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A tibble with 0 rows, and R helpfully lists the columns that would have been there. This is the output worth remembering, because it is what a silent failure looks like in practice. Nothing errored, nothing warned, and a pipeline that returns an empty set reads exactly like "all clear". Whenever a detector reports zero anomalies on data you believe is eventful, check whether the shape you care about is one the method can represent at all.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: an end-to-end anomaly audit</h2>
+
+<p>Time to put both engines together on a series we have not touched yet. <code>broom</code> had the most anomalies of the 15 packages, 34 of them, so it makes a good subject. The workflow is the one you would run in production: screen broadly, classify narrowly, then repair.</p>
+
+<p><strong>Stage 1: screen the whole series with anomalize.</strong></p>
+
+<div class="webr-container" data-block-title="Screen the broom series for anomalies">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Screen the broom series for anomalies</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">broom_dl &lt;- tidyverse_cran_downloads |&gt;
+  filter(package == &quot;broom&quot;) |&gt;
+  ungroup() |&gt;
+  select(date, count)
+
+broom_flagged &lt;- broom_dl |&gt;
+  time_decompose(count, method = &quot;stl&quot;) |&gt;
+  anomalize(remainder, method = &quot;iqr&quot;, alpha = 0.05, max_anoms = 0.2) |&gt;
+  time_recompose()
+
+broom_flagged |&gt; count(anomaly)
+#&gt; # A time tibble: 2 × 2
+#&gt; # Index:         date
+#&gt;   anomaly     n
+#&gt;   &lt;chr&gt;   &lt;int&gt;
+#&gt; 1 No        391
+#&gt; 2 Yes        34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirty-four flagged days out of 425, exactly matching what the grouped run reported earlier. That is our candidate list.</p>
+
+<p><strong>Stage 2: split the candidates by direction and timing.</strong></p>
+
+<div class="webr-container" data-block-title="Classify the flagged days by direction and weekday">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify the flagged days by direction and weekday</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">broom_events &lt;- broom_flagged |&gt;
+  filter(anomaly == &quot;Yes&quot;) |&gt;
+  mutate(direction = ifelse(observed &lt; recomposed_l1, &quot;dip&quot;, &quot;spike&quot;),
+         day       = weekdays(date))
+
+broom_events |&gt; count(direction)
+#&gt; # A time tibble: 2 × 2
+#&gt; # Index:         date
+#&gt;   direction     n
+#&gt;   &lt;chr&gt;     &lt;int&gt;
+#&gt; 1 dip          17
+#&gt; 2 spike        17
+
+broom_events |&gt; filter(direction == &quot;dip&quot;) |&gt; count(day, sort = TRUE)
+#&gt; # A time tibble: 7 × 2
+#&gt; # Index:         date
+#&gt;   day           n
+#&gt;   &lt;chr&gt;     &lt;int&gt;
+#&gt; 1 Friday        5
+#&gt; 2 Saturday      4
+#&gt; 3 Monday        2
+#&gt; 4 Sunday        2
+#&gt; 5 Wednesday     2
+#&gt; 6 Thursday      1
+#&gt; 7 Tuesday       1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A clean 17-17 split between dips and spikes. The weekday breakdown of the dips is the interesting part: 9 of the 17 land on a Friday or Saturday. Remember that the pipeline has already removed the weekly season, so this is not "weekends are quiet". It is a genuine tendency for whatever breaks to break at the end of the week, which is precisely the kind of lead an operations team can act on.</p>
+
+<p><strong>Stage 3: look at the worst offenders.</strong></p>
+
+<div class="webr-container" data-block-title="Find the three deepest dips">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the three deepest dips</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">broom_events |&gt;
+  filter(direction == &quot;dip&quot;) |&gt;
+  arrange(observed) |&gt;
+  head(3) |&gt;
+  select(date, observed, recomposed_l1) |&gt;
+  mutate(across(where(is.numeric), round))
+#&gt; # A time tibble: 3 × 3
+#&gt; # Index:         date
+#&gt;   date       observed recomposed_l1
+#&gt;   &lt;date&gt;        &lt;dbl&gt;         &lt;dbl&gt;
+#&gt; 1 2018-01-05        0          2843
+#&gt; 2 2018-02-09        0          3537
+#&gt; 3 2018-02-23        0          3827</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three are zero-count days, and all three had a floor of at least 2,843. Two of them, 2018-02-09 and 2018-02-23, are exactly two weeks apart. That pattern is worth naming properly, which is Stage 4.</p>
+
+<p><strong>Stage 4: classify the shape with tso().</strong></p>
+
+<div class="webr-container" data-block-title="Name the shape of the February events">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Name the shape of the February events</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">win &lt;- broom_dl |&gt;
+  filter(date &gt;= as.Date(&quot;2018-01-15&quot;), date &lt;= as.Date(&quot;2018-03-01&quot;))
+
+nrow(win)
+#&gt; [1] 46
+
+win_ts  &lt;- ts(win$count, frequency = 7)
+win_fit &lt;- tso(win_ts, types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;))
+
+data.frame(date   = win$date[win_fit$outliers$ind],
+           type   = win_fit$outliers$type,
+           effect = round(win_fit$outliers$coefhat),
+           tstat  = round(win_fit$outliers$tstat, 2))
+#&gt;         date type effect  tstat
+#&gt; 1 2018-02-09   TC  -4664 -10.54
+#&gt; 2 2018-02-23   TC  -4440  -7.47</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things are happening in that block, so take them one at a time.</p>
+
+<p>We cut a 46-day window around the events, because <code>tso()</code> is happiest on short series and we already know from Stage 3 where to look. <code>ts(win$count, frequency = 7)</code> wraps the counts as a weekly-seasonal time series, which is what <code>tso()</code> expects. Then, because <code>tso()</code> reports <code>ind</code> as a position rather than a date, we index back into <code>win$date</code> to recover real calendar dates, which is the small piece of glue that makes the output shareable.</p>
+
+<p>The verdict: both events are <strong>temporary changes</strong>, not additive outliers. That distinction is the payoff of the whole exercise. An additive outlier would mean one broken day followed by an immediate return to normal. A TC means the effect <strong>decayed back over several days</strong>, so downloads did not simply resume the next morning, they climbed back gradually. The effect sizes, -4,664 and -4,440, say each event cost about 4,500 downloads at its worst.</p>
+
+<p>Two temporary changes of near-identical size, exactly 14 days apart, is the signature of a recurring biweekly failure rather than two unrelated incidents. Two events are not proof of a schedule, but the pattern is specific enough to take to whoever runs the mirror and check against their job logs.</p>
+
+<p><strong>Stage 5: recover what the numbers should have been.</strong></p>
+
+<div class="webr-container" data-block-title="Read the repaired values around the first event">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the repaired values around the first event</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hit &lt;- win_fit$outliers$ind[1]
+
+data.frame(date     = win$date[hit:(hit + 4)],
+           observed = win$count[hit:(hit + 4)],
+           repaired = round(as.numeric(win_fit$yadj)[hit:(hit + 4)]))
+#&gt;         date observed repaired
+#&gt; 1 2018-02-09        0     4664
+#&gt; 2 2018-02-10        0     3265
+#&gt; 3 2018-02-11     2537     4823
+#&gt; 4 2018-02-12     5374     6974
+#&gt; 5 2018-02-13     5920     7040</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>yadj</code> estimates what each day would have been without the event. The gap closes as you read down: 4,664 lost on the 9th, 3,265 on the 10th, 2,286 on the 11th, and by the 13th the series is nearly back. That decay is the "temporary" in temporary change, made concrete.</p>
+
+<p>Add the five gaps and the incident cost roughly 13,000 downloads. That is a number you can take to a status page, and you got there by screening with <code>anomalize</code>, classifying with <code>tso()</code>, and reading the repair off <code>yadj</code>.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each uses <code>my_</code>-prefixed variable names so nothing you built above gets overwritten.</p>
+
+<h3>Exercise 1: Audit a package and split the flags by direction</h3>
+
+<p>Run the full three-verb pipeline on the <code>dplyr</code> download series with <code>method = &quot;iqr&quot;</code> and <code>alpha = 0.05</code>. Report how many days were flagged in total, and how many of those were dips, meaning <code>observed</code> fell below <code>recomposed_l1</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: audit dplyr downloads">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: audit dplyr downloads</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the pipeline for package == &quot;dplyr&quot;, then count total flags and dips.
+# Hint: filter -&gt; ungroup -&gt; select -&gt; time_decompose -&gt; anomalize -&gt; time_recompose
+
+my_dplyr &lt;- tidyverse_cran_downloads
+
+# Write your code below:
+
+# Expected: 16 anomalies in total, of which 11 are dips</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_dplyr &lt;- tidyverse_cran_downloads |&gt;
+  filter(package == &quot;dplyr&quot;) |&gt;
+  ungroup() |&gt;
+  select(date, count) |&gt;
+  time_decompose(count, method = &quot;stl&quot;) |&gt;
+  anomalize(remainder, method = &quot;iqr&quot;, alpha = 0.05) |&gt;
+  time_recompose()
+
+my_dplyr |&gt; filter(anomaly == &quot;Yes&quot;) |&gt; nrow()
+#&gt; [1] 16
+
+my_dplyr |&gt; filter(anomaly == &quot;Yes&quot;, observed &lt; recomposed_l1) |&gt; nrow()
+#&gt; [1] 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sixteen anomalies, eleven of them dips. The 16 matches the grouped run from the multi-series section exactly, which is the check worth making: a single-series pipeline and a grouped one must agree, because the grouping only changes how rows are batched, never how limits are computed. The dip-heavy split, 11 down against 5 up, is the same pattern the four-package exercise showed, and it points at CRAN mirror availability rather than at bursts of interest.</p>
+
+</details>
+
+<h3>Exercise 2: Plant a level shift and recover it</h3>
+
+<p>Simulate a series of 80 points where the first 40 are drawn from a normal distribution with mean 100 and standard deviation 4, and the last 40 from mean 128 with the same standard deviation. Use <code>set.seed(2026)</code>. Run <code>tso()</code> on it, then check the estimated shift size against the difference between the two halves' actual means.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: recover a planted level shift">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: recover a planted level shift</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Build the series with rnorm() and wrap it with ts(..., frequency = 1)
+# 2. Run tso() with types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;) and print the outliers
+# 3. Compare coefhat to the difference between the two segment means
+
+set.seed(2026)
+
+# Write your code below:
+
+# Expected: one LS at position 41, coefhat near 27.6, segment means near 100 and 127</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+my_series &lt;- ts(c(rnorm(40, 100, 4), rnorm(40, 128, 4)), frequency = 1)
+
+my_fit &lt;- tso(my_series, types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;))
+my_fit$outliers
+#&gt;   type ind time  coefhat    tstat
+#&gt; 1   LS  41   41 27.64748 32.83734
+
+round(mean(window(my_series, start = 1,  end = 40)))
+#&gt; [1] 100
+round(mean(window(my_series, start = 41, end = 80)))
+#&gt; [1] 127</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tso()</code> recovers the planted shift precisely. It reports a single <code>LS</code> at position 41, which is the exact index where the distribution changed, with a coefficient of 27.65 against a true shift of 28. The segment means, 100 and 127, differ by 27, so the estimate is right to within a fraction of one standard deviation. The t-statistic of 32.8 is enormous because the shift is seven times the noise level. Worth noting what is absent: no spurious additive outliers were reported around the break, even though <code>types</code> included them, because the loop absorbed the step first and left nothing for the other shapes to explain.</p>
+
+</details>
+
+<h3>Exercise 3: Compare the two detection methods on a new series</h3>
+
+<p>Run the pipeline on the <code>tidyquant</code> series using <code>method = &quot;gesd&quot;</code> with <code>alpha = 0.05</code>, and report how many days were flagged and how many of those were spikes (<code>observed</code> above <code>recomposed_l2</code>). Then build a small data frame comparing IQR and GESD flag counts on the <code>lub_dec</code> object from earlier.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: compare IQR and GESD">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: compare IQR and GESD</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Part A: tidyquant through the pipeline with GESD, count flags and spikes.
+# Part B: a two-row data frame of method vs flagged count, using lub_dec.
+# Hint for B: sum(anomalize(lub_dec, remainder, method = &quot;iqr&quot;)$anomaly == &quot;Yes&quot;)
+
+# Write your code below:
+
+# Expected: 20 flags of which 15 are spikes; then iqr 19 vs gesd 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_tq &lt;- tidyverse_cran_downloads |&gt;
+  filter(package == &quot;tidyquant&quot;) |&gt;
+  ungroup() |&gt;
+  select(date, count) |&gt;
+  time_decompose(count, method = &quot;stl&quot;) |&gt;
+  anomalize(remainder, method = &quot;gesd&quot;, alpha = 0.05) |&gt;
+  time_recompose()
+
+my_tq |&gt; filter(anomaly == &quot;Yes&quot;) |&gt; nrow()
+#&gt; [1] 20
+
+my_tq |&gt; filter(anomaly == &quot;Yes&quot;, observed &gt; recomposed_l2) |&gt; nrow()
+#&gt; [1] 15
+
+my_compare &lt;- data.frame(
+  method  = c(&quot;iqr&quot;, &quot;gesd&quot;),
+  flagged = c(sum(anomalize(lub_dec, remainder, method = &quot;iqr&quot;)$anomaly  == &quot;Yes&quot;),
+              sum(anomalize(lub_dec, remainder, method = &quot;gesd&quot;)$anomaly == &quot;Yes&quot;))
+)
+my_compare
+#&gt;   method flagged
+#&gt; 1    iqr      19
+#&gt; 2   gesd      30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two results worth sitting with. First, <code>tidyquant</code> breaks the pattern every other series showed: 15 of its 20 anomalies are spikes rather than dips. <code>tidyquant</code> is a finance package, so bursts of interest around market events are a plausible driver, and it is a reminder that "anomalies are usually dips" was a fact about CRAN infrastructure, not a law. Second, the comparison confirms the section-6 finding in one table: GESD flags 30 where IQR flags 19 on identical input. Running both and looking at the difference costs almost nothing and tells you how much masking your series has.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is the difference between an outlier and an anomaly in a time series?</h3>
+
+<p>In everyday use they are the same word. In time series work the useful distinction is that an outlier is a value far from the rest of the data, while an anomaly is a value far from what the series predicted for that moment. The Nile shows why that matters: its level shift is a genuine anomaly and contains no outliers at all, which is why a z-score reported zero findings on it.</p>
+
+<h3>Should I remove anomalies from my data before forecasting?</h3>
+
+<p>It depends entirely on the shape. Remove an additive outlier, because a mistyped number or a logging glitch carries no information about the future. Never remove a level shift, because it is real and permanent, and deleting it teaches your model to forecast a world that no longer exists. Use <code>tso()</code> to name the shape before you decide, and remember that <code>yadj</code> gives you the repaired series only when repair is the right call.</p>
+
+<h3>Does anomalize work on a ts object?</h3>
+
+<p>No. <code>time_decompose()</code> reads a date or date-time column to work out the frequency and trend windows, so it needs a data frame, not a <code>ts</code>. Convert first with <code>tibble(date = your_dates, value = as.numeric(your_ts))</code>. Going the other way, <code>tso()</code> needs a <code>ts</code> object, which you build with <code>ts(df$value, frequency = 7)</code> for daily data with a weekly cycle or <code>frequency = 12</code> for monthly data.</p>
+
+<h3>How much data do I need before anomaly detection is reliable?</h3>
+
+<p>For <code>anomalize</code> you want at least two full seasonal cycles so STL can separate season from trend, which means about two weeks for daily data with a weekly cycle and about two years for monthly data. For <code>tso()</code> the constraint is different: the default <code>cval</code> is derived from the series length, and with fewer than about 50 points the procedure has little power, so genuine anomalies go unreported.</p>
+
+<h3>Why does anomalize flag more days than I expected?</h3>
+
+<p>Check <code>alpha</code> first. Under IQR it is a direct multiplier on the fence width rather than a p-value, with a factor of <code>0.15 / alpha</code>; under GESD it is a genuine significance level, so the same value behaves differently in the two methods. Then check whether your flagged count is sitting at exactly <code>max_anoms</code> times your row count, which means the cap truncated the result rather than the data producing it. Finally, GESD normally flags more than IQR on the same series, so switching methods alone can change the number substantially.</p>
+
+<h3>Can I detect anomalies in real time as new data arrives?</h3>
+
+<p>Both tools here are retrospective: they look at a whole series at once and decide which points were unusual. For streaming use, the standard pattern is to rerun the pipeline on a rolling window (say the last 90 days) each time a batch arrives, and treat only the newest rows' flags as alerts. Be aware that a point near the end of a window has less context on one side, so it is judged less reliably than a point in the middle.</p>
+
+<h3>Is anomalize still maintained?</h3>
+
+<p>The package is on CRAN and works, and the same decompose-then-test approach now also ships inside <code>timetk</code> as <code>tk_anomaly_diagnostics()</code> and <code>plot_anomaly_diagnostics()</code>. If you are starting a new project that already uses <code>timetk</code>, those functions save you a dependency. Everything in this tutorial about decomposition, IQR, GESD and <code>alpha</code> transfers to them directly.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Anomaly-Detection-in-Time-Series-in-R-overview-mindmap.webp" alt="Mindmap of time series anomaly detection in R covering why z-scores fail, anomaly shapes, tsoutliers and anomalize" class="img-responsive img-zoomable" loading="lazy" width="1806" height="856" /></p>
+
+<p><em>Figure 8: Everything this tutorial covered, in one map.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Tool</th>
+<th>The line of code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Is a z-score enough?</td>
+<td>No, it ignores trend and season</td>
+<td><code>(x - mean(x)) / sd(x)</code> finds 0 anomalies in the Nile</td>
+</tr>
+<tr>
+<td>What shape is this anomaly?</td>
+<td><code>tsoutliers</code></td>
+<td><code>tso(y, types = c(&quot;AO&quot;, &quot;LS&quot;, &quot;TC&quot;))</code></td>
+</tr>
+<tr>
+<td>How big was it, in real units?</td>
+<td>The <code>coefhat</code> column</td>
+<td><code>fit$outliers$coefhat</code></td>
+</tr>
+<tr>
+<td>What would the series have been without it?</td>
+<td>The adjusted series</td>
+<td><code>fit$yadj</code></td>
+</tr>
+<tr>
+<td>How sensitive is the search?</td>
+<td>The critical value</td>
+<td><code>tso(y, cval = 2.8)</code></td>
+</tr>
+<tr>
+<td>Which rows of my data frame are unusual?</td>
+<td><code>anomalize</code></td>
+<td><code>time_decompose()</code> then <code>anomalize()</code> then <code>time_recompose()</code></td>
+</tr>
+<tr>
+<td>What counted as normal on that date?</td>
+<td>The recomposed bounds</td>
+<td><code>recomposed_l1</code> and <code>recomposed_l2</code></td>
+</tr>
+<tr>
+<td>Am I missing moderate events?</td>
+<td>Switch methods</td>
+<td><code>anomalize(remainder, method = &quot;gesd&quot;)</code></td>
+</tr>
+<tr>
+<td>How do I loosen or tighten it?</td>
+<td><code>alpha</code>, capped by <code>max_anoms</code></td>
+<td><code>alpha = 0.05</code> gives an IQR factor of 3</td>
+</tr>
+<tr>
+<td>How do I run 400 series?</td>
+<td>Group the data frame</td>
+<td><code>group_by(series)</code> before <code>time_decompose()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The four ideas worth carrying away:</p>
+
+<ol>
+
+<li><strong>Judge each point against its own moment, not the series average.</strong> Both packages do this. It is the entire difference between them and a z-score.</li>
+
+<li><strong>Name the shape before you decide what to do.</strong> A spike gets fixed, a level shift gets modelled, and treating one as the other corrupts your data or your forecast.</li>
+
+<li><strong>A detector only finds shapes it can represent.</strong> anomalize returns zero anomalies for the Nile, silently, because STL folds a level shift into the trend.</li>
+
+<li><strong>Screen with <code>anomalize</code>, classify with <code>tso()</code>.</strong> They answer different questions and the workflow that uses both beats either one alone.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Chen, C. and Liu, L.-M. (1993). <em>Joint Estimation of Model Parameters and Outlier Effects in Time Series</em>. Journal of the American Statistical Association, 88(421), 284-297. The paper <code>tso()</code> implements; the package PDF below restates the procedure and the outlier filters in full. <a href="https://cran.r-project.org/web/packages/tsoutliers/tsoutliers.pdf">Link</a></li>
+
+<li>López-de-Lacalle, J. <em>tsoutliers: Detection of Outliers in Time Series</em>. CRAN package page and reference manual. <a href="https://cran.r-project.org/package=tsoutliers">Link</a></li>
+
+<li><code>tso()</code> function reference, with every argument including <code>types</code>, <code>cval</code>, <code>maxit.iloop</code> and <code>tsmethod</code>. <a href="https://www.rdocumentation.org/packages/tsoutliers/versions/0.6-10/topics/tso">Link</a></li>
+
+<li>Dancho, M. and Vaughan, D. <em>anomalize: Tidy Anomaly Detection</em>. CRAN package page. <a href="https://cran.r-project.org/package=anomalize">Link</a></li>
+
+<li>Business Science. <em>Anomaly Detection Using Tidy and Anomalize</em>, the package announcement explaining the IQR and GESD lineage. <a href="https://www.business-science.io/code-tools/2018/04/08/introducing-anomalize.html">Link</a></li>
+
+<li>Rosner, B. <em>Percentage Points for a Generalized ESD Many-Outlier Procedure</em>. Technometrics, 25(2), 165-172 (1983). The source of the GESD method; the NIST handbook page below works through the test statistic and critical values step by step. <a href="https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm">Link</a></li>
+
+<li>Cleveland, R. B., Cleveland, W. S., McRae, J. E. and Terpenning, I. <em>STL: A Seasonal-Trend Decomposition Procedure Based on Loess</em>. Journal of Official Statistics, 6(1), 3-73 (1990). The decomposition <code>time_decompose()</code> uses. <a href="https://www.scb.se/contentassets/ca21efb41fee47d293bbee5bf7be7fb3/stl-a-seasonal-trend-decomposition-procedure-based-on-loess.pdf">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition. Chapter 3: Time series decomposition. <a href="https://otexts.com/fpp3/decomposition.html">Link</a></li>
+
+<li><code>forecast::tsoutliers()</code> reference, the lightweight interpolation-based detector that inspired the IQR method. <a href="https://pkg.robjhyndman.com/forecast/reference/tsoutliers.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a>: the STL machinery behind <code>time_decompose()</code>, covered properly: how season, trend and remainder are estimated and what the window arguments actually control.</li>
+
+<li><a href="Test-Stationarity-in-R.html">Test Stationarity in R</a>: a level shift is one way a series stops being stationary, and these tests tell you whether the break you found is the only one.</li>
+
+<li><a href="Moving-Averages-in-R.html">Moving Averages in R</a>: the smoothing ideas that trend estimation is built on, and a lighter-weight way to spot a series drifting away from its own recent behaviour.</li>
+
+</ul>
+
