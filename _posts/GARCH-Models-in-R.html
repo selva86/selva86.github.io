@@ -1,0 +1,1972 @@
+---
+title: "GARCH Models in R: Volatility Forecasting with rugarch"
+description: "Fit, interpret and forecast GARCH models in R. Learn what alpha and beta mean, test for ARCH effects, handle leverage, and backtest volatility honestly."
+keywords: "GARCH models in R, rugarch, volatility forecasting, GARCH(1,1), ARCH effects, conditional variance, volatility clustering, gjrGARCH, eGARCH, ugarchfit"
+mathjax: true
+webr: true
+curriculum_id: "FR-adva-4"
+post_type: "C"
+auto_link_terms: "GARCH model|GARCH models in R|GARCH(1,1)|rugarch|volatility forecasting|conditional variance|volatility clustering|ARCH effects|leverage effect|gjrGARCH|eGARCH|ARCH-LM test|volatility persistence"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "GARCH Models"
+sidebar_order: "24"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A GARCH model forecasts how volatile a series will be tomorrow by blending three things: a baseline level of variance, how big yesterday's surprise was, and how volatile yesterday already was. In R you fit one with the rugarch package, and this guide builds the model from scratch first so that none of it stays a black box.</p>
+
+<p>Almost every tutorial on this topic hands you <code>ugarchfit()</code>, prints a wall of numbers, and moves on. You end up with output you cannot interpret. Here we do it the other way round. You will simulate a GARCH process by hand, write its <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">likelihood function</a> yourself, estimate it with <code>optim()</code>, and only then meet the package that does all of it for you. By that point you will be able to read the package output line by line and say what each number is.</p>
+
+<p>Everything uses <code>EuStockMarkets</code>, a dataset that ships with R itself. No downloads, no API keys, and the numbers you see below are the numbers you will get.</p>
+
+<h2>Why do stock returns break ordinary time series models?</h2>
+
+<p>Regression and ARIMA models rest on a quiet assumption: the typical size of the error stays the same throughout the sample. Financial returns violate that assumption more obviously than almost any other data you will meet. Run the block below and look at the shape of the noise, not its direction.</p>
+
+<div class="webr-container" data-block-title="Plot daily DAX returns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot daily DAX returns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Daily closing prices of the German DAX index, built into R
+dax_ret &lt;- as.numeric(diff(log(EuStockMarkets[, &quot;DAX&quot;])) * 100)
+
+plot(dax_ret, type = &quot;l&quot;, col = &quot;steelblue&quot;,
+     main = &quot;Daily DAX log returns (%)&quot;,
+     xlab = &quot;Trading day&quot;, ylab = &quot;Return (%)&quot;)
+
+length(dax_ret)
+#&gt; [1] 1859
+round(head(dax_ret, 5), 3)
+#&gt; [1] -0.933 -0.442  0.900 -0.178 -0.468
+round(c(mean = mean(dax_ret), sd = sd(dax_ret)), 3)
+#&gt;  mean    sd 
+#&gt; 0.065 1.030</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That block turned prices into returns and drew them. The <code>diff(log(...))</code> step converts a price series into log returns, which is the standard way to measure a percentage change, and multiplying by 100 puts everything in percentage points. So a value of <code>-0.933</code> means the index fell about 0.93% that day.</p>
+
+<p>Now look at the picture. The series is not a uniform band of noise. There are long stretches where the line barely moves, and then bursts where it swings far in both directions for weeks at a time. Big moves arrive next to other big moves. Calm days arrive next to other calm days. That bunching is called <strong>volatility <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a></strong>, and it is the single fact this whole article exists to model.</p>
+
+<p>Let us put a number on it by comparing an early calm stretch to a later turbulent one.</p>
+
+<div class="webr-container" data-block-title="Compare calm and turbulent windows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare calm and turbulent windows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">calm  &lt;- dax_ret[1:250]
+rough &lt;- dax_ret[1550:1800]
+
+round(c(calm_sd = sd(calm), rough_sd = sd(rough)), 3)
+#&gt;  calm_sd rough_sd 
+#&gt;    0.930    1.492
+round(sd(rough) / sd(calm), 2)
+#&gt; [1] 1.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both windows come from the same index and both are 250-ish trading days long. Yet a typical day in the second window swings 1.6 times as far as a typical day in the first. A model that assumes one fixed standard deviation for the whole sample has to split the difference, and will be wrong in both periods: too high during the calm stretch, too low during the turbulent one.</p>
+
+<p>Here is the part that surprises most people. The <em>direction</em> of returns really is close to unpredictable, exactly as the efficient-market story claims. It is the <em>size</em> that is predictable. We can show both at once by comparing the autocorrelation of returns with the autocorrelation of squared returns.</p>
+
+<div class="webr-container" data-block-title="Autocorrelation of returns vs squared returns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Autocorrelation of returns vs squared returns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acf_raw &lt;- acf(dax_ret, lag.max = 10, plot = FALSE)
+acf_sq  &lt;- acf(dax_ret^2, lag.max = 10, plot = FALSE)
+
+round(data.frame(lag = 1:10,
+                 returns = as.numeric(acf_raw$acf)[-1],
+                 squared_returns = as.numeric(acf_sq$acf)[-1]), 4)
+#&gt;    lag returns squared_returns
+#&gt; 1    1 -0.0004          0.0789
+#&gt; 2    2 -0.0267          0.1713
+#&gt; 3    3 -0.0105          0.0735
+#&gt; 4    4  0.0003          0.0776
+#&gt; 5    5 -0.0317          0.0529
+#&gt; 6    6  0.0022          0.0472
+#&gt; 7    7 -0.0296          0.0636
+#&gt; 8    8 -0.0087          0.0351
+#&gt; 9    9  0.0233          0.0166
+#&gt; 10  10  0.0089          0.0427</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An autocorrelation measures how much today's value tells you about the value some days later, on a scale from -1 to 1, where 0 means "nothing at all". Read down the two columns. The <code>returns</code> column hovers around zero: yesterday's return tells you essentially nothing about today's. The <code>squared_returns</code> column is positive at every single lag and reaches 0.17. Squaring throws away the sign and keeps only the magnitude, so that column is asking "does a big move yesterday predict a big move today?" The answer is a clear yes.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Returns are unpredictable in direction but highly predictable in size.</strong> That single gap is the entire subject of this article. GARCH ignores the first column, which nobody can forecast, and models the second column, which is strongly forecastable.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Check whether the same calm-versus-turbulent pattern shows up in the UK's FTSE index. Build FTSE log returns the same way, then compute the ratio of the standard deviations over the same two windows.</p>
+<div class="webr-container" data-block-title="Your turn: FTSE volatility ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: FTSE volatility ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ftse &lt;- as.numeric(diff(log(EuStockMarkets[, &quot;FTSE&quot;])) * 100)
+
+# your code here: compute sd of ex_ftse[1:250], sd of ex_ftse[1550:1800],
+# and the ratio of the second to the first
+
+# Expected: three numbers, with the ratio above 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="FTSE volatility ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">FTSE volatility ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ftse &lt;- as.numeric(diff(log(EuStockMarkets[, &quot;FTSE&quot;])) * 100)
+round(c(calm_sd = sd(ex_ftse[1:250]),
+        rough_sd = sd(ex_ftse[1550:1800]),
+        ratio = sd(ex_ftse[1550:1800]) / sd(ex_ftse[1:250])), 3)
+#&gt;  calm_sd rough_sd    ratio 
+#&gt;    0.814    1.020    1.254</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The FTSE shows the same effect as the DAX but milder, a ratio of 1.25 against the DAX's 1.6. Volatility clustering is a property of markets in general, though its strength varies from index to index.</p>
+
+</details>
+</section>
+
+<h2>What exactly is a GARCH model?</h2>
+
+<p>The name is an acronym worth unpacking, because each letter is a real design decision:</p>
+
+<ul>
+
+<li><strong>Conditional <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">Heteroskedasticity</a></strong> means the variance changes over time, and that we are modelling it <em>conditional</em> on what we already saw. "Heteroskedasticity" is just the technical word for "non-constant variance".</li>
+
+<li><strong>Autoregressive</strong> means today's variance depends on its own past values.</li>
+
+<li><strong>Generalized</strong> means we let it depend on past variances, not only on past shocks.</li>
+
+</ul>
+
+<p>A GARCH model has two separate equations, and keeping them separate is the key to not getting lost. The <strong>mean equation</strong> describes the return itself, and it is usually almost trivial:</p>
+
+<p>$$r_t = \mu + \varepsilon_t, \qquad \varepsilon_t = \sigma_t z_t, \qquad z_t \sim D(0, 1)$$</p>
+
+<p>The <strong>variance equation</strong> is where all the action is. This is GARCH(1,1), the workhorse:</p>
+
+<p>$$\sigma_t^2 = \omega + \alpha_1 \varepsilon_{t-1}^2 + \beta_1 \sigma_{t-1}^2$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$r_t$ = the return on day $t$</li>
+
+<li>$\mu$ = the average return, typically tiny for daily data</li>
+
+<li>$\varepsilon_t$ = the surprise, or shock, on day $t$, meaning how far the return landed from its average</li>
+
+<li>$\sigma_t$ = the volatility on day $t$, which is what we forecast</li>
+
+<li>$z_t$ = a standardised random draw with mean 0 and variance 1</li>
+
+<li>$D$ = the distribution those draws come from, which you choose when you fit the model. A normal distribution is the default; we will see later why a fatter-tailed one usually fits returns better</li>
+
+<li>$\omega$ (omega) = a constant baseline level of variance</li>
+
+<li>$\alpha_1$ (alpha) = how strongly yesterday's shock feeds into today's variance</li>
+
+<li>$\beta_1$ (beta) = how much of yesterday's variance carries over</li>
+
+</ul>
+
+<p>The <code>(1,1)</code> counts how many past terms of each kind we use: one past shock, one past variance. In plain words, the variance equation says: <strong>today's variance is a baseline, plus a bit of yesterday's surprise, plus most of yesterday's variance.</strong></p>
+
+<p><img src="screenshots/GARCH-Models-in-R-variance-recursion.webp" alt="Diagram showing tomorrow's variance built from a baseline omega, yesterday's squared shock weighted by alpha, and yesterday's variance weighted by beta" class="img-responsive img-zoomable" loading="lazy" width="1726" height="938" /></p>
+
+<p><em>Figure 1: Tomorrow's variance is a weighted blend of three things: a baseline, yesterday's shock, and yesterday's variance.</em></p>
+
+<p>The parameters are not free to be anything. All three must be non-negative, otherwise the model could predict a negative variance, which is meaningless. And $\alpha_1 + \beta_1$ must stay below 1, for a reason we will see shortly.</p>
+
+<p>The clearest way to understand a recursion is to run it. Below we generate a GARCH(1,1) series ourselves, one day at a time, with parameters we choose.</p>
+
+<div class="webr-container" data-block-title="Simulate a GARCH(1,1) series by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate a GARCH(1,1) series by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 1500
+omega &lt;- 0.05; alpha &lt;- 0.10; beta &lt;- 0.85
+
+z &lt;- rnorm(n)                 # the standardised random draws
+sigma2 &lt;- numeric(n)          # variance on each day
+eps    &lt;- numeric(n)          # the actual shock on each day
+
+sigma2[1] &lt;- omega / (1 - alpha - beta)   # start at the long-run level
+eps[1]    &lt;- sqrt(sigma2[1]) * z[1]
+
+for (t in 2:n) {
+  sigma2[t] &lt;- omega + alpha * eps[t - 1]^2 + beta * sigma2[t - 1]
+  eps[t]    &lt;- sqrt(sigma2[t]) * z[t]
+}
+
+round(head(data.frame(t = 1:6, sigma2 = sigma2[1:6],
+                      sigma = sqrt(sigma2[1:6]), eps = eps[1:6]), 6), 4)
+#&gt;   t sigma2  sigma     eps
+#&gt; 1 1 1.0000 1.0000  0.9820
+#&gt; 2 2 0.9964 0.9982  0.4679
+#&gt; 3 3 0.9189 0.9586 -0.1035
+#&gt; 4 4 0.8321 0.9122 -0.1942
+#&gt; 5 5 0.7611 0.8724  1.0103
+#&gt; 6 6 0.7990 0.8938  1.1552</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The loop is the model. On each pass it computes today's variance from yesterday's shock and yesterday's variance, then draws today's shock by scaling a standard random number by today's volatility. Follow rows 2 to 4 in the output: the shocks are small, so <code>sigma2</code> drifts steadily downward. Then row 5 delivers a shock of 1.01, and <code>sigma2</code> turns around and climbs at row 6. That is volatility clustering, produced by the recursion rather than assumed.</p>
+
+<p>Let us open up a single step to see the three contributions separately.</p>
+
+<div class="webr-container" data-block-title="Decompose one step of the recursion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose one step of the recursion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(omega      = omega,
+        shock_term = alpha * eps[999]^2,
+        carry      = beta * sigma2[999],
+        total      = sigma2[1000]), 4)
+#&gt;      omega shock_term      carry      total 
+#&gt;     0.0500     0.2179     0.9177     1.1855</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three pieces add to the total, and notice how lopsided the split is. The carried-over variance contributes 0.918 while yesterday's fresh news contributes only 0.218. With <code>beta</code> at 0.85, volatility mostly remembers. New information nudges the level; it rarely resets it. That is why volatility drifts in long waves instead of jumping around at random.</p>
+
+<p>Now the reason $\alpha_1 + \beta_1 < 1$ matters. That sum is called <strong>persistence</strong>, and it controls whether the process settles down to a stable long-run variance:</p>
+
+<p>$$\text{Unconditional variance} = \frac{\omega}{1 - \alpha_1 - \beta_1}$$</p>
+
+<div class="webr-container" data-block-title="Check the long-run variance formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the long-run variance formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(formula_var = omega / (1 - alpha - beta),
+        simulated_var = var(eps)), 4)
+#&gt; formula_var simulated_var 
+#&gt;      1.0000        0.8163
+round(c(persistence = alpha + beta), 4)
+#&gt; persistence 
+#&gt;        0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With persistence at 0.95 the formula predicts a long-run variance of exactly 1.0, and our 1,500 simulated days delivered 0.82. The gap is ordinary sampling variation: a highly persistent process wanders slowly, so 1,500 days is not a lot of independent information about its average level. Push the simulation to 100,000 days and the two numbers converge.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Persistence at or above 1 breaks the model.</strong> If alpha plus beta reaches 1 there is no finite long-run variance, shocks never fade, and the formula above divides by zero. That boundary case has its own name, IGARCH, and we return to it in the pitfalls section.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Two GARCH processes can share the same persistence but behave completely differently. Simulate one that reacts hard to news (alpha 0.25, beta 0.70) and one that mostly remembers (alpha 0.05, beta 0.90), then compare how much each one's volatility path bounces around, measured by the standard deviation of sigma itself.</p>
+<div class="webr-container" data-block-title="Your turn: spiky vs smooth volatility">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: spiky vs smooth volatility</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sim_garch &lt;- function(n, omega, alpha, beta) {
+  z &lt;- rnorm(n); s2 &lt;- numeric(n); e &lt;- numeric(n)
+  s2[1] &lt;- omega / (1 - alpha - beta); e[1] &lt;- sqrt(s2[1]) * z[1]
+  for (t in 2:n) {
+    s2[t] &lt;- omega + alpha * e[t - 1]^2 + beta * s2[t - 1]
+    e[t]  &lt;- sqrt(s2[t]) * z[t]
+  }
+  sqrt(s2)                      # returns the volatility path
+}
+
+set.seed(99)
+# your code here: call ex_sim_garch twice with the two parameter sets
+# above (n = 1500, omega = 0.05) and compare sd() of each path
+
+# Expected: the high-alpha path has a much larger sd</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Spiky vs smooth solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spiky vs smooth solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+spiky  &lt;- ex_sim_garch(1500, 0.05, 0.25, 0.70)
+smooth &lt;- ex_sim_garch(1500, 0.05, 0.05, 0.90)
+
+round(c(spiky_sd_of_sigma = sd(spiky), smooth_sd_of_sigma = sd(smooth)), 4)
+#&gt;  spiky_sd_of_sigma smooth_sd_of_sigma 
+#&gt;             0.4281             0.1408</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both have persistence 0.95 and the same long-run variance, yet the volatility path of the first is three times as jumpy. Alpha controls how violently the model reacts to news; beta controls how long it remembers. Persistence alone does not tell you the character of the process.</p>
+
+</details>
+</section>
+
+<h2>How do you test whether your returns actually need a GARCH model?</h2>
+
+<p>Fitting GARCH to data with no volatility clustering wastes parameters and can mislead you. So test first. There are two tests worth running, and the crucial thing is that they answer <strong>different questions</strong>.</p>
+
+<p>The <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">Ljung-Box test</a> asks whether a series has any <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">leftover autocorrelation</a>. Run it on returns and it asks about predictable direction. Run it on <em>squared</em> returns and it asks about predictable size.</p>
+
+<div class="webr-container" data-block-title="Ljung-Box on returns and squared returns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ljung-Box on returns and squared returns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Box.test(dax_ret, lag = 10, type = &quot;Ljung-Box&quot;)
+#&gt; 
+#&gt; 	Box-Ljung test
+#&gt; 
+#&gt; data:  dax_ret
+#&gt; X-squared = 6.3656, df = 10, p-value = 0.7837
+#&gt; 
+Box.test(dax_ret^2, lag = 10, type = &quot;Ljung-Box&quot;)
+#&gt; 
+#&gt; 	Box-Ljung test
+#&gt; 
+#&gt; data:  dax_ret^2
+#&gt; X-squared = 110.75, df = 10, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value is the probability of seeing a pattern this strong if there were really no pattern at all. Small p-value means the pattern is real. The first test returns 0.78, so there is no evidence of predictable direction, and we do not need an elaborate mean model. The second returns a number smaller than R will print, so the evidence for predictable <em>magnitude</em> is overwhelming. That contrast is the green light for GARCH.</p>
+
+<p>The second test is the <strong>ARCH-LM test</strong>, and it is worth building yourself because the idea is only one line of statistics. If big shocks cluster, then a squared shock should be predictable from recent squared shocks. So regress squared deviations on their own lags and check whether that regression explains anything. The test statistic is the number of observations times the regression's R-squared, and it follows a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">chi-squared distribution</a>.</p>
+
+<div class="webr-container" data-block-title="Build the ARCH-LM test from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the ARCH-LM test from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">arch_lm &lt;- function(x, lags = 5) {
+  e2 &lt;- (x - mean(x))^2          # squared deviations from the mean
+  n  &lt;- length(e2)
+  Y  &lt;- e2[(lags + 1):n]                                        # today
+  X  &lt;- sapply(1:lags, function(k) e2[(lags + 1 - k):(n - k)])  # the last few days
+  r2 &lt;- summary(lm(Y ~ X))$r.squared
+  stat &lt;- length(Y) * r2
+  c(LM_statistic = stat, df = lags,
+    p_value = pchisq(stat, df = lags, lower.tail = FALSE))
+}
+
+round(arch_lm(dax_ret, lags = 5), 4)
+#&gt; LM_statistic           df      p_value 
+#&gt;      69.7109       5.0000       0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function squares the deviations, lines up each day against its previous five days, fits an ordinary <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a>, and converts the fit quality into a test statistic. An LM statistic of 69.7 against 5 degrees of freedom gives a p-value indistinguishable from zero. The DAX has ARCH effects, decisively.</p>
+
+<p>Any test that always says yes is useless, so let us feed it data that genuinely has no clustering.</p>
+
+<div class="webr-container" data-block-title="Run the same test on pure noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the same test on pure noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+round(arch_lm(rnorm(1859), lags = 5), 4)
+#&gt; LM_statistic           df      p_value 
+#&gt;       2.2456       5.0000       0.8142</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same function, same <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a>, but the data are independent random draws with genuinely constant variance. The statistic collapses to 2.2 and the p-value is 0.81. The test correctly finds nothing. Now you can trust it on real data.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always run the Ljung-Box test on both the returns and their squares.</strong> The first tells you whether you need a mean model such as ARMA, the second tells you whether you need a variance model such as GARCH. Many published tutorials run only one and quietly assume the answer to the other.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply your <code>arch_lm()</code> function to the FTSE returns you built earlier. Does the UK index also need a GARCH model?</p>
+<div class="webr-container" data-block-title="Your turn: ARCH-LM on the FTSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ARCH-LM on the FTSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: call arch_lm() on ex_ftse with 5 lags
+
+# Expected: a large statistic and a p-value near zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ARCH-LM on the FTSE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ARCH-LM on the FTSE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(arch_lm(ex_ftse, lags = 5), 4)
+#&gt; LM_statistic           df      p_value 
+#&gt;      43.9201       5.0000       0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The statistic is 43.9, smaller than the DAX's 69.7 but still far beyond any reasonable cutoff. The FTSE has weaker but unmistakable ARCH effects, consistent with the milder clustering ratio we measured earlier.</p>
+
+</details>
+</section>
+
+<h2>How do you estimate the parameters, and what do they mean?</h2>
+
+<p>There is no formula that hands you omega, alpha and beta the way least squares hands you a regression slope. They have to be found by search, using <strong>maximum likelihood</strong>.</p>
+
+<p>The idea is more intuitive than the name suggests. Pick candidate values for the three parameters. Run the variance recursion forward through your data, which gives a predicted volatility for every single day. Then ask: how plausible do the returns we actually observed look under those predicted volatilities? A day with a 3% move looks perfectly ordinary if the model predicted high volatility, and looks shocking if the model predicted calm. Score every day that way, add up the scores, and keep searching for the parameters that make the observed data look least surprising overall.</p>
+
+<p>For normally distributed shocks the score for one day, written as a <a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">negative log-likelihood</a> so that smaller is better, is:</p>
+
+<p>$$-\ell_t = \frac{1}{2}\left[\log(2\pi) + \log(\sigma_t^2) + \frac{\varepsilon_t^2}{\sigma_t^2}\right]$$</p>
+
+<p>The last term is the one doing the work: it is the squared shock measured in units of the model's own predicted variance. The middle term is a penalty that stops the model from simply declaring every day enormously volatile to make the last term small.</p>
+
+<p>One practical wrinkle. The optimiser wanders freely over all real numbers, but our parameters must stay positive and their sum below 1. Rather than fight it with constraints, we let the optimiser work on unconstrained numbers and squeeze them into the legal range: <code>exp()</code> forces omega positive, and <code>plogis()</code> maps anything onto the interval from 0 to 1. The third line multiplies that second <code>plogis()</code> result by <code>1 - alpha</code>, which is what guarantees <code>alpha + beta</code> stays below 1: whatever fraction beta takes, it can only take it out of the room alpha left over.</p>
+
+<div class="webr-container" data-block-title="Write the GARCH likelihood and optimise it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write the GARCH likelihood and optimise it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">garch_nll &lt;- function(par, r) {
+  omega &lt;- exp(par[1])                    # forced positive
+  alpha &lt;- plogis(par[2])                 # forced into (0, 1)
+  beta  &lt;- plogis(par[3]) * (1 - alpha)   # forced so that alpha + beta &lt; 1
+
+  e  &lt;- r - mean(r)
+  s2 &lt;- numeric(length(e))
+  s2[1] &lt;- var(e)                         # start at the sample variance
+  for (t in 2:length(e)) {
+    s2[t] &lt;- omega + alpha * e[t - 1]^2 + beta * s2[t - 1]
+  }
+  0.5 * sum(log(2 * pi) + log(s2) + e^2 / s2)
+}
+
+opt &lt;- optim(c(log(0.05), qlogis(0.10), qlogis(0.9)), garch_nll,
+             r = dax_ret, method = &quot;BFGS&quot;, control = list(maxit = 500))
+
+est_alpha &lt;- plogis(opt$par[2])
+round(c(omega = exp(opt$par[1]),
+        alpha = est_alpha,
+        beta  = plogis(opt$par[3]) * (1 - est_alpha)), 6)
+#&gt;    omega    alpha     beta 
+#&gt; 0.047493 0.068368 0.887705
+round(-opt$value, 4)
+#&gt; [1] -2594.797</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is a complete GARCH estimator in about a dozen lines. The function runs the variance recursion for a candidate parameter set and returns the total negative log-likelihood; <code>optim()</code> searches until it cannot lower that number further. The result says the DAX has alpha near 0.068 and beta near 0.888, and the best achievable log-likelihood is -2594.797. Hold on to that number, because we are going to see it again.</p>
+
+<p>In practice you would not hand-roll this every time. The <code>tseries</code> package fits the same model in one line.</p>
+
+<div class="webr-container" data-block-title="Fit the same model with tseries">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the same model with tseries</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressMessages(library(tseries))
+
+dax_c &lt;- dax_ret - mean(dax_ret)          # work with deviations from the mean
+g &lt;- garch(dax_c, order = c(1, 1), trace = FALSE)
+
+round(coef(g), 6)
+#&gt;       a0       a1       b1 
+#&gt; 0.047462 0.068377 0.887741
+round(confint(g), 6)
+#&gt;       2.5 %   97.5 %
+#&gt; a0 0.032197 0.062727
+#&gt; a1 0.046593 0.090160
+#&gt; b1 0.855071 0.920410</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>a0</code> is omega, <code>a1</code> is alpha and <code>b1</code> is beta. Compare them to what our own function found: 0.047462 against 0.047493, 0.068377 against 0.068368, 0.887741 against 0.887705. They agree to four decimal places. The <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> confirm all three parameters are comfortably away from zero, so every term in the model is earning its place.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Your twelve-line function and a published R package found the same answer.</strong> GARCH estimation is not magic, it is a recursion inside an optimiser. Once you have seen that, the package output stops being intimidating and becomes a convenience.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a GARCH(1,1) to the FTSE returns with <code>tseries::garch()</code> and report the persistence, meaning <code>a1 + b1</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit GARCH to the FTSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit GARCH to the FTSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: centre ex_ftse, fit garch(), then add a1 and b1
+
+# Expected: persistence close to 0.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="FTSE GARCH fit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">FTSE GARCH fit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gf &lt;- garch(ex_ftse - mean(ex_ftse), order = c(1, 1), trace = FALSE)
+round(coef(ex_gf), 6)
+#&gt;       a0       a1       b1 
+#&gt; 0.008484 0.045010 0.942516
+round(unname(coef(ex_gf)[&quot;a1&quot;] + coef(ex_gf)[&quot;b1&quot;]), 4)
+#&gt; [1] 0.9875</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The FTSE has persistence of 0.9875 against the DAX's 0.956. Its volatility has a much longer memory, which we will quantify as a half-life in the next section.</p>
+
+</details>
+</section>
+
+<h3>What do omega, alpha and beta actually mean?</h3>
+
+<p>Fitting the model hands you three numbers. Left as numbers they are not much use, so here is the practical reading of each.</p>
+
+<ul>
+
+<li><strong>alpha is reactivity.</strong> How much does the model raise today's variance in response to yesterday's news? Higher alpha means a spikier, more headline-driven volatility path.</li>
+
+<li><strong>beta is memory.</strong> How much of yesterday's volatility survives into today? Higher beta means longer, smoother waves.</li>
+
+<li><strong>omega is the anchor.</strong> It sets the floor that stops volatility decaying to zero during long calm spells.</li>
+
+</ul>
+
+<p>From those three you can compute three quantities that a risk manager actually cares about.</p>
+
+<p><strong>Persistence</strong>, $\alpha_1 + \beta_1$, says what fraction of a volatility shock is still present one day later. <strong>Half-life</strong> converts that into a human timescale: how many days until a volatility shock has half faded.</p>
+
+<p>$$\text{half-life} = \frac{\log(0.5)}{\log(\alpha_1 + \beta_1)}$$</p>
+
+<p><strong>Long-run volatility</strong> is the level the model drifts back toward, the square root of $\omega / (1 - \alpha_1 - \beta_1)$.</p>
+
+<div class="webr-container" data-block-title="Translate coefficients into risk quantities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Translate coefficients into risk quantities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cf &lt;- coef(g)
+persistence &lt;- unname(cf[&quot;a1&quot;] + cf[&quot;b1&quot;])
+
+round(c(persistence = persistence,
+        long_run_var = unname(cf[&quot;a0&quot;]) / (1 - persistence),
+        long_run_sd  = sqrt(unname(cf[&quot;a0&quot;]) / (1 - persistence)),
+        half_life    = log(0.5) / log(persistence)), 4)
+#&gt;  persistence long_run_var  long_run_sd    half_life 
+#&gt;       0.9561       1.0816       1.0400      15.4463
+round(sd(dax_ret), 4)
+#&gt; [1] 1.0301</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that as four sentences. Persistence of 0.956 means 96% of today's volatility shock is still there tomorrow. The long-run daily volatility the model settles toward is 1.04%, and the plain sample standard deviation of the data is 1.03%, so the model's implied long-run level agrees with the raw data, which is a good sanity check. And a volatility shock takes about 15 trading days, three calendar weeks, to half fade.</p>
+
+<p>That last number is the useful one. If the market spikes today, this model says the elevated risk is still half with you three weeks from now. The half-life is very sensitive to persistence though, so it is worth seeing how fast it grows as persistence approaches 1.</p>
+
+<div class="webr-container" data-block-title="How half-life explodes near persistence of one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How half-life explodes near persistence of one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">half_life &lt;- function(p) log(0.5) / log(p)
+
+round(c(p_0.95 = half_life(0.95),
+        p_0.99 = half_life(0.99),
+        p_0.999 = half_life(0.999)), 2)
+#&gt;  p_0.95  p_0.99 p_0.999 
+#&gt;   13.51   68.97  692.80</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Moving persistence from 0.95 to 0.99, a change that looks trivial on the page, stretches the half-life from about two and a half weeks to about three months. From 0.99 to 0.999 stretches it to nearly three years. This is why you should never eyeball persistence and call it "roughly one".</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Sanity-check your estimates against typical values.</strong> For daily equity index returns, alpha usually lands between 0.05 and 0.12, beta between 0.85 and 0.93, and persistence between 0.97 and 0.99. Our DAX fit sits right in that band. Estimates far outside it usually mean a data problem rather than an exotic market.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The FTSE fit gave persistence of 0.9875. Use the <code>half_life()</code> function to convert that into days, and compare it with the DAX's 15.4.</p>
+<div class="webr-container" data-block-title="Your turn: FTSE shock half-life">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: FTSE shock half-life</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: call half_life() on 0.9875
+
+# Expected: about 55 days</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="FTSE half-life solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">FTSE half-life solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(half_life(0.9875), 2)
+#&gt; [1] 55.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A shock to FTSE volatility takes about 55 trading days, roughly eleven weeks, to half fade, against three weeks for the DAX. The two indices need very different risk horizons even though their persistence figures look superficially similar.</p>
+
+</details>
+</section>
+
+<h2>How do you fit and check a GARCH model with rugarch?</h2>
+
+<p>Everything so far ran on base R plus <code>tseries</code>. For real work you want <strong>rugarch</strong>, which supports asymmetric models, non-normal shock distributions, forecasting and backtesting in one consistent interface.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The rugarch blocks below are marked to run locally, not in the browser.</strong> rugarch depends on compiled libraries that the in-browser R engine cannot load. Install it once with <code>install.packages(&quot;rugarch&quot;)</code> in RStudio and paste the code there. Every output shown below is real output captured from an actual run against the same DAX data, so the numbers will match what you get.</div></div>
+
+<p>A rugarch model is built in two moves: describe the model with <code>ugarchspec()</code>, then fit that description to data with <code>ugarchfit()</code>. The specification has three parts, matching the equations from earlier.</p>
+
+<pre><code class="language-r">suppressMessages(library(rugarch))
+
+spec &lt;- ugarchspec(
+  variance.model     = list(model = &quot;sGARCH&quot;, garchOrder = c(1, 1)),
+  mean.model         = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = &quot;norm&quot;
+)
+spec
+#&gt; 
+#&gt; *---------------------------------*
+#&gt; *       GARCH Model Spec          *
+#&gt; *---------------------------------*
+#&gt; 
+#&gt; Conditional Variance Dynamics 	
+#&gt; ------------------------------------
+#&gt; GARCH Model		: sGARCH(1,1)
+#&gt; Variance Targeting	: FALSE 
+#&gt; 
+#&gt; Conditional Mean Dynamics
+#&gt; ------------------------------------
+#&gt; Mean Model		: ARFIMA(0,0,0)
+#&gt; Include Mean		: TRUE 
+#&gt; GARCH-in-Mean		: FALSE 
+#&gt; 
+#&gt; Conditional Distribution
+#&gt; ------------------------------------
+#&gt; Distribution	:  norm 
+#&gt; Includes Skew	:  FALSE 
+#&gt; Includes Shape	:  FALSE 
+#&gt; Includes Lambda	:  FALSE</code></pre>
+
+<p><code>variance.model</code> picks the variance equation, where <code>&quot;sGARCH&quot;</code> means standard GARCH. <code>mean.model</code> describes the return equation, where <code>armaOrder = c(0, 0)</code> says "just a constant mean". <code>distribution.model</code> chooses the shape of the random draws.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The default armaOrder is c(1,1), not c(0,0).</strong> If you omit <code>mean.model</code> entirely, rugarch silently fits an ARMA(1,1) mean equation you never asked for, adding two parameters and changing every coefficient. Our Ljung-Box test on returns gave p = 0.78, meaning there is no mean structure to model, so specifying <code>c(0, 0)</code> is the correct and deliberate choice here.</div></div>
+
+<p>Now fit it.</p>
+
+<pre><code class="language-r">fit &lt;- ugarchfit(spec = spec, data = dax_ret, solver = &quot;hybrid&quot;)
+
+round(fit@fit$matcoef, 6)
+#&gt;         Estimate  Std. Error   t value Pr(&gt;|t|)
+#&gt; mu      0.065353    0.021576  3.028967 0.002454
+#&gt; omega   0.047563    0.012813  3.712129 0.000206
+#&gt; alpha1  0.068454    0.014975  4.571263 0.000005
+#&gt; beta1   0.887569    0.023897 37.141671 0.000000</code></pre>
+
+<p>Four columns, and each has a job. <code>Estimate</code> is the fitted value. <code>Std. Error</code> measures how precisely it was pinned down. <code>t value</code> is the estimate divided by its standard error. <code>Pr(&gt;|t|)</code> is the p-value: the probability of an estimate this large if the true parameter were zero. All four p-values are tiny, so every parameter is doing real work.</p>
+
+<p>Now compare with what we computed by hand: omega 0.047563 against our 0.047493, alpha1 0.068454 against 0.068368, beta1 0.887569 against 0.887705. And rugarch reports a log-likelihood of -2594.796 against our <code>optim</code> result of -2594.797. So <code>ugarchfit()</code> is running the same estimation your own function ran, with a better optimiser and a lot more bookkeeping around it.</p>
+
+<p>The extra parameter, <code>mu</code> at 0.0654, is the average daily return the mean equation estimates. It matches the raw average of 0.065 we printed in the very first code block.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Without running anything, answer two questions. Which argument would you change to fit a GARCH(2,1) instead of a GARCH(1,1)? And which argument stops rugarch from silently adding an ARMA(1,1) mean equation?</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">spec_21 &lt;- ugarchspec(
+  variance.model = list(model = &quot;sGARCH&quot;, garchOrder = c(2, 1)),
+  mean.model     = list(armaOrder = c(0, 0), include.mean = TRUE)
+)</code></pre>
+
+<p><strong>Explanation:</strong> <code>garchOrder = c(2, 1)</code> sets two ARCH terms and one GARCH term, adding an <code>alpha2</code> parameter. Setting <code>armaOrder = c(0, 0)</code> explicitly is what suppresses the ARMA(1,1) default. In practice GARCH(1,1) is very hard to beat, and higher orders usually add parameters without improving fit.</p>
+
+</details>
+</section>
+
+<h3>How do you check whether the fitted model is any good?</h3>
+
+<p>A model that fits is not the same as a model that is right. The check is simple in principle: if the model captured the volatility dynamics correctly, then dividing each shock by the volatility the model predicted for that day should leave behind something with no structure at all.</p>
+
+<p>Those rescaled shocks are called <strong>standardized residuals</strong>. If the model worked, their squares should show no remaining autocorrelation. We can test that live on our <code>tseries</code> fit. One housekeeping detail in the code below: <code>fitted(g)</code> returns the model's estimated volatility for each day, and its first entry is <code>NA</code> because the recursion needs a previous day to start from, so <code>na.omit()</code> drops that one row.</p>
+
+<div class="webr-container" data-block-title="Test the standardized residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the standardized residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">z_t &lt;- as.numeric(dax_c / fitted(g)[, 1])   # shock divided by predicted volatility
+
+Box.test(na.omit(z_t)^2, lag = 10, type = &quot;Ljung-Box&quot;)
+#&gt; 
+#&gt; 	Box-Ljung test
+#&gt; 
+#&gt; data:  na.omit(z_t)^2
+#&gt; X-squared = 0.89364, df = 10, p-value = 0.9999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Recall that the <em>same test on the raw squared returns</em> gave a statistic of 110.75 and a p-value below 2.2e-16. After the GARCH model has done its work, the statistic collapses to 0.89 and the p-value is 0.9999. All that clustering has been absorbed. There is nothing left in the magnitudes for another variance model to find.</p>
+
+<p>rugarch runs a whole battery of these checks automatically. <code>show(fit)</code> prints a long report; the diagnostic sections are reproduced below, with the coefficient table and information criteria left out since we have already seen them.</p>
+
+<pre><code class="language-r">show(fit)
+#&gt; Weighted Ljung-Box Test on Standardized Residuals
+#&gt; ------------------------------------
+#&gt;                         statistic p-value
+#&gt; Lag[1]                     0.1997  0.6550
+#&gt; Lag[2*(p+q)+(p+q)-1][2]    0.3475  0.7699
+#&gt; 
+#&gt; Weighted Ljung-Box Test on Standardized Squared Residuals
+#&gt; ------------------------------------
+#&gt;                         statistic p-value
+#&gt; Lag[1]                     0.1255  0.7231
+#&gt; Lag[2*(p+q)+(p+q)-1][5]    0.3366  0.9797
+#&gt; 
+#&gt; Weighted ARCH LM Tests
+#&gt; ------------------------------------
+#&gt;             Statistic Shape Scale P-Value
+#&gt; ARCH Lag[3]   0.01578 0.500 2.000  0.9000
+#&gt; ARCH Lag[5]   0.32054 1.440 1.667  0.9348
+#&gt; 
+#&gt; Sign Bias Test
+#&gt; ------------------------------------
+#&gt;                    t-value   prob sig
+#&gt; Sign Bias           1.4183 0.1563    
+#&gt; Negative Sign Bias  0.8066 0.4200    
+#&gt; Joint Effect        4.2421 0.2365    
+#&gt; 
+#&gt; Adjusted Pearson Goodness-of-Fit Test:
+#&gt; ------------------------------------
+#&gt;   group statistic p-value(g-1)
+#&gt; 1    20     97.12    1.776e-12
+#&gt; 2    30    132.02    4.270e-15</code></pre>
+
+<p>Here is what each block asks, and what you do when it fails:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Test</th>
+<th>Question it answers</th>
+<th>If the p-value is small</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ljung-Box on standardized residuals</td>
+<td>Is there leftover structure in the <strong>direction</strong> of returns?</td>
+<td>Add or extend the ARMA mean model</td>
+</tr>
+<tr>
+<td>Ljung-Box on squared standardized residuals</td>
+<td>Is there leftover structure in the <strong>size</strong> of returns?</td>
+<td>Increase the GARCH order</td>
+</tr>
+<tr>
+<td>Weighted ARCH-LM</td>
+<td>Same question, different construction</td>
+<td>Increase the GARCH order</td>
+</tr>
+<tr>
+<td>Sign Bias</td>
+<td>Do up-moves and down-moves affect variance <strong>differently</strong>?</td>
+<td>Switch to an asymmetric model</td>
+</tr>
+<tr>
+<td>Adjusted Pearson</td>
+<td>Does the assumed <strong>distribution</strong> match the residuals?</td>
+<td>Change the distribution, not the variance model</td>
+</tr>
+</tbody>
+</table>
+
+<p>Now read our results against that table. Every test about variance structure passes comfortably, with p-values from 0.65 to 0.98. The Sign Bias test gives 0.1563, above the usual 0.05 cutoff, so it does not demand an asymmetric model. But the Adjusted Pearson test returns 1.776e-12, an emphatic rejection.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>This model has captured the dynamics and failed the distribution.</strong> The variance equation is fine, so do not go looking for a fancier one. What is broken is the assumption that the shocks are normally distributed. The diagnostics have told us exactly which knob to turn, and we turn it two sections from now.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Explain in one sentence why the p-value of 0.9999 in the live block above is good news rather than suspicious. What would a p-value of 0.001 have meant?</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>A large p-value here means the test found no evidence of leftover autocorrelation in the squared standardized residuals, which is exactly what we want: the GARCH model has absorbed the volatility clustering. A p-value of 0.001 would have meant clustering remained even after fitting, telling us the variance equation was too simple and needed a higher order or a different form.</p>
+
+<p>Note that this is one of the rare situations in statistics where you are hoping to fail to reject the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a>. You are not proving the model correct, only failing to find a specific fault.</p>
+
+</details>
+</section>
+
+<h2>Which model variant and which distribution should you choose?</h2>
+
+<p>The diagnostics left us with two open questions, and this section answers both. The first is whether the variance equation should treat a fall and a rise of the same size differently. The second is what shape the shocks themselves follow, which is the one thing the DAX model clearly got wrong.</p>
+
+<h3>Why do crashes hit harder than rallies?</h3>
+
+<p>Standard GARCH has a blind spot that is obvious once you see it. In the equation $\sigma_t^2 = \omega + \alpha_1 \varepsilon_{t-1}^2 + \beta_1 \sigma_{t-1}^2$, the shock enters <strong>squared</strong>. Squaring destroys the sign. So a 5% crash and a 5% rally push tomorrow's variance up by exactly the same amount.</p>
+
+<p>Markets do not behave that way. A crash frightens people, and fear raises volatility far more than an equally sized rally does. This asymmetry is called the <strong>leverage effect</strong>, and two model variants exist to capture it.</p>
+
+<p><strong>GJR-GARCH</strong> adds a term that only switches on for negative shocks:</p>
+
+<p>$$\sigma_t^2 = \omega + \alpha_1 \varepsilon_{t-1}^2 + \gamma_1 I_{[\varepsilon_{t-1} < 0]}\varepsilon_{t-1}^2 + \beta_1 \sigma_{t-1}^2$$</p>
+
+<p>where $I$ is 1 when yesterday's shock was negative and 0 otherwise. A positive $\gamma_1$ means bad news adds extra variance on top of the usual amount.</p>
+
+<p><strong>EGARCH</strong> takes a different route. It models the <em>logarithm</em> of the variance, which means the variance is automatically positive no matter what the parameters do, so no non-negativity constraints are needed at all. That makes it the better choice when a constrained standard model keeps hitting its boundaries.</p>
+
+<p><img src="screenshots/GARCH-Models-in-R-model-choice.webp" alt="Decision flowchart: fit sGARCH with normal errors, check the sign bias test to decide on a leverage term, then check normality to decide on Student t innovations" class="img-responsive img-zoomable" loading="lazy" width="2248" height="626" /></p>
+
+<p><em>Figure 2: Let the diagnostic tests, not trial and error, pick your specification.</em></p>
+
+<p>Let us fit the GJR version to the DAX.</p>
+
+<pre><code class="language-r">spec_gjr &lt;- ugarchspec(
+  variance.model     = list(model = &quot;gjrGARCH&quot;, garchOrder = c(1, 1)),
+  mean.model         = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = &quot;norm&quot;
+)
+fit_gjr &lt;- ugarchfit(spec_gjr, dax_ret, solver = &quot;hybrid&quot;)
+
+round(fit_gjr@fit$matcoef, 6)
+#&gt;         Estimate  Std. Error   t value Pr(&gt;|t|)
+#&gt; mu      0.058375    0.021918  2.663338 0.007737
+#&gt; omega   0.053992    0.014247  3.789642 0.000151
+#&gt; alpha1  0.044245    0.015832  2.794590 0.005197
+#&gt; beta1   0.882691    0.023969 36.826536 0.000000
+#&gt; gamma1  0.043548    0.023312  1.868090 0.061749</code></pre>
+
+<p><code>gamma1</code> is positive at 0.0435, the direction the leverage story predicts, but its p-value is 0.0617, which sits just above the conventional 0.05 threshold. Combined with the Sign Bias test result of 0.1563, the honest reading is that the evidence for asymmetry in this sample is suggestive but not conclusive. Keep that thought, because it changes shortly.</p>
+
+<p>To see what a leverage term actually does, we can compute the <strong>news impact curve</strong> by hand. This plots tomorrow's variance against the size and sign of today's shock, holding everything else at its long-run level. It is pure arithmetic on the coefficients, so it runs live.</p>
+
+<p>The six coefficients typed into the block below are not new numbers pulled from nowhere. They are the fits of the same two models estimated with Student t shocks rather than normal ones, which is the specification we settle on in the next section: omega 0.021617, alpha 0.079090, beta 0.903588 for the symmetric model, and omega 0.028067, alpha 0.055994, beta 0.890428, gamma 0.058863 for the GJR version. Using the Student t fits here is deliberate, because those are the coefficients we end up trusting.</p>
+
+<div class="webr-container" data-block-title="Compute and plot the news impact curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute and plot the news impact curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nic &lt;- function(e, omega, alpha, beta, gamma = 0, s2bar) {
+  omega + alpha * e^2 + gamma * (e &lt; 0) * e^2 + beta * s2bar
+}
+
+s2bar  &lt;- 0.021617 / (1 - 0.079090 - 0.903588)   # long-run variance level
+shocks &lt;- seq(-4, 4, by = 0.1)
+
+sym &lt;- nic(shocks, 0.021617, 0.079090, 0.903588, 0,        s2bar)
+asy &lt;- nic(shocks, 0.028067, 0.055994, 0.890428, 0.058863, s2bar)
+
+plot(shocks, sym, type = &quot;l&quot;, lwd = 2, col = &quot;steelblue&quot;,
+     main = &quot;News impact curve&quot;, xlab = &quot;Yesterday's shock (%)&quot;,
+     ylab = &quot;Today's variance&quot;)
+lines(shocks, asy, lwd = 2, col = &quot;firebrick&quot;)
+legend(&quot;top&quot;, c(&quot;sGARCH (symmetric)&quot;, &quot;gjrGARCH (asymmetric)&quot;),
+       col = c(&quot;steelblue&quot;, &quot;firebrick&quot;), lwd = 2, bty = &quot;n&quot;)
+
+round(data.frame(shock = c(-3, -2, -1, 0, 1, 2, 3),
+                 sGARCH   = nic(c(-3, -2, -1, 0, 1, 2, 3), 0.021617, 0.079090, 0.903588, 0, s2bar),
+                 gjrGARCH = nic(c(-3, -2, -1, 0, 1, 2, 3), 0.028067, 0.055994, 0.890428, 0.058863, s2bar)), 4)
+#&gt;   shock sGARCH gjrGARCH
+#&gt; 1    -3 1.8611   2.1730
+#&gt; 2    -2 1.4656   1.5987
+#&gt; 3    -1 1.2283   1.2541
+#&gt; 4     0 1.1493   1.1393
+#&gt; 5     1 1.2283   1.1953
+#&gt; 6     2 1.4656   1.3633
+#&gt; 7     3 1.8611   1.6432</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The blue curve is a clean symmetric parabola: read off the rows for -3 and +3 and both give exactly 1.8611. The red curve is kinked. A 3% drop pushes variance to 2.1730 while a 3% gain pushes it only to 1.6432, about a third less. That is the leverage effect drawn as a picture, and it is why a symmetric model systematically underestimates risk right after a sell-off.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the <code>nic()</code> function above, compute how much more a 2% drop raises tomorrow's variance than a 2% gain under the GJR model, as a ratio.</p>
+<div class="webr-container" data-block-title="Your turn: asymmetry ratio at plus and minus two">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: asymmetry ratio at plus and minus two</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: call nic() at e = -2 and e = 2 with the gjrGARCH
+# coefficients (0.028067, 0.055994, 0.890428, gamma 0.058863, s2bar)
+# then divide the first by the second
+
+# Expected: a ratio a little under 1.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Asymmetry ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Asymmetry ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">down &lt;- nic(-2, 0.028067, 0.055994, 0.890428, 0.058863, s2bar)
+up   &lt;- nic( 2, 0.028067, 0.055994, 0.890428, 0.058863, s2bar)
+round(c(down = down, up = up, ratio = down / up), 4)
+#&gt;   down     up  ratio 
+#&gt; 1.5987 1.3633 1.1727</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 2% fall raises tomorrow's variance about 17% more than a 2% rise. The gap widens for larger shocks because the extra gamma term is multiplied by the squared shock.</p>
+
+</details>
+</section>
+
+<h3>Which distribution should the shocks follow?</h3>
+
+<p>The Adjusted Pearson test rejected normality decisively, so let us find out why. Financial returns are famously <strong>fat-tailed</strong>: extreme days happen far more often than a bell curve allows.</p>
+
+<p>Part of that fat-tailedness is an illusion created by changing volatility. Mix together calm periods and wild periods and even perfectly normal draws produce a combined distribution with fat tails. A GARCH model should therefore <em>remove</em> some of the excess. Kurtosis measures tail heaviness, and a normal distribution has a <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">kurtosis</a> of 3.</p>
+
+<div class="webr-container" data-block-title="Compare kurtosis before and after standardizing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare kurtosis before and after standardizing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kurt &lt;- function(x) { x &lt;- x[!is.na(x)]; mean((x - mean(x))^4) / sd(x)^4 }
+
+round(c(returns = kurt(dax_ret),
+        standardized = kurt(z_t),
+        standardized_no_burnin = kurt(z_t[-(1:50)])), 4)
+#&gt;                returns           standardized standardized_no_burnin 
+#&gt;                 9.2697                15.9369                 4.1021</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Raw returns have kurtosis 9.27, three times the normal benchmark. But standardizing made it <strong>worse</strong>, jumping to 15.94, which is the opposite of what the theory predicts. Drop the first 50 observations and it falls to 4.10. Something in the early sample is distorting everything, so let us find it.</p>
+
+<div class="webr-container" data-block-title="Find the observation driving the tail">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the observation driving the tail</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">worst &lt;- which.max(abs(z_t))
+
+round(c(observation = worst,
+        return_pct  = dax_c[worst],
+        model_sigma = unname(fitted(g)[worst, 1]),
+        z_score     = z_t[worst]), 4)
+#&gt; observation  return_pct model_sigma     z_score 
+#&gt;     35.0000     -9.6929      0.7857    -12.3361</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is. Thirty-five trading days into the sample the DAX fell 9.69% in a single session, at a moment when the model's estimated volatility was only 0.79%. That is a <strong>12-sigma event</strong>. Under a normal distribution a 12-sigma move should not occur even once in the lifetime of the universe, yet here is one in a routine 1,859-day sample of a major index.</p>
+
+<p>Excluding the model's warm-up period, kurtosis drops to 4.10, close to but still above the normal benchmark of 3. So the honest summary is: GARCH removes most of the apparent fat-tailedness, and a genuine excess remains. That leftover is what the shock distribution has to handle.</p>
+
+<p>The fix is to let the shocks follow a Student t distribution, which has heavier tails than a normal. Its <code>shape</code> parameter is the degrees of freedom, and lower means fatter.</p>
+
+<pre><code class="language-r">spec_std &lt;- ugarchspec(
+  variance.model     = list(model = &quot;sGARCH&quot;, garchOrder = c(1, 1)),
+  mean.model         = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = &quot;std&quot;
+)
+fit_std &lt;- ugarchfit(spec_std, dax_ret, solver = &quot;hybrid&quot;)
+
+round(fit_std@fit$matcoef, 6)
+#&gt;         Estimate  Std. Error   t value Pr(&gt;|t|)
+#&gt; mu      0.076399    0.018886  4.045289 0.000052
+#&gt; omega   0.021617    0.008742  2.472660 0.013411
+#&gt; alpha1  0.079090    0.016377  4.829254 0.000001
+#&gt; beta1   0.903588    0.020428 44.232208 0.000000
+#&gt; shape   6.034057    0.813542  7.417018 0.000000</code></pre>
+
+<p>The estimated <code>shape</code> is 6.03 with a p-value of essentially zero. Six degrees of freedom is a distinctly <a class="auto-link" href="Cauchy-and-Heavy-Tailed-Distributions-in-R.html" title="Cauchy & Heavy-Tailed Distributions in R: When the CLT Fails You">fat-tailed distribution</a>: a normal is the limiting case as shape goes to infinity, and anything under about 10 is meaningfully heavy-tailed. The data are telling us loudly that they are not normal.</p>
+
+<p>Rather than guess which combination is best, fit a grid and compare with information criteria. <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> and BIC both reward fit and penalise extra parameters, so lower is better, and BIC penalises complexity harder.</p>
+
+<pre><code class="language-r">grid &lt;- expand.grid(model = c(&quot;sGARCH&quot;, &quot;gjrGARCH&quot;, &quot;eGARCH&quot;),
+                    dist  = c(&quot;norm&quot;, &quot;std&quot;, &quot;sstd&quot;), stringsAsFactors = FALSE)
+
+res &lt;- do.call(rbind, lapply(seq_len(nrow(grid)), function(i) {
+  s &lt;- ugarchspec(variance.model = list(model = grid$model[i], garchOrder = c(1, 1)),
+                  mean.model     = list(armaOrder = c(0, 0), include.mean = TRUE),
+                  distribution.model = grid$dist[i])
+  f  &lt;- ugarchfit(s, dax_ret, solver = &quot;hybrid&quot;)
+  ic &lt;- infocriteria(f)
+  data.frame(model = grid$model[i], dist = grid$dist[i],
+             logLik = round(likelihood(f), 2),
+             AIC = round(ic[1], 4), BIC = round(ic[2], 4))
+}))
+print(res[order(res$BIC), ], row.names = FALSE)
+#&gt;     model dist   logLik    AIC    BIC
+#&gt;    eGARCH  std -2487.63 2.6828 2.7006
+#&gt;    eGARCH sstd -2487.14 2.6833 2.7041
+#&gt;    sGARCH  std -2495.26 2.6899 2.7048
+#&gt;  gjrGARCH  std -2492.54 2.6880 2.7059
+#&gt;    sGARCH sstd -2494.64 2.6903 2.7082
+#&gt;  gjrGARCH sstd -2491.94 2.6885 2.7093
+#&gt;    eGARCH norm -2589.36 2.7911 2.8060
+#&gt;    sGARCH norm -2594.80 2.7959 2.8078
+#&gt;  gjrGARCH norm -2592.77 2.7948 2.8097</code></pre>
+
+<p>Look at the shape of that ranking rather than only the winner. Every single model with <code>std</code> or <code>sstd</code> shocks beats every single model with <code>norm</code> shocks. The three normal models occupy the bottom three rows regardless of how sophisticated their variance equation is. Switching distribution improved the log-likelihood by about 100 points; switching from sGARCH to eGARCH while keeping normality improved it by only 5.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The distribution assumption mattered roughly twenty times more than the variance equation here.</strong> Most tutorials spend their energy comparing sGARCH against eGARCH against GJR while leaving the distribution at its normal default. That is optimising the small knob and ignoring the big one.</div></div>
+
+<p>One more thing falls out of this table. Earlier, GJR's leverage term looked marginal at p = 0.0617. Refit it with Student t shocks and <code>gamma1</code> becomes 0.058863 with a p-value of 0.0409, which is significant at the 5% level. The normality assumption had been masking a real asymmetry: forcing thin tails onto fat-tailed data absorbs into the leverage parameter some of what should be tail behaviour.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the excess kurtosis, meaning kurtosis minus 3, of the standardized residuals after dropping the first 50 warm-up observations. How far from normal is what remains?</p>
+<div class="webr-container" data-block-title="Your turn: leftover excess kurtosis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: leftover excess kurtosis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: use kurt() on z_t[-(1:50)] and subtract 3
+
+# Expected: a positive number near 1.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Excess kurtosis solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Excess kurtosis solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(kurt(z_t[-(1:50)]) - 3, 4)
+#&gt; [1] 1.1021</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The raw returns had excess kurtosis of 6.27. After the GARCH model absorbs the volatility clustering, only 1.10 remains. GARCH explained about 82% of the excess tail weight, and the Student t distribution is there to cover the rest.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast volatility, and can you trust the forecast?</h2>
+
+<p>Everything so far described the past. Forecasting uses the same recursion, pushed forward. For one day ahead there is no guesswork at all, because both inputs are already known.</p>
+
+<p>$$\sigma_{T+1}^2 = \omega + \alpha_1 \varepsilon_T^2 + \beta_1 \sigma_T^2$$</p>
+
+<p>Let us compute it directly using the Student t model's coefficients, along with the final shock and final volatility from that fit.</p>
+
+<div class="webr-container" data-block-title="Forecast one day ahead by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast one day ahead by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">omega_f &lt;- 0.021617; alpha_f &lt;- 0.079090; beta_f &lt;- 0.903588
+last_sigma &lt;- 1.589620      # model volatility on the final day
+last_shock &lt;- 2.115816      # actual shock on the final day
+
+sigma2_next &lt;- omega_f + alpha_f * last_shock^2 + beta_f * last_sigma^2
+round(sqrt(sigma2_next), 6)
+#&gt; [1] 1.630628</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model forecasts 1.63% volatility for the next day. Beyond one day we do not know the future shock, so we replace $\varepsilon^2$ with its expected value, which is the variance itself. The recursion then collapses to a single line:</p>
+
+<p>$$\sigma_{T+k}^2 = \omega + (\alpha_1 + \beta_1)\,\sigma_{T+k-1}^2$$</p>
+
+<p>Persistence is now the only thing driving the path.</p>
+
+<div class="webr-container" data-block-title="Project the forecast ten days forward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Project the forecast ten days forward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h &lt;- 10
+s2_path &lt;- numeric(h)
+s2_path[1] &lt;- sigma2_next
+for (k in 2:h) {
+  s2_path[k] &lt;- omega_f + (alpha_f + beta_f) * s2_path[k - 1]
+}
+round(sqrt(s2_path), 4)
+#&gt;  [1] 1.6306 1.6231 1.6157 1.6084 1.6012 1.5940 1.5870 1.5800 1.5732 1.5664
+
+round(sqrt(omega_f / (1 - alpha_f - beta_f)), 4)   # the long-run level
+#&gt; [1] 1.1171</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The forecast starts at 1.63% and decays a little each day toward 1.12%, the long-run level. This is the defining behaviour of a GARCH forecast: <strong>it always drifts back to the unconditional volatility</strong>, quickly when persistence is low and slowly when it is high. Today's turbulence fades; it does not last forever.</p>
+
+<p>Now let us confirm that rugarch does exactly this.</p>
+
+<pre><code class="language-r">fc &lt;- ugarchforecast(fit_std, n.ahead = 10)
+
+round(as.numeric(sigma(fc)), 6)
+#&gt;  [1] 1.630628 1.623117 1.615702 1.608382 1.601156 1.594024 1.586983 1.580034 1.573176 1.566407
+
+round(as.numeric(fitted(fc)), 6)
+#&gt;  [1] 0.076399 0.076399 0.076399 0.076399 0.076399 0.076399 0.076399 0.076399 0.076399 0.076399</code></pre>
+
+<p>The <code>sigma()</code> column is identical to the path we computed by hand, to six decimal places. <code>ugarchforecast()</code> is running the same three lines of arithmetic you just wrote.</p>
+
+<p>Now look at the second output, the forecast of the returns themselves. It is 0.076399 on every single day, a flat line equal to the estimated mean. This is the point readers most often get wrong.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>GARCH does not predict returns, and it never will.</strong> The mean forecast is a flat line because we fitted a constant mean, and our Ljung-Box test said that was correct. GARCH forecasts how <em>uncertain</em> tomorrow is, not which <em>direction</em> it will go. If you came here hoping to predict prices, this is the model telling you honestly that it cannot.</div></div>
+
+<p>What volatility forecasts are genuinely used for is risk, and risk is usually quoted per year. Convert with the square root of the number of trading days.</p>
+
+<div class="webr-container" data-block-title="Annualize the volatility forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Annualize the volatility forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(tomorrow_daily_pct  = sqrt(s2_path[1]),
+        tomorrow_annual_pct = sqrt(s2_path[1]) * sqrt(252),
+        longrun_daily_pct   = sqrt(omega_f / (1 - alpha_f - beta_f)),
+        longrun_annual_pct  = sqrt(omega_f / (1 - alpha_f - beta_f)) * sqrt(252)), 3)
+#&gt;  tomorrow_daily_pct tomorrow_annual_pct   longrun_daily_pct  longrun_annual_pct 
+#&gt;               1.631              25.885               1.117              17.734</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Variance grows roughly in proportion to time, so volatility grows with the square root of time, giving the familiar <code>sqrt(252)</code> factor for daily data. The model says the market is currently priced for about 26% annualised volatility against a long-run average near 18%. Those two figures come from the Student t fit; the plain <code>tseries</code> fit from earlier puts the long-run level slightly lower, at 1.04% daily or 16.5% annualised, because the two fits divide the same data differently between the variance equation and the tail of the distribution. That is a statement a risk committee can act on, and it came from three coefficients.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose a different asset has omega 0.03, alpha 0.10 and beta 0.85, with a one-day-ahead variance forecast of 4.0. Project the volatility five days ahead and compare it with the long-run level.</p>
+<div class="webr-container" data-block-title="Your turn: five-day forecast path">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: five-day forecast path</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: run the recursion s2[k] = omega + (alpha + beta) * s2[k-1]
+# starting from s2[1] = 4.0, for 5 steps, then take sqrt()
+# also compute sqrt(omega / (1 - alpha - beta))
+
+# Expected: a path falling from 2.0, well above the long-run level</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Five-day forecast solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Five-day forecast solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">o &lt;- 0.03; a &lt;- 0.10; b &lt;- 0.85
+s2 &lt;- numeric(5); s2[1] &lt;- 4.0
+for (k in 2:5) s2[k] &lt;- o + (a + b) * s2[k - 1]
+
+round(sqrt(s2), 4)
+#&gt; [1] 2.0000 1.9570 1.9153 1.8749 1.8356
+round(sqrt(o / (1 - a - b)), 4)
+#&gt; [1] 0.7746</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Volatility falls from 2.00 to 1.84 over five days, still far above the long-run 0.77. With persistence of 0.95 the half-life is about 13.5 days, so after only five days most of the shock is still present.</p>
+
+</details>
+</section>
+
+<h3>How do you know your forecasts are actually any good?</h3>
+
+<p>Everything up to here was in-sample. The model saw all the data before being judged on it, which is not evidence of anything. The real test is a <strong>rolling backtest</strong>: fit on data up to a point, forecast one day forward, step forward, refit periodically, and score only the forecasts the model never saw the answers to.</p>
+
+<p><code>ugarchroll()</code> does this. Below it produces 500 genuine one-step-ahead forecasts, refitting every 50 days on a moving window.</p>
+
+<pre><code class="language-r">roll &lt;- ugarchroll(spec_std, data = dax_ret, n.ahead = 1,
+                   forecast.length = 500, refit.every = 50,
+                   refit.window = &quot;moving&quot;, solver = &quot;hybrid&quot;,
+                   calculate.VaR = TRUE, VaR.alpha = c(0.01, 0.05),
+                   keep.coef = TRUE)
+
+report(roll, type = &quot;fpm&quot;)
+#&gt; 
+#&gt; GARCH Roll Mean Forecast Performance Measures
+#&gt; ---------------------------------------------
+#&gt; Model		: sGARCH
+#&gt; No.Refits	: 10
+#&gt; No.Forecasts: 500
+#&gt; 
+#&gt;      Stats
+#&gt; MSE 1.6870
+#&gt; MAE 0.9704
+#&gt; DAC 0.5520</code></pre>
+
+<p><code>MSE</code> and <code>MAE</code> are the average squared and average absolute error of those 500 variance forecasts, and <code>DAC</code> is directional accuracy, which is not informative here because GARCH does not forecast direction in the first place. Error numbers like these mean little on their own anyway. A forecast is only good or bad <em>relative to a sensible alternative</em>, and the obvious alternative is "just use the historical standard deviation and never update it". We can run that comparison live, fitting on all but the last 500 days and rolling the variance recursion forward across them.</p>
+
+<div class="webr-container" data-block-title="Compare GARCH against a constant-variance benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare GARCH against a constant-variance benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- length(dax_c); n_train &lt;- n - 500
+g_tr &lt;- garch(dax_c[1:n_train], order = c(1, 1), trace = FALSE)
+cc &lt;- coef(g_tr)
+o &lt;- unname(cc[&quot;a0&quot;]); a &lt;- unname(cc[&quot;a1&quot;]); b &lt;- unname(cc[&quot;b1&quot;])
+
+s2 &lt;- as.numeric(fitted(g_tr)[, 1])[n_train]^2
+pred &lt;- numeric(500)
+for (k in 1:500) {
+  s2 &lt;- o + a * dax_c[n_train + k - 1]^2 + b * s2   # one-step-ahead each day
+  pred[k] &lt;- s2
+}
+
+actual &lt;- dax_c[(n_train + 1):n]^2
+const  &lt;- var(dax_c[1:n_train])
+
+round(c(garch_MSE = mean((actual - pred)^2),
+        constant_MSE = mean((actual - const)^2),
+        improvement_pct = 100 * (1 - mean((actual - pred)^2) / mean((actual - const)^2))), 4)
+#&gt;       garch_MSE    constant_MSE improvement_pct 
+#&gt;          9.1041         10.0514          9.4245</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>GARCH beats the naive constant-variance forecast by about 9% in <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a> on data it never saw. That is a real improvement, and it is also a modest one. Anyone promising that GARCH transforms volatility forecasting is overselling it. What GARCH reliably does is tell you <em>when</em> risk is elevated, which the constant benchmark can never do.</p>
+
+<p>The sharpest test is <strong>Value at Risk</strong>. A 1% VaR is a loss level that should be breached on about 1% of days. Count the breaches and you have a direct verdict.</p>
+
+<pre><code class="language-r">report(roll, type = &quot;VaR&quot;, VaR.alpha = 0.01, conf.level = 0.95)
+#&gt; VaR Backtest Report
+#&gt; ===========================================
+#&gt; Model:				sGARCH-std
+#&gt; Backtest Length:	500
+#&gt; 
+#&gt; ==========================================
+#&gt; alpha:				1%
+#&gt; Expected Exceed:	5
+#&gt; Actual VaR Exceed:	10
+#&gt; Actual %:			2%
+#&gt; 
+#&gt; Unconditional Coverage (Kupiec)
+#&gt; Null-Hypothesis:	Correct Exceedances
+#&gt; LR.uc Statistic:	3.914
+#&gt; LR.uc Critical:		3.841
+#&gt; LR.uc p-value:		0.048
+#&gt; Reject Null:		YES
+#&gt; 
+#&gt; Conditional Coverage (Christoffersen)
+#&gt; Null-Hypothesis:	Correct Exceedances and
+#&gt; 					Independence of Failures
+#&gt; LR.cc Statistic:	4.323
+#&gt; LR.cc p-value:		0.115
+#&gt; Reject Null:		NO</code></pre>
+
+<p>Read the two tests together, because they say different things and the combination is the whole story.</p>
+
+<p><strong>Kupiec</strong> asks whether the <em>number</em> of breaches is right. Expected 5, observed 10, p-value 0.048, rejected. The model underestimates how far the tail extends.</p>
+
+<p><strong>Christoffersen</strong> asks whether the breaches are <em>independent</em>, meaning they do not arrive in clusters. p-value 0.115, not rejected. The breaches are spread out rather than bunched.</p>
+
+<p>Put together: <strong>the model gets the timing of risk right and the depth of risk wrong.</strong> It knows which weeks are dangerous, since breaches are not clustering. It still underestimates how bad the worst days can be. And you already met the reason, back in the kurtosis section: a 12-sigma day sits in this sample, and no model with only six degrees of freedom of tail was ever going to price that correctly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every honest GARCH evaluation ends here.</strong> The model is a genuine improvement over assuming constant risk, and it still underestimates extreme losses. Any tutorial that reports only the in-sample fit and stops has skipped the part that decides whether you should trust it with money.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count VaR breaches yourself. Given the simulated returns below and a constant volatility of 1, the 1% VaR under a normal assumption is <code>qnorm(0.01)</code>, about -2.326. Count how many returns fall below it out of 500.</p>
+<div class="webr-container" data-block-title="Your turn: count VaR breaches">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count VaR breaches</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ex_r &lt;- rt(500, df = 5) / sqrt(5 / 3)    # fat-tailed returns, scaled to variance 1
+
+# your code here: count how many of ex_r fall below qnorm(0.01),
+# and compare with the 5 breaches expected out of 500
+
+# Expected: noticeably more than 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="VaR breach count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">VaR breach count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">breaches &lt;- sum(ex_r &lt; qnorm(0.01))
+round(c(expected = 0.01 * 500, actual = breaches,
+        actual_pct = 100 * breaches / 500), 3)
+#&gt;   expected     actual actual_pct 
+#&gt;        5.0       11.0        2.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Eleven breaches against five expected, a rate of 2.2% instead of 1%. The returns were deliberately drawn from a fat-tailed t distribution while the VaR was computed with a normal quantile. This is exactly the failure the DAX backtest exhibited, reproduced in miniature.</p>
+
+</details>
+</section>
+
+<h2>What goes wrong in practice, and should you still use rugarch?</h2>
+
+<p>Three mistakes account for most broken GARCH models, and all three are silent.</p>
+
+<p><strong>Mistake one: fitting prices instead of returns.</strong> GARCH assumes a <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">stationary series</a> that hovers around a fixed mean. Prices trend, so they do not qualify.</p>
+
+<div class="webr-container" data-block-title="What happens when you fit prices by mistake">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What happens when you fit prices by mistake</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dax_price &lt;- as.numeric(EuStockMarkets[, &quot;DAX&quot;])
+g_price &lt;- garch(dax_price - mean(dax_price), order = c(1, 1), trace = FALSE)
+
+round(coef(g_price), 6)
+#&gt;           a0           a1           b1 
+#&gt; 1.059098e+06 2.119730e-01 0.000000e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output is nonsense. Omega comes back as roughly one million because it is trying to describe the variance of index <em>levels</em>, and beta comes back as exactly zero, so the fitted model carries no memory term at all. R also prints a <code>singular information</code> warning alongside that fit, which is how it reports that the estimation is degenerate. Always difference and log first.</p>
+
+<p><strong>Mistake two: forgetting how scaling moves omega.</strong> Returns as decimals and returns as percentages are the same data, but the coefficients do not all behave the same way.</p>
+
+<div class="webr-container" data-block-title="How rescaling changes omega but not alpha or beta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How rescaling changes omega but not alpha or beta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dax_dec &lt;- dax_ret / 100                       # decimals instead of percent
+g_dec &lt;- garch(dax_dec - mean(dax_dec), order = c(1, 1), trace = FALSE)
+
+round(coef(g_dec), 10)
+#&gt;           a0           a1           b1 
+#&gt; 0.0000047459 0.0683704573 0.8877458227</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare with the percent-scale fit: alpha was 0.068377 and beta 0.887741, essentially unchanged. But omega went from 0.047462 to 0.0000047459, smaller by a factor of 10,000, which is 100 squared. Alpha and beta are scale-free ratios; omega carries the units of variance. This is why omega values look wildly different across papers, and why you should never compare omega between two fits without checking the scale first.</p>
+
+<p><strong>Mistake three: a fit that does not converge.</strong> If <code>ugarchfit()</code> returns NaN standard errors or an obviously wrong fit, try <code>solver = &quot;hybrid&quot;</code>, which is what every rugarch block in this article uses. It falls back through several optimisers instead of giving up on the first failure. If persistence comes back at 0.9999 or above, your model is effectively IGARCH, meaning shocks never decay and there is no finite long-run variance. That is occasionally real, and more often a sign of a structural break sitting in the middle of your sample.</p>
+
+<p>There is one more thing worth knowing before you build anything long-lived on this package.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>rugarch is in maintenance mode.</strong> Its own CRAN README states that the package will no longer be updated, that bug fixes continue until roughly 2027, and that users should switch to the newer <code>tsgarch</code> package by the same author. Learn rugarch anyway, because every existing codebase, course and paper uses it, but start new long-lived projects with the successor in mind.</div></div>
+
+<p>The translation is mostly mechanical, with one trap:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>rugarch</th>
+<th>tsgarch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Describe the model</td>
+<td><code>ugarchspec(...)</code></td>
+<td><code>garch_modelspec(y, model = &quot;garch&quot;, order = c(1,1))</code></td>
+</tr>
+<tr>
+<td>Fit it</td>
+<td><code>ugarchfit(spec, data)</code></td>
+<td><code>estimate(spec)</code></td>
+</tr>
+<tr>
+<td>Forecast</td>
+<td><code>ugarchforecast(fit, n.ahead = 10)</code></td>
+<td><code>predict(fit, h = 10)</code></td>
+</tr>
+<tr>
+<td>Backtest</td>
+<td><code>ugarchroll(...)</code></td>
+<td><code>tsbacktest(...)</code></td>
+</tr>
+<tr>
+<td>Asymmetric model</td>
+<td><code>model = &quot;gjrGARCH&quot;</code></td>
+<td><code>model = &quot;gjrgarch&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The trap is the mean equation. <code>garch_modelspec()</code> has no <code>armaOrder</code> argument at all, only a <code>constant</code> flag. ARMA dynamics moved into a separate package, <code>tsarma</code>. If you are porting a model that relied on rugarch's ARMA mean, that part does not translate directly.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict, without running it, what happens to omega if you fit the same returns divided by 10 rather than 100. Would alpha and beta change?</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>Dividing returns by 10 divides their variance by 100, so omega should shrink by a factor of 100, from about 0.047462 to about 0.00047462. Alpha and beta would be essentially unchanged, because both are dimensionless ratios describing how variance propagates rather than how large it is.</p>
+
+<p>The general rule: rescaling returns by a factor <code>c</code> rescales omega by <code>c</code> squared and leaves alpha, beta and persistence alone. Every derived quantity that depends only on persistence, such as half-life, is also unaffected.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas at once. All three run in your browser.</p>
+
+<h3>Exercise 1: A complete workflow on the FTSE</h3>
+
+<p>Run the full pipeline on the FTSE index: test for ARCH effects, fit a GARCH(1,1), report persistence, half-life and long-run daily volatility, then forecast five days ahead by hand. Use <code>my_</code> prefixes so you do not overwrite tutorial variables.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ftse &lt;- as.numeric(diff(log(EuStockMarkets[, &quot;FTSE&quot;])) * 100)
+my_c &lt;- my_ftse - mean(my_ftse)
+
+# Hint: reuse arch_lm(), then garch(), then the recursion
+#   s2[k] &lt;- a0 + (a1 + b1) * s2[k-1]
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ftse &lt;- as.numeric(diff(log(EuStockMarkets[, &quot;FTSE&quot;])) * 100)
+my_c &lt;- my_ftse - mean(my_ftse)
+
+round(arch_lm(my_c, 5), 4)
+#&gt; LM_statistic           df      p_value 
+#&gt;      43.9201       5.0000       0.0000
+
+my_fit &lt;- garch(my_c, order = c(1, 1), trace = FALSE)
+my_cf &lt;- coef(my_fit)
+round(c(omega = unname(my_cf[&quot;a0&quot;]), alpha = unname(my_cf[&quot;a1&quot;]),
+        beta = unname(my_cf[&quot;b1&quot;])), 6)
+#&gt;    omega    alpha     beta 
+#&gt; 0.008484 0.045010 0.942516
+
+my_p &lt;- unname(my_cf[&quot;a1&quot;] + my_cf[&quot;b1&quot;])
+round(c(persistence = my_p,
+        halflife = log(0.5) / log(my_p),
+        longrun_sd = sqrt(unname(my_cf[&quot;a0&quot;]) / (1 - my_p))), 4)
+#&gt; persistence    halflife  longrun_sd 
+#&gt;      0.9875     55.2197      0.8247
+
+my_s &lt;- as.numeric(fitted(my_fit)[, 1])
+my_s2 &lt;- numeric(5)
+my_s2[1] &lt;- unname(my_cf[&quot;a0&quot;]) + unname(my_cf[&quot;a1&quot;]) * my_c[length(my_c)]^2 +
+            unname(my_cf[&quot;b1&quot;]) * my_s[length(my_s)]^2
+for (k in 2:5) my_s2[k] &lt;- unname(my_cf[&quot;a0&quot;]) + my_p * my_s2[k - 1]
+round(sqrt(my_s2), 4)
+#&gt; [1] 1.1703 1.1666 1.1629 1.1593 1.1558</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The FTSE has clear ARCH effects and very high persistence at 0.9875, giving a 55-day half-life. Notice how flat the five-day forecast is, falling only from 1.170 to 1.156. With persistence that close to 1, forecasts barely move over a week, which is the practical meaning of a <a class="auto-link" href="ARFIMA-in-R.html" title="ARFIMA in R: Long-Memory Models with fracdiff">long memory</a>.</p>
+
+</details>
+
+<h3>Exercise 2: Which European market has the longest volatility memory?</h3>
+
+<p><code>EuStockMarkets</code> holds four indices: DAX, SMI, CAC and FTSE. Fit a GARCH(1,1) to each and build a comparison table of alpha, beta, persistence, half-life and long-run daily volatility. Which market forgets a shock fastest?</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: loop over colnames(EuStockMarkets) with lapply(), build a one-row
+# data.frame per index, and combine with do.call(rbind, ...)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_tab &lt;- do.call(rbind, lapply(colnames(EuStockMarkets), function(nm) {
+  r &lt;- as.numeric(diff(log(EuStockMarkets[, nm])) * 100)
+  f &lt;- garch(r - mean(r), order = c(1, 1), trace = FALSE)
+  cc &lt;- coef(f); pp &lt;- unname(cc[&quot;a1&quot;] + cc[&quot;b1&quot;])
+  data.frame(index = nm,
+             alpha = round(unname(cc[&quot;a1&quot;]), 4),
+             beta = round(unname(cc[&quot;b1&quot;]), 4),
+             persistence = round(pp, 4),
+             halflife = round(log(0.5) / log(pp), 1),
+             longrun_sd = round(sqrt(unname(cc[&quot;a0&quot;]) / (1 - pp)), 4))
+}))
+print(my_tab, row.names = FALSE)
+#&gt;  index  alpha   beta persistence halflife longrun_sd
+#&gt;    DAX 0.0684 0.8877      0.9561     15.4     1.0400
+#&gt;    SMI 0.1269 0.7310      0.8579      4.5     0.9360
+#&gt;    CAC 0.0512 0.8772      0.9285      9.3     1.1037
+#&gt;   FTSE 0.0450 0.9425      0.9875     55.2     0.8247</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The SMI forgets fastest, with a half-life of 4.5 days, and it has the highest alpha at 0.127 combined with the lowest beta at 0.731, so it reacts sharply to news but does not dwell on it. The FTSE is the opposite: the lowest alpha, the highest beta, and a 55-day memory. Same asset class, same period, and volatility half-lives spanning more than a factor of ten.</p>
+
+</details>
+
+<h3>Exercise 3: Build a VaR backtest from scratch</h3>
+
+<p>Using the DAX model already fitted as <code>g</code>, compute the 1% Value at Risk for each day as <code>qnorm(0.01) * sigma_t + mean(dax_ret)</code>, count how many actual returns fell below their VaR, and compare with the 1% you would expect. Does the normal assumption hold up?</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: the fitted volatilities are as.numeric(fitted(g)[, 1]) and the
+# first one is NA, so filter with !is.na() before counting
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_sigma &lt;- as.numeric(fitted(g)[, 1])
+my_ok &lt;- !is.na(my_sigma)
+
+my_var99 &lt;- qnorm(0.01) * my_sigma[my_ok] + mean(dax_ret)
+my_breach &lt;- dax_ret[my_ok] &lt; my_var99
+
+round(c(days = sum(my_ok),
+        expected = 0.01 * sum(my_ok),
+        actual = sum(my_breach),
+        actual_pct = 100 * mean(my_breach)), 3)
+#&gt;       days   expected     actual actual_pct 
+#&gt;   1858.000     18.580     30.000      1.615</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Thirty breaches where 18.6 were expected, a rate of 1.6% instead of 1%. This mirrors the out-of-sample rugarch backtest almost exactly, and it is the same diagnosis: the GARCH variance dynamics are sound, but pairing them with a normal distribution understates the tail. Rerunning this with a Student t quantile in place of <code>qnorm()</code> moves the count much closer to expectation.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the whole workflow as one reusable function. Give it a price series and it returns a labelled volatility report.</p>
+
+<div class="webr-container" data-block-title="End-to-end GARCH report function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end GARCH report function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">garch_report &lt;- function(prices, label = &quot;series&quot;, h = 5) {
+  r  &lt;- as.numeric(diff(log(prices)) * 100)
+  rc &lt;- r - mean(r)
+
+  test &lt;- arch_lm(rc, 5)
+  fit  &lt;- garch(rc, order = c(1, 1), trace = FALSE)
+  cf   &lt;- coef(fit)
+  p    &lt;- unname(cf[&quot;a1&quot;] + cf[&quot;b1&quot;])
+  sg   &lt;- as.numeric(fitted(fit)[, 1])
+  lb   &lt;- Box.test(na.omit(rc / sg)^2, lag = 10, type = &quot;Ljung-Box&quot;)
+
+  s2 &lt;- unname(cf[&quot;a0&quot;]) + unname(cf[&quot;a1&quot;]) * rc[length(rc)]^2 +
+        unname(cf[&quot;b1&quot;]) * sg[length(sg)]^2
+  path &lt;- numeric(h); path[1] &lt;- s2
+  for (k in 2:h) path[k] &lt;- unname(cf[&quot;a0&quot;]) + p * path[k - 1]
+
+  cat(&quot;Series            :&quot;, label, &quot;\n&quot;)
+  cat(&quot;Observations      :&quot;, length(r), &quot;\n&quot;)
+  cat(&quot;ARCH-LM p-value   :&quot;, format.pval(test[&quot;p_value&quot;], digits = 3), &quot;\n&quot;)
+  cat(&quot;alpha / beta      :&quot;, round(unname(cf[&quot;a1&quot;]), 4), &quot;/&quot;,
+                             round(unname(cf[&quot;b1&quot;]), 4), &quot;\n&quot;)
+  cat(&quot;Persistence       :&quot;, round(p, 4), &quot;\n&quot;)
+  cat(&quot;Shock half-life   :&quot;, round(log(0.5) / log(p), 1), &quot;days\n&quot;)
+  cat(&quot;Long-run daily sd :&quot;, round(sqrt(unname(cf[&quot;a0&quot;]) / (1 - p)), 4), &quot;%\n&quot;)
+  cat(&quot;Long-run annual   :&quot;, round(sqrt(unname(cf[&quot;a0&quot;]) / (1 - p)) * sqrt(252), 1), &quot;%\n&quot;)
+  cat(&quot;Residual LB p-val :&quot;, round(lb$p.value, 4), &quot;\n&quot;)
+  cat(&quot;Next&quot;, h, &quot;days sd   :&quot;, round(sqrt(path), 4), &quot;\n&quot;)
+  invisible(NULL)
+}
+
+garch_report(EuStockMarkets[, &quot;DAX&quot;], label = &quot;DAX&quot;)
+#&gt; Series            : DAX 
+#&gt; Observations      : 1859 
+#&gt; ARCH-LM p-value   : 1.18e-13 
+#&gt; alpha / beta      : 0.0684 / 0.8877 
+#&gt; Persistence       : 0.9561 
+#&gt; Shock half-life   : 15.4 days
+#&gt; Long-run daily sd : 1.04 %
+#&gt; Long-run annual   : 16.5 %
+#&gt; Residual LB p-val : 0.9999 
+#&gt; Next 5 days sd   : 1.5269 1.5089 1.4914 1.4745 1.4581</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every line traces back to something built earlier: <code>arch_lm()</code> from the testing section, the recursion from the simulation section, half-life from the interpretation section, the Ljung-Box residual check from the diagnostics section, and the forward recursion from the forecasting section. Swap in <code>EuStockMarkets[, &quot;CAC&quot;]</code> and you get the same report for the French market.</p>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>How much data do I need to fit a GARCH model?</strong></p>
+
+<p>Maximum likelihood needs a lot of observations to pin down three parameters that describe rare events, and beta in particular is badly estimated in short samples. A practical floor for daily data is around 500 observations, with 1,000 or more preferred, which is why the DAX sample of 1,859 days here is comfortable. Below a few hundred points you will often see beta drift toward 1 or standard errors that swamp the estimates, and the fix is more data rather than a cleverer specification.</p>
+
+<p><strong>Do I need to fit an ARMA model to the returns first?</strong></p>
+
+<p>Test before you assume. Run the Ljung-Box test on the raw returns: if the p-value is large, as it was for the DAX at 0.78, there is no direction to model and a constant mean is correct. If it is small, fit the ARMA mean and the GARCH variance together in one <code>ugarchspec()</code> via <code>armaOrder</code>, rather than fitting ARIMA first and running GARCH on the residuals, because the two-step route understates the standard errors.</p>
+
+<p><strong>My alpha plus beta came out above 1. What went wrong?</strong></p>
+
+<p>Most often nothing is wrong with your code and something is wrong with the sample. A persistence estimate at or above 1 means shocks never fade and there is no finite long-run variance, and the usual cause is a structural break sitting inside the sample, such as a regime change or a merged series from two different assets. Split the sample at the suspected break and refit each half before concluding that the volatility genuinely has infinite memory.</p>
+
+<p><strong>Is GARCH(1,1) enough, or should I try higher orders?</strong></p>
+
+<p>GARCH(1,1) is famously hard to beat on daily financial returns, and higher orders usually buy a fraction of a log-likelihood point for an extra parameter. The horse race in this article makes the same point from the other direction: changing the shock distribution was worth about 100 log-likelihood points, while changing the variance equation was worth about 5. Try (2,1) if the diagnostics on squared standardized residuals still fail, but change the distribution first.</p>
+
+<p><strong>Can I use GARCH to forecast prices or the direction of the market?</strong></p>
+
+<p>No. GARCH forecasts the conditional variance, and the mean forecast it produces is a flat line at the estimated average return, which the forecasting section above shows explicitly. It is used for position sizing, option pricing, Value at Risk and margin setting, all of which need to know how uncertain tomorrow is rather than which way it goes.</p>
+
+<p><strong>Should I start a new project in rugarch or tsgarch?</strong></p>
+
+<p>If you are learning, reading existing code or reproducing published work, use rugarch, because that is what everything is written in. If you are starting a codebase that has to survive several years, use <code>tsgarch</code>, since rugarch's own README says the package will not be updated further and points users to the successor. The one thing that does not carry over cleanly is the ARMA mean equation, which lives in a separate package, <code>tsarma</code>.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/GARCH-Models-in-R-workflow.webp" alt="Workflow diagram running from log returns through ARCH testing, model specification, maximum likelihood fitting, diagnostics, forecasting and out-of-sample backtesting" class="img-responsive img-zoomable" loading="lazy" width="2248" height="286" /></p>
+
+<p><em>Figure 3: The complete GARCH workflow, from raw returns to an honest out-of-sample verdict.</em></p>
+
+<p>The parameters and what they tell you:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Formula</th>
+<th>DAX value</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>alpha</td>
+<td>fitted</td>
+<td>0.068</td>
+<td>How hard volatility reacts to yesterday's news</td>
+</tr>
+<tr>
+<td>beta</td>
+<td>fitted</td>
+<td>0.888</td>
+<td>How much of yesterday's volatility carries over</td>
+</tr>
+<tr>
+<td>omega</td>
+<td>fitted</td>
+<td>0.047</td>
+<td>The baseline anchor, and it moves with your data's scale</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>alpha + beta</td>
+<td>0.956</td>
+<td>Fraction of a volatility shock surviving one day</td>
+</tr>
+<tr>
+<td>Half-life</td>
+<td>log(0.5)/log(persistence)</td>
+<td>15.4 days</td>
+<td>How long until a shock half fades</td>
+</tr>
+<tr>
+<td>Long-run volatility</td>
+<td>sqrt(omega/(1 - persistence))</td>
+<td>1.04% daily</td>
+<td>The level forecasts drift back toward</td>
+</tr>
+<tr>
+<td>Annualized</td>
+<td>daily * sqrt(252)</td>
+<td>16.5%</td>
+<td>The same number in the units risk desks quote</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decisions, and what drives each one:</p>
+
+<ul>
+
+<li><strong>Do I need GARCH at all?</strong> Ljung-Box on squared returns, plus the ARCH-LM test.</li>
+
+<li><strong>Symmetric or asymmetric?</strong> The Sign Bias test. If it fires, use gjrGARCH or eGARCH.</li>
+
+<li><strong>Which distribution?</strong> The Adjusted Pearson test. For daily equity data the answer is almost always Student t, not normal.</li>
+
+<li><strong>Is the fit adequate?</strong> Ljung-Box on squared standardized residuals should come back large and boring.</li>
+
+<li><strong>Is it actually useful?</strong> Only a rolling out-of-sample backtest can answer that.</li>
+
+</ul>
+
+<p>And the three things worth remembering above all:</p>
+
+<ol>
+
+<li><strong>GARCH forecasts variance, not returns.</strong> The mean forecast is a flat line by design.</li>
+
+<li><strong>Forecasts always mean-revert</strong> to the long-run level, at a speed set entirely by persistence.</li>
+
+<li><strong>The distribution assumption often matters more than the variance equation.</strong> On the DAX it was worth roughly twenty times as much log-likelihood.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Bollerslev, T. Generalized Autoregressive Conditional Heteroskedasticity. <em>Journal of Econometrics</em>, 31(3), 307-327 (1986). The paper that introduced GARCH. <a href="https://doi.org/10.1016/0304-4076%2886%2990063-1">Link</a></li>
+
+<li>Engle, R. F. Autoregressive Conditional Heteroscedasticity with Estimates of the Variance of United Kingdom Inflation. <em>Econometrica</em>, 50(4), 987-1007 (1982). The original ARCH paper, which won the 2003 Nobel Prize. <a href="https://ideas.repec.org/a/ecm/emetrp/v50y1982i4p987-1007.html">Link</a></li>
+
+<li>Galanos, A. rugarch: Univariate GARCH Models. CRAN package documentation and introductory vignette. <a href="https://cran.r-project.org/web/packages/rugarch/index.html">Link</a></li>
+
+<li>Galanos, A. rugarch README, containing the maintenance and migration notice. <a href="https://cran.r-project.org/web/packages/rugarch/readme/README.html">Link</a></li>
+
+<li>Galanos, A. tsgarch: Univariate GARCH Models, the successor package. <a href="https://cran.r-project.org/web/packages/tsgarch/index.html">Link</a></li>
+
+<li>Glosten, L. R., Jagannathan, R., and Runkle, D. E. On the Relation between the Expected Value and the Volatility of the Nominal Excess Return on Stocks. <em>Journal of Finance</em>, 48(5), 1779-1801 (1993). The GJR-GARCH model. <a href="https://ideas.repec.org/a/bla/jfinan/v48y1993i5p1779-1801.html">Link</a></li>
+
+<li>Nelson, D. B. Conditional Heteroskedasticity in Asset Returns: A New Approach. <em>Econometrica</em>, 59(2), 347-370 (1991). The EGARCH model. <a href="https://ideas.repec.org/a/ecm/emetrp/v59y1991i2p347-70.html">Link</a></li>
+
+<li>Perlin, M. S., Mastella, M., Vancin, D. F., and Ramos, H. P. A GARCH Tutorial with R. <em>Revista de Administracao Contemporanea</em>, 25(1) (2021). A peer-reviewed applied walkthrough. <a href="https://www.scielo.br/j/rac/a/FyNM3rThZN7wQgMKshwLHjk/?lang=en">Link</a></li>
+
+<li>Trapletti, A. and Hornik, K. tseries: Time Series Analysis and Computational Finance. CRAN package documentation. <a href="https://cran.r-project.org/web/packages/tseries/index.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ARIMA-in-R.html">ARIMA Models in R</a> covers the mean-equation side of time series modelling. GARCH handles the variance; ARIMA handles the level, and serious models often combine both.</li>
+
+<li><a href="Test-Stationarity-in-R.html">Test Stationarity in R</a> explains the ADF and KPSS tests. Since GARCH requires a stationary input, this is the check to run before you difference and log your prices.</li>
+
+<li><a href="Time-Series-Forecasting-With-R.html">Time Series Forecasting in R</a> walks through building and evaluating forecasts more generally, including the accuracy measures used in the backtesting section above.</li>
+
+</ul>
+
+{% endraw %}
