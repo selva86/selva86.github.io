@@ -19,6 +19,7 @@ import type { Env } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
 import { verifyPaddleSignature, isPaddleSourceIp } from "../../_lib/paddle";
 import { getUserById, getUserByEmail } from "../../_lib/db";
+import { notifyAdminEvent } from "../../_lib/notify";
 import { upsertOrgFromSubscription, updateOrgLifecycle } from "../../_lib/teams";
 import {
   resolveSubscriptionUser, mirrorSubscription, applyIndividualEntitlement,
@@ -338,6 +339,42 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       .bind(null, `paddle.${eventType}`, subId || eventId, JSON.stringify({ note: processedNote }), now)
       .run()
       .catch((e) => console.warn(`[webhook.paddle] audit_log insert failed: ${e}`));
+
+    // Owner notification for revenue-relevant events. Fire-and-forget after
+    // the response so webhook latency is unaffected; replays never re-notify.
+    const buyer = (data.custom_data?.email as string | undefined)
+      || (data.email as string | undefined) || "";
+    const total = data.details?.totals?.total;
+    const currency = data.details?.totals?.currency_code || "";
+    const money = total != null && total !== "" && currency
+      ? `${(parseInt(String(total), 10) / 100).toFixed(2)} ${currency}` : "";
+    const plan = (data.custom_data?.plan as string | undefined) || "";
+    const term = (data.custom_data?.term as string | undefined) || "";
+    const NOTIFY: Record<string, string> = {
+      "transaction.completed": "Payment received",
+      "transaction.payment_failed": "Payment FAILED",
+      "subscription.created": "New subscription",
+      "subscription.canceled": "Subscription canceled",
+      "subscription.past_due": "Subscription past due",
+      "adjustment.updated": "Adjustment (refund?) updated",
+    };
+    const headline = NOTIFY[eventType];
+    if (headline) {
+      context.waitUntil(notifyAdminEvent(context.env, {
+        subject: `[r-statistics.co] ${headline}${money ? ": " + money : ""}${plan ? " (" + plan + (term ? " " + term : "") + ")" : ""}`,
+        headline,
+        rows: [
+          ["Event", eventType],
+          ...(plan ? [["Plan", plan + (term ? " / " + term : "")] as [string, string]] : []),
+          ...(money ? [["Amount", money] as [string, string]] : []),
+          ...(buyer ? [["Customer", buyer] as [string, string]] : []),
+          ...(subId ? [["Subscription", subId] as [string, string]] : []),
+          ["Ref", data.id || eventId],
+          ["Note", processedNote],
+        ],
+        ...(buyer ? { replyTo: buyer } : {}),
+      }));
+    }
   }
 
   return json({ ok: true, event_id: eventId, note: processedNote, replay: isReplay });

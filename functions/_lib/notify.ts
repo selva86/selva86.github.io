@@ -24,9 +24,36 @@ function providerLabel(p?: string): string {
   return p.charAt(0).toUpperCase() + p.slice(1); // Google, Github, ...
 }
 
+// Generic low-volume admin event email (purchases, checkout attempts,
+// cancellations, payment failures). Unconditional (no flag) and best-effort:
+// callers fire-and-forget, a failure never affects the triggering request.
+export async function notifyAdminEvent(
+  env: Env,
+  opts: { subject: string; headline: string; rows: Array<[string, string]>; replyTo?: string },
+): Promise<void> {
+  try {
+    const when = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
+    const rows = opts.rows.concat([["When", when]]);
+    const contentHtml = `
+      <p style="font-size:17px;font-weight:600;color:#0a0d14;margin:0 0 12px">${escapeHtml(opts.headline)}</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;margin:8px 0">
+        ${rows.map(([k, v]) => `<tr><td style="padding:2px 12px 2px 0;color:#6b7280">${escapeHtml(k)}</td><td><strong>${escapeHtml(v)}</strong></td></tr>`).join("\n")}
+      </table>`;
+    const textBody = opts.headline + "\n" + rows.map(([k, v]) => `${k}: ${v}`).join("\n") + "\n\n-- r-statistics.co";
+    await sendMail(env, {
+      to: { email: ADMIN_EMAIL, name: "Selva" },
+      subject: opts.subject,
+      htmlBody: emailShell({ preheader: opts.headline, contentHtml }),
+      textBody,
+      ...(opts.replyTo ? { replyTo: { email: opts.replyTo } } : {}),
+    });
+  } catch (_) { /* never throws into the caller */ }
+}
+
 export async function notifyNewSignup(
   env: Env,
   user: { id: string; email: string; provider?: string },
+  source?: { page?: string; trigger?: string; next?: string },
 ): Promise<void> {
   try {
     // Flag gate — off by default; flip with `wrangler kv key put` / dashboard.
@@ -59,6 +86,9 @@ export async function notifyNewSignup(
         <tr><td style="padding:2px 12px 2px 0;color:#6b7280">Email</td><td><strong>${safeEmail}</strong></td></tr>
         <tr><td style="padding:2px 12px 2px 0;color:#6b7280">Method</td><td>${escapeHtml(provider)}</td></tr>
         <tr><td style="padding:2px 12px 2px 0;color:#6b7280">When</td><td>${when}</td></tr>
+        ${source?.page ? `<tr><td style="padding:2px 12px 2px 0;color:#6b7280">From page</td><td>${escapeHtml(source.page)}</td></tr>` : ""}
+        ${source?.trigger ? `<tr><td style="padding:2px 12px 2px 0;color:#6b7280">Trigger</td><td>${escapeHtml(source.trigger)}</td></tr>` : ""}
+        ${source?.next ? `<tr><td style="padding:2px 12px 2px 0;color:#6b7280">Heading to</td><td>${escapeHtml(source.next)}</td></tr>` : ""}
         ${total !== null ? `<tr><td style="padding:2px 12px 2px 0;color:#6b7280">Total users</td><td><strong>${total}</strong></td></tr>` : ""}
       </table>
       <p style="color:#6b7280;font-size:13px">Reply to this email to reach them directly.</p>`;
@@ -67,6 +97,9 @@ export async function notifyNewSignup(
       `New signup: ${user.email}\n` +
       `Method: ${provider}\n` +
       `When: ${when}\n` +
+      (source?.page ? `From page: ${source.page}\n` : "") +
+      (source?.trigger ? `Trigger: ${source.trigger}\n` : "") +
+      (source?.next ? `Heading to: ${source.next}\n` : "") +
       (total !== null ? `Total users: ${total}\n` : "") +
       `\n-- r-statistics.co`;
 

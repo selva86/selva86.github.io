@@ -177,6 +177,30 @@ function resolveRedirectAfterAuth() {
 }
 const REDIRECT_AFTER_AUTH = resolveRedirectAfterAuth();
 
+// Signup attribution: where did this visitor come from and what CTA sent them
+// here? Rides along as user_metadata on the magic-link path so the admin
+// signup email can say "from /pricing.html via enroll". Explicit ?src=/&trig=
+// params (future CTAs can annotate) win over inference.
+function signupSource() {
+  const p = new URLSearchParams(window.location.search);
+  const next = p.get('next') || '';
+  let trigger = p.get('trig') || '';
+  if (!trigger) {
+    try { if (sessionStorage.getItem('rs-pending-intent')) trigger = 'save-intent'; } catch (_) {}
+  }
+  if (!trigger) {
+    if (!next) trigger = 'direct';
+    else if (next.indexOf('/dashboard.html') === 0) trigger = 'start-free';
+    else if (next.indexOf('/pricing.html') === 0) trigger = 'enroll';
+    else trigger = 'content-gate';
+  }
+  return {
+    signup_page: p.get('src') || document.referrer || '',
+    signup_trigger: trigger,
+    signup_next: next,
+  };
+}
+
 // The OAuth / magic-link round-trip MUST land on a page that can parse the
 // access_token from the URL hash and persist it to localStorage — that's
 // signin.html itself (and /account.html). Tutorial pages and most other
@@ -327,14 +351,14 @@ function showMsg(kind, text) {
     if (!email) return;
     btn.disabled = true;
     labelSpan.innerHTML = '<span class="spinner"></span>Sending...';
-    const otpOptions = { emailRedirectTo: OAUTH_CALLBACK_URL };
+    const otpOptions = { emailRedirectTo: OAUTH_CALLBACK_URL, data: signupSource() };
     if (wantsNewsletter()) {
       recordOptinSignal();
-      otpOptions.data = {
+      Object.assign(otpOptions.data, {
         marketing_opt_in: true,
         marketing_opt_in_source: 'signin-page',
         marketing_opt_in_at: new Date().toISOString(),
-      };
+      });
     }
     const { error } = await supa.auth.signInWithOtp({
       email,

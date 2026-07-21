@@ -205,8 +205,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       (payload.type === "UPDATE" && !!rec?.email_confirmed_at && !payload.old_record?.email_confirmed_at);
     if (justConfirmed && rec?.email) {
       const provider = (rec.raw_app_meta_data?.provider as string) || undefined;
+      // Signup attribution: signin.html stamps these into user_metadata on the
+      // magic-link path (OAuth signups have none; the email just omits rows).
+      const meta = rec.raw_user_meta_data ?? {};
+      const source = {
+        page: (meta.signup_page as string | undefined) || undefined,
+        trigger: (meta.signup_trigger as string | undefined) || undefined,
+        next: (meta.signup_next as string | undefined) || undefined,
+      };
       context.waitUntil(
-        notifyNewSignup(context.env, { id: rec.id, email: rec.email, provider }),
+        notifyNewSignup(context.env, { id: rec.id, email: rec.email, provider }, source),
       );
       // 8. Newsletter consent sync (Phase 6/A): the sign-in nudge records the
       //    opt-in as marketing_opt_in in user_metadata on the magic-link path.
