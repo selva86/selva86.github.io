@@ -1,0 +1,1567 @@
+---
+title: "Kalman Filter in R: FKF and KFAS for State Space Models"
+description: "Learn the Kalman filter in R from scratch: state space models, the predict-update cycle, a hand-coded filter, and worked FKF and KFAS forecasting examples."
+keywords: "kalman filter in r, FKF package, KFAS package, state space models in r, StructTS, local level model, kalman smoothing, time series filtering"
+mathjax: true
+webr: true
+curriculum_id: "FR-adva-9"
+post_type: "C"
+auto_link_terms: "Kalman filter|Kalman filter in R|state space model|state space models|local level model|Kalman gain|Kalman smoothing|FKF package|KFAS package|StructTS"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Kalman Filter"
+sidebar_order: "31"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">The Kalman filter is a recursive algorithm that estimates the hidden state of a system from noisy measurements, by repeatedly predicting what comes next and then correcting that prediction with each new observation. This tutorial builds the filter from scratch in base R, proves the hand-coded version reproduces R's built-in filter exactly, then shows the same model in the FKF and KFAS packages.</p>
+
+<h2>What problem does the Kalman filter actually solve?</h2>
+
+<p>No measurement is exact. A river gauge, a GPS chip and a sales dashboard all report a number that is part real signal and part noise, and you usually care about the signal. R ships with a Kalman filter already installed, so before any theory, watch what it does to a genuinely noisy series: the annual flow of the Nile, measured every year from 1871.</p>
+
+<p>The <code>Nile</code> dataset comes with R, so there is nothing to download. The function <code>StructTS()</code> fits what is called a local level model, which is the simplest possible setup: assume there is a true water level that drifts slowly from year to year, and assume every measurement of it is off by some random amount. <code>StructTS()</code> estimates how big each of those two effects is.</p>
+
+<div class="webr-container" data-block-title="Filter the Nile with base R">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter the Nile with base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_fit &lt;- StructTS(Nile, type = &quot;level&quot;)
+round(nile_fit$coef, 1)
+#&gt;   level epsilon 
+#&gt;  1469.1 15098.6 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two numbers came back. <code>level</code> is the estimated variance of the year-to-year drift in the true water level, and <code>epsilon</code> is the estimated variance of the measurement error. Read them as variances, so take square roots to get something interpretable: the true level wanders by about 38 units per year, while any single measurement is off by about 123 units.</p>
+
+<p>That ratio is the whole story. Measurement noise is roughly ten times larger than the real movement, so most of the jaggedness you see in the raw data is not the river changing, it is the gauge being imprecise. Here is what that looks like.</p>
+
+<div class="webr-container" data-block-title="Plot raw data against the filtered level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot raw data against the filtered level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(Nile, col = &quot;grey65&quot;, lwd = 2, ylab = &quot;Annual flow&quot;, xlab = &quot;Year&quot;,
+     main = &quot;Nile: raw measurements vs filtered level&quot;)
+lines(fitted(nile_fit), col = &quot;firebrick&quot;, lwd = 2)
+legend(&quot;topright&quot;, c(&quot;observed&quot;, &quot;Kalman-filtered level&quot;),
+       col = c(&quot;grey65&quot;, &quot;firebrick&quot;), lwd = 2, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The grey line jumps around violently from year to year. The red line, which is the filter's estimate of the true underlying level, moves smoothly and still captures the one thing that genuinely happened: a sharp drop around 1899, when construction of the first Aswan dam began. The filter kept the real change and threw away the noise.</p>
+
+<p>Notice what the filter did <strong>not</strong> do. It did not use a <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">moving average</a>, and it did not fit a curve through all the points at once. It walked through the series one year at a time, and at each year it made a guess before seeing the data, then adjusted that guess once the measurement arrived.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The Kalman filter is a running weighted average between what you expected and what you measured.</strong> At every time step it holds a prediction and receives an observation, and its estimate is a blend of the two, weighted by how much it trusts each one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The filtered line is visibly smoother than the raw data. Put a number on that by comparing the standard deviation of the raw <code>Nile</code> series with the standard deviation of the filtered values, which you get from <code>fitted(nile_fit)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: measure the smoothing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure the smoothing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Standard deviation of the raw series:
+
+# Standard deviation of the filtered level:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Measure the smoothing solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the smoothing solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sd(Nile), 1)
+#&gt; [1] 169.2
+round(sd(fitted(nile_fit)), 1)
+#&gt; [1] 119</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The raw series varies with a standard deviation of 169.2, the filtered level only 119. The filter removed roughly a third of the variability, and what it removed was the part it judged to be measurement error rather than real change.</p>
+
+</details>
+</section>
+
+<h2>What is a state space model, and what is the hidden state?</h2>
+
+<p>The Kalman filter does not work on any arbitrary dataset. It works on a specific description of your data called a <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">state space model</a>, and once you can write your problem in that form, the filter follows automatically. So the model comes first.</p>
+
+<p>A state space model says two things. First, there is a quantity you care about that you cannot see directly, called the <strong>state</strong>. Second, the numbers you actually recorded are that state plus noise. For the Nile, the state is the true average flow of the river in a given year, and the observation is what the gauge printed.</p>
+
+<p><img src="screenshots/Kalman-Filter-in-R-state-space-structure.webp" alt="A state space model: a hidden level evolves on its own, and each observation is that level plus measurement noise." class="img-responsive img-zoomable" loading="lazy" width="2248" height="676" /></p>
+
+<p><em>Figure 1: A state space model: a hidden level evolves on its own, and each observation is that level plus measurement noise.</em></p>
+
+<p>Read the diagram left to right along the top row. The hidden level at time 2 comes from the hidden level at time 1 plus a random nudge. That is the state moving on its own, and nothing you observe influences it. Then read the downward arrows: each observation is the hidden level at that time plus a separate random error.</p>
+
+<p>Those two sentences are the two equations of the model. The observation equation says what you see:</p>
+
+<p>$$y_t = \alpha_t + \varepsilon_t, \qquad \varepsilon_t \sim N(0, \sigma^2_\varepsilon)$$</p>
+
+<p>And the state equation says how the hidden thing moves:</p>
+
+<p>$$\alpha_{t+1} = \alpha_t + \eta_t, \qquad \eta_t \sim N(0, \sigma^2_\eta)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = the number you actually recorded at time $t$</li>
+
+<li>$\alpha_t$ = the hidden state at time $t$, the thing you want to know</li>
+
+<li>$\varepsilon_t$ = measurement error, with variance $\sigma^2_\varepsilon$</li>
+
+<li>$\eta_t$ = the random nudge that moves the state, with variance $\sigma^2_\eta$</li>
+
+</ul>
+
+<p>This particular pair of equations is called the <strong>local level model</strong>, because the state is just a level that wanders. It is the "hello world" of state space modelling, and everything else in this tutorial is a variation on it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The two noise terms mean completely different things.</strong> Measurement error is your instrument being imprecise and it never accumulates, while the state noise is the world genuinely changing and it accumulates forever. Confusing the two is the most common modelling mistake here.</div></div>
+
+<p>Real data will not tell you whether the filter is doing a good job, because you never get to see the hidden state. So let us build a series where we do know the truth. We will generate a hidden level that wanders with standard deviation 1 per step, then add measurement noise with standard deviation 3 on top of it.</p>
+
+<div class="webr-container" data-block-title="Simulate a series with a known hidden level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate a series with a known hidden level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2718)
+n_obs      &lt;- 100
+true_level &lt;- 10 + cumsum(rnorm(n_obs, mean = 0, sd = 1))
+y_obs      &lt;- true_level + rnorm(n_obs, mean = 0, sd = 3)
+round(head(data.frame(time = 1:n_obs, true_level, y_obs), 5), 2)
+#&gt;   time true_level y_obs
+#&gt; 1    1      10.49  9.15
+#&gt; 2    2       9.31  6.02
+#&gt; 3    3      10.00  7.67
+#&gt; 4    4       9.38  7.79
+#&gt; 5    5       8.65 12.07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the code line by line. <code>cumsum(rnorm(...))</code> is a random walk: each step adds a fresh random number to the running total, which is exactly the state equation. Adding a second, independent <code>rnorm()</code> on top produces the observation equation. The <code>set.seed(2718)</code> makes every number on this page reproducible on your machine.</p>
+
+<p>Look at the two columns. At time 2 the truth was 9.31 but we recorded 6.02, an error of over 3 units. At time 5 the truth was 8.65 but we recorded 12.07, an error in the other direction. The observations bounce around the truth much more than the truth itself moves.</p>
+
+<div class="webr-container" data-block-title="Plot the hidden level and the observations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the hidden level and the observations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(y_obs, type = &quot;p&quot;, pch = 16, col = &quot;grey55&quot;, xlab = &quot;Time&quot;, ylab = &quot;Value&quot;,
+     main = &quot;The hidden level and what we actually measure&quot;)
+lines(true_level, col = &quot;steelblue&quot;, lwd = 2)
+legend(&quot;topright&quot;, c(&quot;observation&quot;, &quot;true hidden level&quot;), pch = c(16, NA),
+       lty = c(NA, 1), col = c(&quot;grey55&quot;, &quot;steelblue&quot;), bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The blue line is the truth, which in real life you never get to see. The grey dots are your data. Your job, and the filter's job, is to recover the blue line using only the grey dots.</p>
+
+<p>Let us confirm the simulation matches the settings we asked for.</p>
+
+<div class="webr-container" data-block-title="Check both sources of noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check both sources of noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sd(y_obs - true_level), 2)
+#&gt; [1] 2.99
+round(sd(diff(true_level)), 2)
+#&gt; [1] 1.03</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first line subtracts the truth from the observations to leave pure measurement error. Its standard deviation is 2.99, right on the 3 we specified. The second line takes <code>diff()</code> of the true level to get the step-to-step changes, and their standard deviation is 1.03, matching the 1 we specified.</p>
+
+<p>So measurement noise is about three times larger than the real movement. That ratio is what the filter has to exploit: when noise dominates, trust your prediction more than any single measurement.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a second simulated series where the measurement noise is tiny, standard deviation 0.2 instead of 3, while the hidden level still wanders with standard deviation 1. Store the hidden level in <code>ex_level</code> and the observations in <code>ex_y</code>, then check the size of the measurement error.</p>
+<div class="webr-container" data-block-title="Your turn: simulate a low-noise series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate a low-noise series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_level &lt;- 10 + cumsum(rnorm(100, mean = 0, sd = 1))
+# Add measurement noise with sd = 0.2 to build ex_y:
+
+# Then report the sd of the measurement error:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Low-noise simulation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Low-noise simulation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_level &lt;- 10 + cumsum(rnorm(100, mean = 0, sd = 1))
+ex_y     &lt;- ex_level + rnorm(100, mean = 0, sd = 0.2)
+round(sd(ex_y - ex_level), 2)
+#&gt; [1] 0.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The measurement error now has a standard deviation of 0.21, far smaller than the level's own movement. In this regime the observations are nearly the truth, so a filter should follow the data closely instead of smoothing it. That is the opposite of the Nile case, and the same algorithm handles both.</p>
+
+</details>
+</section>
+
+<h2>How does the Kalman filter combine a prediction with a new observation?</h2>
+
+<p>The filter processes one observation at a time, and each observation triggers exactly two moves: a predict step and an update step. Understanding these two moves is understanding the Kalman filter, so we will do them slowly, with real numbers, before writing any loop.</p>
+
+<p><img src="screenshots/Kalman-Filter-in-R-predict-update-cycle.webp" alt="The predict-update cycle that the filter repeats once per observation." class="img-responsive img-zoomable" loading="lazy" width="2248" height="426" /></p>
+
+<p><em>Figure 2: The predict-update cycle that the filter repeats once per observation.</em></p>
+
+<p>The filter always carries two numbers with it: its current best guess of the level, and how uncertain it is about that guess, expressed as a variance. Call them $a$ and $P$. Everything the filter knows is in those two numbers.</p>
+
+<p><strong>The predict step</strong> asks: given what I knew after yesterday, what do I expect today, before looking at today's data? In the local level model the state does not drift in any particular direction, so the best guess for tomorrow's level is today's level. But you become less certain, because the level moved by a random amount you did not observe. So the guess stays put and the uncertainty grows by exactly the size of that random movement.</p>
+
+<p>$$a_{t|t-1} = a_{t-1|t-1}, \qquad P_{t|t-1} = P_{t-1|t-1} + \sigma^2_\eta$$</p>
+
+<p>The notation $t|t-1$ reads "at time $t$, using data up to time $t-1$", so it is the prediction. And $t|t$ reads "at time $t$, using data up to and including time $t$", so it is the updated estimate.</p>
+
+<p><strong>The update step</strong> then looks at the actual observation. The gap between what arrived and what you predicted is called the <strong>prediction error</strong>, or innovation:</p>
+
+<p>$$v_t = y_t - a_{t|t-1}$$</p>
+
+<p>You do not move your estimate by the whole error, because part of that error is just measurement noise. You move by a fraction of it, and that fraction is the <strong>Kalman gain</strong>:</p>
+
+<p>$$K_t = \frac{P_{t|t-1}}{P_{t|t-1} + \sigma^2_\varepsilon}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$P_{t|t-1}$ = how uncertain you are about your own prediction</li>
+
+<li>$\sigma^2_\varepsilon$ = how noisy a single measurement is</li>
+
+<li>$K_t$ = the resulting weight, always between 0 and 1</li>
+
+</ul>
+
+<p>Look at that fraction rather than memorising it. The numerator is your own uncertainty, the denominator is your uncertainty plus the measurement's uncertainty. So the gain is the share of the total uncertainty that belongs to you. If you are very unsure and the instrument is precise, the gain approaches 1 and you jump nearly all the way to the new measurement. If you are confident and the instrument is noisy, the gain approaches 0 and you barely move.</p>
+
+<p>The estimate and its uncertainty then update:</p>
+
+<p>$$a_{t|t} = a_{t|t-1} + K_t v_t, \qquad P_{t|t} = (1 - K_t) P_{t|t-1}$$</p>
+
+<p>That second equation is worth a second look: uncertainty always shrinks in the update, because $K_t$ is between 0 and 1. Every observation, no matter how noisy, tells you something.</p>
+
+<p><em>If you would rather skip the algebra, the code below does exactly what these four lines say, and reading it is enough.</em></p>
+
+<p>Let us run the very first step by hand. The filter has to start somewhere, so we start it at the first observation, 9.15, and declare that we are extremely unsure about it by setting the variance to 100. That large number is a way of saying "I know essentially nothing yet".</p>
+
+<div class="webr-container" data-block-title="Run the first update by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the first update by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a_pred &lt;- y_obs[1]
+P_pred &lt;- 100
+K_1 &lt;- P_pred / (P_pred + 3^2)
+a_1 &lt;- a_pred + K_1 * (y_obs[1] - a_pred)
+P_1 &lt;- (1 - K_1) * P_pred
+round(c(gain = K_1, level = a_1, variance = P_1), 3)
+#&gt;     gain    level variance 
+#&gt;    0.917    9.155    8.257 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gain came out at 0.917, very close to 1, because our starting uncertainty of 100 is more than ten times the measurement variance of 9. A gain that high means the filter moves almost all the way to the measurement, and since we deliberately started it at that same measurement, the level has nowhere to move and stays at 9.155. The number that really changed here is the variance, which collapses from 100 down to 8.257. One observation bought us a lot of confidence.</p>
+
+<p>Now predict forward to time 2. The level guess stays where it is, and the variance grows by the state noise variance, which is $1^2 = 1$.</p>
+
+<div class="webr-container" data-block-title="Predict forward one step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict forward one step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a_pred_2 &lt;- a_1
+P_pred_2 &lt;- P_1 + 1^2
+round(c(predicted_level = a_pred_2, predicted_variance = P_pred_2), 3)
+#&gt;    predicted_level predicted_variance 
+#&gt;              9.155              9.257 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The prediction for time 2 is still 9.155, but the uncertainty has crept up from 8.257 to 9.257. That growth is the price of time passing: the river moved and we did not watch it.</p>
+
+<p>Now the second observation arrives, and we update again.</p>
+
+<div class="webr-container" data-block-title="Update with the second observation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update with the second observation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">K_2 &lt;- P_pred_2 / (P_pred_2 + 3^2)
+v_2 &lt;- y_obs[2] - a_pred_2
+a_2 &lt;- a_pred_2 + K_2 * v_2
+round(c(gain = K_2, error = v_2, level = a_2), 3)
+#&gt;   gain  error  level 
+#&gt;  0.507 -3.133  7.566 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three numbers, and each one is meaningful. The prediction error is -3.133, meaning the observation of 6.02 came in far below the predicted 9.155. The gain has dropped from 0.917 to 0.507, because the filter is no longer clueless. And so the estimate moves by only about half the error, landing at 7.566 rather than following the data all the way down to 6.02.</p>
+
+<p>That halfway move is the whole point of the gain: some of that -3.133 gap is the hidden level genuinely falling, and some of it is measurement noise, so the error is split between the two in proportion to the two variances.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The Kalman gain is the fraction of the total uncertainty that belongs to your own estimate rather than to the measurement.</strong> That is why it starts near 1 when you are ignorant and falls as evidence accumulates, and it is the only part of the algorithm that decides anything.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose the filter has been running a long time and is now very confident, with a predicted variance of only 0.5, while the measurement variance is still 9. Compute the Kalman gain and store the variance in <code>ex_P</code>.</p>
+<div class="webr-container" data-block-title="Your turn: gain for a confident filter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: gain for a confident filter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_P &lt;- 0.5
+# Compute the Kalman gain using ex_P and a measurement variance of 3^2:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Confident-filter gain solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confident-filter gain solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_P &lt;- 0.5
+round(ex_P / (ex_P + 3^2), 3)
+#&gt; [1] 0.053</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The gain is 0.053, so the filter moves only about 5% of the way toward each new observation and ignores the other 95%. A confident filter with a noisy instrument becomes very hard to push around, which is exactly what you want when the data are unreliable.</p>
+
+</details>
+</section>
+
+<h2>How do you code a Kalman filter from scratch in R?</h2>
+
+<p>You have now done every operation the filter performs. Turning it into a loop is mechanical: repeat predict and update for every observation, carrying $a$ and $P$ forward each time.</p>
+
+<p>The function below takes the observed series, the two noise standard deviations, and starting values for the estimate and its variance. It returns the filtered level at every time point, the variance at every time point, and the gain at every time point, because watching the gain evolve is genuinely instructive.</p>
+
+<div class="webr-container" data-block-title="Define a Kalman filter from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a Kalman filter from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kalman_1d &lt;- function(y, sigma_proc, sigma_meas, a_init, P_init) {
+  n &lt;- length(y)
+  level &lt;- numeric(n); variance &lt;- numeric(n); gain &lt;- numeric(n)
+  a_pred &lt;- a_init
+  P_pred &lt;- P_init
+  for (t in seq_len(n)) {
+    gain[t]     &lt;- P_pred / (P_pred + sigma_meas^2)
+    level[t]    &lt;- a_pred + gain[t] * (y[t] - a_pred)
+    variance[t] &lt;- (1 - gain[t]) * P_pred
+    a_pred &lt;- level[t]
+    P_pred &lt;- variance[t] + sigma_proc^2
+  }
+  list(level = level, variance = variance, gain = gain)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three lines inside the loop are the update step, in the same order you just did by hand: gain, then estimate, then variance. The two lines after them are the predict step for the next iteration, and in the local level model the level prediction is simply the current estimate, which is why <code>a_pred &lt;- level[t]</code> looks so plain.</p>
+
+<p>That is the entire Kalman filter for this model. Twelve lines, no packages. Let us run it on the <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> using the true noise values we generated with.</p>
+
+<div class="webr-container" data-block-title="Run the filter on the simulated series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the filter on the simulated series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kf &lt;- kalman_1d(y_obs, sigma_proc = 1, sigma_meas = 3,
+                a_init = y_obs[1], P_init = 100)
+round(head(data.frame(observed = y_obs, filtered = kf$level, truth = true_level), 5), 2)
+#&gt;   observed filtered truth
+#&gt; 1     9.15     9.15 10.49
+#&gt; 2     6.02     7.57  9.31
+#&gt; 3     7.67     7.61 10.00
+#&gt; 4     7.79     7.67  9.38
+#&gt; 5    12.07     9.01  8.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Check row 2 against the hand calculation: the filtered value is 7.57, matching the 7.566 we computed manually. The loop is doing exactly what we did by hand.</p>
+
+<p>Now compare columns. At time 5 the observation spiked to 12.07 while the truth was 8.65, and the filter moved only to 9.01. The observation jumped 4.28 units from the previous one and the filtered level moved 1.34, so most of the spike was left out. Holding that much back is the entire value of the method, and we can measure it.</p>
+
+<div class="webr-container" data-block-title="Compare accuracy before and after filtering">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare accuracy before and after filtering</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(sqrt(mean((y_obs - true_level)^2)), 2)
+#&gt; [1] 2.98
+round(sqrt(mean((kf$level - true_level)^2)), 2)
+#&gt; [1] 1.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">Root mean squared error</a> against the known truth fell from 2.98 to 1.6. The filter cut the typical error nearly in half, using nothing but the two variance settings and the order of the data. This is the comparison you can never make on real data, which is exactly why we simulated.</p>
+
+<p>Now watch the gain, which is where the filter's changing confidence shows up.</p>
+
+<div class="webr-container" data-block-title="Track how the Kalman gain evolves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Track how the Kalman gain evolves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(kf$gain[c(1, 2, 3, 5, 10, 50, 100)], 3)
+#&gt; [1] 0.917 0.507 0.382 0.306 0.283 0.282 0.282</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gain starts at 0.917, drops fast over the first few observations, and then settles at 0.282 and stays there. That settled value is called the steady state gain, and it depends only on the ratio of the two variances, not on the data.</p>
+
+<div class="webr-container" data-block-title="Plot the gain settling to a constant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the gain settling to a constant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(kf$gain, type = &quot;l&quot;, lwd = 2, col = &quot;darkorange3&quot;, ylim = c(0, 1),
+     xlab = &quot;Time&quot;, ylab = &quot;Kalman gain&quot;, main = &quot;The gain settles to a constant&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curve falls steeply then flattens. After roughly ten observations the filter has learned as much about its own precision as it ever will, and from then on it applies a fixed 28% correction to every prediction error.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start the filter with a very large initial variance rather than a guess.</strong> Setting P_init to 100, or 1e7, tells the filter it knows nothing, so the first observation dominates and any bad starting value is forgotten within a few steps. This is called a diffuse prior, and it is the safe default.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun <code>kalman_1d()</code> on <code>y_obs</code> with a much noisier instrument, <code>sigma_meas = 10</code> instead of 3, keeping everything else the same. Store the result in <code>ex_kf</code> and report the final gain. Predict whether it will be higher or lower than 0.282 before you run it.</p>
+<div class="webr-container" data-block-title="Your turn: filter with a noisier instrument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: filter with a noisier instrument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rerun kalman_1d with sigma_meas = 10:
+
+# Report the last value of the gain:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Noisier-instrument solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Noisier-instrument solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_kf &lt;- kalman_1d(y_obs, sigma_proc = 1, sigma_meas = 10,
+                   a_init = y_obs[1], P_init = 100)
+round(tail(ex_kf$gain, 1), 3)
+#&gt; [1] 0.095</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The settled gain drops from 0.282 to 0.095. Telling the filter the instrument is three times noisier makes each correction about a third as large, so it now moves less than a tenth of the way toward each new reading. The data never changed, only our stated belief about the data.</p>
+
+</details>
+</section>
+
+<h2>How do you run the Kalman filter with base R's StructTS?</h2>
+
+<p>So far we cheated: we told the filter the true noise variances because we generated the data. On real data you do not know them, so they have to be estimated from the series itself, by maximum likelihood. Maximum likelihood here means trying candidate pairs of variances, asking of each pair how probable the series you actually recorded would be if that pair were correct, and keeping the pair that makes it most probable.</p>
+
+<p>You do not need a package for this. Base R's <code>StructTS()</code> fits the local level model and estimates both variances at once. Let us point it at the simulated series and see whether it can recover the settings we know are correct: a state variance of $1^2 = 1$ and a measurement variance of $3^2 = 9$.</p>
+
+<div class="webr-container" data-block-title="Estimate the variances with StructTS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate the variances with StructTS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sim_fit &lt;- StructTS(ts(y_obs), type = &quot;level&quot;)
+round(sim_fit$coef, 3)
+#&gt;   level epsilon 
+#&gt;   0.995   8.647 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It recovered 0.995 against a true value of 1, and 8.647 against a true value of 9. From 100 noisy observations and no other information, maximum likelihood untangled the two variances almost exactly. That is the part beginners usually find hard to believe, which is why it is worth checking against a known truth.</p>
+
+<p>Now the important verification. If our hand-coded filter is really the Kalman filter, then feeding it these estimated variances should reproduce <code>StructTS()</code>'s own output. Note the wider initial variance of 1e7, which matches how <code>StructTS()</code> initialises.</p>
+
+<div class="webr-container" data-block-title="Compare the hand-coded filter with StructTS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the hand-coded filter with StructTS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kf_mle &lt;- kalman_1d(y_obs,
+                    sigma_proc = sqrt(sim_fit$coef[[&quot;level&quot;]]),
+                    sigma_meas = sqrt(sim_fit$coef[[&quot;epsilon&quot;]]),
+                    a_init = y_obs[1], P_init = 1e7)
+round(data.frame(hand_coded = tail(kf_mle$level, 4),
+                 StructTS   = tail(as.numeric(fitted(sim_fit)), 4)), 4)
+#&gt;   hand_coded StructTS
+#&gt; 1    -1.7201  -1.7201
+#&gt; 2    -1.3301  -1.3301
+#&gt; 3    -2.2135  -2.2135
+#&gt; 4    -3.2297  -3.2297</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical to four decimal places. Let us push it further and take the largest disagreement across all 100 time points.</p>
+
+<div class="webr-container" data-block-title="Measure the largest disagreement">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the largest disagreement</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">max(abs(kf_mle$level - as.numeric(fitted(sim_fit))))
+#&gt; [1] 1.423235e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The biggest gap anywhere in the series is 0.0000142, which is rounding error from the printed coefficients we fed in. Your twelve-line function and R's compiled implementation are the same algorithm.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A Kalman filter is not a black box you have to trust.</strong> You just wrote one that matches base R to five decimal places, which means when a package gives you a surprising answer, you can always reason about it in terms of predict, update and gain.</div></div>
+
+<p>There is one more distinction to nail down, because it trips people up constantly. Everything so far is <strong>filtering</strong>: the estimate at time $t$ uses only data up to time $t$. That is what you want in real time, when the future has not happened yet. But if you have the whole series in hand already, you can do better at every point by also using later observations. That is called <strong>smoothing</strong>, and base R gives it to you with <code>tsSmooth()</code>.</p>
+
+<div class="webr-container" data-block-title="Compare filtered and smoothed estimates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare filtered and smoothed estimates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nile_smooth &lt;- tsSmooth(nile_fit)
+round(data.frame(observed = as.numeric(Nile)[1:5],
+                 filtered = as.numeric(fitted(nile_fit))[1:5],
+                 smoothed = as.numeric(nile_smooth)[1:5]), 1)
+#&gt;   observed filtered smoothed
+#&gt; 1     1120   1120.0   1111.7
+#&gt; 2     1160   1140.9   1110.9
+#&gt; 3      963   1072.8   1105.3
+#&gt; 4     1210   1117.3   1113.5
+#&gt; 5     1160   1130.0   1112.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at row 3. The observation was 963, a big dip. The filtered estimate fell to 1072.8, because at that moment the filter did not know what came next. The smoothed estimate barely moved, staying at 1105.3, because it can see that 1210 arrived immediately afterwards and concludes the 963 was mostly measurement noise.</p>
+
+<p>The smoothed column is visibly steadier across all five rows. Hindsight is genuinely worth something.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never report smoothed values as if they were available in real time.</strong> Smoothed estimates use future observations, so backtesting a trading rule or an alerting threshold on them will look brilliant and fail completely in production. Use filtered values for anything that runs live.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The Nile model assumed the level only wanders with no persistent direction. Fit the richer version that also allows a slope, using <code>StructTS(Nile, type = &quot;trend&quot;)</code>, store it in <code>ex_trend</code>, and look at the estimated variances.</p>
+<div class="webr-container" data-block-title="Your turn: fit a local linear trend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a local linear trend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the trend model to Nile and print its rounded coefficients:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Local linear trend solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Local linear trend solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_trend &lt;- StructTS(Nile, type = &quot;trend&quot;)
+round(ex_trend$coef, 1)
+#&gt;   level   slope epsilon 
+#&gt;  1426.7     0.0 15047.3 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The slope variance is estimated as 0.0, so maximum likelihood concluded the Nile has no persistent <a class="auto-link" href="Holts-Method-in-R.html" title="Holt's Method in R: Forecast Trend Without Seasonality">trend component</a> at all and set it to zero. The level and epsilon variances barely changed from the simpler model. This is a useful diagnostic: fitting a component and getting a zero variance back is the model telling you that component is not needed.</p>
+
+</details>
+</section>
+
+<h2>How do you use the FKF package for fast Kalman filtering?</h2>
+
+<p>Base R's <code>StructTS()</code> is convenient but rigid. It offers three fixed model shapes, one series at a time, and no way to express anything unusual. When you need full control, you write the state space model as matrices yourself, and the FKF package (Fast Kalman <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a>) is the leanest way to do that in R.</p>
+
+<p>FKF gives you one main function, <code>fkf()</code>, implemented in C. It handles multiple series at once, allows every parameter to change over time, and is the fastest general option in R. The cost is that you must supply the model as raw matrices, which is where most people get stuck. So here is the complete map.</p>
+
+<p>The general state space model FKF implements is:</p>
+
+<p>$$\alpha_{t+1} = d_t + T_t \alpha_t + \eta_t, \qquad y_t = c_t + Z_t \alpha_t + \varepsilon_t$$</p>
+
+<p>Every argument of <code>fkf()</code> corresponds to one piece of those two equations.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Role in the model</th>
+<th>Shape required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>a0</code></td>
+<td>Starting value of the state</td>
+<td>vector, length m</td>
+</tr>
+<tr>
+<td><code>P0</code></td>
+<td>Starting variance of the state</td>
+<td>matrix, m x m</td>
+</tr>
+<tr>
+<td><code>dt</code></td>
+<td>Constant added in the state equation</td>
+<td>matrix, m x 1</td>
+</tr>
+<tr>
+<td><code>ct</code></td>
+<td>Constant added in the observation equation</td>
+<td>matrix, d x 1</td>
+</tr>
+<tr>
+<td><code>Tt</code></td>
+<td>How the state moves to the next step</td>
+<td>array, m x m x 1</td>
+</tr>
+<tr>
+<td><code>Zt</code></td>
+<td>How the state maps into observations</td>
+<td>array, d x m x 1</td>
+</tr>
+<tr>
+<td><code>HHt</code></td>
+<td>Variance of the state noise</td>
+<td>array, m x m x 1</td>
+</tr>
+<tr>
+<td><code>GGt</code></td>
+<td>Variance of the measurement noise</td>
+<td>array, d x d x 1</td>
+</tr>
+<tr>
+<td><code>yt</code></td>
+<td>Your data</td>
+<td>matrix, d x n</td>
+</tr>
+</tbody>
+</table>
+
+<p>Here <code>m</code> is the number of hidden states and <code>d</code> is the number of observed series. For our local level model both are 1, so every matrix is 1 x 1. The final dimension of the arrays is the time dimension: use 1 when a parameter is constant, or <code>n</code> when it changes every period.</p>
+
+<p>The single most common error is the data layout, so start there.</p>
+
+<pre><code class="language-r">library(FKF)
+y_nile &lt;- rbind(as.numeric(Nile))
+dim(y_nile)
+#&gt; [1]   1 100</code></pre>
+
+<p><code>rbind()</code> produces a 1 x 100 matrix: one row because there is one series, 100 columns because there are 100 time points. Series go in rows and time goes <a class="auto-link" href="dplyr-across-in-R.html" title="dplyr across() in R: Apply Functions to Many Columns">across columns</a>, which is the transpose of how most R users instinctively lay out data.</p>
+
+<p>Now the filter itself. We already know from <code>StructTS()</code> that the Nile's variances are about 1469 and 15099, so we can plug them straight in and confirm FKF agrees.</p>
+
+<pre><code class="language-r">fkf_nile &lt;- fkf(a0  = y_nile[1, 1],
+                P0  = matrix(1e7),
+                dt  = matrix(0),
+                ct  = matrix(0),
+                Tt  = array(1, c(1, 1, 1)),
+                Zt  = array(1, c(1, 1, 1)),
+                HHt = array(1469, c(1, 1, 1)),
+                GGt = array(15099, c(1, 1, 1)),
+                yt  = y_nile)
+round(fkf_nile$logLik, 2)
+#&gt; [1] -641.52
+round(fkf_nile$att[1, 1:5], 1)
+#&gt; [1] 1120.0 1140.9 1072.8 1117.3 1130.0</code></pre>
+
+<p>Every argument here is the local level model written out. <code>Tt = 1</code> says the next level equals the current level, <code>Zt = 1</code> says the observation reads the level directly, <code>dt</code> and <code>ct</code> are zero because nothing is added, and <code>P0 = 1e7</code> is the diffuse start.</p>
+
+<p>Now compare <code>fkf_nile$att</code> with the <code>filtered</code> column that <code>fitted(nile_fit)</code> gave us in the base R section: 1120.0, 1140.9, 1072.8, 1117.3, 1130.0, identical. Two completely different implementations, same numbers.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>FKF will not reshape anything for you.</strong> Your data must be a matrix with series in rows, and Tt, Zt, HHt and GGt must be three-dimensional arrays even when they hold a single number, which is why array(1, c(1, 1, 1)) appears instead of just 1. A plain matrix here throws an error.</div></div>
+
+<p>The <code>logLik</code> element is what makes parameter estimation possible: run the filter with candidate variances, read off the log-likelihood, and let an optimiser search for the best pair. That is precisely what <code>StructTS()</code> does internally, and we can reproduce it.</p>
+
+<pre><code class="language-r">nile_negll &lt;- function(par) {
+  -fkf(a0 = y_nile[1, 1], P0 = matrix(1e7), dt = matrix(0), ct = matrix(0),
+       Tt = array(1, c(1, 1, 1)), Zt = array(1, c(1, 1, 1)),
+       HHt = array(exp(par[1]), c(1, 1, 1)),
+       GGt = array(exp(par[2]), c(1, 1, 1)),
+       yt = y_nile)$logLik
+}
+mle &lt;- optim(c(log(1000), log(15000)), nile_negll, method = &quot;BFGS&quot;)
+round(exp(mle$par))
+#&gt; [1]  1469 15099</code></pre>
+
+<p>Two details make this work. The function returns the <strong>negative</strong> log-likelihood because <code>optim()</code> minimises. And the parameters are optimised on the log scale, then exponentiated inside, which guarantees the variances stay positive no matter where the optimiser wanders.</p>
+
+<p>The answer is 1469 and 15099, matching <code>StructTS()</code>'s 1469.1 and 15098.6. You have now estimated a state space model from raw matrices and reproduced base R's result.</p>
+
+<p>Finally, FKF's smoother takes the filter output directly.</p>
+
+<pre><code class="language-r">fkf_smooth &lt;- fks(fkf_nile)
+round(fkf_smooth$ahatt[1, 1:5], 1)
+#&gt; [1] 1111.7 1110.9 1105.3 1113.5 1112.4</code></pre>
+
+<p>These are the same smoothed values <code>tsSmooth()</code> produced: 1111.7, 1110.9, 1105.3, 1113.5, 1112.4. Note that <code>fks()</code> takes the fitted filter object rather than the data, because smoothing is a backward pass over results the filter already computed.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>FKF and KFAS are not currently available in this page's in-browser R engine</strong>, so the blocks in this section and the next are shown with their real output rather than as runnable editors. Install them with install.packages(c("FKF", "KFAS")) and every line will run as printed in RStudio.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The local linear trend model has two states, level and slope, where the next level is level plus slope. Its transition matrix is therefore <code>matrix(c(1, 0, 1, 1), nrow = 2)</code> and its observation matrix picks out only the level. Build both as <code>ex_Tt</code> and <code>ex_Zt</code>, then multiply <code>ex_Zt %*% ex_Tt</code> to see what the observation equation reads after one step.</p>
+<div class="webr-container" data-block-title="Your turn: build trend model matrices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build trend model matrices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_Tt &lt;- matrix(c(1, 0, 1, 1), nrow = 2)
+# Build ex_Zt as a 1 x 2 matrix that selects the level only:
+
+# Print ex_Tt, then multiply ex_Zt by ex_Tt:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trend matrices solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trend matrices solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_Tt &lt;- matrix(c(1, 0, 1, 1), nrow = 2)
+ex_Zt &lt;- matrix(c(1, 0), nrow = 1)
+ex_Tt
+#&gt;      [,1] [,2]
+#&gt; [1,]    1    1
+#&gt; [2,]    0    1
+ex_Zt %*% ex_Tt
+#&gt;      [,1] [,2]
+#&gt; [1,]    1    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ex_Tt</code> has a 1 in the top-right corner, which is what adds the slope into the level at each step. <code>ex_Zt</code> is <code>[1, 0]</code>, so observations see the level and never the slope directly. Their product <code>[1, 1]</code> shows that after one step forward, the observation depends on both the old level and the old slope, which is how a trend gets into the data even though it is never measured.</p>
+
+</details>
+</section>
+
+<h2>How do you build state space models with KFAS?</h2>
+
+<p>FKF is fast but verbose, and writing matrices by hand gets painful the moment you want a trend plus a seasonal pattern. KFAS solves that with a formula interface: you describe the model in components, and it assembles the matrices for you.</p>
+
+<p>The pattern has three steps. <code>SSModel()</code> defines the model, <code>fitSSM()</code> estimates any unknown variances, and <code>KFS()</code> runs the filter and smoother. Anywhere you write <code>NA</code> in the model definition, you are saying "estimate this from the data".</p>
+
+<pre><code class="language-r">library(KFAS)
+nile_model &lt;- SSModel(Nile ~ SSMtrend(degree = 1, Q = list(NA)), H = NA)
+nile_mle   &lt;- fitSSM(nile_model, inits = c(log(1000), log(15000)), method = &quot;BFGS&quot;)
+round(c(Q = nile_mle$model$Q[1, 1, 1], H = nile_mle$model$H[1, 1, 1]))
+#&gt;     Q     H 
+#&gt;  1469 15099 </code></pre>
+
+<p>Read the formula. <code>SSMtrend(degree = 1)</code> is the local level component, where degree 1 means level only and degree 2 would add a slope. <code>Q</code> is the state noise variance and <code>H</code> is the measurement noise variance, both set to <code>NA</code> so <code>fitSSM()</code> estimates them.</p>
+
+<p>The answer is 1469 and 15099 again. That is now three independent routes to the same pair of numbers.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>StructTS, FKF and KFAS all returned 1469 and 15099 for the Nile because they are fitting the same model, not because they share code.</strong> The state space model is the real object; the package is only the interface you type it in. Choose the package for convenience, and never expect a different package to rescue a badly specified model.</div></div>
+
+<p>Running <code>KFS()</code> gives you filtering and smoothing in one object. The filtered states live in <code>att</code> and the smoothed states in <code>alphahat</code>.</p>
+
+<pre><code class="language-r">kfas_out &lt;- KFS(nile_mle$model)
+round(data.frame(filtered = kfas_out$att[1:5], smoothed = kfas_out$alphahat[1:5]), 1)
+#&gt;   filtered smoothed
+#&gt; 1   1120.0   1111.7
+#&gt; 2   1140.9   1110.9
+#&gt; 3   1072.8   1105.3
+#&gt; 4   1117.3   1113.5
+#&gt; 5   1130.0   1112.4</code></pre>
+
+<p>Both columns match what base R and FKF produced. The naming is worth memorising because it is easy to grab the wrong one: <code>att</code> is filtered and uses only the past, <code>alphahat</code> is smoothed and uses the whole series.</p>
+
+<p>KFAS also gives you uncertainty around the estimate, which the earlier tools made you compute yourself.</p>
+
+<pre><code class="language-r">nile_band &lt;- predict(nile_mle$model, interval = &quot;confidence&quot;, level = 0.95)
+round(head(nile_band, 4), 1)
+#&gt; Time Series:
+#&gt; Start = 1871 
+#&gt; End = 1874 
+#&gt; Frequency = 1 
+#&gt;         fit    lwr    upr
+#&gt; 1871 1111.7  987.2 1236.1
+#&gt; 1872 1110.9  999.2 1222.5
+#&gt; 1873 1105.3 1001.2 1209.3
+#&gt; 1874 1113.5 1013.7 1213.3</code></pre>
+
+<p>In 1871 the estimated level is 1111.7 with a 95% interval from 987.2 to 1236.1. That band is narrower in later years because the smoother has observations on both sides, whereas 1871 only has the future to lean on.</p>
+
+<p>KFAS goes considerably further than the local level model. <code>SSMseasonal()</code> adds seasonal components, <code>SSMregression()</code> adds explanatory variables with possibly time-varying coefficients, <code>SSMarima()</code> embeds an ARIMA structure, and the <code>distribution</code> argument handles Poisson, binomial, negative binomial and gamma observations, which no other option here supports.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The ratio of state variance to measurement variance decides how much smoothing you get, and it is called the signal-to-noise ratio. Compute it for the Nile from <code>nile_fit$coef</code>, which you fitted in the first section, and store it in <code>ex_ratio</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compute the signal-to-noise ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute the signal-to-noise ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Divide the level variance by the epsilon variance from nile_fit$coef:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Signal-to-noise ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Signal-to-noise ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ratio &lt;- nile_fit$coef[[&quot;level&quot;]] / nile_fit$coef[[&quot;epsilon&quot;]]
+round(ex_ratio, 4)
+#&gt; [1] 0.0973</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ratio is 0.0973, so the real signal carries under a tenth of the variance of the measurement error. A small ratio means heavy smoothing, which is exactly what the flat red line in the first plot showed. If this number were above 1, the filter would track the data closely instead.</p>
+
+</details>
+</section>
+
+<h2>How do you handle missing data and forecast ahead?</h2>
+
+<p>Missing observations wreck most time series methods. In a state space model they need no special handling at all, and understanding why is the moment the whole framework clicks.</p>
+
+<p>Each time step does two things: predict, then update using the observation. If there is no observation, you simply skip the update. The state carries forward on its prediction alone, and because the predict step always adds state noise to the variance, your uncertainty grows a little each period until real data returns.</p>
+
+<p>You can see this in our own function. Here it is with one <code>if</code> added.</p>
+
+<div class="webr-container" data-block-title="Filter a series with a gap in it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter a series with a gap in it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kalman_na &lt;- function(y, sigma_proc, sigma_meas, a_init, P_init) {
+  n &lt;- length(y)
+  level &lt;- numeric(n); variance &lt;- numeric(n)
+  a_pred &lt;- a_init
+  P_pred &lt;- P_init
+  for (t in seq_len(n)) {
+    if (is.na(y[t])) {
+      level[t]    &lt;- a_pred
+      variance[t] &lt;- P_pred
+    } else {
+      K           &lt;- P_pred / (P_pred + sigma_meas^2)
+      level[t]    &lt;- a_pred + K * (y[t] - a_pred)
+      variance[t] &lt;- (1 - K) * P_pred
+    }
+    a_pred &lt;- level[t]
+    P_pred &lt;- variance[t] + sigma_proc^2
+  }
+  list(level = level, variance = variance)
+}
+y_gap &lt;- y_obs
+y_gap[40:50] &lt;- NA
+kf_gap &lt;- kalman_na(y_gap, sigma_proc = 1, sigma_meas = 3,
+                    a_init = y_gap[1], P_init = 100)
+round(data.frame(time = 39:43,
+                 level = kf_gap$level[39:43],
+                 sd    = sqrt(kf_gap$variance[39:43])), 2)
+#&gt;   time level   sd
+#&gt; 1   39 12.69 1.59
+#&gt; 2   40 12.69 1.88
+#&gt; 3   41 12.69 2.13
+#&gt; 4   42 12.69 2.35
+#&gt; 5   43 12.69 2.56</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The whole change is the <code>if (is.na(y[t]))</code> branch, which copies the prediction straight into the output and leaves the variance alone. Everything else is untouched.</p>
+
+<p>Read the two columns. The level freezes at 12.69 the moment data stops, because with nothing to correct against, the best guess never changes. But the standard deviation climbs steadily from 1.59 to 2.56, because every missing step adds the state noise variance and no observation arrives to take any back.</p>
+
+<p>Let us watch the uncertainty across the whole gap and past its end.</p>
+
+<div class="webr-container" data-block-title="Track uncertainty through and past the gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Track uncertainty through and past the gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(data.frame(time = c(39, 45, 50, 51),
+                 sd = sqrt(kf_gap$variance[c(39, 45, 50, 51)])), 2)
+#&gt;   time   sd
+#&gt; 1   39 1.59
+#&gt; 2   45 2.92
+#&gt; 3   50 3.68
+#&gt; 4   51 2.36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Uncertainty more than doubles across the gap, from 1.59 to 3.68, then collapses back to 2.36 the instant a real observation arrives at time 51. One measurement recovered most of eleven periods of lost confidence.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">Forecasting</a> is just filtering with every future observation marked missing.</strong> Run the recursion forward past the end of your data with no updates, and the state prediction is your point forecast while the growing variance is your <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">prediction interval</a>. That is why state space models forecast and interpolate with the same code.</div></div>
+
+<p>KFAS applies this automatically. Below we blank out twenty years of the Nile and let the smoother fill them in, reusing the variances estimated earlier.</p>
+
+<pre><code class="language-r">nile_hole &lt;- Nile
+nile_hole[21:40] &lt;- NA
+hole_model &lt;- SSModel(nile_hole ~ SSMtrend(degree = 1, Q = list(nile_mle$model$Q[1, 1, 1])),
+                      H = nile_mle$model$H[1, 1, 1])
+hole_out &lt;- KFS(hole_model)
+round(hole_out$alphahat[c(19, 21, 30, 40, 41)], 1)
+#&gt; [1] 995.7 990.1 903.4 807.2 797.5</code></pre>
+
+<p>We passed the fitted variances as fixed numbers instead of <code>NA</code> this time, since we already estimated them. Inside the hole the smoother does not hold a constant: it slides from 990.1 at year 21 down to 807.2 at year 40, interpolating smoothly between the last value before the gap and the first value after it. The filter alone would have held flat, but the smoother sees both sides.</p>
+
+<p>Forecasting uses the same <code>predict()</code> call with <code>n.ahead</code>.</p>
+
+<pre><code class="language-r">nile_fc &lt;- predict(nile_mle$model, n.ahead = 5, interval = &quot;prediction&quot;, level = 0.95)
+round(nile_fc, 1)
+#&gt; Time Series:
+#&gt; Start = 1971 
+#&gt; End = 1975 
+#&gt; Frequency = 1 
+#&gt;        fit   lwr    upr
+#&gt; 1971 798.4 517.1 1079.7
+#&gt; 1972 798.4 507.2 1089.5
+#&gt; 1973 798.4 497.7 1099.1
+#&gt; 1974 798.4 488.4 1108.3
+#&gt; 1975 798.4 479.4 1117.3</code></pre>
+
+<p>The point forecast is flat at 798.4 for all five years, which is correct: a local level model has no trend, so its best guess for every future year is the current level. What changes is the interval, widening from 562 units across in 1971 to 638 in 1975. The point forecast does not get worse further out, the band around it just gets wider, because each extra year with no observation adds another dose of state variance.</p>
+
+<p>Finally, something a local level model cannot do. <code>AirPassengers</code> has both a rising trend and a strong yearly cycle, so we need a trend component and a <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal component</a> together. Working in logs stabilises the growing seasonal swings.</p>
+
+<pre><code class="language-r">air_log &lt;- log10(AirPassengers)
+air_model &lt;- SSModel(air_log ~ SSMtrend(degree = 2, Q = list(NA, NA)) +
+                       SSMseasonal(period = 12, sea.type = &quot;dummy&quot;, Q = NA), H = NA)
+air_mle &lt;- fitSSM(air_model, inits = rep(-5, 4), method = &quot;BFGS&quot;)
+air_out &lt;- KFS(air_mle$model)
+round(coef(air_out)[144, 1:3], 4)
+#&gt;      level      slope sea_dummy1 
+#&gt;     2.6843     0.0041    -0.0478 </code></pre>
+
+<p>Three components, added with <code>+</code> exactly like <code>lm()</code>. <code>degree = 2</code> gives level and slope, and <code>SSMseasonal(period = 12)</code> gives a monthly pattern. Four variances are estimated here, hence four starting values in <code>inits</code>.</p>
+
+<p>The final row decomposes the last month of data. The level sits at 2.6843 on the log10 scale, which is about 483 passengers. The slope is 0.0041 per month, meaning the trend is still climbing by roughly 1% a month. And the seasonal term is -0.0478, so December runs about 10% below the trend line.</p>
+
+<pre><code class="language-r">air_fc &lt;- predict(air_mle$model, n.ahead = 6, interval = &quot;prediction&quot;, level = 0.95)
+round(10^air_fc)
+#&gt;          fit lwr upr
+#&gt; Jan 1961 457 423 494
+#&gt; Feb 1961 438 400 481
+#&gt; Mar 1961 490 441 545
+#&gt; Apr 1961 501 445 564
+#&gt; May 1961 505 443 576
+#&gt; Jun 1961 568 493 655</code></pre>
+
+<p>Because we modelled <code>log10(AirPassengers)</code>, we raise 10 to the power of the forecast to get passengers back. The forecast dips in February and climbs into June, reproducing the real seasonal shape, and the intervals widen from 71 passengers across in January to 162 in June.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> In <code>kalman_na()</code> the uncertainty grows during a gap at a rate set by <code>sigma_proc</code>. Rerun the gap filter with <code>sigma_proc = 4</code> instead of 1, store it in <code>ex_gap</code>, and report the standard deviation at time 50, the last missing point. Compare it to the 3.68 we got before.</p>
+<div class="webr-container" data-block-title="Your turn: a faster-moving hidden level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a faster-moving hidden level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rerun kalman_na on y_gap with sigma_proc = 4:
+
+# Report the sd at time 50:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Faster-moving level solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Faster-moving level solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gap &lt;- kalman_na(y_gap, sigma_proc = 4, sigma_meas = 3,
+                    a_init = y_gap[1], P_init = 100)
+round(sqrt(ex_gap$variance[50]), 2)
+#&gt; [1] 13.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The standard deviation at the end of the gap rises from 3.68 to 13.51, nearly four times higher. Telling the filter the level can move by 4 units per step means each unobserved step adds sixteen times the variance it added before, and eleven of them accumulate. How fast you believe the state moves directly controls how fast your uncertainty grows once the data stops.</p>
+
+</details>
+</section>
+
+<h2>When should you choose base R, FKF, or KFAS?</h2>
+
+<p>All three fit the same models and return the same numbers, so the choice is about interface, speed and how unusual your model is.</p>
+
+<p><img src="screenshots/Kalman-Filter-in-R-package-choice.webp" alt="Choosing between StructTS, FKF and KFAS." class="img-responsive img-zoomable" loading="lazy" width="1312" height="2028" /></p>
+
+<p><em>Figure 3: Choosing between StructTS, FKF and KFAS.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Capability</th>
+<th>StructTS (base R)</th>
+<th>FKF</th>
+<th>KFAS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Installation</td>
+<td>none needed</td>
+<td>CRAN</td>
+<td>CRAN</td>
+</tr>
+<tr>
+<td>How you specify the model</td>
+<td>three fixed types</td>
+<td>raw matrices</td>
+<td>formula components</td>
+</tr>
+<tr>
+<td>Speed</td>
+<td>adequate</td>
+<td>fastest</td>
+<td>fast</td>
+</tr>
+<tr>
+<td>Smoothing</td>
+<td><code>tsSmooth()</code></td>
+<td><code>fks()</code></td>
+<td>built into <code>KFS()</code></td>
+</tr>
+<tr>
+<td>Non-Gaussian observations</td>
+<td>no</td>
+<td>no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Time-varying parameters</td>
+<td>no</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Multiple series at once</td>
+<td>no</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Learning curve</td>
+<td>lowest</td>
+<td>steepest</td>
+<td>moderate</td>
+</tr>
+</tbody>
+</table>
+
+<p>The practical rule follows the diagram. If your model is a level, a trend, or a basic structural model with seasonality, <code>StructTS()</code> needs no install and no matrices. If you need count or binary observations, or you want trend plus seasonal plus regressors written readably, use KFAS. If you are running a custom model thousands of times inside an optimiser or a simulation, FKF's raw matrix interface is the fastest thing available.</p>
+
+<p>One honest caveat: none of these do nonlinear models. If your state equation is not linear, you need an extended or unscented Kalman filter, or else a particle filter. Those live in other packages entirely.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the link between the signal-to-noise ratio and the steady state gain on the simulated series. Compute the ratio from <code>sim_fit$coef</code> into <code>ex_sn</code>, then print the last value of <code>kf$gain</code> and see whether a ratio near 0.1 goes with a gain near 0.28.</p>
+<div class="webr-container" data-block-title="Your turn: link the ratio to the gain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: link the ratio to the gain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Signal-to-noise ratio from sim_fit$coef:
+
+# Last value of kf$gain:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ratio and gain solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ratio and gain solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sn &lt;- sim_fit$coef[[&quot;level&quot;]] / sim_fit$coef[[&quot;epsilon&quot;]]
+round(ex_sn, 3)
+#&gt; [1] 0.115
+round(tail(kf$gain, 1), 3)
+#&gt; [1] 0.282</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A signal-to-noise ratio of 0.115 produces a steady state gain of 0.282. The gain is always larger than the ratio, because the filter accumulates information over many periods rather than judging each observation on its own. Note too that the Nile's ratio of 0.0973 is close to this series' 0.115, which is why both got heavily smoothed.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Each uses fresh variable names so nothing above gets overwritten.</p>
+
+<h3>Exercise 1: Filter a very quiet signal buried in loud noise</h3>
+
+<p>Simulate 200 observations where the hidden level wanders with standard deviation 0.5 around a start of 50, and measurement noise has standard deviation 4. Use <code>set.seed(1848)</code>, and generate the level before the noise. Filter it with <code>kalman_1d()</code> using the true noise values and a diffuse start, then report the RMSE of the raw observations and of the filtered level against the truth. Name your objects <code>cap_level</code>, <code>cap_y</code> and <code>cap_kf</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: reuse the simulation pattern from earlier, with 200 points
+# Hint: RMSE is sqrt(mean((estimate - truth)^2))
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1848)
+cap_level &lt;- 50 + cumsum(rnorm(200, 0, 0.5))
+cap_y     &lt;- cap_level + rnorm(200, 0, 4)
+cap_kf    &lt;- kalman_1d(cap_y, sigma_proc = 0.5, sigma_meas = 4,
+                       a_init = cap_y[1], P_init = 100)
+round(c(raw = sqrt(mean((cap_y - cap_level)^2)),
+        filtered = sqrt(mean((cap_kf$level - cap_level)^2))), 2)
+#&gt;      raw filtered 
+#&gt;     3.69     1.13 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The error drops from 3.69 to 1.13, a threefold improvement, much better than the halving we saw earlier. The signal-to-noise ratio here is <code>0.5^2 / 4^2</code>, about 0.016, far smaller than before. The noisier the measurements relative to the real movement, the more a Kalman filter buys you.</p>
+
+</details>
+
+<h3>Exercise 2: Extract one-step-ahead forecasts and check them</h3>
+
+<p>The filter's prediction error <code>y[t] - a_pred</code> is a genuine one-step-ahead forecast error, called an innovation. If the model is correct, innovations should average about zero and show no <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">autocorrelation</a>, because any predictable pattern left in them is information the filter failed to use.</p>
+
+<p>Write <code>kalman_forecast()</code>, a variant of <code>kalman_1d()</code> that also records the prediction <code>a_pred</code> before each update, and returns <code>onestep</code>, <code>level</code> and <code>error</code>. Run it on <code>y_obs</code> with the true noise values, report the mean and standard deviation of the errors, then check the first three autocorrelations with <code>acf(..., plot = FALSE)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: store a_pred into onestep[t] at the very top of the loop, before the update
+# Hint: acf(x, lag.max = 3, plot = FALSE)$acf[2:4] gives lags 1 to 3
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kalman_forecast &lt;- function(y, sigma_proc, sigma_meas, a_init, P_init) {
+  n &lt;- length(y)
+  onestep &lt;- numeric(n); level &lt;- numeric(n)
+  a_pred &lt;- a_init
+  P_pred &lt;- P_init
+  for (t in seq_len(n)) {
+    onestep[t] &lt;- a_pred
+    K          &lt;- P_pred / (P_pred + sigma_meas^2)
+    level[t]   &lt;- a_pred + K * (y[t] - a_pred)
+    a_pred     &lt;- level[t]
+    P_pred     &lt;- (1 - K) * P_pred + sigma_proc^2
+  }
+  list(onestep = onestep, level = level, error = y - onestep)
+}
+cap_fc &lt;- kalman_forecast(y_obs, 1, 3, a_init = y_obs[1], P_init = 100)
+round(c(mean_error = mean(cap_fc$error), sd_error = sd(cap_fc$error)), 3)
+#&gt; mean_error   sd_error 
+#&gt;     -0.417      3.462 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Exercise 2 innovation check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 innovation check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(acf(cap_fc$error, lag.max = 3, plot = FALSE)$acf[2:4], 3)
+#&gt; [1] -0.113  0.169 -0.096</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean error is -0.417, close to zero relative to a standard deviation of 3.462, and all three autocorrelations sit between -0.113 and 0.169, well inside the rough 95% band of 1.96/sqrt(100) = 0.196. The innovations look like noise, so the model has extracted what was extractable. This is the standard diagnostic for a fitted state space model.</p>
+
+</details>
+
+<h3>Exercise 3: Decompose AirPassengers with a basic structural model</h3>
+
+<p><code>StructTS()</code> has a third type, <code>&quot;BSM&quot;</code>, the basic structural model, which fits level, slope and seasonal components at once. Fit it to <code>log10(AirPassengers)</code>, store it in <code>cap_struct</code>, and print the four estimated variances rounded to six decimal places. Then decide which component carries the real movement and which are effectively switched off.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: StructTS(x, type = &quot;BSM&quot;) returns coef with level, slope, seas and epsilon
+# Hint: round to 6 places, the variances are tiny on the log10 scale
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_struct &lt;- StructTS(log10(AirPassengers), type = &quot;BSM&quot;)
+round(cap_struct$coef, 6)
+#&gt;    level    slope     seas  epsilon 
+#&gt; 0.000146 0.000000 0.000263 0.000000 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two variances came back as zero. A zero <code>epsilon</code> says the model found no measurement noise at all, so it treats every observation as exact and the components absorb all the movement. A zero <code>slope</code> variance means the trend's direction is fixed rather than wandering. The action is in <code>seas</code> at 0.000263 and <code>level</code> at 0.000146, so the seasonal pattern actually moves around more from year to year than the underlying level does, which matches the widening yearly swings visible in the raw series.</p>
+
+</details>
+
+<h2>FAQ</h2>
+
+<h3>Is the Kalman filter only for time series?</h3>
+
+<p>No. It applies to anything where a hidden quantity evolves in steps and you get noisy readings of it, which is why it appears in GPS navigation, robotics and sensor fusion as often as in economics. The requirement is the model shape, a state equation plus an observation equation, not the fact that the index happens to be time.</p>
+
+<h3>What is the difference between the Kalman filter and a moving average?</h3>
+
+<p>A moving average applies fixed weights to a fixed window regardless of the data. The Kalman filter derives its weight, the gain, from your stated noise variances and updates its own uncertainty as it goes, so it smooths hard when measurements are unreliable and tracks closely when they are precise. It also gives you a variance at every point, which a moving average never does.</p>
+
+<h3>Do I need to know the noise variances in advance?</h3>
+
+<p>No. Estimate them from the data by maximum likelihood, which is what <code>StructTS()</code> does automatically and what the <code>optim()</code> example with FKF does explicitly. You only need starting values, and the log scale trick shown above keeps them positive during the search.</p>
+
+<h3>Why did my fitted variance come back as exactly zero?</h3>
+
+<p>That is the model telling you the component is not needed, as happened with the slope on the Nile and with epsilon in Exercise 3. It is a legitimate answer at the boundary of the parameter space, not an error, though it does mean standard errors for that component are not trustworthy.</p>
+
+<h3>Should I use the filtered or the smoothed estimate?</h3>
+
+<p>Use filtered values for anything that must run in real time, because they use only past data. Use smoothed values for historical analysis and decomposition, where the whole series is already available. Reporting smoothed values as if they were live estimates is the most common serious mistake with these models.</p>
+
+<h3>Can the Kalman filter handle nonlinear models?</h3>
+
+<p>Not the standard one, which assumes both equations are linear with Gaussian noise. Nonlinear problems need an extended or unscented Kalman filter, or a particle filter, and those live in other packages. KFAS does relax the Gaussian assumption on the observations, supporting Poisson, binomial, negative binomial and gamma data.</p>
+
+<h3>Why does FKF want three-dimensional arrays for constant parameters?</h3>
+
+<p>Because the last dimension is time, and FKF allows every parameter to change at every step. Passing <code>array(1, c(1, 1, 1))</code> means "one state, one series, constant across time", while passing a length-n final dimension lets the parameter vary. The uniform shape is what makes time-varying models possible without a separate interface.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>State space model</td>
+<td>Two equations: a hidden state that evolves, and observations that are the state plus noise</td>
+</tr>
+<tr>
+<td>Local level model</td>
+<td>The simplest one, a random-walk level observed with error, fitted by <code>StructTS(type = &quot;level&quot;)</code></td>
+</tr>
+<tr>
+<td>Predict step</td>
+<td>Carry the state forward and let its variance grow by the state noise</td>
+</tr>
+<tr>
+<td>Update step</td>
+<td>Move toward the new observation by the Kalman gain times the prediction error</td>
+</tr>
+<tr>
+<td>Kalman gain</td>
+<td>Your uncertainty divided by total uncertainty, between 0 and 1, settling to a constant</td>
+</tr>
+<tr>
+<td>Signal-to-noise ratio</td>
+<td>State variance over measurement variance; small means heavy smoothing</td>
+</tr>
+<tr>
+<td>Filtering vs smoothing</td>
+<td>Filtered uses only the past and is safe for live use; smoothed uses the whole series</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing data</a></td>
+<td>Skip the update, keep the prediction, let the variance grow</td>
+</tr>
+<tr>
+<td>Forecasting</td>
+<td>Filtering forward with all future observations treated as missing</td>
+</tr>
+<tr>
+<td>StructTS</td>
+<td>Base R, no install, three fixed model types</td>
+</tr>
+<tr>
+<td>FKF</td>
+<td>Raw matrices, fastest, time-varying parameters, series in rows</td>
+</tr>
+<tr>
+<td>KFAS</td>
+<td>Formula interface, seasonal and regression components, non-Gaussian observations</td>
+</tr>
+</tbody>
+</table>
+
+<p>The single most useful takeaway is that these are all one algorithm. Once you can write your problem as a state equation and an observation equation, filtering, smoothing, interpolation and forecasting all fall out of the same recursion, and the package you use is a matter of convenience.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Helske, J. (2017). <em>KFAS: Exponential Family State Space Models in R</em>. Journal of Statistical Software, 78(10), 1-39. The paper behind KFAS, and the clearest write-up of the general state space model it implements. <a href="https://www.jstatsoft.org/article/view/v078i10">Link</a></li>
+
+<li>KFAS package on CRAN: reference manual and vignettes, including worked <code>SSMtrend</code> and <code>SSMseasonal</code> examples. <a href="https://cran.r-project.org/package=KFAS">Link</a></li>
+
+<li>FKF package on CRAN: the Fast Kalman Filter reference manual, with the exact required shape of every matrix argument. <a href="https://cran.r-project.org/package=FKF">Link</a></li>
+
+<li>R Core Team: the <code>StructTS</code> help page, for the three model types base R fits and what its coefficients mean. <a href="https://search.r-project.org/R/refmans/stats/html/StructTS.html">Link</a></li>
+
+<li>R Core Team: the <code>KalmanLike</code> help page, documenting the Kalman filter functions underneath <code>StructTS</code> and <code>arima</code>. <a href="https://search.r-project.org/R/refmans/stats/html/KalmanLike.html">Link</a></li>
+
+<li>R Core Team: the <code>tsSmooth</code> help page, on fixed-interval smoothing of structural models. <a href="https://search.r-project.org/R/refmans/stats/html/tsSmooth.html">Link</a></li>
+
+<li>Petris, G., Petrone, S. and Campagnoli, P. <em>dlm: an R package for Bayesian analysis of Dynamic Linear Models</em>. Package vignette, and the route to take if you want the Bayesian treatment of the same models. <a href="https://cran.r-project.org/web/packages/dlm/vignettes/dlm.pdf">Link</a></li>
+
+<li>R Core Team: the <code>Nile</code> dataset documentation, describing the flow measurements from 1871 to 1970 used throughout this tutorial. <a href="https://search.r-project.org/R/refmans/datasets/html/Nile.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ARIMA-in-R.html">ARIMA in R</a>: the other classical route to modelling a time series, and R's <code>arima()</code> uses a Kalman filter internally to compute its likelihood.</li>
+
+<li><a href="ETS-Models-in-R.html">ETS Models in R</a>: <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a>, whose simplest form is mathematically equivalent to the local level model you filtered here.</li>
+
+<li><a href="Time-Series-Decomposition-in-R.html">Time Series Decomposition in R</a>: splitting a series into trend, seasonal and remainder, the same job the basic structural model did in Exercise 3.</li>
+
+</ul>
+
+{% endraw %}
