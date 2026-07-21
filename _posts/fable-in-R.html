@@ -1,0 +1,1292 @@
+---
+title: "fable in R: Tidy Time Series Forecasting with tsibble"
+description: "fable in R makes forecasting tidy: build a tsibble, fit ETS, ARIMA and SNAIVE in one model() call, rank them with accuracy(), and forecast many series at once."
+keywords: "fable in R, tsibble, tidy time series forecasting, fable package, mable, ETS ARIMA fable, accuracy() fable, tidyverts, forecast many series R, prediction intervals R"
+mathjax: false
+webr: true
+curriculum_id: "3.8.18"
+post_type: "C"
+auto_link_terms: "fable in R|fable package|tidy time series forecasting|tsibble|tsibble object|tidyverts|fable forecasting|mable|model() mable|fable forecast distribution|as_tsibble()|filter_index()|forecast many series at once|ETS and ARIMA in fable"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "fable and tsibble"
+sidebar_order: "21"
+---
+<!-- md2html:generated -->
+
+<p class="lead">fable is the tidyverse's forecasting package. Your data lives in a tsibble (a table that knows which column is time), you fit any number of models in a single <code>model()</code> call, and you get back tidy tables you can filter, plot and rank like any other data frame. This tutorial builds that whole workflow from scratch, and every code block on this page runs in your browser.</p>
+
+<h2>Why does forecasting need its own data structure?</h2>
+
+<p>The classic forecasting tools in R take a <code>ts</code> object, which is a plain numeric vector with a start date and a frequency attached to it (the frequency is how many observations make up one cycle, so 12 for monthly data). That works, but it is limiting: a <code>ts</code> can hold only one series, it has no column names, and it stops being a <code>ts</code> the moment you touch it with a dplyr verb like <code>filter()</code>. fable replaces it with a tsibble, a data frame that knows which column is time.</p>
+
+<p>Before explaining any of that, here is the payoff. Three completely different forecasting models, fitted and forecast twelve months ahead, in one pipeline.</p>
+
+<div class="webr-container" data-block-title="Fit three models and forecast at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit three models and forecast at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(fable)
+library(feasts)
+library(dplyr)
+
+air &lt;- AirPassengers |&gt;
+  as_tsibble() |&gt;
+  rename(Month = index, Passengers = value)
+
+air |&gt;
+  model(
+    ets    = ETS(Passengers),
+    arima  = ARIMA(Passengers),
+    snaive = SNAIVE(Passengers)
+  ) |&gt;
+  forecast(h = 12)
+#&gt; # A fable: 36 x 4 [1M]
+#&gt; # Key:     .model [3]
+#&gt;    .model    Month   Passengers .mean
+#&gt;    &lt;chr&gt;     &lt;mth&gt;       &lt;dist&gt; &lt;dbl&gt;
+#&gt;  1 ets    1961 Jan  N(442, 299)  442.
+#&gt;  2 ets    1961 Feb  N(434, 442)  434.
+#&gt;  3 ets    1961 Mar  N(497, 789)  497.
+#&gt;  4 ets    1961 Apr  N(483, 956)  483.
+#&gt;  5 ets    1961 May N(484, 1177)  484.
+#&gt;  6 ets    1961 Jun N(551, 1821)  551.
+#&gt;  7 ets    1961 Jul N(613, 2636)  613.
+#&gt;  8 ets    1961 Aug N(609, 2994)  609.
+#&gt;  9 ets    1961 Sep N(531, 2577)  531.
+#&gt; 10 ets    1961 Oct N(463, 2205)  463.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Let's walk through what those lines did. <code>AirPassengers</code> is a built-in R dataset counting monthly international airline passengers (in thousands) from 1949 to 1960. <code>as_tsibble()</code> converted it from a <code>ts</code> into a tsibble, and <code>rename()</code> gave the two columns readable names, which is already something you cannot do to a <code>ts</code>. Then <code>model()</code> fitted three models at once and <code>forecast(h = 12)</code> asked each of them for the next twelve months.</p>
+
+<p>Now read the result. The header says <code>A fable: 36 x 4</code>, and 36 is 3 models times 12 months. Every forecast from every model is stacked in one tidy table with a <code>.model</code> column telling you which is which. That is the entire design idea: forecasts are data, so they go in a data frame.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>In fable, a model is a value you can put in a table cell.</strong> That is why fitting three models costs one function call instead of three, and why comparing them later is a <code>group_by()</code> rather than a pile of bespoke extraction code.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Forecast only six months ahead, using only the SNAIVE model. The starter below fits the model but stops there, so it prints the fitted model instead of a forecast. Add the forecasting step.</p>
+<div class="webr-container" data-block-title="Your turn: forecast six months with SNAIVE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: forecast six months with SNAIVE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fc &lt;- air |&gt; model(snaive = SNAIVE(Passengers))
+ex_fc</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Six-month SNAIVE forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Six-month SNAIVE forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fc &lt;- air |&gt;
+  model(snaive = SNAIVE(Passengers)) |&gt;
+  forecast(h = 6)
+ex_fc
+#&gt; # A fable: 6 x 4 [1M]
+#&gt; # Key:     .model [1]
+#&gt;   .model    Month   Passengers .mean
+#&gt;   &lt;chr&gt;     &lt;mth&gt;       &lt;dist&gt; &lt;dbl&gt;
+#&gt; 1 snaive 1961 Jan N(417, 1319)   417
+#&gt; 2 snaive 1961 Feb N(391, 1319)   391
+#&gt; 3 snaive 1961 Mar N(419, 1319)   419
+#&gt; 4 snaive 1961 Apr N(461, 1319)   461
+#&gt; 5 snaive 1961 May N(472, 1319)   472
+#&gt; 6 snaive 1961 Jun N(535, 1319)   535</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>forecast(h = 6)</code> turns the fitted model into six future rows. SNAIVE just repeats the value from the same month one year earlier, which is why 417 for January 1961 is exactly the January 1960 figure.</p>
+
+</details>
+</section>
+
+<h2>What exactly is a tsibble?</h2>
+
+<p>A tsibble is a normal data frame plus two pieces of bookkeeping. Almost everything else in this tutorial depends on those two things, so let's name them properly.</p>
+
+<p>The <strong>index</strong> is the column holding time. Every tsibble has exactly one. The <strong>key</strong> is zero or more columns that identify <em>which</em> series a row belongs to, for when the table holds several series stacked on top of each other. Everything else is a <strong>measured variable</strong>, the actual numbers you want to forecast.</p>
+
+<p><img src="screenshots/fable-in-R-tsibble-anatomy.webp" alt="The three parts of a tsibble: index, key, and measured variables" class="img-responsive img-zoomable" loading="lazy" width="1264" height="986" /></p>
+
+<p><em>Figure 1: A tsibble wraps an index plus optional keys around the measured values.</em></p>
+
+<p>The rule that follows from this is simple: index plus key must uniquely identify every row. If you hand tsibble two rows for the same month in the same series, it refuses to build the object rather than silently letting you forecast garbage. Let's look at the tsibble we already made.</p>
+
+<div class="webr-container" data-block-title="Print the tsibble and read its header">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Print the tsibble and read its header</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air
+#&gt; # A tsibble: 144 x 2 [1M]
+#&gt;       Month Passengers
+#&gt;       &lt;mth&gt;      &lt;dbl&gt;
+#&gt;  1 1949 Jan        112
+#&gt;  2 1949 Feb        118
+#&gt;  3 1949 Mar        132
+#&gt;  4 1949 Apr        129
+#&gt;  5 1949 May        121
+#&gt;  6 1949 Jun        135
+#&gt;  7 1949 Jul        148
+#&gt;  8 1949 Aug        148
+#&gt;  9 1949 Sep        136
+#&gt; 10 1949 Oct        119</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The header line carries information a plain tibble would not have. <code>144 x 2</code> is the usual rows-by-columns, but <code>[1M]</code> is the <em>interval</em>: one month between observations. fable reads that to know the season is twelve, which is why you never pass a <code>frequency</code> argument anywhere in this tutorial. The <code>&lt;mth&gt;</code> under <code>Month</code> is a year-month type, not a date, so there is no misleading "the 1st of the month" implied.</p>
+
+<p>You can ask the tsibble about itself directly.</p>
+
+<div class="webr-container" data-block-title="Inspect index, key and interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect index, key and interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">index_var(air)
+key_vars(air)
+interval(air)
+#&gt; [1] &quot;Month&quot;
+#&gt; character(0)
+#&gt; &lt;interval[1]&gt;
+#&gt; [1] 1M</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>index_var()</code> confirms <code>Month</code> is the time column. <code>key_vars()</code> returns <code>character(0)</code>, an empty character vector, which means there are no key columns, which means this tsibble holds exactly one series. That is worth remembering, because when we get to forecasting many series at once, the only thing that changes is that this comes back non-empty.</p>
+
+<p>You will not always start from a <code>ts</code>. Most often you have a data frame already, and you promote it with <code>as_tsibble()</code>, or you build one from scratch with <code>tsibble()</code>. Building one from scratch makes the required parts obvious.</p>
+
+<div class="webr-container" data-block-title="Build a tsibble from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a tsibble from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- tsibble(
+  Quarter = yearquarter(c(&quot;2023 Q1&quot;, &quot;2023 Q2&quot;, &quot;2023 Q3&quot;, &quot;2023 Q4&quot;)),
+  Revenue = c(120, 135, 128, 160),
+  index = Quarter
+)
+sales
+#&gt; # A tsibble: 4 x 2 [1Q]
+#&gt;   Quarter Revenue
+#&gt;     &lt;qtr&gt;   &lt;dbl&gt;
+#&gt; 1 2023 Q1     120
+#&gt; 2 2023 Q2     135
+#&gt; 3 2023 Q3     128
+#&gt; 4 2023 Q4     160</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two things to notice. The <code>index = Quarter</code> argument is what makes this a tsibble rather than a tibble, and <code>yearquarter()</code> is what makes the quarters real quarters. The interval in the header came out as <code>[1Q]</code> on its own, inferred from the data.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>tsibble ships a time class for each common frequency.</strong> Use yearweek(), yearmonth() and yearquarter() for weekly, monthly and quarterly data, and ordinary Date or POSIXct for daily and sub-daily data. Picking the right one is what lets fable infer the seasonal period for you.</div></div>
+
+<p>Because a tsibble is still a data frame, ordinary dplyr verbs work on it. The one genuinely new verb is <code>filter_index()</code>, a shorthand for slicing by time without writing date comparisons.</p>
+
+<div class="webr-container" data-block-title="Slice a time window with filter_index()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Slice a time window with filter_index()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air |&gt; filter_index(&quot;1958 Jan&quot; ~ &quot;1958 Jun&quot;)
+#&gt; # A tsibble: 6 x 2 [1M]
+#&gt;      Month Passengers
+#&gt;      &lt;mth&gt;      &lt;dbl&gt;
+#&gt; 1 1958 Jan        340
+#&gt; 2 1958 Feb        318
+#&gt; 3 1958 Mar        362
+#&gt; 4 1958 Apr        348
+#&gt; 5 1958 May        363
+#&gt; 6 1958 Jun        435</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>~</code> reads as "through". You can leave either side open with a dot: <code>. ~ &quot;1958 Dec&quot;</code> means everything up to the end of 1958, and <code>&quot;1959 Jan&quot; ~ .</code> means everything from 1959 onward. We will use exactly that trick to split training data from test data later.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The starter has three months of website visits as a plain vector, which fable cannot forecast. Turn it into a tsibble with a <code>Month</code> index built by <code>yearmonth()</code> and a <code>Visits</code> column.</p>
+<div class="webr-container" data-block-title="Your turn: build a monthly tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a monthly tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_visits &lt;- c(980, 1120, 1340)
+ex_visits</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Monthly visits tsibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monthly visits tsibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_visits &lt;- tsibble(
+  Month = yearmonth(c(&quot;2024 Jan&quot;, &quot;2024 Feb&quot;, &quot;2024 Mar&quot;)),
+  Visits = c(980, 1120, 1340),
+  index = Month
+)
+ex_visits
+#&gt; # A tsibble: 3 x 2 [1M]
+#&gt;      Month Visits
+#&gt;      &lt;mth&gt;  &lt;dbl&gt;
+#&gt; 1 2024 Jan    980
+#&gt; 2 2024 Feb   1120
+#&gt; 3 2024 Mar   1340</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>yearmonth()</code> parses the strings into a month type, and <code>index = Month</code> nominates that column as time. The <code>[1M]</code> in the header confirms tsibble worked out the spacing on its own.</p>
+
+</details>
+</section>
+
+<h2>How do you fit ETS, ARIMA and SNAIVE in one call?</h2>
+
+<p>Here is where the design starts paying off. <code>model()</code> takes a tsibble and one named argument per model you want, and returns a <strong>mable</strong>, short for model table. Each column is a model, each row is a series.</p>
+
+<p><img src="screenshots/fable-in-R-workflow.webp" alt="The fable pipeline: tsibble to mable to fable" class="img-responsive img-zoomable" loading="lazy" width="2248" height="726" /></p>
+
+<p><em>Figure 2: model() turns a tsibble into a mable; forecast() turns a mable into a fable.</em></p>
+
+<p>The three models we are fitting are worth a sentence each. <code>ETS()</code> is <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a>, which tracks a level, a trend and a season and lets each of them drift. <code>ARIMA()</code> models the series through its own past values and past errors, after <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a>, which means replacing each value by its change from the previous one so that a trend is removed. <code>SNAIVE()</code> is the seasonal naive baseline: the forecast for next July is simply last July. That last one is not a serious model, it is the bar every serious model has to clear.</p>
+
+<div class="webr-container" data-block-title="Fit three models into a mable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit three models into a mable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- air |&gt;
+  model(
+    ets    = ETS(Passengers),
+    arima  = ARIMA(Passengers),
+    snaive = SNAIVE(Passengers)
+  )
+fit
+#&gt; # A mable: 1 x 3
+#&gt;             ets                     arima   snaive
+#&gt;         &lt;model&gt;                   &lt;model&gt;  &lt;model&gt;
+#&gt; 1 &lt;ETS(M,Ad,M)&gt; &lt;ARIMA(2,1,1)(0,1,0)[12]&gt; &lt;SNAIVE&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One row, because there is one series. Three columns, because we asked for three models. The interesting part is what is printed inside each cell, because we never specified any model orders. Writing <code>ETS(Passengers)</code> with no further arguments told fable to search the ETS family and keep the best, and it chose <code>ETS(M,Ad,M)</code>. Those letters decode as multiplicative errors and a multiplicative season, with an additive <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">damped trend</a> sitting between them. <code>ARIMA(Passengers)</code> ran the same kind of search and landed on <code>ARIMA(2,1,1)(0,1,0)[12]</code>. Read that label as two brackets of three numbers each: the first is the ordinary part, counting past values used, differences taken, and past errors used, so 2, 1 and 1 here. The second bracket is the same three counts applied a whole season apart, so no seasonal past values, one seasonal difference, no seasonal past errors. The trailing <code>[12]</code> says a season is twelve months.</p>
+
+<p>To read one model in full, pull out its column and call <code>report()</code>.</p>
+
+<div class="webr-container" data-block-title="Report the fitted ETS model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report the fitted ETS model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit |&gt; select(ets) |&gt; report()
+#&gt; Series: Passengers 
+#&gt; Model: ETS(M,Ad,M) 
+#&gt;   Smoothing parameters:
+#&gt;     alpha = 0.7095519 
+#&gt;     beta  = 0.02040892 
+#&gt;     gamma = 0.0001004683 
+#&gt;     phi   = 0.9799999 
+#&gt; 
+#&gt;   Initial states:
+#&gt;      l[0]    b[0]      s[0]    s[-1]     s[-2]    s[-3]    s[-4]    s[-5]  s[-6]     s[-7]
+#&gt;  120.9939 1.77054 0.8944475 0.799322 0.9216596 1.059202 1.220301 1.231799 1.1105 0.9786128
+#&gt; 
+#&gt;   sigma^2:  0.0015
+#&gt; 
+#&gt;      AIC     AICc      BIC 
+#&gt; 1395.166 1400.638 1448.623 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those four smoothing parameters each answer "how fast should this component react to new data", on a scale from 0 to 1. <code>alpha = 0.71</code> is the level, and it is high, so the level chases recent observations closely. <code>beta = 0.02</code> is the trend, and it is nearly zero, so the growth rate is treated as almost fixed. <code>gamma = 0.0001</code> is the season, so the seasonal shape is essentially locked in from the start of the series. <code>phi = 0.98</code> is the damping, which gently flattens the trend as the forecast goes further out.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>report() only works on a single model.</strong> Call it on a mable with three columns and it errors out, because there is no single set of coefficients to print. Always narrow to one model with <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select()</a> first, as above.</div></div>
+
+<p>When you want to compare all the models at once rather than read one deeply, use <code>glance()</code>.</p>
+
+<div class="webr-container" data-block-title="Compare model fits with glance()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare model fits with glance()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glance(fit) |&gt; select(.model, sigma2, log_lik, AIC, BIC)
+#&gt; # A tibble: 3 × 5
+#&gt;   .model    sigma2 log_lik   AIC   BIC
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets      0.00153   -680. 1395. 1449.
+#&gt; 2 arima  132.        -505. 1018. 1029.
+#&gt; 3 snaive 312.          NA    NA    NA </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One row per model, with the standard fit statistics. <code>sigma2</code> is the estimated variance of the errors, <code>log_lik</code> is the log-likelihood, and <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> and BIC are likelihood scores penalised for how many parameters the model spends. SNAIVE shows <code>NA</code> throughout because it is not a likelihood-based model at all, it has nothing to estimate.</p>
+
+<p>Now for a trap. It is tempting to read this table and declare ARIMA the winner because 1018 is a much smaller AIC than 1395. That comparison is not valid. ETS here models the data multiplicatively, so its likelihood is computed on a different scale from the ARIMA one, and AIC values are only comparable between models fitted to the identical response on the identical scale. AIC is for choosing within a family. To choose between families, you need held-out data, which is the next section but one.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the full ARIMA fit, including its coefficients. The starter selects the wrong column and stops short of reporting.</p>
+<div class="webr-container" data-block-title="Your turn: report the ARIMA model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: report the ARIMA model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit |&gt; select(ets)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Report the fitted ARIMA model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report the fitted ARIMA model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit |&gt; select(arima) |&gt; report()
+#&gt; Series: Passengers 
+#&gt; Model: ARIMA(2,1,1)(0,1,0)[12] 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ar1     ar2      ma1
+#&gt;       0.5960  0.2143  -0.9819
+#&gt; s.e.  0.0888  0.0880   0.0292
+#&gt; 
+#&gt; sigma^2 estimated as 132.3:  log likelihood=-504.92
+#&gt; AIC=1017.85   AICc=1018.17   BIC=1029.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Swap <code>ets</code> for <code>arima</code> in <code>select()</code>, then pipe into <code>report()</code>. You get the three fitted coefficients with their standard errors: two autoregressive terms and one moving-average term, matching the <code>(2,1,1)</code> in the label.</p>
+
+</details>
+</section>
+
+<h2>What is inside a fable, and why is the forecast a distribution?</h2>
+
+<p><code>forecast()</code> takes a mable and returns a <strong>fable</strong>, a forecast table. We printed one at the very top of this tutorial, but we skipped over its strangest column. Let's go back and look properly.</p>
+
+<div class="webr-container" data-block-title="Forecast the mable into a fable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the mable into a fable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc &lt;- fit |&gt; forecast(h = 12)
+fc
+#&gt; # A fable: 36 x 4 [1M]
+#&gt; # Key:     .model [3]
+#&gt;    .model    Month   Passengers .mean
+#&gt;    &lt;chr&gt;     &lt;mth&gt;       &lt;dist&gt; &lt;dbl&gt;
+#&gt;  1 ets    1961 Jan  N(442, 299)  442.
+#&gt;  2 ets    1961 Feb  N(434, 442)  434.
+#&gt;  3 ets    1961 Mar  N(497, 789)  497.
+#&gt;  4 ets    1961 Apr  N(483, 956)  483.
+#&gt;  5 ets    1961 May N(484, 1177)  484.
+#&gt;  6 ets    1961 Jun N(551, 1821)  551.
+#&gt;  7 ets    1961 Jul N(613, 2636)  613.
+#&gt;  8 ets    1961 Aug N(609, 2994)  609.
+#&gt;  9 ets    1961 Sep N(531, 2577)  531.
+#&gt; 10 ets    1961 Oct N(463, 2205)  463.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>Passengers</code> column has type <code>&lt;dist&gt;</code>, and its first entry reads <code>N(442, 299)</code>. That is not a number, it is a whole probability distribution: a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> with mean 442 and variance 299. fable stores the entire forecast distribution for every future time point, and <code>.mean</code> is just a convenience column holding the mean of that distribution, which is the point forecast you would quote.</p>
+
+<p>Watch the variances climb down the column: 299, then 442, then 789, reaching 2205 by October. That is uncertainty compounding with distance. Predicting next month is much easier than predicting ten months out, and the object records exactly how much easier.</p>
+
+<p>Because the distribution is stored rather than a pre-baked interval, you can ask for any interval level you like after the fact with <code>hilo()</code>.</p>
+
+<div class="webr-container" data-block-title="Get 95 percent prediction intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Get 95 percent prediction intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt; hilo(level = 95) |&gt; head(3)
+#&gt; # A tsibble: 3 x 5 [1M]
+#&gt; # Key:       .model [1]
+#&gt;   .model    Month  Passengers .mean
+#&gt;   &lt;chr&gt;     &lt;mth&gt;      &lt;dist&gt; &lt;dbl&gt;
+#&gt; 1 ets    1961 Jan N(442, 299)  442.
+#&gt; 2 ets    1961 Feb N(434, 442)  434.
+#&gt; 3 ets    1961 Mar N(497, 789)  497.
+#&gt; # ℹ 1 more variable: `95%` &lt;hilo&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A new column named <code>95%</code> appeared, of type <code>&lt;hilo&gt;</code>, holding the lower and upper bound of each interval. The printout truncates it to keep the table narrow, which is normal.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fable stores distributions, not intervals, so switching from 80 to 95 percent costs nothing.</strong> In older forecasting tools the interval level is an argument you pass at forecast time, so changing your mind means refitting. Here it is a question you ask of an object you already have.</div></div>
+
+<p>When you need plain numbers to hand to a spreadsheet or a report, drop the tsibble structure with <code>as_tibble()</code> and select what you want.</p>
+
+<div class="webr-container" data-block-title="Extract point forecasts as plain numbers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract point forecasts as plain numbers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt;
+  as_tibble() |&gt;
+  filter(.model == &quot;ets&quot;) |&gt;
+  select(Month, .mean) |&gt;
+  head(4)
+#&gt; # A tibble: 4 × 2
+#&gt;      Month .mean
+#&gt;      &lt;mth&gt; &lt;dbl&gt;
+#&gt; 1 1961 Jan  442.
+#&gt; 2 1961 Feb  434.
+#&gt; 3 1961 Mar  497.
+#&gt; 4 1961 Apr  483.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>as_tibble()</code> step matters. A fable keeps its key and index structure, so <code>select()</code> would insist on keeping <code>Month</code> and <code>.model</code> even if you asked for just <code>.mean</code>. Converting to an ordinary tibble first lets you take exactly the two columns you want.</p>
+
+<p>fable also plots itself. <code>autoplot()</code> draws the history and the forecast fan in one go, and because the result is a ggplot you can keep adding layers to it.</p>
+
+<div class="webr-container" data-block-title="Plot history and forecasts together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot history and forecasts together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+fc |&gt;
+  filter(.model != &quot;snaive&quot;) |&gt;
+  autoplot(air, level = 95) +
+  labs(title = &quot;Airline passengers: ETS and ARIMA forecasts&quot;,
+       y = &quot;Passengers (thousands)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing <code>air</code> as the first argument to <code>autoplot()</code> is what draws the historical line behind the forecasts; without it you would see only the twelve future months floating on their own. The shaded band is the 95 percent interval, and you can see it flare outward with the horizon exactly as the variances predicted.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Get 80 percent intervals for the ARIMA forecasts only. The starter filters to ARIMA but never asks for intervals.</p>
+<div class="webr-container" data-block-title="Your turn: 80 percent ARIMA intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 80 percent ARIMA intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hilo &lt;- fc |&gt; filter(.model == &quot;arima&quot;)
+ex_hilo |&gt; head(2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="80 percent ARIMA intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">80 percent ARIMA intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hilo &lt;- fc |&gt;
+  filter(.model == &quot;arima&quot;) |&gt;
+  hilo(level = 80)
+ex_hilo |&gt; head(2)
+#&gt; # A tsibble: 2 x 5 [1M]
+#&gt; # Key:       .model [1]
+#&gt;   .model    Month  Passengers .mean
+#&gt;   &lt;chr&gt;     &lt;mth&gt;      &lt;dist&gt; &lt;dbl&gt;
+#&gt; 1 arima  1961 Jan N(446, 132)  446.
+#&gt; 2 arima  1961 Feb N(420, 182)  420.
+#&gt; # ℹ 1 more variable: `80%` &lt;hilo&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>filter()</code> works on a fable like on any data frame, then <code>hilo(level = 80)</code> adds an <code>80%</code> column. Notice the ARIMA variance for January is 132 against the ETS model's 299, so the ARIMA forecast distribution is much narrower and its 80 percent interval will be correspondingly tighter.</p>
+
+</details>
+</section>
+
+<h2>How do you prove which model is actually best?</h2>
+
+<p>We have three fitted models and no honest way to rank them yet. AIC cannot compare across families, and SNAIVE does not even have one. The fix is the same as everywhere else in modelling: hide some data, forecast it, then see who came closest.</p>
+
+<p>Time series make this slightly special. You cannot shuffle rows and take a random 80 percent, because that would let the model peek at the future while predicting the past. The split has to be a cut across time, and <code>filter_index()</code> makes that a one-liner.</p>
+
+<div class="webr-container" data-block-title="Split the series into train and test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the series into train and test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- air |&gt; filter_index(. ~ &quot;1958 Dec&quot;)
+test  &lt;- air |&gt; filter_index(&quot;1959 Jan&quot; ~ .)
+c(train = nrow(train), test = nrow(test))
+#&gt; train  test 
+#&gt;   120    24 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We kept everything through December 1958 for training, 120 months, and held back the final two years, 24 months, as a <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> the models never see. Now refit on the training data only and forecast far enough to cover the whole test period.</p>
+
+<div class="webr-container" data-block-title="Score the models on held-out data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the models on held-out data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_train &lt;- train |&gt;
+  model(ets = ETS(Passengers), arima = ARIMA(Passengers), snaive = SNAIVE(Passengers))
+
+fit_train |&gt;
+  forecast(h = 24) |&gt;
+  accuracy(air) |&gt;
+  select(.model, .type, RMSE, MAE, MAPE, MASE)
+#&gt; # A tibble: 3 × 6
+#&gt;   .model .type  RMSE   MAE  MAPE  MASE
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 arima  Test   47.3  43.5  9.45  1.52
+#&gt; 2 ets    Test   72.5  63.2 13.3   2.21
+#&gt; 3 snaive Test   77.0  71.2 15.5   2.49</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice what <code>accuracy()</code> was given: the forecasts, and then <code>air</code>, the <em>full</em> dataset. It matches each forecast to the actual value at that month and computes the error. Passing the complete series rather than just <code>test</code> is the usual idiom, and it works because only the overlapping months are scored.</p>
+
+<p>Four error measures are shown, and they answer slightly different questions. <strong><a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">RMSE</a></strong> is the square root of the average squared error, in passengers, and squaring gives a large miss much more weight than several small ones. <strong>MAE</strong> is the average absolute error, also in passengers, and it weights all misses proportionally. <strong>MAPE</strong> is the average error as a percentage of the actual value, which makes it comparable across series of different sizes but which becomes enormous if any actual value is near zero. <strong>MASE</strong> is the one that answers the question you probably care about most: it divides the error by the error a naive seasonal forecast would have made on the training data, so <strong>MASE below 1 means you beat the naive baseline and above 1 means you did not</strong>.</p>
+
+<p>Read the table with that in mind and it says something uncomfortable. ARIMA is clearly best, but its MASE is 1.52, so over a two-year horizon it is still worse than a seasonal naive forecast would have been on this data. Two years is simply a long way to project a growing series.</p>
+
+<p>Now compare that against how the same models looked on the data they were trained on.</p>
+
+<div class="webr-container" data-block-title="Score the models on training data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the models on training data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accuracy(fit_train) |&gt; select(.model, .type, RMSE, MAE, MASE)
+#&gt; # A tibble: 3 × 5
+#&gt;   .model .type     RMSE   MAE  MASE
+#&gt;   &lt;chr&gt;  &lt;chr&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets    Training  8.90  6.65 0.233
+#&gt; 2 arima  Training  9.31  6.86 0.240
+#&gt; 3 snaive Training 32.5  28.6  1    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ranking has flipped. On training data ETS wins with an RMSE of 8.90, and both real models look spectacular next to SNAIVE. On held-out data ETS was the <em>worse</em> of the two and its RMSE was eight times larger. Also note SNAIVE's training MASE of exactly 1, which is not a coincidence: MASE is defined against the naive baseline, so the baseline scores exactly 1 by construction.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Training accuracy always looks better for the more flexible model.</strong> ETS spent parameters fitting the training data closely and then generalised worse. Never <a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">pick a forecasting model</a> on training error alone; the number that matters is the one from data the model has never seen.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The horizon changes the answer. Score the same three models over just six months instead of twenty-four and see who wins.</p>
+<div class="webr-container" data-block-title="Your turn: score a six-month horizon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score a six-month horizon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_acc &lt;- fit_train |&gt; forecast(h = 24)
+ex_acc |&gt; accuracy(air) |&gt; select(.model, RMSE, MASE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Six-month horizon accuracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Six-month horizon accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_acc &lt;- fit_train |&gt;
+  forecast(h = 6) |&gt;
+  accuracy(air)
+ex_acc |&gt; select(.model, RMSE, MASE)
+#&gt; # A tibble: 3 × 3
+#&gt;   .model  RMSE  MASE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 arima   28.9 0.941
+#&gt; 2 ets     28.3 0.803
+#&gt; 3 snaive  40.5 1.34 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Change <code>h = 24</code> to <code>h = 6</code>. Now ETS wins, and both real models drop below a MASE of 1, meaning they genuinely beat the naive baseline. The lesson is that "which model is best" is not a property of the data alone, it depends on how far ahead you need to see.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast hundreds of series at once?</h2>
+
+<p>Everything so far used one series. In practice you rarely have one. You have sales for every product, traffic for every region, demand for every store. This is the part of fable that has no real equivalent in the older tools, and the surprise is how little the code changes.</p>
+
+<p>Remember <code>key_vars(air)</code> returning <code>character(0)</code>. Fill that in, and every verb you have already learned starts operating per series automatically. Let's take real retail data with several series in it.</p>
+
+<div class="webr-container" data-block-title="Load a tsibble with multiple series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load a tsibble with multiple series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibbledata)
+
+retail &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;,
+         Industry %in% c(&quot;Clothing retailing&quot;, &quot;Liquor retailing&quot;, &quot;Department stores&quot;))
+retail
+#&gt; # A tsibble: 1,323 x 5 [1M]
+#&gt; # Key:       State, Industry [3]
+#&gt;    State    Industry           `Series ID`    Month Turnover
+#&gt;    &lt;chr&gt;    &lt;chr&gt;              &lt;chr&gt;          &lt;mth&gt;    &lt;dbl&gt;
+#&gt;  1 Victoria Clothing retailing A3349483V   1982 Apr     93.6
+#&gt;  2 Victoria Clothing retailing A3349483V   1982 May     95.3
+#&gt;  3 Victoria Clothing retailing A3349483V   1982 Jun     85.2
+#&gt;  4 Victoria Clothing retailing A3349483V   1982 Jul     91.6
+#&gt;  5 Victoria Clothing retailing A3349483V   1982 Aug     85.2
+#&gt;  6 Victoria Clothing retailing A3349483V   1982 Sep     89.5
+#&gt;  7 Victoria Clothing retailing A3349483V   1982 Oct     93  
+#&gt;  8 Victoria Clothing retailing A3349483V   1982 Nov    108. 
+#&gt;  9 Victoria Clothing retailing A3349483V   1982 Dec    148. 
+#&gt; 10 Victoria Clothing retailing A3349483V   1983 Jan     81.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>aus_retail</code> is monthly retail turnover in millions of Australian dollars, and we narrowed it to three industries in Victoria. The header now shows the second line we have been waiting for: <code>Key: State, Industry [3]</code>. Two key columns, and <code>[3]</code> distinct combinations, so three series are stacked in these 1,323 rows.</p>
+
+<p>Now fit models. The code is identical to the single-series version.</p>
+
+<div class="webr-container" data-block-title="Fit models across every series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit models across every series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_many &lt;- retail |&gt; model(ets = ETS(Turnover), snaive = SNAIVE(Turnover))
+fit_many
+#&gt; # A mable: 3 x 4
+#&gt; # Key:     State, Industry [3]
+#&gt;   State    Industry                    ets   snaive
+#&gt;   &lt;chr&gt;    &lt;chr&gt;                   &lt;model&gt;  &lt;model&gt;
+#&gt; 1 Victoria Clothing retailing &lt;ETS(M,A,M)&gt; &lt;SNAIVE&gt;
+#&gt; 2 Victoria Department stores  &lt;ETS(M,A,M)&gt; &lt;SNAIVE&gt;
+#&gt; 3 Victoria Liquor retailing   &lt;ETS(M,A,M)&gt; &lt;SNAIVE&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mable is now three rows by four columns: two key columns plus two model columns. Six models were fitted and searched for independently, from one line of code that looks exactly like the one-series case. That is what the key column does for you.</p>
+
+<div class="webr-container" data-block-title="Forecast every series and count the rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast every series and count the rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_many |&gt;
+  forecast(h = 12) |&gt;
+  as_tibble() |&gt;
+  count(Industry, .model)
+#&gt; # A tibble: 6 × 3
+#&gt;   Industry           .model     n
+#&gt;   &lt;chr&gt;              &lt;chr&gt;  &lt;int&gt;
+#&gt; 1 Clothing retailing ets       12
+#&gt; 2 Clothing retailing snaive    12
+#&gt; 3 Department stores  ets       12
+#&gt; 4 Department stores  snaive    12
+#&gt; 5 Liquor retailing   ets       12
+#&gt; 6 Liquor retailing   snaive    12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Seventy-two forecasts, twelve months for each of six industry-model pairs, and <code>count()</code> works because a fable is a data frame. With 152 series instead of three, the same line would fit 304 models and the code would not change by a character.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>This is the whole scale-up, and it costs no extra code.</strong> If your data is already stacked long with an identifying column, adding it as a key is all that stands between forecasting one series and forecasting all of them. There is no loop and no <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">split-apply-combine</a> to write.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit automatic ARIMA models across the three retail series instead of ETS, and look at the orders it picks for each.</p>
+<div class="webr-container" data-block-title="Your turn: fit ARIMA across every series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit ARIMA across every series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_many &lt;- retail |&gt; model(ets = ETS(Turnover))
+ex_many</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ARIMA across every series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ARIMA across every series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_many &lt;- retail |&gt; model(arima = ARIMA(Turnover))
+ex_many
+#&gt; # A mable: 3 x 3
+#&gt; # Key:     State, Industry [3]
+#&gt;   State    Industry                               arima
+#&gt;   &lt;chr&gt;    &lt;chr&gt;                                &lt;model&gt;
+#&gt; 1 Victoria Clothing retailing &lt;ARIMA(0,1,2)(0,1,1)[12]&gt;
+#&gt; 2 Victoria Department stores  &lt;ARIMA(0,1,2)(0,1,1)[12]&gt;
+#&gt; 3 Victoria Liquor retailing   &lt;ARIMA(0,1,1)(0,1,2)[12]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each series got its own independent order search. Clothing and department stores landed on the same orders, but liquor retailing came out as <code>(0,1,1)(0,1,2)[12]</code>, a different seasonal structure. A single shared model specification would have missed that.</p>
+
+</details>
+</section>
+
+<h2>How do you check the residuals before trusting a forecast?</h2>
+
+<p>A model that fits well can still be wrong in a way that matters. The check is to look at what the model <em>could not</em> explain, the residuals, and ask whether anything predictable is left in them. If there is, the model has not used all the structure that was in the data, and its prediction intervals are too narrow.</p>
+
+<p><code>augment()</code> puts the fitted values and residuals back beside the original data.</p>
+
+<div class="webr-container" data-block-title="Get fitted values and residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Get fitted values and residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit |&gt; augment() |&gt; head(3)
+#&gt; # A tsibble: 3 x 6 [1M]
+#&gt; # Key:       .model [1]
+#&gt;   .model    Month Passengers .fitted .resid   .innov
+#&gt;   &lt;chr&gt;     &lt;mth&gt;      &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 ets    1949 Jan        112    111.  0.826  0.00743
+#&gt; 2 ets    1949 Feb        118    111.  7.05   0.0636 
+#&gt; 3 ets    1949 Mar        132    134. -2.04  -0.0153 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three new columns. <code>.fitted</code> is what the model predicted for each historical month, <code>.resid</code> is the plain difference between actual and fitted, and <code>.innov</code> is the <em>innovation</em> residual, the residual on the scale the model actually works in. Those last two differ here because the chosen ETS model is multiplicative: <code>.resid</code> is in passengers, while <code>.innov</code> is a relative error. <strong>Always run the diagnostics on <code>.innov</code></strong>, because that is the quantity the model assumes is well behaved.</p>
+
+<p>What should innovations look like? Like noise. No pattern, no relationship between one residual and the next. The <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">Ljung-Box test</a> formalises that by measuring the autocorrelations, meaning the correlation between a residual and the residual a fixed number of months earlier, and asking whether they are jointly larger across a stretch of those lags than chance alone would produce.</p>
+
+<div class="webr-container" data-block-title="Test residuals for leftover structure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test residuals for leftover structure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit |&gt;
+  augment() |&gt;
+  features(.innov, ljung_box, lag = 24)
+#&gt; # A tibble: 3 × 3
+#&gt;   .model lb_stat lb_pvalue
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 arima     37.8  0.0365  
+#&gt; 2 ets       51.3  0.000953
+#&gt; 3 snaive   275.   0       </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We used 24 lags, two full seasonal cycles, which is the usual choice for monthly data. Read <code>lb_pvalue</code> as the probability of seeing this much <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">leftover autocorrelation</a> if the residuals really were noise. Small <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> means the residuals are not noise.</p>
+
+<p>Here all three fail at the 5 percent level. SNAIVE fails by the widest margin, which is expected since it is a baseline that models nothing. ETS fails clearly at p = 0.00095. ARIMA is the closest to passing at p = 0.037, and it was also the model that won on held-out data, which is reassuring, but it still fails.</p>
+
+<p>Be careful about what that means. It does not mean the ARIMA forecasts are useless, and we already measured that they are the most accurate of the three. It means there is still some structure the model has not captured, so its prediction intervals are probably a little too narrow. Treat the point forecasts as usable and the 95 percent intervals as optimistic.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A failed Ljung-Box test invalidates the intervals, not the point forecasts.</strong> The interval width is computed assuming the residuals are uncorrelated noise. When they are not, real uncertainty is larger than the band suggests, so widen your expectations even though the central forecast may be fine.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Innovations should also average out to roughly zero, otherwise the model is biased. Compute the mean and standard deviation of the ARIMA innovations.</p>
+<div class="webr-container" data-block-title="Your turn: summarise the ARIMA innovations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: summarise the ARIMA innovations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_resid &lt;- fit |&gt; augment()
+ex_resid |&gt; filter(.model == &quot;arima&quot;) |&gt; head(2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mean and spread of ARIMA innovations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean and spread of ARIMA innovations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_resid &lt;- fit |&gt;
+  augment() |&gt;
+  filter(.model == &quot;arima&quot;)
+c(mean_innov = mean(ex_resid$.innov), sd_innov = sd(ex_resid$.innov))
+#&gt; mean_innov   sd_innov 
+#&gt;    1.34230   10.80037 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean is 1.34 against a standard deviation of 10.8, so the average error is small relative to the spread but not exactly zero. The model runs very slightly low on average, under-forecasting by about 1.3 thousand passengers a month.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: an end-to-end fable workflow</h2>
+
+<p>Let's run the whole loop once more on a series we have not touched, to see it as a single piece of work rather than seven lessons. <code>USAccDeaths</code> counts monthly accidental deaths in the United States from 1973 to 1978. The job is to pick a model honestly and then produce a forecast with intervals.</p>
+
+<p>First, hold back the last year, fit the candidates on the rest, and score them on the year we hid.</p>
+
+<div class="webr-container" data-block-title="Split, fit and rank on held-out data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split, fit and rank on held-out data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">deaths &lt;- USAccDeaths |&gt; as_tsibble() |&gt; rename(Month = index, Deaths = value)
+
+deaths_train &lt;- deaths |&gt; filter_index(. ~ &quot;1977 Dec&quot;)
+
+deaths_fit &lt;- deaths_train |&gt;
+  model(ets = ETS(Deaths), arima = ARIMA(Deaths), snaive = SNAIVE(Deaths))
+
+deaths_fit |&gt;
+  forecast(h = 12) |&gt;
+  accuracy(deaths) |&gt;
+  select(.model, RMSE, MAPE, MASE)
+#&gt; # A tibble: 3 × 4
+#&gt;   .model  RMSE  MAPE  MASE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 arima   289.  2.72 0.481
+#&gt; 2 ets     290.  2.66 0.479
+#&gt; 3 snaive  341.  2.85 0.539</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><a class="auto-link" href="ETS-vs-ARIMA-in-R.html" title="ETS vs ARIMA in R: Which Forecasting Model Should You Use?">ETS and ARIMA</a> are effectively tied here, at a MASE just under 0.48, and both comfortably beat SNAIVE at 0.539. All three are below 1, so all three beat the naive baseline, and a MAPE of about 2.7 percent means the typical miss is small. The two leaders split the decision: ETS is fractionally ahead on MASE (0.479 against 0.481) and ARIMA is fractionally ahead on RMSE (289 against 290). A gap that small is noise, so pick on the measure that matters for the job. We will take ARIMA, because RMSE weights the large misses most heavily and a big single-month miss is the expensive kind of error here.</p>
+
+<p>Having chosen, refit on <strong>all</strong> the data, including the year used for testing, and forecast forward with intervals. Refitting on everything is the right final step: the holdout existed to choose the model, and once chosen you want it trained on every observation you have.</p>
+
+<div class="webr-container" data-block-title="Refit on all data and forecast with intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit on all data and forecast with intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">deaths |&gt;
+  model(arima = ARIMA(Deaths)) |&gt;
+  forecast(h = 12) |&gt;
+  hilo(level = 95) |&gt;
+  head(3)
+#&gt; # A tsibble: 3 x 5 [1M]
+#&gt; # Key:       .model [1]
+#&gt;   .model    Month          Deaths .mean
+#&gt;   &lt;chr&gt;     &lt;mth&gt;          &lt;dist&gt; &lt;dbl&gt;
+#&gt; 1 arima  1979 Jan  N(8336, 1e+05) 8336.
+#&gt; 2 arima  1979 Feb N(7532, 136433) 7532.
+#&gt; 3 arima  1979 Mar N(8315, 169840) 8315.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the deliverable: 8,336 expected accidental deaths in January 1979, 7,532 in February, with the seasonal dip that February always shows, and a stored distribution behind each one so any interval level is one <code>hilo()</code> away. Five lines, from raw <code>ts</code> to a forecast you can defend.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas at once. Each is solvable with only what this tutorial covered. They use <code>my_</code> variable names so they will not clobber anything from the tutorial above.</p>
+
+<h3>Exercise 1: Build a tsibble and forecast it</h3>
+
+<p>Convert <code>USAccDeaths</code> into a tsibble with columns named <code>Month</code> and <code>Deaths</code>, fit both an ETS and a SNAIVE model, forecast 12 months, and print the first three ETS point forecasts.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: as_tsibble() |&gt; rename(), then model(), forecast(h = 12)
+# Then as_tibble() |&gt; filter(.model == &quot;ets&quot;) |&gt; select(Month, .mean)
+my_deaths &lt;- USAccDeaths |&gt; as_tsibble()
+my_deaths</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_deaths &lt;- USAccDeaths |&gt;
+  as_tsibble() |&gt;
+  rename(Month = index, Deaths = value)
+
+my_fc &lt;- my_deaths |&gt;
+  model(ets = ETS(Deaths), snaive = SNAIVE(Deaths)) |&gt;
+  forecast(h = 12)
+
+my_fc |&gt;
+  as_tibble() |&gt;
+  filter(.model == &quot;ets&quot;) |&gt;
+  select(Month, .mean) |&gt;
+  head(3)
+#&gt; # A tibble: 3 × 2
+#&gt;      Month .mean
+#&gt;      &lt;mth&gt; &lt;dbl&gt;
+#&gt; 1 1979 Jan 8397.
+#&gt; 2 1979 Feb 7599.
+#&gt; 3 1979 Mar 8397.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rename()</code> after <code>as_tsibble()</code> gives usable names, <code>model()</code> fits both models into one mable, and <code>as_tibble()</code> before <code>select()</code> lets you keep just the two columns you want without the index tagging along.</p>
+
+</details>
+
+<h3>Exercise 2: Rank three models on a holdout</h3>
+
+<p>Using the <code>deaths</code> tsibble from the complete example, train on everything through December 1977, forecast the 12 months of 1978, and produce a table of all three models sorted from best to worst by MASE.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: filter_index(. ~ &quot;1977 Dec&quot;), model() with 3 models,
+# forecast(h = 12), accuracy(deaths), then arrange(MASE)
+my_train &lt;- deaths |&gt; filter_index(. ~ &quot;1977 Dec&quot;)
+nrow(my_train)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_best &lt;- deaths |&gt;
+  filter_index(. ~ &quot;1977 Dec&quot;) |&gt;
+  model(ets = ETS(Deaths), arima = ARIMA(Deaths), snaive = SNAIVE(Deaths)) |&gt;
+  forecast(h = 12) |&gt;
+  accuracy(deaths) |&gt;
+  arrange(MASE) |&gt;
+  select(.model, RMSE, MASE)
+my_best
+#&gt; # A tibble: 3 × 3
+#&gt;   .model  RMSE  MASE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets     290. 0.479
+#&gt; 2 arima   289. 0.481
+#&gt; 3 snaive  341. 0.539</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The whole evaluation is one pipeline: slice, fit, forecast, score, sort. <code>arrange(MASE)</code> puts the best model first. ETS edges ahead on MASE while ARIMA is fractionally ahead on RMSE, which is a genuine tie and a normal outcome.</p>
+
+</details>
+
+<h3>Exercise 3: Compare accuracy across two series at once</h3>
+
+<p>From <code>aus_retail</code>, take the New South Wales rows for "Liquor retailing" and "Department stores", fit an ETS model to each, and produce a table showing the training RMSE and MASE per industry.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: filter on State and Industry %in% c(...), then model(ets = ETS(Turnover))
+# accuracy() on a mable gives training accuracy, one row per series
+my_nsw &lt;- aus_retail |&gt; filter(State == &quot;New South Wales&quot;)
+n_distinct(my_nsw$Industry)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_nsw &lt;- aus_retail |&gt;
+  filter(State == &quot;New South Wales&quot;,
+         Industry %in% c(&quot;Liquor retailing&quot;, &quot;Department stores&quot;))
+
+my_nsw |&gt;
+  model(ets = ETS(Turnover)) |&gt;
+  accuracy() |&gt;
+  select(Industry, .model, RMSE, MASE)
+#&gt; # A tibble: 2 × 4
+#&gt;   Industry          .model  RMSE  MASE
+#&gt;   &lt;chr&gt;             &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Department stores ets    18.7  0.770
+#&gt; 2 Liquor retailing  ets     6.62 0.484</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because <code>Industry</code> is a key column, <code>accuracy()</code> reports one row per series without any grouping code. The RMSEs are not comparable between the two industries since they trade at different volumes, but MASE is scale-free, so it is fair to say the liquor series (0.484) is the easier of the two to model.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>What is the difference between fable and the forecast package?</strong> They are by the same author and do much the same statistics. The forecast package works on <code>ts</code> objects and returns a bespoke forecast object per model. fable works on tsibbles, holds many models and many series in one table, and returns <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frames. fable is the actively developed successor; forecast is in maintenance.</p>
+
+<p><strong>Can I still use <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">auto.arima</a>()?</strong> Not on a tsibble. <code>ARIMA()</code> inside <code>model()</code> is the fable equivalent, and it runs the same style of automatic order search. The main practical difference is that <code>ARIMA()</code> returns a model cell in a mable rather than a standalone object.</p>
+
+<p><strong>What is the difference between a mable and a fable?</strong> A mable holds fitted models, one column per model and one row per series. A fable holds forecasts produced from a mable, with a row per model per future time point. <code>model()</code> produces a mable, <code>forecast()</code> turns a mable into a fable.</p>
+
+<p><strong>Why does model() refuse my <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">ts object</a>?</strong> fable only accepts tsibbles. Convert first with <code>as_tsibble()</code>, which works directly on a <code>ts</code>, or build one with <code>tsibble()</code> from a data frame. This is deliberate: the tsibble carries the index and key that everything downstream depends on.</p>
+
+<p><strong>What if my series is missing some months?</strong> There are two different problems and tsibble separates them. A month that has a row but holds <code>NA</code> in the measured column is an explicit missing value; some models cope with it and others stop with an error, so resolve it before fitting. A month with no row at all is an implicit gap: <code>has_gaps()</code> reports whether any exist and <code>fill_gaps()</code> inserts the absent rows as <code>NA</code> so the series has one row per period again. Check this early, because the interval in the tsibble header, and therefore the seasonal period every model relies on, is inferred from the spacing of the rows.</p>
+
+<p><strong>How do I get plain numbers out of a fable?</strong> Pipe through <code>as_tibble()</code> first, then <code>select()</code> the columns you want. The <code>.mean</code> column holds the point forecasts. For intervals, call <code>hilo(level = 95)</code> before converting, which adds a column of lower and upper bounds.</p>
+
+<p><strong>Does fable handle hierarchical forecasting?</strong> Yes, through <code>aggregate_key()</code> in tsibble plus the reconciliation functions in fabletools, so forecasts for regions and the national total add up consistently. It builds on everything in this tutorial: the hierarchy is expressed through the key column.</p>
+
+<p><strong>Why did my ETS and ARIMA AICs look so different?</strong> AIC is only comparable between models fitted to the same response on the same scale. A multiplicative ETS model and an ARIMA model are not on the same scale, so their AICs cannot be ranked against each other. Use held-out accuracy to compare across model families.</p>
+
+<h2>Summary</h2>
+
+<p>The tidyverts workflow is three objects and the verbs that move between them. Learn those and the rest is ordinary dplyr.</p>
+
+<p><img src="screenshots/fable-in-R-verb-map.webp" alt="Which verb returns which object in the fable workflow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="632" /></p>
+
+<p><em>Figure 3: The three objects and the verbs that move between them.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Object</th>
+<th>Made by</th>
+<th>What it holds</th>
+<th>Read it with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tsibble</td>
+<td><code>as_tsibble()</code>, <code>tsibble()</code></td>
+<td>Data plus an index and optional keys</td>
+<td><code>index_var()</code>, <code>key_vars()</code>, <code>filter_index()</code></td>
+</tr>
+<tr>
+<td>mable</td>
+<td><code>model()</code></td>
+<td>Fitted models, one column each</td>
+<td><code>report()</code>, <code>glance()</code>, <code>augment()</code></td>
+</tr>
+<tr>
+<td>fable</td>
+<td><code>forecast()</code></td>
+<td>Forecast distributions per model per time</td>
+<td><code>hilo()</code>, <code>accuracy()</code>, <code>autoplot()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The points worth carrying away:</p>
+
+<ol>
+
+<li><strong>The index and key define everything.</strong> The index makes seasonality automatic, and the key is the single thing that turns one-series code into many-series code.</li>
+
+<li><strong>Models live in table cells.</strong> That is why <code>model()</code> fits three models as easily as one, and why comparison is a data frame operation.</li>
+
+<li><strong>Forecasts are distributions, not numbers.</strong> <code>.mean</code> is a convenience; the <code>&lt;dist&gt;</code> column is the real output, which is why any interval level is available after the fact.</li>
+
+<li><strong>Rank models on held-out data only.</strong> Our ETS model won on training error and lost badly on the holdout. AIC cannot compare across model families.</li>
+
+<li><strong>MASE below 1 beats the seasonal naive baseline.</strong> It is the one error measure that is both scale-free and honest about whether the modelling was worth it.</li>
+
+<li><strong>Check <code>.innov</code>, not <code>.resid</code>.</strong> A failed Ljung-Box test means your intervals are too narrow, not that your point forecasts are worthless.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition. The definitive text, written around fable. <a href="https://otexts.com/fpp3/">Link</a></li>
+
+<li>fable package documentation, tidyverts. <a href="https://fable.tidyverts.org/">Link</a></li>
+
+<li>tsibble package documentation: index, key and the tidy temporal data model. <a href="https://tsibble.tidyverts.org/">Link</a></li>
+
+<li>fabletools reference: <code>model()</code>, <code>forecast()</code>, <code>accuracy()</code> and the mable/fable classes. <a href="https://fabletools.tidyverts.org/">Link</a></li>
+
+<li>feasts package: features, decompositions and diagnostics including <code>ljung_box</code>. <a href="https://feasts.tidyverts.org/">Link</a></li>
+
+<li>Wang, E., Cook, D. & Hyndman, R.J. "A New Tidy Data Structure to Support Exploration and Modeling of Temporal Data", <em>Journal of Computational and Graphical Statistics</em> (2020). <a href="https://arxiv.org/abs/1901.10257">Link</a></li>
+
+<li>CRAN fable vignette. <a href="https://cran.r-project.org/web/packages/fable/vignettes/fable.html">Link</a></li>
+
+<li>Hyndman, R.J. & Koehler, A.B. "Another look at measures of forecast accuracy", <em>International Journal of Forecasting</em> (2006). The paper that introduced MASE. <a href="https://robjhyndman.com/papers/mase.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ETS-Models-in-R.html">ETS Models in R</a> goes deep on the exponential smoothing family, so you can read <code>ETS(M,Ad,M)</code> and know what each letter changes.</li>
+
+<li><a href="ARIMA-in-R.html">ARIMA Models in R</a> explains differencing, autoregression and <a class="auto-link" href="Moving-Averages-in-R.html" title="Moving Averages in R: Simple, Weighted, and Exponential">moving averages</a>, the machinery behind the <code>ARIMA()</code> search used above.</li>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a> covers the error measures in more depth, including when MAPE misleads and how to choose a metric for your problem.</li>
+
+</ul>
+
