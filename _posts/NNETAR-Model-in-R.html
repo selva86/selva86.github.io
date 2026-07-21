@@ -1,0 +1,1634 @@
+---
+title: "NNETAR Model in R: Neural Network Time Series Forecasting"
+description: "Fit an NNETAR model in R with nnetar(). Learn what NNAR(p,P,k)[m] means, how the network builds a forecast, how to tune it, and when it beats ARIMA and ETS."
+keywords: "NNETAR model in R, nnetar function, neural network time series forecasting, NNAR model, forecast package, neural network autoregression, nnetar vs ARIMA, time series neural network R, nnetar prediction intervals"
+mathjax: true
+webr: true
+curriculum_id: "FR-adva-2"
+post_type: "C"
+auto_link_terms: "NNETAR model|NNETAR models|NNETAR model in R|nnetar()|NNAR model|NNAR models|neural network autoregression|neural network time series forecasting|neural network forecasting in R|neural network forecast model"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "NNETAR Models"
+sidebar_order: "21"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">An NNETAR model is a neural network that forecasts a time series from its own past values. It is the nonlinear cousin of an AR model: the same lagged inputs go in, but they pass through a small hidden layer of neurons before they come out as a forecast. The <code>nnetar()</code> function in the forecast package fits one in a single line and chooses the architecture for you. This post shows what the model is, what the numbers in its name mean, how the network turns past values into a forecast, how to tune it, and, honestly, when it loses to ARIMA and ETS.</p>
+
+<h2>What is an NNETAR model, and when should you use it?</h2>
+
+<p>The <code>lynx</code> series counts Canadian lynx trapped each year from 1821 to 1934. It rises and crashes on a roughly ten-year cycle, and the rises are steeper than the falls. That asymmetry is nonlinear, which is exactly the shape a straight-line rule built from past values cannot bend to. One line of code fits a neural network to it instead. Press Run on the block below.</p>
+
+<div class="webr-container" data-block-title="Fit a neural network to the lynx series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a neural network to the lynx series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+set.seed(2026)
+fit_lynx &lt;- nnetar(lynx)
+fit_lynx
+#&gt; Series: lynx
+#&gt; Model:  NNAR(8,4)
+#&gt; Call:   nnetar(y = lynx)
+#&gt;
+#&gt; Average of 20 networks, each of which is
+#&gt; a 8-4-1 network with 41 weights
+#&gt; options were - linear output units
+#&gt;
+#&gt; sigma^2 estimated as 90719</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that printout from the top. <code>NNAR(8,4)</code> is the model R chose on its own: it decided to feed in the last 8 years of lynx counts and pass them through 4 hidden neurons. The line below says <code>a 8-4-1 network with 41 weights</code>, which is the same thing spelled out as an architecture: 8 inputs, 4 hidden units, 1 output. And <code>Average of 20 networks</code> means R did not fit one network, it fitted twenty and averaged them. The last line, <code>sigma^2</code>, is the average squared error the fitted network makes on the very data it trained on, so treat it as a description of the fit and not as a measure of forecast quality. We will unpack every one of those numbers.</p>
+
+<p>For now, notice what you did not have to do. You did not choose lags, you did not choose a hidden layer size, you did not scale the data, and you did not initialise any weights. <code>nnetar()</code> made all of those decisions from the series itself.</p>
+
+<p>An <strong>AR(p)</strong> model predicts the next value as a weighted sum of the last <code>p</code> values, and that weighted sum is a straight line. An NNAR model uses the same <code>p</code> lagged inputs, but routes them through neurons that bend. That single change is the whole idea.</p>
+
+<p>Now let's turn the fitted model into an actual forecast and look at it.</p>
+
+<div class="webr-container" data-block-title="Forecast 20 years ahead and plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast 20 years ahead and plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_lynx &lt;- forecast(fit_lynx, h = 20)
+autoplot(fc_lynx)
+
+round(head(fc_lynx$mean, 6), 1)
+#&gt; Time Series:
+#&gt; Start = 1935
+#&gt; End = 1940
+#&gt; Frequency = 1
+#&gt; [1] 3892.9 3155.7 1497.7  232.3  333.3  407.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>forecast(fit_lynx, h = 20)</code> runs the network forward 20 years. <code>autoplot()</code> draws the history in black with the forecast continuing on the right, and <code>fc_lynx$mean</code> holds the forecast numbers themselves, which is what we printed.</p>
+
+<p>Look at the shape of those six numbers: 3892, then 3155, then a collapse to 232, then a slow climb back. The model has learned the boom-and-crash cycle and is projecting the next crash. A linear AR model fitted to this series produces a much rounder, more symmetric wave, because a straight-line rule cannot make the fall steeper than the rise.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An NNETAR model is an AR model with a bend in it.</strong> The inputs are identical, lagged values of the series itself, and the only difference is that the weighted sum passes through nonlinear neurons before it becomes a forecast. That is why it fits cyclical, asymmetric series like lynx and sunspots better than a linear model can, and why it adds nothing on a series whose dynamics are already close to linear.</div></div>
+
+<p>So when should you reach for it? Use <code>nnetar()</code> when the series is long (roughly 100 observations or more), when the dynamics look nonlinear, and when point accuracy matters more to you than being able to explain the model to a stakeholder. Skip it when the series is short, when it has a strong trend (the limitations section below shows exactly why this breaks), or when you need prediction intervals you would defend in a meeting.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit an automatic NNETAR model to a different built-in series, <code>sunspot.year</code> (yearly sunspot counts from 1700 to 1988), and print just its model name with <code>$method</code>. The starter below fits <code>lynx</code> again, so change the series.</p>
+<div class="webr-container" data-block-title="Your turn: fit a network to sunspots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a network to sunspots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit nnetar() to sunspot.year and read off its model name.
+set.seed(600)
+ex_sun &lt;- nnetar(lynx)   # &lt;- swap lynx for sunspot.year
+ex_sun$method
+#&gt; [1] &quot;NNAR(8,4)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Neural network on yearly sunspots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Neural network on yearly sunspots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(600)
+ex_sun &lt;- nnetar(sunspot.year)
+ex_sun$method
+#&gt; [1] &quot;NNAR(9,5)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For sunspots R picks 9 lagged inputs and 5 hidden neurons. Sunspots have a longer cycle than lynx (about 11 years), so the model reaches further back to see a full cycle.</p>
+
+</details>
+</section>
+
+<h2>What do p, P, and k mean in NNAR(p,P,k)[m]?</h2>
+
+<p>You have now seen two model names, <code>NNAR(8,4)</code> and <code>NNAR(9,5)</code>. The general form has four slots, and each one answers a different question about the network.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Name</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p</code></td>
+<td>non-seasonal lags</td>
+<td>How many recent values feed the network: lags 1 through <code>p</code></td>
+</tr>
+<tr>
+<td><code>P</code></td>
+<td>seasonal lags</td>
+<td>How many seasonal values feed it: lags <code>m</code>, <code>2m</code>, up to <code>Pm</code></td>
+</tr>
+<tr>
+<td><code>k</code></td>
+<td>hidden nodes</td>
+<td>How many neurons sit in the hidden layer</td>
+</tr>
+<tr>
+<td><code>m</code></td>
+<td>season length</td>
+<td>Observations per cycle, 12 for monthly, 4 for quarterly</td>
+</tr>
+</tbody>
+</table>
+
+<p>For a series with no seasonality, <code>P</code> and <code>m</code> are dropped and the short form <code>NNAR(p,k)</code> is used. So <code>NNAR(8,4)</code> means 8 lagged inputs and 4 hidden nodes, which is exactly the <code>8-4-1</code> architecture the printout reported.</p>
+
+<p>Here is where those two numbers came from. When you do not supply <code>p</code>, <code>nnetar()</code> quietly fits a plain linear AR model first and lets <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> pick its order. AIC is a model-selection score that rewards a close fit but charges a penalty for every extra lag, so the order it picks is the smallest one that still explains the series well. Whatever order that search lands on becomes the network's lag count. Let's check that claim directly.</p>
+
+<div class="webr-container" data-block-title="Confirm where p and k came from">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm where p and k came from</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_lynx$lags
+#&gt; [1] 1 2 3 4 5 6 7 8
+
+fit_lynx$size
+#&gt; [1] 4
+
+ar(lynx)$order
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>fit_lynx$lags</code> lists the actual input lags, years 1 through 8 back. <code>fit_lynx$size</code> is the hidden layer width. And <code>ar(lynx)$order</code> is the AIC-optimal order of a linear AR model on the same series, which returns 8. That is not a coincidence: it is the rule.</p>
+
+<p>The hidden layer size follows a formula. R sets $k = (p + P + 1)/2$, rounded. For lynx that is $(8 + 0 + 1)/2 = 4.5$, and R rounds a trailing .5 to the nearest even number, which gives 4 rather than 5.</p>
+
+<p>Seasonal series get one extra ingredient. Let's fit <code>AirPassengers</code>, the classic 144-month record of international airline passengers from 1949 to 1960, counted in thousands. The call below carries one new argument, <code>lambda = 0</code>, which is unpacked in the note just after the printout.</p>
+
+<div class="webr-container" data-block-title="Fit a seasonal network to AirPassengers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a seasonal network to AirPassengers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1105)
+fit_air &lt;- nnetar(AirPassengers, lambda = 0)
+fit_air
+#&gt; Series: AirPassengers
+#&gt; Model:  NNAR(1,1,2)[12]
+#&gt; Call:   nnetar(y = AirPassengers, lambda = 0)
+#&gt;
+#&gt; Average of 20 networks, each of which is
+#&gt; a 2-2-1 network with 9 weights
+#&gt; options were - linear output units
+#&gt;
+#&gt; sigma^2 estimated as 0.002807</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the name has all four slots: <code>NNAR(1,1,2)[12]</code>. Decode it left to right. <code>p = 1</code> means one recent lag, last month. <code>P = 1</code> means one seasonal lag. <code>k = 2</code> means two hidden neurons. <code>[12]</code> says the season is 12 observations long, which R read off the monthly series automatically.</p>
+
+<p>So which two lags actually feed this network? Let's ask.</p>
+
+<div class="webr-container" data-block-title="List the input lags of the seasonal model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List the input lags of the seasonal model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_air$lags
+#&gt; [1]  1 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lag 1 and lag 12. To predict next month, the network looks at last month and at the same month one year ago. That is a remarkably small model, just 9 weights, and the head-to-head comparison later shows it still forecasts respectably.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The lambda = 0 argument applies a log transform before fitting.</strong> Passenger counts cannot be negative and their seasonal swings grow as the series grows, so modelling on the log scale keeps forecasts positive and makes the <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> a constant size. R back-transforms automatically when it forecasts, so the numbers you get out are still passengers.</div></div>
+
+<p>The weight count is also arithmetic, not magic. Every hidden node gets one weight per input plus a bias, and the output node gets one weight per hidden node plus a bias. For <code>fit_air</code> that is $(2 + 1) \times 2 + (2 + 1) \times 1 = 9$. For lynx it is $(8 + 1) \times 4 + (4 + 1) \times 1 = 41$, matching the printout exactly.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>AirPassengers</code> with 3 non-seasonal lags instead of 1, keeping <code>P = 1</code> and <code>size = 2</code>, then count the weights. Before you run it, work out the answer on paper: the inputs are lags 1, 2, 3 and 12, so 4 inputs.</p>
+<div class="webr-container" data-block-title="Your turn: change p to 3 and count weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: change p to 3 and count weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: set p = 3, then check the model name and weight count.
+set.seed(77)
+ex_air3 &lt;- nnetar(AirPassengers, p = 1, P = 1, size = 2, lambda = 0)   # &lt;- change p to 3
+ex_air3$method
+#&gt; [1] &quot;NNAR(1,1,2)[12]&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three non-seasonal lags solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three non-seasonal lags solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+ex_air3 &lt;- nnetar(AirPassengers, p = 3, P = 1, size = 2, lambda = 0)
+ex_air3$method
+#&gt; [1] &quot;NNAR(3,1,2)[12]&quot;
+
+length(ex_air3$model[[1]]$wts)
+#&gt; [1] 13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Four inputs (lags 1, 2, 3 and 12) into 2 hidden nodes gives $(4 + 1) \times 2 = 10$ weights, plus $(2 + 1) \times 1 = 3$ for the output, so 13 in total.</p>
+
+</details>
+</section>
+
+<h2>How does the network actually turn past values into a number?</h2>
+
+<p>"Neural network" is usually where a tutorial stops explaining and starts calling it a black box. It does not have to be. A network this small is a handful of numbers and one curve, and in this section we are going to reproduce <code>forecast()</code>'s answer by hand with a calculator's worth of arithmetic.</p>
+
+<p>To make that possible, let's deliberately build the smallest useful network. Two inputs feed a single hidden node, and we switch off the averaging so there is exactly one set of weights to look at.</p>
+
+<div class="webr-container" data-block-title="Build a deliberately tiny network">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a deliberately tiny network</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+net_small &lt;- nnetar(lynx, p = 2, P = 0, size = 1, repeats = 1)
+net_small
+#&gt; Series: lynx
+#&gt; Model:  NNAR(2,1)
+#&gt; Call:   nnetar(y = lynx, p = 2, P = 0, size = 1, repeats = 1)
+#&gt;
+#&gt; Average of 1 networks, each of which is
+#&gt; a 2-1-1 network with 5 weights
+#&gt; options were - linear output units
+#&gt;
+#&gt; sigma^2 estimated as 653537</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <code>2-1-1</code> network with 5 weights. That whole model, the thing that will produce a forecast, is five numbers. Let's look at them.</p>
+
+<div class="webr-container" data-block-title="Print all five weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Print all five weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">w &lt;- round(net_small$model[[1]]$wts, 4)
+w
+#&gt; [1]  0.6772 -2.2486  1.3845  2.1217 -3.3008</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>They come in a fixed order. The first three belong to the hidden node: a bias of 0.6772, then a weight of -2.2486 on lag 1 and 1.3845 on lag 2. The last two belong to the output: a bias of 2.1217 and a weight of -3.3008 on the hidden node's value.</p>
+
+<p>A weight is the multiplier applied to one input, and a bias is a constant added on top no matter what the inputs are, exactly like the intercept in <code>lm()</code>. Every node in the network has one bias and one weight per incoming connection.</p>
+
+<p><img src="screenshots/NNETAR-Model-in-R-network-architecture.webp" alt="An NNAR(2,1) network sends two lagged inputs into one hidden node, which feeds a single forecast output." class="img-responsive img-zoomable" loading="lazy" width="1284" height="730" /></p>
+
+<p><em>Figure 1: An NNAR(2,1) network: two lagged inputs, one hidden node, one forecast out.</em></p>
+
+<p>Before the arithmetic, there is one preprocessing step to know about. By default <code>nnetar()</code> standardises its inputs, subtracting the mean of the series and dividing by its standard deviation, because neurons behave badly when fed raw values in the thousands. Those two numbers are stored on the model.</p>
+
+<div class="webr-container" data-block-title="Read the input scaling constants">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the input scaling constants</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctr &lt;- net_small$scalex$center
+scl &lt;- net_small$scalex$scale
+c(center = ctr, scale = scl)
+#&gt;   center    scale
+#&gt; 1538.018 1585.844</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now we have everything. The last two lynx observations are 2657 in 1933 and 3396 in 1934. To forecast 1935 the network takes lag 1 (3396) and lag 2 (2657), scales them, pushes them through the hidden node, and reads off the output.</p>
+
+<p>If you would rather skip the equations, the code block after them does the same thing and you can jump straight there. Each hidden node computes a weighted sum of its inputs plus a bias, then squashes the result with the logistic sigmoid:</p>
+
+<p>$$h = \sigma\left(b + \sum_{i=1}^{n} w_i x_i\right), \qquad \sigma(z) = \frac{1}{1 + e^{-z}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$h$ = the hidden node's output, always between 0 and 1</li>
+
+<li>$b$ = the hidden node's bias, 0.6772 here</li>
+
+<li>$w_i$ = the weight on input $i$</li>
+
+<li>$x_i$ = the scaled value of lag $i$</li>
+
+<li>$\sigma$ = the sigmoid, the curve that does all the bending</li>
+
+</ul>
+
+<p>The output node then takes a plain weighted sum of the hidden values, with no sigmoid (that is what <code>linear output units</code> meant in the printout):</p>
+
+<p>$$\hat{y}_{\text{scaled}} = b_o + \sum_{j=1}^{k} v_j h_j$$</p>
+
+<p>Where $b_o$ is the output bias (2.1217), $v_j$ is the weight on hidden node $j$ (-3.3008), and $h_j$ is that node's value. Finally we undo the scaling with $\hat{y} = \hat{y}_{\text{scaled}} \times s + c$.</p>
+
+<p>Let's run exactly that, one line per step.</p>
+
+<div class="webr-container" data-block-title="Compute the forecast by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the forecast by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x1 &lt;- (3396 - ctr) / scl        # lag 1, scaled
+x2 &lt;- (2657 - ctr) / scl        # lag 2, scaled
+
+h_in       &lt;- w[1] + w[2] * x1 + w[3] * x2
+h_out      &lt;- 1 / (1 + exp(-h_in))
+out_scaled &lt;- w[4] + w[5] * h_out
+
+round(c(x1 = x1, x2 = x2, h_in = h_in, h_out = h_out), 4)
+#&gt;      x1      x2    h_in   h_out
+#&gt;  1.1716  0.7056 -0.9804  0.2728</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Follow it through. Scaling turns 3396 into 1.1716 and 2657 into 0.7056, so both years were above the long-run average. The hidden node combines them into -0.9804. The sigmoid squashes that into 0.2728, a number between 0 and 1.</p>
+
+<p>Now the last two steps: the output node, then undoing the scaling. Then we check the result against <code>forecast()</code>.</p>
+
+<div class="webr-container" data-block-title="Compare the hand calculation to forecast()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the hand calculation to forecast()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(out_scaled * scl + ctr, 3)
+#&gt; [1] 3474.608
+
+round(as.numeric(forecast(net_small, h = 1)$mean), 3)
+#&gt; [1] 3474.611</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>3474.608 by hand against 3474.611 from <code>forecast()</code>. The gap of three thousandths is entirely because we rounded the weights to four decimal places before using them. Otherwise the numbers are the same, because they are the same calculation.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The network is not doing anything you cannot follow.</strong> Multiply, add, squash with a sigmoid, multiply, add, unscale. What makes a real network hard to read is not the arithmetic, it is that a 41-weight model does this 4 times in parallel and no single weight means anything on its own.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The sigmoid is the only nonlinear part of the whole model, so it is worth being able to compute it yourself. Change <code>ex_h_in</code> below to -0.9804 (the value our hidden node received) and check that the sigmoid returns 0.2728.</p>
+<div class="webr-container" data-block-title="Your turn: compute a sigmoid by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute a sigmoid by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: apply the sigmoid to -0.9804 and confirm you get 0.2728.
+ex_h_in  &lt;- 0                       # &lt;- change this to -0.9804
+ex_h_out &lt;- 1 / (1 + exp(-ex_h_in))
+round(ex_h_out, 4)
+#&gt; [1] 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sigmoid of the hidden node input">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sigmoid of the hidden node input</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_h_in  &lt;- -0.9804
+ex_h_out &lt;- 1 / (1 + exp(-ex_h_in))
+round(ex_h_out, 4)
+#&gt; [1] 0.2728</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The sigmoid maps any real number into the range 0 to 1. It returns exactly 0.5 at an input of 0, drifts toward 0 for negative inputs and toward 1 for positive ones. Our input of -0.9804 sits below zero, so the output 0.2728 sits below 0.5.</p>
+
+</details>
+</section>
+
+<h3>Why does nnetar fit 20 networks and average them?</h3>
+
+<p>Every printout so far has said <code>Average of 20 networks</code>. That is the <code>repeats</code> argument, and its default of 20 exists for a specific reason: a neural network's answer depends on where its weights started.</p>
+
+<p>Training begins from random weights and walks downhill until the error stops improving. But the error surface has many valleys, so a different random start can settle in a different valley and give you a different model. Let's make that visible by fitting single networks, twice, from different starting points.</p>
+
+<div class="webr-container" data-block-title="Fit one network twice from different starts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit one network twice from different starts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101); one_a &lt;- nnetar(lynx, repeats = 1)
+set.seed(202); one_b &lt;- nnetar(lynx, repeats = 1)
+
+round(forecast(one_a, h = 3)$mean, 1)
+#&gt; [1] 4637.6 5026.3 5514.9
+
+round(forecast(one_b, h = 3)$mean, 1)
+#&gt; [1] 4566.1 3569.0 1389.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same function, same data, same settings. The only difference is the random seed, and the two models disagree completely. The first says lynx numbers keep climbing to 5515. The second says they crash to 1389. If you shipped either one as "the forecast", the number you shipped was decided by the random seed rather than by the data.</p>
+
+<p>Now let's do exactly the same thing with the default of 20 networks averaged.</p>
+
+<div class="webr-container" data-block-title="Average 20 networks from the same two starts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average 20 networks from the same two starts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101); avg_a &lt;- nnetar(lynx, repeats = 20)
+set.seed(202); avg_b &lt;- nnetar(lynx, repeats = 20)
+
+round(forecast(avg_a, h = 3)$mean, 1)
+#&gt; [1] 3806.4 3270.0 1793.0
+
+round(forecast(avg_b, h = 3)$mean, 1)
+#&gt; [1] 4126.5 3432.5 1592.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two runs now tell the same story: a value near 4000, then a decline, then a further decline into the 1500 to 1800 range. They still are not identical, but the disagreement has shrunk from "crash versus boom" to a difference of a few hundred animals. Averaging cancels the luck of individual starting points.</p>
+
+<p>There is a second thing worth understanding about these numbers. <code>nnetar()</code> trains the network to predict one step ahead, and nothing more. So how does it produce step 3?</p>
+
+<p><img src="screenshots/NNETAR-Model-in-R-recursive-forecast.webp" alt="Each forecast is fed back in as an input to produce the next one, so errors accumulate along the horizon." class="img-responsive img-zoomable" loading="lazy" width="2248" height="282" /></p>
+
+<p><em>Figure 2: Forecasts beyond step 1 are fed back in as inputs, so errors compound.</em></p>
+
+<p>It feeds its own output back in. Step 1 uses real observations. Step 2 uses the step-1 forecast in place of the value it does not have yet. Step 3 uses steps 1 and 2. This is called recursive <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a>, and it explains why long-horizon neural network forecasts drift toward a flat line: after enough steps, the network is looking almost entirely at its own guesses.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Without set.seed() your forecast changes every time you run the script.</strong> Because training starts from random weights, the same code gives different numbers on Monday and Tuesday. Put a <code>set.seed()</code> line immediately before every <code>nnetar()</code> call in anything you will rerun or hand to someone else.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the seed rule for yourself. The starter uses two different seeds, so the check returns <code>FALSE</code>. Change the second seed to match the first and the two forecasts should become identical.</p>
+<div class="webr-container" data-block-title="Your turn: make two fits identical">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: make two fits identical</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: use the SAME seed for both fits so identical() returns TRUE.
+set.seed(500); ex_seed_a &lt;- nnetar(lynx, repeats = 1)
+set.seed(999); ex_seed_b &lt;- nnetar(lynx, repeats = 1)   # &lt;- change 999 to 500
+
+identical(round(forecast(ex_seed_a, h = 3)$mean, 4),
+          round(forecast(ex_seed_b, h = 3)$mean, 4))
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Same seed gives an identical model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same seed gives an identical model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(500); ex_seed_a &lt;- nnetar(lynx, repeats = 1)
+set.seed(500); ex_seed_b &lt;- nnetar(lynx, repeats = 1)
+
+identical(round(forecast(ex_seed_a, h = 3)$mean, 4),
+          round(forecast(ex_seed_b, h = 3)$mean, 4))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The seed fixes the random starting weights, so training follows the same path and lands on the same model. This is what makes a neural network forecast reproducible.</p>
+
+</details>
+</section>
+
+<h2>How do you forecast seasonal data with nnetar()?</h2>
+
+<p>We fitted <code>fit_air</code> earlier and found it uses just two inputs, lag 1 and lag 12. Now let's push it forward two years and see whether two inputs are enough to reproduce an annual travel pattern.</p>
+
+<div class="webr-container" data-block-title="Forecast two years of air passengers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast two years of air passengers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_air &lt;- forecast(fit_air, h = 24)
+autoplot(fc_air)
+
+round(head(fc_air$mean, 6), 1)
+#&gt;        Jan   Feb   Mar   Apr   May   Jun
+#&gt; 1961 457.6 436.9 460.3 502.5 519.1 578.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows the forecast picking up the series in 1961 and continuing the familiar sawtooth. The printed numbers say the same thing in figures: January 457, a dip in February to 436, then a steady climb into the summer peak, reaching 578 in June.</p>
+
+<p>That shape is not something we told the model about. It emerged from the lag-12 input. Every time the network predicts a month, it is looking at what happened in that same month a year earlier, so February's dip and June's surge propagate forward on their own.</p>
+
+<p>Note also that the forecasts sit above the historical values for those months, because the lag-1 input carries the series' upward drift into the first few predictions. The limitations section explains why that drift does not last as far as you might hope.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for lambda = 0 whenever the series is strictly positive and its seasonal swings grow with its level.</strong> Passenger counts, sales, and web traffic almost always qualify. The log transform makes those swings a constant size for the model to learn, and it guarantees the back-transformed forecasts never go negative.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a network to <code>USAccDeaths</code>, the monthly count of accidental deaths in the United States from 1973 to 1978, and read the season length off the model name. The starter fits <code>lynx</code>, which is yearly, so it has no seasonal slot at all.</p>
+<div class="webr-container" data-block-title="Your turn: fit a monthly series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a monthly series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit nnetar() to USAccDeaths and read the [m] in the model name.
+set.seed(311)
+ex_deaths &lt;- nnetar(lynx)   # &lt;- swap lynx for USAccDeaths
+ex_deaths$method
+#&gt; [1] &quot;NNAR(8,4)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Monthly accidental deaths network">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monthly accidental deaths network</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(311)
+ex_deaths &lt;- nnetar(USAccDeaths)
+ex_deaths$method
+#&gt; [1] &quot;NNAR(2,1,2)[12]&quot;
+
+frequency(USAccDeaths)
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>[12]</code> comes straight from <code>frequency(USAccDeaths)</code>, which is 12 because the data is monthly. R never asks you for the season length, it reads it from the <code>ts</code> object, which is why storing data as a proper <code>ts</code> matters.</p>
+
+</details>
+</section>
+
+<h2>How do you get prediction intervals from a neural network?</h2>
+
+<p>Every forecast so far has been a single line. Real forecasts need a range, and here NNETAR is genuinely different from ARIMA or ETS. Those models have a probability distribution built into their definition, so their intervals come from a formula. A neural network has no such distribution, so R has to simulate one.</p>
+
+<p>The recipe is straightforward. Take the fitted network, forecast one step, add a randomly drawn error to it, feed that noisy value back in as a lag, and continue to the horizon. That gives one possible future. Do it a few hundred times and the spread of those futures is your <a class="auto-link" href="Top-25-Regression-Problems-in-R.html" title="Top 25 Regression Problems to Solve in R">prediction interval</a>. Because that is real work, R does not do it unless you ask with <code>PI = TRUE</code>.</p>
+
+<div class="webr-container" data-block-title="Simulate prediction intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate prediction intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(55)
+fc_pi &lt;- forecast(fit_air, h = 12, PI = TRUE, npaths = 200)
+round(head(as.data.frame(fc_pi), 4), 1)
+#&gt;          Point Forecast Lo 80 Hi 80 Lo 95 Hi 95
+#&gt; Jan 1961          457.6 425.8 485.3 409.4 502.9
+#&gt; Feb 1961          436.9 408.0 469.1 389.3 479.2
+#&gt; Mar 1961          460.3 433.0 486.2 412.1 516.0
+#&gt; Apr 1961          502.5 473.5 542.1 462.0 560.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>npaths = 200</code> is the number of simulated futures, kept modest here so the block runs quickly (the default is 1000, which is better for real work). Each row gives the point forecast plus four bounds. For January 1961, the model's best guess is 457.6 thousand passengers, it is 80% confident the truth lands between 425.8 and 485.3, and 95% confident it lands between 409.4 and 502.9.</p>
+
+<p>Notice the intervals widening as you read down: January spans about 93 thousand at the 95% level, April spans about 98. That widening is the recursive feedback we saw earlier showing up as uncertainty. The further out you go, the more the network is forecasting from its own forecasts.</p>
+
+<p>By default the simulated errors are drawn from a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>. If your residuals are skewed or heavy-tailed, <code>bootstrap = TRUE</code> resamples actual historical residuals instead, which makes no distributional assumption.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>These intervals are too narrow, and you should say so out loud.</strong> The simulation treats the fitted network as if it were the true data-generating process, so it captures the noise around the model but not the risk that the model itself is wrong. Treat an NNETAR interval as a lower bound on your real uncertainty.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Switch the error simulation from the normal default to bootstrapped residuals and compare the average width of the 95% interval. Add <code>bootstrap = TRUE</code> to the call below.</p>
+<div class="webr-container" data-block-title="Your turn: bootstrap the residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bootstrap the residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: add bootstrap = TRUE and see how the average 95% interval width changes.
+set.seed(66)
+ex_boot &lt;- forecast(fit_air, h = 6, PI = TRUE, npaths = 200)
+round(mean(ex_boot$upper[, 2] - ex_boot$lower[, 2]), 1)
+#&gt; [1] 103.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bootstrapped prediction intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bootstrapped prediction intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(66)
+ex_boot &lt;- forecast(fit_air, h = 6, PI = TRUE, npaths = 200,
+                    bootstrap = TRUE)
+round(mean(ex_boot$upper[, 2] - ex_boot$lower[, 2]), 1)
+#&gt; [1] 104.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The average 95% interval widens slightly, from 103.1 to 104.1 thousand passengers. The two are close here because this model's residuals are already near-normal. On a series with occasional large shocks the bootstrap version would be noticeably wider, and more honest.</p>
+
+</details>
+</section>
+
+<h2>How do you tune nnetar with size, decay, and xreg?</h2>
+
+<p>The defaults are a reasonable starting point, not an answer. The argument that matters most is <code>size</code>, the number of hidden nodes, because it decides how much the model is able to memorise. Let's see what happens when we give it far too much capacity.</p>
+
+<p>First we need an honest test. We hold back the last two years of <code>AirPassengers</code> so the model never sees them during training. <code>window()</code> is the base R function for cutting a <code>ts</code> object by date: <code>end = c(1958, 12)</code> keeps everything up to December 1958, and <code>start = c(1959, 1)</code> keeps everything after it.</p>
+
+<div class="webr-container" data-block-title="Split the data and overfit on purpose">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the data and overfit on purpose</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- window(AirPassengers, end = c(1958, 12))
+test  &lt;- window(AirPassengers, start = c(1959, 1))
+
+set.seed(21)
+big &lt;- nnetar(train, p = 12, P = 1, size = 10, lambda = 0)
+big
+#&gt; Series: train
+#&gt; Model:  NNAR(12,1,10)[12]
+#&gt; Call:   nnetar(y = train, p = 12, P = 1, size = 10, lambda = 0)
+#&gt;
+#&gt; Average of 20 networks, each of which is
+#&gt; a 12-10-1 network with 141 weights
+#&gt; options were - linear output units
+#&gt;
+#&gt; sigma^2 estimated as 9.587e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>141 weights fitted to 108 usable training rows. <code>train</code> holds 120 months, but with <code>p = 12</code> the first 12 are consumed as lags for the thirteenth, so only 108 rows can actually be predicted. There are more parameters than data points, which should worry you. Let's score it on both sets and see whether it does.</p>
+
+<div class="webr-container" data-block-title="Score the overfitted model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the overfitted model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(forecast(big, h = 24), test)[, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;               RMSE   MAE  MAPE
+#&gt; Training set  2.13  1.41  0.48
+#&gt; Test set     69.29 63.15 13.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>accuracy()</code> scores a forecast against the truth, and the three columns are the standard error measures. RMSE is the <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">root mean squared error</a>, the typical miss in passenger units with big misses weighted heavily. MAE is the <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a>, the typical miss with every miss weighted equally. MAPE is the <a class="auto-link" href="yardstick-mape-in-R.html" title="yardstick mape() in R: Scale-Free Percentage Error">mean absolute percentage error</a>, the typical miss as a percentage of the actual value.</p>
+
+<p>Read the two rows against each other. On data it trained on, the model is off by 2.13 thousand passengers on average, which looks superb. On data it has never seen, it is off by 69.29, more than thirty times worse. The model did not learn the pattern, it memorised the training years.</p>
+
+<p>The fix is <code>decay</code>, which penalises large weights during training and so pushes the network toward simpler behaviour. Let's add it and change nothing else.</p>
+
+<div class="webr-container" data-block-title="Add weight decay to the same model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add weight decay to the same model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+reg &lt;- nnetar(train, p = 12, P = 1, size = 10, decay = 0.1, lambda = 0)
+round(accuracy(forecast(reg, h = 24), test)[, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;               RMSE   MAE MAPE
+#&gt; Training set 12.76  9.90 4.07
+#&gt; Test set     51.68 42.61 8.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The training error got six times worse and the test error improved by a quarter. That trade is the entire point of regularisation: we gave up a fit we could not trust for a fit that generalises better.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Judge an NNETAR model only on data it has not seen.</strong> The <code>sigma^2</code> on the printout and the training-set row of <code>accuracy()</code> both measure how well the network memorised its own training data, and a big enough network can drive both to nearly zero while forecasting terribly. The test-set row is the only number that answers your actual question.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The oversized model above has 10 hidden nodes. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a> <code>size</code> to 2 and see what the test RMSE does. Everything else stays the same.</p>
+<div class="webr-container" data-block-title="Your turn: shrink the hidden layer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shrink the hidden layer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: change size from 10 to 2 and compare the test RMSE (baseline: 69.29).
+set.seed(21)
+ex_two &lt;- nnetar(train, p = 12, P = 1, size = 10, lambda = 0)   # &lt;- change size to 2
+round(accuracy(forecast(ex_two, h = 24), test)[&quot;Test set&quot;, &quot;RMSE&quot;], 2)
+#&gt; [1] 69.29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two hidden nodes solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two hidden nodes solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+ex_two &lt;- nnetar(train, p = 12, P = 1, size = 2, lambda = 0)
+round(accuracy(forecast(ex_two, h = 24), test)[&quot;Test set&quot;, &quot;RMSE&quot;], 2)
+#&gt; [1] 42.98</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Test RMSE drops from 69.29 to 42.98 just by removing hidden nodes. Shrinking the network beat adding regularisation to the large one (51.68), which is a common pattern: the cheapest fix for overfitting is usually a smaller model.</p>
+
+</details>
+</section>
+
+<h3>Can nnetar use external regressors with xreg?</h3>
+
+<p>Sometimes the series' own past is not the whole story. A promotion, a holiday, a price change, or a temperature reading can drive the value you are forecasting, and <code>nnetar()</code> accepts those as extra inputs through <code>xreg</code>. Each column of <code>xreg</code> simply becomes another input node alongside the lags.</p>
+
+<p>To see the effect cleanly, let's build a series where we know an external driver matters, because we put it there. Monthly sales follow a seasonal wave, and in months with a promotion they jump by 25 units.</p>
+
+<div class="webr-container" data-block-title="Build a sales series driven by promotions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a sales series driven by promotions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(808)
+promo     &lt;- rbinom(132, 1, 0.25)
+seasonal  &lt;- 100 + 20 * sin(2 * pi * (1:132) / 12)
+sales_all &lt;- seasonal + 25 * promo + rnorm(132, 0, 3)
+
+sales        &lt;- ts(sales_all[1:120], frequency = 12)
+sales_test   &lt;- ts(sales_all[121:132], frequency = 12, start = c(11, 1))
+promo_train  &lt;- promo[1:120]
+promo_future &lt;- promo[121:132]
+
+round(head(sales, 6), 1)
+#&gt;     Jan   Feb   Mar   Apr   May   Jun
+#&gt; 1 133.9 117.1 126.4 139.6 134.0  98.5
+
+head(promo_train, 12)
+#&gt;  [1] 1 0 0 1 1 0 0 1 0 0 1 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We made 132 months, kept the first 120 for training and held back the last 12 for testing. <code>promo</code> is a 0/1 indicator that is on about a quarter of the time. Notice that we also kept <code>promo_future</code>, the indicator values for the test months. You must have future values of any regressor to forecast with it, which is the practical catch with <code>xreg</code>.</p>
+
+<p>Now fit the same series twice, once blind to the promotions and once told about them.</p>
+
+<div class="webr-container" data-block-title="Fit with and without the promotion regressor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit with and without the promotion regressor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31); nn_no  &lt;- nnetar(sales)
+set.seed(31); nn_yes &lt;- nnetar(sales, xreg = promo_train)
+
+c(no_xreg   = length(nn_no$model[[1]]$wts),
+  with_xreg = length(nn_yes$model[[1]]$wts))
+#&gt;   no_xreg with_xreg
+#&gt;         9        11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both models chose the same <code>NNAR(1,1,2)[12]</code> shape, but the second has 11 weights instead of 9. Those two extra weights are the promotion input wiring into each of the two hidden nodes. Let's see whether they earn their keep.</p>
+
+<div class="webr-container" data-block-title="Compare test accuracy with and without xreg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare test accuracy with and without xreg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(accuracy(forecast(nn_no, h = 12), sales_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;  RMSE   MAE  MAPE
+#&gt; 12.44 10.89 10.65
+
+round(accuracy(forecast(nn_yes, xreg = promo_future, h = 12),
+               sales_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt; RMSE  MAE MAPE
+#&gt; 5.82 4.67 4.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Test RMSE more than halves, from 12.44 to 5.82. The blind model can only average over promotion and non-promotion months and land somewhere in between. The informed model knows which months get the 25-unit bump and moves its forecast accordingly.</p>
+
+<p>Note the syntax difference in the second call: when a model was fitted with <code>xreg</code>, <code>forecast()</code> demands the future regressor values through <code>xreg =</code> as well. Forget it and R throws an error rather than guessing.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not feed a raw time index as an <a class="auto-link" href="ARIMAX-in-R.html" title="ARIMAX in R: ARIMA with External Regressors (xreg)">xreg</a> to fake a trend.</strong> It is a tempting trick, but it makes forecasts worse, not better. The network standardises its inputs using the training range, so a time index for future periods arrives as a value larger than anything seen in training, and the network has no idea what to do out there. The limitations section covers the workaround that actually works.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the input count directly rather than inferring it from the weights. <code>nn_yes$model[[1]]$n</code> holds the network's layer sizes as a vector of three numbers: inputs, hidden nodes, outputs.</p>
+<div class="webr-container" data-block-title="Your turn: read the layer sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the layer sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: print the layer sizes of BOTH models and compare the input counts.
+nn_no$model[[1]]$n
+#&gt; [1] 2 2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Layer sizes of both models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Layer sizes of both models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rbind(no_xreg   = nn_no$model[[1]]$n,
+      with_xreg = nn_yes$model[[1]]$n)
+#&gt;           [,1] [,2] [,3]
+#&gt; no_xreg      2    2    1
+#&gt; with_xreg    3    2    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first column is the input count: 2 lags alone, versus 2 lags plus 1 regressor. The hidden layer (2) and output layer (1) are unchanged, which is why the weight count went up by exactly 2, one connection from the new input to each hidden node.</p>
+
+</details>
+</section>
+
+<h2>Does nnetar actually beat ARIMA and ETS?</h2>
+
+<p>Most tutorials on this topic never answer it. Neural networks sound more powerful than the classical methods, so it is easy to assume they forecast better. Let's just measure it, on the same train and test split we built while tuning.</p>
+
+<div class="webr-container" data-block-title="Fit three model families on the same data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit three model families on the same data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(9)
+m_nn &lt;- nnetar(train, lambda = 0)
+m_ar &lt;- auto.arima(train, lambda = 0)
+m_et &lt;- ets(train, lambda = 0)
+
+c(nnetar = m_nn$method, arima = as.character(m_ar), ets = m_et$method)
+#&gt;                    nnetar                     arima                       ets
+#&gt;         &quot;NNAR(1,1,2)[12]&quot; &quot;ARIMA(0,1,1)(0,1,1)[12]&quot;              &quot;ETS(A,A,A)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three automatic model selections, three different answers. The neural network chose a 9-weight <code>NNAR(1,1,2)[12]</code>, <code>auto.arima()</code> chose the <a class="auto-link" href="SARIMA-in-R.html" title="SARIMA in R: How to Fit Seasonal ARIMA Models">airline model</a>, and <code>ets()</code> chose <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">additive error</a>, <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">trend and seasonality</a>. All three saw exactly the same 120 months of training data. Now we score them on the 24 months none of them saw.</p>
+
+<div class="webr-container" data-block-title="Score all three on the held-out years">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score all three on the held-out years</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rbind(
+  nnetar = accuracy(forecast(m_nn, h = 24), test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)],
+  arima  = accuracy(forecast(m_ar, h = 24), test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)],
+  ets    = accuracy(forecast(m_et, h = 24), test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)]
+) |&gt; round(2)
+#&gt;         RMSE   MAE MAPE
+#&gt; nnetar 37.33 27.66 5.59
+#&gt; arima  43.18 39.45 8.52
+#&gt; ets    26.54 21.42 4.47</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the RMSE column. ETS wins at 26.54, the neural network is second at 37.33, and ARIMA comes last at 43.18. MAPE tells the same story: ETS is off by 4.47% on average, NNETAR by 5.59%, ARIMA by 8.52%.</p>
+
+<p>So the honest answer is: sometimes, and not here. The neural network comfortably beat ARIMA on this series while using a fraction of the parameters, but a classical <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> model beat both. That is a very typical result. Neural networks earn their advantage on nonlinear dynamics, and monthly airline passengers are mostly trend plus seasonality, which is precisely what ETS was designed for.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>One series and one split is one data point, not evidence.</strong> Change the split date or the seed and the ranking can move. To decide which family suits your data, use rolling-origin <a class="auto-link" href="rsample-rolling_origin-in-R.html" title="rsample rolling_origin() in R: Time-Series Resampling">time series cross-validation</a> with <code>tsCV()</code>, which scores each model over many origins instead of one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a fourth contender, the seasonal naive forecast, which simply repeats last year's value for each month. If a model cannot beat that, it is not earning its complexity.</p>
+<div class="webr-container" data-block-title="Your turn: add the seasonal naive benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add the seasonal naive benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: score snaive() on the same test set and compare with the three above.
+ex_naive &lt;- snaive(train, h = 24)
+round(accuracy(ex_naive, test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)], 2)
+#&gt;  RMSE   MAE  MAPE
+#&gt; 76.99 71.25 15.52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>The starter already runs the benchmark, so the exercise is reading it. Seasonal naive scores a test RMSE of 76.99, well behind all three fitted models.</p>
+
+<div class="webr-container" data-block-title="Seasonal naive versus the neural network">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal naive versus the neural network</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(snaive = accuracy(snaive(train, h = 24), test)[&quot;Test set&quot;, &quot;RMSE&quot;],
+        nnetar = accuracy(forecast(m_nn, h = 24), test)[&quot;Test set&quot;, &quot;RMSE&quot;]), 2)
+#&gt; snaive nnetar
+#&gt;  76.99  37.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The neural network halves the naive error, so it is genuinely learning something. Always run this check. On a series with a weaker signal, a model that looks respectable in isolation can turn out to be no better than repeating last year.</p>
+
+</details>
+</section>
+
+<h2>What are nnetar's limitations, and how do you work around them?</h2>
+
+<p>Here are the five failure modes you will run into in practice, with the biggest one demonstrated in code.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Limitation</th>
+<th>Why it happens</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cannot extrapolate a trend</td>
+<td><code>nnetar()</code> never differences the series</td>
+<td>Difference it yourself, or use ARIMA or ETS</td>
+</tr>
+<tr>
+<td>Needs a long history</td>
+<td>Many weights, few observations</td>
+<td>Prefer classical models under roughly 100 points</td>
+</tr>
+<tr>
+<td>No interpretable coefficients</td>
+<td>Weights have no individual meaning</td>
+<td>Use ARIMA if you must explain the model</td>
+</tr>
+<tr>
+<td>Optimistic prediction intervals</td>
+<td>Simulation assumes the model is correct</td>
+<td>Report them as a lower bound</td>
+</tr>
+<tr>
+<td>Different answer every run</td>
+<td>Random starting weights</td>
+<td>Always <code>set.seed()</code>, keep <code>repeats</code> at 20 or more</td>
+</tr>
+</tbody>
+</table>
+
+<p>The trend problem is the one that surprises people, so let's watch it happen. This series is about as easy as forecasting gets: it starts at 50 and climbs by exactly 2 per period, with a little noise.</p>
+
+<div class="webr-container" data-block-title="Fit a network to a straight upward trend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a network to a straight upward trend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+trend_ts &lt;- ts(50 + 2 * (1:60) + rnorm(60, 0, 4))
+
+set.seed(3)
+nn_tr &lt;- nnetar(trend_ts)
+round(forecast(nn_tr, h = 10)$mean, 1)
+#&gt; Time Series:
+#&gt; Start = 61
+#&gt; End = 70
+#&gt; Frequency = 1
+#&gt;  [1] 166.2 165.7 165.2 164.9 164.6 164.3 164.1 163.9 163.8 163.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The series ends around 170 and should continue to roughly 190 over the next ten periods. Instead the forecast flattens at 166 and then edges slightly <em>down</em>. The model does not merely fail to project the trend, it reverses it.</p>
+
+<p>The reason is not that the network is weak, it is that the trend takes the inputs somewhere the network has never been. Predicting period 61 requires an input around 170, which is at the very edge of the training range, and every step after that would need inputs beyond it. A sigmoid flattens out at both ends of its range, so once the inputs push past the training range it returns almost the same value for every one of them, and the forecast goes flat.</p>
+
+<p>A model that does difference the series has no such problem. Same data, one line.</p>
+
+<div class="webr-container" data-block-title="ARIMA on the same trending series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ARIMA on the same trending series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(forecast(auto.arima(trend_ts), h = 10)$mean, 1)
+#&gt; Time Series:
+#&gt; Start = 61
+#&gt; End = 70
+#&gt; Frequency = 1
+#&gt;  [1] 170.1 172.0 175.0 177.4 179.1 181.0 182.9 184.9 187.0 189.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>auto.arima()</code> climbs from 170.1 to 189.0, almost exactly the true path. The difference is not intelligence, it is <a class="auto-link" href="Test-Stationarity-in-R.html" title="Test Stationarity in R: ADF, KPSS, and Differencing">differencing</a>: ARIMA models the period-to-period <em>changes</em>, which have no trend at all and so stay comfortably inside the range it was trained on.</p>
+
+<p>That points straight at the fix. If you want a neural network on a trending series, difference it first, model the changes, then add them back up.</p>
+
+<div class="webr-container" data-block-title="Difference first, then undo the differencing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Difference first, then undo the differencing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d_ts &lt;- diff(trend_ts)
+
+set.seed(3)
+nn_d &lt;- nnetar(d_ts)
+fc_d &lt;- forecast(nn_d, h = 10)$mean
+
+undiff &lt;- as.numeric(tail(trend_ts, 1)) + cumsum(as.numeric(fc_d))
+round(undiff, 1)
+#&gt;  [1] 171.5 174.4 179.7 179.5 178.2 184.0 184.0 188.8 188.1 192.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three steps. <code>diff()</code> converts levels into changes. The network forecasts the changes, which hover around 2 and stay well inside the range it learned. Then <code>cumsum()</code> adds those changes onto the last observed value to rebuild levels.</p>
+
+<p>The result climbs from 171.5 to 192.1, tracking the real trend. It is bumpier than the ARIMA path because the network is also modelling noise in the differences, but the systematic failure is gone.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>nnetar() never differences your data, and it will not warn you.</strong> ARIMA reports its differencing in the model name, so <code>ARIMA(0,1,1)</code> tells you it worked on first differences. An NNAR name has no such slot, because there is no such step. Checking your series for trend before you fit is your job, not the function's.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare the model that <code>nnetar()</code> chooses on the original trending series against the one it chooses on the differenced series. The two are already fitted above as <code>nn_tr</code> and <code>nn_d</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compare the two chosen models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare the two chosen models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: print BOTH model names side by side, not just the differenced one.
+nn_d$method
+#&gt; [1] &quot;NNAR(4,2)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Original versus differenced model choice">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Original versus differenced model choice</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(original = nn_tr$method, differenced = nn_d$method)
+#&gt;    original differenced
+#&gt; &quot;NNAR(1,1)&quot; &quot;NNAR(4,2)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On the raw trending series R picks <code>NNAR(1,1)</code>, a single lag into a single neuron, because a trend is almost perfectly predicted by the previous value and nothing else adds much. After differencing, the trend is gone and the genuine short-run structure becomes visible, so R reaches for 4 lags and 2 neurons.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: forecasting US accidental deaths</h2>
+
+<p>Let's run the whole workflow end to end on a series we have not modelled yet: <code>USAccDeaths</code>, monthly accidental deaths in the United States from 1973 to 1978. We will split the data, fit a network, benchmark it against something dumb, and only then decide what to ship.</p>
+
+<div class="webr-container" data-block-title="Split the series and fit a network">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the series and fit a network</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ud_train &lt;- window(USAccDeaths, end = c(1977, 12))
+ud_test  &lt;- window(USAccDeaths, start = c(1978, 1))
+
+set.seed(410)
+ud_fit &lt;- nnetar(ud_train, lambda = 0)
+ud_fit
+#&gt; Series: ud_train
+#&gt; Model:  NNAR(2,1,2)[12]
+#&gt; Call:   nnetar(y = ud_train, lambda = 0)
+#&gt;
+#&gt; Average of 20 networks, each of which is
+#&gt; a 3-2-1 network with 11 weights
+#&gt; options were - linear output units
+#&gt;
+#&gt; sigma^2 estimated as 0.002223</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sixty months of training data, and R fits an <code>NNAR(2,1,2)[12]</code> with 11 weights: lags 1, 2 and 12 into two hidden nodes. That is a sensibly small model for a short series. Now the step most people skip.</p>
+
+<div class="webr-container" data-block-title="Benchmark against seasonal naive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Benchmark against seasonal naive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ud_snaive &lt;- snaive(ud_train, h = 12)
+
+rbind(
+  nnetar = accuracy(forecast(ud_fit, h = 12), ud_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)],
+  snaive = accuracy(ud_snaive, ud_test)[&quot;Test set&quot;, c(&quot;RMSE&quot;, &quot;MAE&quot;, &quot;MAPE&quot;)]
+) |&gt; round(2)
+#&gt;          RMSE    MAE MAPE
+#&gt; nnetar 546.64 483.67 5.33
+#&gt; snaive 341.16 259.50 2.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The neural network loses. Repeating last year's figures beats it on every measure, with an RMSE of 341 against 547 and a MAPE of 2.85% against 5.33%.</p>
+
+<p>This is a real result, and the reason matters. <code>USAccDeaths</code> is a strongly seasonal series with only 60 training months, which means the network sees each calendar month just five times. There is not enough history for it to learn the seasonal shape better than simply copying it, and the tuning grid below confirms that no hidden layer size rescues it.</p>
+
+<div class="webr-container" data-block-title="Try a grid of hidden layer sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Try a grid of hidden layer sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ud_grid &lt;- sapply(c(1, 2, 3, 5), function(k) {
+  set.seed(410)
+  m &lt;- nnetar(ud_train, size = k, lambda = 0)
+  accuracy(forecast(m, h = 12), ud_test)[&quot;Test set&quot;, &quot;RMSE&quot;]
+})
+names(ud_grid) &lt;- paste0(&quot;size=&quot;, c(1, 2, 3, 5))
+round(ud_grid, 2)
+#&gt; size=1 size=2 size=3 size=5
+#&gt; 571.50 546.64 619.57 565.16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every size lands between 546 and 620, all worse than seasonal naive's 341. The right decision here is to ship <code>snaive()</code> for this series, or to try ETS, and to record that NNETAR was tested and rejected. A workflow that can return "no" is worth more than one that always returns a neural network.</p>
+
+<p>For completeness, here is what shipping the network would have looked like: refit on all 72 months and forecast the next year with intervals.</p>
+
+<div class="webr-container" data-block-title="Refit on all the data and forecast with intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit on all the data and forecast with intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(410)
+ud_full &lt;- nnetar(USAccDeaths, lambda = 0)
+
+set.seed(411)
+ud_fc &lt;- forecast(ud_full, h = 12, PI = TRUE, npaths = 200)
+round(head(as.data.frame(ud_fc), 3), 0)
+#&gt;          Point Forecast Lo 80 Hi 80 Lo 95 Hi 95
+#&gt; Jan 1979           8466  7941  9064  7724  9254
+#&gt; Feb 1979           7519  6874  8299  6554  8648
+#&gt; Mar 1979           7805  7265  8229  7012  8564</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Refitting on the full series before forecasting is standard practice: the split existed only to choose a model, so once chosen, the model should learn from every observation you have.</p>
+
+<p><img src="screenshots/NNETAR-Model-in-R-workflow.webp" alt="A safe nnetar workflow runs split, seed, fit, tune, score, then refit on all the data." class="img-responsive img-zoomable" loading="lazy" width="2230" height="394" /></p>
+
+<p><em>Figure 3: A safe nnetar workflow: split, seed, tune, score, then refit on everything.</em></p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. They use variable names starting with <code>my_</code> so they will not disturb anything fitted above.</p>
+
+<h3>Exercise 1: Find the best hidden layer size for AirPassengers</h3>
+
+<p>The default <code>nnetar(train, lambda = 0)</code> scored a test RMSE of 37.33 in the head-to-head comparison. Loop <code>size</code> from 1 to 6, refit each time on <code>train</code> with <code>set.seed(88)</code> inside the loop, score each on <code>test</code> at <code>h = 24</code>, and report which size wins.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: tune size with a grid search">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: tune size with a grid search</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: sapply() over 1:6, and inside the function call set.seed(88)
+# then nnetar(train, size = k, lambda = 0).
+# Score with accuracy(forecast(m, h = 24), test)[&quot;Test set&quot;, &quot;RMSE&quot;]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Grid search over hidden layer size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grid search over hidden layer size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_grid &lt;- sapply(1:6, function(k) {
+  set.seed(88)
+  m &lt;- nnetar(train, size = k, lambda = 0)
+  accuracy(forecast(m, h = 24), test)[&quot;Test set&quot;, &quot;RMSE&quot;]
+})
+names(my_grid) &lt;- paste0(&quot;size=&quot;, 1:6)
+round(my_grid, 2)
+#&gt; size=1 size=2 size=3 size=4 size=5 size=6
+#&gt;  40.74  36.60  32.36  32.32  29.88  31.42
+
+which.min(my_grid)
+#&gt; size=5
+#&gt;      5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Five hidden nodes wins with a test RMSE of 29.88, well ahead of the default's 37.33 and now close to the 26.54 that ETS managed. The curve falls to a minimum at 5 and rises again at 6, which is the overfitting from the tuning section starting to appear. Note that <code>set.seed()</code> goes <em>inside</em> the function so every candidate starts from the same random weights and the comparison is fair.</p>
+
+</details>
+
+<h3>Exercise 2: Rescue the default model on lynx</h3>
+
+<p>The automatic choice for <code>lynx</code> was <code>NNAR(8,4)</code>, 8 lags into 4 neurons. Test whether that is actually a good choice: train on <code>lynx</code> up to 1920, test on 1921 onward (14 years), and compare <code>p</code> values of 2, 4, 8 and 12 with <code>set.seed(12)</code>. Use <code>window()</code> to build the split.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: does the default p win on lynx?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: does the default p win on lynx?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: lx_train &lt;- window(lynx, end = 1920); lx_test &lt;- window(lynx, start = 1921)
+# Then sapply() over c(2, 4, 8, 12) fitting nnetar(lx_train, p = pp)
+# and scoring accuracy(forecast(m, h = 14), lx_test)[&quot;Test set&quot;, &quot;RMSE&quot;]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lag search on a held-out lynx split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lag search on a held-out lynx split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lx_train &lt;- window(lynx, end = 1920)
+lx_test  &lt;- window(lynx, start = 1921)
+
+my_res &lt;- sapply(c(2, 4, 8, 12), function(pp) {
+  set.seed(12)
+  m &lt;- nnetar(lx_train, p = pp)
+  accuracy(forecast(m, h = 14), lx_test)[&quot;Test set&quot;, &quot;RMSE&quot;]
+})
+names(my_res) &lt;- paste0(&quot;p=&quot;, c(2, 4, 8, 12))
+round(my_res, 1)
+#&gt;    p=2    p=4    p=8   p=12
+#&gt;  418.5  799.0 1682.9 1436.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two lags beat eight by a factor of four, 418.5 against 1682.9. The default <code>p</code> comes from an AIC fit on the <em>training</em> data, which rewards explaining the past rather than predicting the future. On a 14-year horizon the small model wins because its forecasts have far less room to compound their own errors. Never assume the automatic order is the best forecasting order.</p>
+
+</details>
+
+<h3>Exercise 3: Write a reusable differenced-nnetar function</h3>
+
+<p>The limitations section showed the difference-then-undo trick as loose lines of code. Package it into a function <code>nnetar_diff(y, h, seed)</code> that differences the series, fits a network, forecasts <code>h</code> steps, and returns forecasts on the original scale. Test it on <code>my_series</code>, a trending series built the same way as <code>trend_ts</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: wrap the differencing workaround">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: wrap the differencing workaround</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: inside the function, dy &lt;- diff(y); set.seed(seed); m &lt;- nnetar(dy)
+# fc &lt;- as.numeric(forecast(m, h = h)$mean)
+# return as.numeric(tail(y, 1)) + cumsum(fc)
+
+set.seed(3)
+my_series &lt;- ts(50 + 2 * (1:60) + rnorm(60, 0, 4))
+
+# Write your function below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="A reusable differenced-network forecaster">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A reusable differenced-network forecaster</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nnetar_diff &lt;- function(y, h = 10, seed = 1) {
+  dy &lt;- diff(y)
+  set.seed(seed)
+  m  &lt;- nnetar(dy)
+  fc &lt;- as.numeric(forecast(m, h = h)$mean)
+  as.numeric(tail(y, 1)) + cumsum(fc)
+}
+
+round(nnetar_diff(my_series, h = 5, seed = 3), 1)
+#&gt; [1] 171.5 174.4 179.7 179.5 178.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function reproduces the earlier numbers exactly, which is the point: same recipe, now reusable. Taking <code>seed</code> as an argument keeps results reproducible while letting you check stability across seeds. One caveat to remember, the returned values are point forecasts only. Prediction intervals do not survive <code>cumsum()</code>, because summing the bounds of each step ignores how the errors accumulate.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Is NNETAR a deep learning model like an LSTM?</strong> No. NNETAR has exactly one hidden layer and typically fewer than 50 weights, while an LSTM has many layers, a memory mechanism, and thousands of parameters. NNETAR is a small, fast, classical neural network aimed at series with a few hundred observations. On short business series that simplicity is usually an advantage rather than a compromise.</p>
+
+<p><strong>Why do I get different forecasts every time I run the same code?</strong> Training starts from random weights, so each run explores a different path. Put <code>set.seed()</code> immediately before every <code>nnetar()</code> call, and leave <code>repeats</code> at 20 or higher so the averaging smooths out whatever start you got.</p>
+
+<p><strong>How much data does nnetar need?</strong> As a rough rule, at least 100 observations, and for a seasonal series at least several full cycles so the network sees each seasonal position many times. The complete example above shows what happens with only 5 years of monthly data: the network loses to a naive benchmark.</p>
+
+<p><strong>Do I need to make the series stationary first?</strong> Not for seasonality, which the seasonal lag handles. But yes for trend, because <code>nnetar()</code> never differences. If your series trends, difference it yourself as shown in the limitations section, or use a model that differences for you.</p>
+
+<p><strong>Why is PI = TRUE so slow?</strong> Because it does not use a formula, it simulates. With the default <code>npaths = 1000</code> R runs the whole recursive forecast a thousand times. Drop <code>npaths</code> while you are exploring, and raise it for the final run.</p>
+
+<p><strong>What is the difference between nnetar() and NNETAR() in fable?</strong> They fit the same model with the same defaults. <code>nnetar()</code> from forecast works on <code>ts</code> objects, while <code>NNETAR()</code> from fable works on <code>tsibble</code> objects inside a <code>model()</code> call. Pick whichever package the rest of your pipeline uses.</p>
+
+<p><strong>Can NNETAR handle <a class="auto-link" href="Fourier-Terms-in-R.html" title="Fourier Terms in R: Model Complex Seasonality">multiple seasonal periods</a>, like daily data with weekly and yearly cycles?</strong> Not directly. <code>nnetar()</code> reads a single <code>frequency()</code> from the series. For multiple seasonality, supply Fourier terms as <code>xreg</code>, or use a model built for it such as TBATS.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What it is</td>
+<td>A feed-forward neural network fed lagged values of the series, a nonlinear AR model</td>
+</tr>
+<tr>
+<td>Model name</td>
+<td><code>NNAR(p,P,k)[m]</code>: <code>p</code> recent lags, <code>P</code> seasonal lags, <code>k</code> hidden nodes, <code>m</code> season length</td>
+</tr>
+<tr>
+<td>Defaults</td>
+<td><code>p</code> from an AIC-optimal linear AR fit, <code>P = 1</code>, <code>k = (p+P+1)/2</code> rounded</td>
+</tr>
+<tr>
+<td>Weight count</td>
+<td>$(\text{inputs} + 1) \times k + (k + 1)$</td>
+</tr>
+<tr>
+<td><code>repeats = 20</code></td>
+<td>Fits 20 networks from random starts and averages them, cancelling the luck of initialisation</td>
+</tr>
+<tr>
+<td>Reproducibility</td>
+<td><code>set.seed()</code> before every fit, or the forecast changes on every run</td>
+</tr>
+<tr>
+<td>Multi-step forecasts</td>
+<td>Built recursively by feeding each forecast back in, so errors compound with horizon</td>
+</tr>
+<tr>
+<td>Prediction intervals</td>
+<td>Need <code>PI = TRUE</code>, come from simulation, and are optimistically narrow</td>
+</tr>
+<tr>
+<td>Tuning</td>
+<td><code>size</code> first, then <code>decay</code> to regularise; judge only on held-out data</td>
+</tr>
+<tr>
+<td><code>xreg</code></td>
+<td>Extra input nodes for external drivers; you must supply their future values</td>
+</tr>
+<tr>
+<td>Biggest limitation</td>
+<td>No differencing, so it cannot extrapolate a trend. Difference the series yourself</td>
+</tr>
+<tr>
+<td>Honest expectation</td>
+<td>Strong on nonlinear cyclical series, often beaten by ETS on trend-plus-season data</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, Section 12.4: Neural network models. <a href="https://otexts.com/fpp3/nnetar.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 2nd edition, Section 11.3: Neural network models. <a href="https://otexts.com/fpp2/nnetar.html">Link</a></li>
+
+<li>forecast package reference, <code>nnetar()</code>: Neural Network Time Series Forecasts. <a href="https://pkg.robjhyndman.com/forecast/reference/nnetar.html">Link</a></li>
+
+<li>forecast package reference, <code>forecast.nnetar()</code>: Forecasting using neural network models. <a href="https://pkg.robjhyndman.com/forecast/reference/forecast.nnetar.html">Link</a></li>
+
+<li>Hyndman, R.J. Prediction intervals for NNETAR models, Hyndsight blog. <a href="https://robjhyndman.com/hyndsight/nnetar-prediction-intervals/">Link</a></li>
+
+<li>nnet package on CRAN, the feed-forward network engine <code>nnetar()</code> calls. <a href="https://cran.r-project.org/package=nnet">Link</a></li>
+
+<li>forecast source code for <code>nnetar()</code>, robjhyndman/forecast on GitHub. <a href="https://github.com/robjhyndman/forecast/blob/master/R/nnetar.R">Link</a></li>
+
+<li>fable package reference, <code>NNETAR()</code> for tsibble workflows. <a href="https://fable.tidyverts.org/reference/NNETAR.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="ARIMA-in-R.html">ARIMA Models in R</a> walks through the model family that beat NNETAR on trending data, and explains the differencing step NNETAR lacks.</li>
+
+<li><a href="ETS-Models-in-R.html">ETS Models in R</a> covers the exponential smoothing framework that won the head-to-head comparison in this post.</li>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a> explains what RMSE, MAE and MAPE actually measure, and which one to trust when they disagree.</li>
+
+<li><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R</a> shows how to score models over many rolling origins instead of a single split, which is the right way to settle the NNETAR versus ETS question on your own data.</li>
+
+</ul>
+
+{% endraw %}
