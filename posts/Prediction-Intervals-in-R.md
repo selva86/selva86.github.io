@@ -1,0 +1,923 @@
+---
+title: "Prediction Intervals in R: Quantify Forecast Uncertainty"
+slug: "Prediction-Intervals-in-R"
+description: "Build prediction intervals in R: use predict() for regression, forecast() for time series, see why they widen with horizon, and check their real coverage."
+keywords: "prediction intervals in R, prediction interval vs confidence interval, forecast uncertainty, predict interval prediction, forecast prediction intervals, bootstrap prediction intervals, interval coverage, ets forecast intervals, 95% prediction interval"
+auto_link_terms: "prediction intervals in R|prediction interval|prediction intervals|forecast uncertainty|prediction interval vs confidence interval|forecast intervals|bootstrapped prediction intervals|bootstrap prediction intervals|interval coverage|80% prediction interval|95% prediction interval|forecast interval width"
+auto_link_case_sensitive: false
+mathjax: true
+webr: true
+date: "2026-07-22"
+curriculum_id: "FR-adva-5"
+post_type: "C"
+sidebar_section: "Time Series"
+sidebar_title: "Prediction Intervals"
+sidebar_order: "25"
+difficulty: "Intermediate"
+---
+
+<p class="lead">A prediction interval is a range that a single future observation is expected to fall inside, with a stated probability. In R you get one from <code>predict(model, newdata, interval = "prediction")</code> for a regression and from <code>forecast(model, h)</code> for a time series, and it is always wider than a confidence interval because it carries two kinds of uncertainty instead of one.</p>
+
+## What is a prediction interval, and why is a point forecast not enough?
+
+A single predicted number carries no warning about how wrong it might be. It tells you roughly where the middle of the outcome sits, but nothing about how far reality could land from it. A prediction interval fixes that by reporting a range instead of a point. R hands you one from the same `predict()` call you already use, by adding a single argument.
+
+Let's make that concrete with a model everybody can check. We will predict a car's fuel economy from its weight using `mtcars`, a dataset built into R with 32 cars, then ask what a brand new 3000 lb car would get.
+
+```r title="Point prediction versus prediction interval"
+model <- lm(mpg ~ wt, data = mtcars)
+new_car <- data.frame(wt = 3.0)
+
+predict(model, newdata = new_car)
+#>        1
+#> 21.25171
+
+predict(model, newdata = new_car, interval = "prediction", level = 0.95)
+#>        fit      lwr      upr
+#> 1 21.25171 14.92987 27.57355
+```
+
+The first line fits a straight line through the 32 cars, relating weight (`wt`, in thousands of pounds) to fuel economy (`mpg`). The second line builds a one-row data frame holding the car we want to predict for. The bare `predict()` call returns one number, 21.25. Adding `interval = "prediction"` returns three: the same 21.25 as `fit`, plus a lower bound `lwr` of 14.93 and an upper bound `upr` of 27.57.
+
+Those two answers describe very different states of knowledge. The first says "21.25 mpg". The second says "somewhere between 14.9 and 27.6 mpg, and I am 95% confident about that range". If you were budgeting fuel for a fleet, the second answer is the one that keeps you out of trouble, because 14.9 is a plausible outcome and 21.25 is not a promise.
+
+The `level = 0.95` argument is what "95%" means here. Over many new cars, about 95 out of every 100 should land inside an interval built this way. That is the claim, and later in this tutorial we will actually test it rather than take it on faith.
+
+The interval also moves as the input moves. Here are three cars of different weights, with the width of each interval shown alongside.
+
+```r title="Intervals for three different car weights"
+three_cars <- data.frame(wt = c(2.0, 3.0, 4.0))
+pi_three <- predict(model, newdata = three_cars, interval = "prediction")
+cbind(three_cars, round(pi_three, 2), width = round(pi_three[, "upr"] - pi_three[, "lwr"], 2))
+#>   wt   fit   lwr   upr width
+#> 1  2 26.60 20.13 33.06 12.94
+#> 2  3 21.25 14.93 27.57 12.64
+#> 3  4 15.91  9.53 22.29 12.76
+```
+
+We built a three-row data frame of weights, asked for a prediction interval at each, then glued the inputs, the interval and its width into one table. `cbind()` joins columns side by side, and the `width` column is just `upr` minus `lwr`.
+
+Two things stand out. The centre slides down as cars get heavier, from 26.6 mpg at 2000 lb to 15.9 mpg at 4000 lb, which is the regression line doing its job. The width barely moves, hovering near 12.6 to 12.9 mpg. That width is the real message of this page: no matter which car you ask about, your honest uncertainty about it spans roughly 13 mpg.
+
+[KEY INSIGHT]
+**The point prediction is only the midpoint of the interval, never the answer by itself.** Reporting 21.25 mpg without the range hides the fact that a 15 mpg outcome and a 27 mpg outcome are both entirely consistent with your model.
+
+**Try it:** Predict the fuel economy of a heavy 4500 lb car, but at the 80% level instead of 95%. Before you run it, predict whether the interval will be wider or narrower than a 95% one.
+
+```r title="Your turn: an 80% prediction interval"
+ex_car <- data.frame(wt = 4.5)
+
+# Call predict() on `model` with ex_car, asking for a prediction interval at level 0.80
+# your code here
+# Expected: a fit near 13.2 with bounds near 9.07 and 17.40
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="80% prediction interval solution"
+predict(model, newdata = ex_car, interval = "prediction", level = 0.80)
+#>      fit     lwr      upr
+#> 1 13.235 9.07422 17.39579
+```
+
+**Explanation:** The 80% interval spans 8.3 mpg, while the 95% interval for the same kind of car spans about 12.8 mpg. Demanding less confidence buys you a tighter range. You have not learned anything new about the car, you have simply agreed to be wrong more often.
+
+</details>
+
+## What are the two sources of uncertainty behind a prediction?
+
+The interval above was about 13 mpg wide, and that number came from somewhere. Understanding where is what separates people who copy `interval = "prediction"` from people who can defend the result in a meeting. There are exactly two ingredients, and we can measure both.
+
+The first ingredient is that we do not know the true relationship between weight and mpg. We estimated a line from 32 cars, and a different 32 cars would have given a slightly different line. So the line itself wobbles.
+
+The second ingredient is that even if somebody handed us the perfect true line, an individual car would still not sit exactly on it. Two identical 3000 lb cars have different engines and different tyres, so their mpg differs. That scatter never goes away, no matter how much data you collect.
+
+Rather than assert this, let's measure the first ingredient. We will invent a world where we know the truth: outcomes follow `y = 10 + 1.5x` plus random noise with a standard deviation of 4. Then we will draw 500 separate datasets from that world, fit a line to each one, and watch where the fitted line lands at `x = 10`.
+
+```r title="Measure the wobble in the fitted line"
+set.seed(101)
+n_rep <- 500
+x <- 1:20
+fitted_mean_at_10 <- numeric(n_rep)
+
+for (i in seq_len(n_rep)) {
+  y <- 10 + 1.5 * x + rnorm(20, sd = 4)
+  fitted_mean_at_10[i] <- coef(lm(y ~ x)) %*% c(1, 10)
+}
+
+round(c(true_mean = 25, average_fit = mean(fitted_mean_at_10), sd_of_fit = sd(fitted_mean_at_10)), 3)
+#>   true_mean average_fit   sd_of_fit
+#>      25.000      25.019       0.860
+```
+
+Inside the loop we generate 20 fresh observations, fit `lm()` to them, then evaluate the fitted line at `x = 10`. The expression `coef(lm(y ~ x)) %*% c(1, 10)` multiplies the intercept by 1 and the slope by 10, which is exactly the fitted value at that point. We store all 500 answers, then summarise them.
+
+The true value at `x = 10` is `10 + 1.5 * 10`, which is 25. Our 500 fitted lines average 25.019, so the procedure is unbiased. But they scatter around it with a standard deviation of 0.860. That 0.860 is ingredient one, measured rather than assumed.
+
+Now for the second ingredient. In this invented world we know the noise standard deviation is 4, because we put it there. Let's confirm that the two ingredients combine the way the theory claims, by drawing 500 actual new observations at `x = 10` and comparing their spread to the combination.
+
+```r title="Show the two sources combine in quadrature"
+set.seed(202)
+new_points_at_10 <- 25 + rnorm(n_rep, sd = 4)
+
+round(c(sd_line = sd(fitted_mean_at_10),
+        sd_noise = 4,
+        sd_total_predicted = sqrt(sd(fitted_mean_at_10)^2 + 4^2),
+        sd_new_points = sd(new_points_at_10)), 3)
+#>            sd_line           sd_noise sd_total_predicted      sd_new_points
+#>              0.860              4.000              4.091              4.085
+```
+
+We drew 500 genuine new observations, each one the true mean of 25 plus its own random noise. Then we lined up four numbers: the wobble of the line (0.860), the noise standard deviation (4), the two combined as `sqrt(0.860^2 + 4^2)` which gives 4.091, and the observed spread of the new points, 4.085.
+
+The predicted 4.091 and the observed 4.085 agree to within a rounding error. Standard deviations do not add directly. They add as squares and then get square-rooted, which is what the block title means by adding in quadrature, and it is why the total is 4.09 rather than 4.86. Notice how lopsided the contributions are: the noise term of 4 dominates the line wobble of 0.86 almost completely.
+
+![A confidence interval carries only line uncertainty; a prediction interval carries line uncertainty plus outcome noise](screenshots/Prediction-Intervals-in-R-two-sources.webp)
+*Figure 1: A confidence interval carries only the uncertainty about the fitted line, while a prediction interval carries that plus the noise in any single outcome.*
+
+Now that the simulation has made the point, the formula is just bookkeeping. For a simple regression, the standard error used to build a prediction interval at a new input $x_0$ is:
+
+$$\text{SE}_{\text{pred}} = \hat{\sigma}\sqrt{1 + \frac{1}{n} + \frac{(x_0 - \bar{x})^2}{\sum_{i=1}^{n}(x_i - \bar{x})^2}}$$
+
+Where:
+
+- $\hat{\sigma}$ = the estimated standard deviation of the residuals, R's "residual standard error"
+- $n$ = the number of observations used to fit the model
+- $x_0$ = the input value you are predicting at
+- $\bar{x}$ = the mean of the inputs in the training data
+
+Read the three terms under the square root as a story. The `1` is the irreducible noise in a single outcome, ingredient two. The `1/n` shrinks as you gather more data, because a bigger sample pins down the line better. The last term, called the leverage term, grows as $x_0$ moves away from the centre of your data, because a line pivots around its middle and the far ends swing most.
+
+That `1` is the reason a prediction interval never collapses to zero. Collect a million cars and the last two terms vanish, but the `1` stays, and with it the noise of an individual car.
+
+You do not have to trust `predict()` on this. Let's rebuild the exact interval from the first code block by hand, using only the formula and `qt()` for the t-distribution multiplier.
+
+```r title="Rebuild the interval from the formula"
+sigma_hat <- summary(model)$sigma
+n         <- nrow(mtcars)
+wt        <- mtcars$wt
+x0        <- 3.0
+
+se_pred <- sigma_hat * sqrt(1 + 1/n + (x0 - mean(wt))^2 / sum((wt - mean(wt))^2))
+point   <- unname(predict(model, data.frame(wt = x0)))
+t_crit  <- qt(0.975, df = n - 2)
+
+round(c(sigma_hat = sigma_hat, se_pred = se_pred,
+        lower = point - t_crit * se_pred, upper = point + t_crit * se_pred), 3)
+#> sigma_hat   se_pred     lower     upper
+#>     3.046     3.095    14.930    27.574
+```
+
+We pulled the residual standard error out of `summary(model)`, counted the 32 rows, then plugged the weights into the formula. `qt(0.975, df = 30)` gives the multiplier that puts 95% of a t-distribution between plus and minus itself, leaving 2.5% in each tail. The interval is then the point estimate plus or minus that multiplier times `se_pred`.
+
+The result, 14.930 to 27.574, is identical to what `predict()` returned at the top of this page. The function is not doing anything mysterious. Also note how close `se_pred` (3.095) sits to `sigma_hat` (3.046): the noise term contributes nearly all of it, exactly as the simulation showed.
+
+[NOTE]
+**The interval is narrowest at the mean of your predictor.** The final term in the formula is zero when $x_0$ equals the average input and grows quadratically as you move away, so predictions near the centre of your data are the most precise ones your model can make.
+
+**Try it:** The mean car weight in `mtcars` is about 3.22. Build prediction intervals at a weight near that centre (3.2) and at a weight well beyond the heaviest cars in the data (5.4), then compare the widths.
+
+```r title="Your turn: near the centre versus far outside"
+ex_far <- data.frame(wt = c(3.2, 5.4))
+
+# Ask predict() for prediction intervals at both weights, then add a width column
+# your code here
+# Expected: width near 12.63 at wt 3.2 and near 13.58 at wt 5.4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Extrapolation width solution"
+ex_pi <- predict(model, newdata = ex_far, interval = "prediction")
+cbind(ex_far, round(ex_pi, 2), width = round(ex_pi[, "upr"] - ex_pi[, "lwr"], 2))
+#>    wt   fit   lwr   upr width
+#> 1 3.2 20.18 13.87 26.50 12.63
+#> 2 5.4  8.42  1.63 15.22 13.58
+```
+
+**Explanation:** The interval widens from 12.63 to 13.58 as you move out to a weight heavier than any car in the training data. The model still gives you an answer at `wt = 5.4`, and it widens the interval a little to admit extra doubt, but it cannot warn you that the straight-line relationship may not hold out there at all. That risk is invisible to the formula.
+
+</details>
+
+## How does a prediction interval differ from a confidence interval?
+
+Both intervals come from the same `predict()` call and differ by one word, so they get mixed up constantly. They answer genuinely different questions, and picking the wrong one is the single most common mistake in this whole area.
+
+A confidence interval answers: "Where is the *average* mpg of all 3000 lb cars?" A prediction interval answers: "What will *this particular* 3000 lb car get?" The first is about a population average, which is a fixed quantity we are trying to pin down. The second is about one random outcome, which has its own noise on top.
+
+Let's put them next to each other for the same car.
+
+```r title="Confidence and prediction intervals side by side"
+ci_3 <- predict(model, newdata = new_car, interval = "confidence")
+pi_3 <- predict(model, newdata = new_car, interval = "prediction")
+
+data.frame(interval = c("confidence", "prediction"),
+           fit   = round(c(ci_3[1], pi_3[1]), 2),
+           lower = round(c(ci_3[2], pi_3[2]), 2),
+           upper = round(c(ci_3[3], pi_3[3]), 2),
+           width = round(c(ci_3[3] - ci_3[2], pi_3[3] - pi_3[2]), 2))
+#>     interval   fit lower upper width
+#> 1 confidence 21.25 20.12 22.38  2.25
+#> 2 prediction 21.25 14.93 27.57 12.64
+```
+
+We asked for both interval types at the same input, pulled out the fit and the two bounds from each, then assembled them into a small comparison table. Indexing a `predict()` result with `[1]`, `[2]` and `[3]` grabs the fit, the lower bound and the upper bound in order.
+
+Both intervals share the same centre of 21.25, because they use the same fitted line. But the confidence interval spans 2.25 mpg while the prediction interval spans 12.64 mpg, which is 5.6 times wider. That ratio is the noise term overwhelming the line wobble, the same lopsidedness we measured in the previous section.
+
+[TIP]
+**Ask who the answer is for.** If the question is about a group average, such as the typical mileage of every 3000 lb car on the road, ask for `interval = "confidence"`, and if it is about one specific case somebody is about to buy or budget for, ask for `interval = "prediction"`.
+
+Here is where most tutorials stop. We are going to test the claim instead, because the difference between these two intervals is not a matter of taste. One of them is simply wrong for predicting a single outcome, and we can measure how wrong.
+
+The experiment: run 4000 miniature studies. In each one, generate 20 observations from a known truth, fit a model, then build both intervals at `x = 10`.
+
+Then check three things in every study. Does the confidence interval contain the true mean of 25? Does it contain a genuinely new observation? Does the prediction interval contain that new observation?
+
+```r title="Coverage experiment across 4000 simulated studies"
+set.seed(2024)
+n_sim <- 4000
+hits <- matrix(FALSE, n_sim, 3,
+               dimnames = list(NULL, c("ci_true_mean", "ci_new_point", "pi_new_point")))
+xs <- 1:20
+
+for (i in seq_len(n_sim)) {
+  ys  <- 10 + 1.5 * xs + rnorm(20, sd = 4)
+  m   <- lm(ys ~ xs)
+  ci  <- predict(m, data.frame(xs = 10), interval = "confidence")
+  pin <- predict(m, data.frame(xs = 10), interval = "prediction")
+  np  <- 25 + rnorm(1, sd = 4)
+  hits[i, 1] <- 25 >= ci[2]  & 25 <= ci[3]
+  hits[i, 2] <- np >= ci[2]  & np <= ci[3]
+  hits[i, 3] <- np >= pin[2] & np <= pin[3]
+}
+
+round(colMeans(hits), 3)
+#> ci_true_mean ci_new_point pi_new_point
+#>        0.953        0.342        0.952
+```
+
+Each pass through the loop is one complete study: draw data, fit a model, build both intervals, then draw one honest new observation `np` from the same true world. The three `hits` columns record whether each target landed inside its interval. Taking `colMeans()` of a logical matrix converts those TRUE and FALSE values into proportions.
+
+Read those three numbers carefully, because they are the heart of this section.
+
+The confidence interval captured the true mean 95.3% of the time. It is doing its job perfectly, and a 95% confidence interval is genuinely a 95% confidence interval. The prediction interval captured a new observation 95.2% of the time. Also doing its job perfectly.
+
+But the confidence interval captured a new observation only 34.2% of the time. If you report a confidence interval to somebody who is asking about one future case, you will be wrong roughly two times in three while claiming to be wrong one time in twenty.
+
+[WARNING]
+**A confidence interval used as a prediction interval fails about two-thirds of the time.** In the simulation above the nominal 95% confidence interval contained the next observation in only 34.2% of studies, so quoting it for a single future outcome understates the real risk by roughly a factor of five.
+
+Seeing the two bands drawn over the actual data makes the distinction hard to forget. The plot below draws the prediction band as the pale outer ribbon and the confidence band as the darker inner ribbon, with the 32 real cars on top.
+
+```r title="Plot both bands over the mtcars data"
+library(ggplot2)
+
+grid_wt <- data.frame(wt = seq(1.5, 5.5, length.out = 100))
+band_ci <- predict(model, newdata = grid_wt, interval = "confidence")
+band_pi <- predict(model, newdata = grid_wt, interval = "prediction")
+bands   <- cbind(grid_wt, fit = band_ci[, "fit"],
+                 ci_lwr = band_ci[, "lwr"], ci_upr = band_ci[, "upr"],
+                 pi_lwr = band_pi[, "lwr"], pi_upr = band_pi[, "upr"])
+
+ggplot(bands, aes(wt)) +
+  geom_ribbon(aes(ymin = pi_lwr, ymax = pi_upr), fill = "#c9d6f0") +
+  geom_ribbon(aes(ymin = ci_lwr, ymax = ci_upr), fill = "#7f9fd8") +
+  geom_line(aes(y = fit), linewidth = 1) +
+  geom_point(data = mtcars, aes(wt, mpg), size = 2) +
+  labs(title = "Prediction band (outer) vs confidence band (inner)",
+       x = "Weight (1000 lbs)", y = "Miles per gallon") +
+  theme_minimal(base_size = 13)
+```
+
+We built a fine grid of 100 weights spanning the data, computed both intervals across the whole grid, then bundled everything into one data frame so ggplot2 can draw it. Each `geom_ribbon()` shades the area between a lower and upper bound, and drawing the prediction ribbon first puts the narrower confidence ribbon on top of it.
+
+Look at where the real cars sit. Almost all of them fall inside the pale prediction band, which is precisely what a 95% prediction interval promises. Most of them fall *outside* the darker confidence band, and that is not a failure. The confidence band was never claiming to contain individual cars, only the average car at each weight.
+
+**Try it:** Compute the width of both intervals for a light 2000 lb car, and work out how many times wider the prediction interval is.
+
+```r title="Your turn: compare both widths at wt 2.0"
+ex_light <- data.frame(wt = 2.0)
+
+# Get both intervals at ex_light, then report ci_width, pi_width and their ratio
+# your code here
+# Expected: ci_width near 3.54, pi_width near 12.94, ratio near 3.65
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Width ratio solution"
+ex_ci  <- predict(model, ex_light, interval = "confidence")
+ex_pi2 <- predict(model, ex_light, interval = "prediction")
+
+round(c(ci_width = ex_ci[3] - ex_ci[2],
+        pi_width = ex_pi2[3] - ex_pi2[2],
+        ratio    = (ex_pi2[3] - ex_pi2[2]) / (ex_ci[3] - ex_ci[2])), 2)
+#> ci_width pi_width    ratio
+#>     3.54    12.94     3.65
+```
+
+**Explanation:** The ratio is 3.65 here versus 5.6 at `wt = 3.0`. The gap between the two intervals shrinks as you move away from the centre of the data, because the confidence interval is the part that grows with distance while the noise term stays constant.
+
+</details>
+
+## How do you get prediction intervals for a time series forecast?
+
+Everything so far used a regression, where a prediction interval attaches to a value of `x`. Forecasting works the same way, except the thing you are predicting at is a future time period, and you usually want a whole run of them. The `forecast` package builds the intervals for you and returns them alongside the point forecast.
+
+We will use `AirPassengers`, a built-in series of monthly international airline passengers from 1949 to 1960, in thousands. It trends upward and has a strong yearly cycle, which makes it a realistic test. The `ets()` function fits an exponential smoothing model, choosing the trend and seasonal form automatically.
+
+```r title="Fit a model and forecast twelve months ahead"
+library(forecast)
+
+fit_air <- ets(AirPassengers)
+fc_air  <- forecast(fit_air, h = 12)
+
+round(head(as.data.frame(fc_air), 4), 1)
+#>          Point Forecast Lo 80 Hi 80 Lo 95 Hi 95
+#> Jan 1961          441.8 419.6 464.0 407.9 475.7
+#> Feb 1961          434.1 407.2 461.1 392.9 475.3
+#> Mar 1961          496.6 460.6 532.6 441.6 551.7
+#> Apr 1961          483.2 443.6 522.9 422.6 543.8
+```
+
+`ets()` fits the model to the whole series. `forecast(fit_air, h = 12)` projects 12 months past the end of the data, which takes us through 1961. Converting the result with `as.data.frame()` turns it into a readable table, and `head(..., 4)` shows the first four months.
+
+Every row carries five numbers instead of one. For January 1961 the point forecast is 441.8 thousand passengers. The 80% interval runs from 419.6 to 464.0, and the 95% interval runs wider, from 407.9 to 475.7. Two levels come back by default because they answer different appetites for risk: the 80% range is the "likely" case and the 95% range is the "plan for it" case.
+
+The 95% interval nests around the 80% one, which it must. Asking for more confidence can only ever mean accepting a wider range, and you can read that directly off the columns.
+
+A fan chart shows the same information as a picture, with the shading getting lighter as confidence widens.
+
+```r title="Draw the forecast fan chart"
+autoplot(fc_air) +
+  labs(title = "Air passengers: 12-month forecast with 80% and 95% intervals",
+       x = "Year", y = "Passengers (thousands)") +
+  theme_minimal(base_size = 13)
+```
+
+`autoplot()` knows how to draw a forecast object, so it plots the historical series, the point forecast continuing from the end of it, and the two interval bands as nested shaded regions. The dark inner band is the 80% interval and the pale outer band is the 95% one.
+
+The shape it draws is the whole story of forecast uncertainty. Historical data is a single line, because it already happened. The forecast is a widening cone, because the future has not. The further ahead you look, the wider the range of outcomes the model treats as plausible.
+
+[TIP]
+**Set your own confidence levels with the level argument.** Passing `level = c(50, 95)` to `forecast()` gives you a median-ish range and a planning range instead of the default 80 and 95, and passing a single number like `level = 90` returns just one pair of bounds.
+
+**Try it:** Forecast 24 months ahead at the 90% level, then look at the final two rows to see how much the model is willing to commit to two years out.
+
+```r title="Your turn: forecast 24 months at 90%"
+# Call forecast() on fit_air with h = 24 and level = 90, store it in ex_fc
+ex_fc <- NULL
+# your code here
+# Expected last rows: Nov 1962 near 415.2 and Dec 1962 near 465.6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Two-year forecast solution"
+ex_fc <- forecast(fit_air, h = 24, level = 90)
+round(tail(as.data.frame(ex_fc), 2), 1)
+#>          Point Forecast Lo 90 Hi 90
+#> Nov 1962          415.2 299.8 530.5
+#> Dec 1962          465.6 332.4 598.7
+```
+
+**Explanation:** Two years out, the 90% interval for December 1962 runs from 332 to 599 thousand passengers. That is a range of 266, against 68 for January 1961 at the even wider 95% level, so the interval is close to four times as wide two years out. You still get a point forecast that far ahead, and the width is what tells you how much it is worth.
+
+</details>
+
+## Why do forecast intervals get wider the further ahead you look?
+
+That widening cone is not decoration, and it is not the model getting worse. It follows from a simple mechanical fact: to forecast two steps ahead, you have to stand on your one-step-ahead forecast. If step one was wrong, step two inherits that error and adds its own on top.
+
+Think of walking in fog. After one step you might be a metre off course. After two steps you are off by that first metre plus whatever the second step adds, and errors keep piling up rather than cancelling. The spread of where you might be grows with every step.
+
+![Each forecast step inherits the error of the steps before it, so the spread grows with the horizon](screenshots/Prediction-Intervals-in-R-widening.webp)
+*Figure 2: Each forecast step inherits the error of every step before it, so the spread of possible outcomes grows with the horizon.*
+
+Let's watch it happen in the airline forecast we already built, by extracting the 95% interval width at each of the 12 horizons.
+
+```r title="Interval width at each forecast horizon"
+width_95 <- as.numeric(fc_air$upper[, "95%"] - fc_air$lower[, "95%"])
+
+data.frame(horizon = 1:12, width = round(width_95, 1),
+           times_wider_than_h1 = round(width_95 / width_95[1], 2))
+#>    horizon width times_wider_than_h1
+#> 1        1  67.8                1.00
+#> 2        2  82.4                1.22
+#> 3        3 110.1                1.62
+#> 4        4 121.2                1.79
+#> 5        5 134.5                1.98
+#> 6        6 167.3                2.47
+#> 7        7 201.2                2.97
+#> 8        8 214.5                3.16
+#> 9        9 199.0                2.93
+#> 10      10 184.1                2.71
+#> 11      11 169.0                2.49
+#> 12      12 199.4                2.94
+```
+
+A forecast object stores its bounds in matrices called `$lower` and `$upper`, with one column per confidence level. We pulled the `"95%"` column from each, subtracted to get widths, then expressed every width as a multiple of the first one.
+
+The overall climb is clear: by horizon 8 the interval is 3.16 times wider than at horizon 1. But the path is bumpy, dipping at horizons 9 through 11 before rising again. That wobble is worth explaining rather than glossing over.
+
+This model is multiplicative and seasonal, so the interval width scales with the seasonal level being forecast. Summer months carry more traffic and therefore more absolute uncertainty than winter months, and that seasonal shape rides on top of the underlying growth.
+
+To see the pure accumulation effect without seasonality confusing it, we need a simpler series. A random walk is the cleanest possible case: each value is the previous value plus a random shock. The `naive()` method forecasts it by carrying the last value forward.
+
+```r title="Random walk: width grows exactly as the square root of h"
+set.seed(7)
+walk    <- ts(100 + cumsum(rnorm(150, sd = 2)))
+fc_walk <- naive(walk, h = 8, level = 95)
+w_walk  <- as.numeric(fc_walk$upper - fc_walk$lower)
+
+data.frame(horizon = 1:8, width = round(w_walk, 2),
+           ratio = round(w_walk / w_walk[1], 3), sqrt_h = round(sqrt(1:8), 3))
+#>   horizon width ratio sqrt_h
+#> 1       1  7.22 1.000  1.000
+#> 2       2 10.21 1.414  1.414
+#> 3       3 12.51 1.732  1.732
+#> 4       4 14.44 2.000  2.000
+#> 5       5 16.15 2.236  2.236
+#> 6       6 17.69 2.449  2.449
+#> 7       7 19.11 2.646  2.646
+#> 8       8 20.43 2.828  2.828
+```
+
+We built a 150-point random walk by running `cumsum()` over random shocks, wrapped it in `ts()` so the forecasting functions treat it as a time series, forecast 8 steps with `naive()`, then compared the width ratio against the square root of the horizon.
+
+The `ratio` and `sqrt_h` columns match to three decimal places at every horizon. This is not an approximation that happens to look close. For a random walk the h-step forecast error is the sum of h independent shocks, and the standard deviation of that sum is exactly $\sigma\sqrt{h}$.
+
+Why a square root rather than plain multiplication? Because independent errors partly cancel. Some shocks push up and some push down, so h shocks do not give you h times the spread. Let's confirm the mechanism directly by simulating the accumulation.
+
+```r title="Simulate why the square root appears"
+set.seed(99)
+sigma_step <- 2
+sim_sd <- sapply(1:6, function(h) sd(replicate(4000, sum(rnorm(h, sd = sigma_step)))))
+
+data.frame(horizon = 1:6, simulated_sd = round(sim_sd, 2),
+           theory_sigma_sqrt_h = round(sigma_step * sqrt(1:6), 2))
+#>   horizon simulated_sd theory_sigma_sqrt_h
+#> 1       1         2.00                2.00
+#> 2       2         2.82                2.83
+#> 3       3         3.42                3.46
+#> 4       4         4.00                4.00
+#> 5       5         4.45                4.47
+#> 6       6         4.82                4.90
+```
+
+For each horizon from 1 to 6, we simulated 4000 futures. Each future is the sum of `h` independent shocks, exactly what accumulates between now and horizon h. Then we took the standard deviation across those 4000 futures and set it beside the theoretical $\sigma\sqrt{h}$.
+
+The simulated column tracks the theory column closely at every horizon, with small gaps that are just Monte Carlo sampling error from using 4000 draws instead of infinitely many. Nothing was assumed here: we added up random shocks and the square root fell out on its own.
+
+[KEY INSIGHT]
+**A widening interval is the model being honest, not the model being weak.** A forecast whose interval stayed the same width at horizon 24 as at horizon 1 would be claiming that two years of accumulated shocks carry no more uncertainty than one month, which cannot be true of any real series.
+
+**Try it:** Using the same `walk` series, forecast 16 steps ahead and confirm that the width at horizon 16 is exactly 4 times the width at horizon 1.
+
+```r title="Your turn: check the ratio at horizon 16"
+ex_walk_fc <- naive(walk, h = 16, level = 95)
+
+# Extract the widths, then report width at h=1, width at h=16, their ratio and sqrt(16)
+# your code here
+# Expected: ratio of 4.000, matching sqrt(16)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Horizon 16 ratio solution"
+ex_w <- as.numeric(ex_walk_fc$upper - ex_walk_fc$lower)
+round(c(width_h1 = ex_w[1], width_h16 = ex_w[16],
+        ratio = ex_w[16] / ex_w[1], sqrt_16 = sqrt(16)), 3)
+#>  width_h1 width_h16     ratio   sqrt_16
+#>     7.222    28.890     4.000     4.000
+```
+
+**Explanation:** Sixteen times the horizon buys only four times the uncertainty, because $\sqrt{16} = 4$. This is genuinely good news for forecasters. Uncertainty grows steadily rather than explosively, which is why medium-range forecasts remain useful at all.
+
+</details>
+
+## What do you do when the residuals are not normal?
+
+Every interval so far rested on an assumption we have not examined: that the model's errors follow a normal distribution, the symmetric bell curve. That is what justifies putting the same distance above and below the point forecast. When the errors are lopsided, a symmetric interval is the wrong shape, and it will be wrong in a specific direction.
+
+Residuals are the leftovers: actual value minus what the model predicted, for every period in the training data. They are our only evidence about the shape of future errors, so checking them is not optional.
+
+Let's build a series that deliberately breaks the assumption. Its shocks come from an exponential distribution, which can produce large positive jumps but never large negative ones.
+
+```r title="Check residuals for skew before trusting the interval"
+set.seed(11)
+skewed_series <- ts(100 + cumsum(rexp(150, rate = 0.5) - 2))
+resid_skew    <- na.omit(residuals(naive(skewed_series)))
+
+round(c(mean = mean(resid_skew), median = median(resid_skew),
+        skewness = mean((resid_skew - mean(resid_skew))^3) / sd(resid_skew)^3), 3)
+#>     mean   median skewness
+#>    0.108   -0.422    2.243
+
+shapiro.test(as.numeric(resid_skew))
+#>
+#> 	Shapiro-Wilk normality test
+#>
+#> data:  as.numeric(resid_skew)
+#> W = 0.78647, p-value = 1.827e-13
+```
+
+We generated the series, fitted `naive()` to it, then pulled the residuals with `residuals()`. `na.omit()` drops the first one, which is missing because a naive forecast has nothing to stand on at period 1. Then we computed three diagnostics and ran a formal normality test.
+
+The mean is 0.108 but the median is negative at -0.422. For a symmetric distribution those two would be close together, so the gap alone is a warning. The skewness statistic of 2.243 confirms it: zero means symmetric, and anything past about 1 means clearly lopsided to the right. The Shapiro-Wilk test returns a p-value of 1.827e-13, which is a decisive rejection of normality.
+
+The fix is to stop assuming a shape and use the shape the data actually shows. That is what the bootstrap does. Instead of multiplying a standard error by a normal quantile, it resamples the observed residuals at random, adds them to the forecast path thousands of times, and reads the interval bounds straight off the resulting spread of simulated futures.
+
+```r title="Normal interval versus bootstrap interval"
+set.seed(31)
+fc_normal <- naive(skewed_series, h = 4, level = 95)
+fc_boot   <- naive(skewed_series, h = 4, level = 95, bootstrap = TRUE, npaths = 5000)
+
+data.frame(horizon = 1:4,
+           point     = round(as.numeric(fc_normal$mean), 2),
+           normal_lo = round(as.numeric(fc_normal$lower), 2),
+           normal_hi = round(as.numeric(fc_normal$upper), 2),
+           boot_lo   = round(as.numeric(fc_boot$lower), 2),
+           boot_hi   = round(as.numeric(fc_boot$upper), 2))
+#>   horizon  point normal_lo normal_hi boot_lo boot_hi
+#> 1       1 115.76    111.60    119.93  113.70  122.63
+#> 2       2 115.76    109.87    121.66  112.11  123.49
+#> 3       3 115.76    108.55    122.98  110.85  125.31
+#> 4       4 115.76    107.43    124.10  109.81  126.52
+```
+
+We forecast the same series twice. The only difference is `bootstrap = TRUE`, which tells `naive()` to simulate `npaths = 5000` future paths by resampling the actual residuals instead of assuming a bell curve. Because the simulation is random, `set.seed(31)` makes the result reproducible.
+
+Compare the two pairs of bounds at any horizon. At horizon 4 the normal interval runs 107.43 to 124.10, centred on the point forecast of 115.76. The bootstrap interval runs 109.81 to 126.52, which is shifted upward and no longer centred. The residuals it resampled contain more large upward values than large downward ones, so both simulated bounds sit higher than the symmetric ones.
+
+That asymmetry is the point. The normal interval is not merely a bit too narrow or too wide, it is the wrong shape: it leaves as much room below the forecast as above it, in a series whose errors are far larger on the upside.
+
+[NOTE]
+**The bootstrap drops the normality assumption but keeps one other.** It still assumes residuals are independent of each other, so if your residuals are autocorrelated, meaning today's error predicts tomorrow's, neither method gives you a trustworthy interval and the model itself needs fixing first.
+
+A related situation produces asymmetric intervals for a completely different reason. If you fit a model on a transformed scale, such as logs, and then convert back to the original units, the interval comes back lopsided even when the errors were perfectly normal on the log scale.
+
+```r title="Back-transformed intervals are asymmetric by design"
+fc_log <- forecast(ets(AirPassengers, lambda = 0), h = 6, level = 95)
+gap <- as.data.frame(fc_log)
+
+data.frame(month = rownames(gap), point = round(gap[["Point Forecast"]], 1),
+           lo95 = round(gap[["Lo 95"]], 1), hi95 = round(gap[["Hi 95"]], 1),
+           below = round(gap[["Point Forecast"]] - gap[["Lo 95"]], 1),
+           above = round(gap[["Hi 95"]] - gap[["Point Forecast"]], 1))
+#>      month point  lo95  hi95 below above
+#> 1 Jan 1961 450.0 417.5 485.1  32.5  35.0
+#> 2 Feb 1961 442.5 403.8 485.0  38.7  42.4
+#> 3 Mar 1961 511.1 459.9 568.1  51.3  57.0
+#> 4 Apr 1961 502.0 446.0 565.0  56.0  63.0
+#> 5 May 1961 506.1 444.6 576.2  61.5  70.1
+#> 6 Jun 1961 578.1 502.5 665.1  75.6  87.0
+```
+
+Setting `lambda = 0` tells the `forecast` package to fit on the log scale and automatically convert the results back to passenger counts. The `below` and `above` columns measure how far the interval reaches on each side of the point forecast.
+
+They never match. In June 1961 the interval reaches 75.6 below the point forecast but 87.0 above it. That is correct, not a bug.
+
+A symmetric interval on the log scale becomes a lopsided one after exponentiating, because the exponential function stretches the upper half more than the lower half. It also guarantees the lower bound stays positive, which matters when the quantity being forecast cannot go below zero.
+
+**Try it:** Measure the asymmetry directly. Using `fc_normal` and `fc_boot` from above, compute how far each interval reaches below and above the point forecast at horizon 4.
+
+```r title="Your turn: measure interval asymmetry"
+# Take the point forecast at horizon 4, then compute the distance to each bound
+# for both fc_normal and fc_boot
+# your code here
+# Expected: normal 8.33 below and 8.33 above; bootstrap 5.96 below and 10.76 above
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Asymmetry measurement solution"
+ex_point <- as.numeric(fc_normal$mean)[4]
+round(c(normal_below = ex_point - as.numeric(fc_normal$lower)[4],
+        normal_above = as.numeric(fc_normal$upper)[4] - ex_point,
+        boot_below   = ex_point - as.numeric(fc_boot$lower)[4],
+        boot_above   = as.numeric(fc_boot$upper)[4] - ex_point), 2)
+#> normal_below normal_above   boot_below   boot_above
+#>         8.33         8.33         5.96        10.76
+```
+
+**Explanation:** The normal interval is symmetric to the penny, 8.33 in each direction, because that is what the method forces. The bootstrap reaches only 5.96 below but 10.76 above, nearly twice as far up as down. It changed the interval's shape, not just its width, which is something no multiplier on a standard error can ever do.
+
+</details>
+
+## How do you check whether your prediction intervals are honest?
+
+A 95% prediction interval makes a testable claim: about 95% of actual outcomes should land inside intervals built this way. Almost nobody tests it. This section is the one that separates a forecast you can defend from a forecast you merely produced.
+
+The test is simple. Hide the end of your series from the model, forecast that hidden stretch, then count how many actual values landed inside the interval. If a 95% interval only catches 70% of them, your interval is too narrow and you now know it before your stakeholders find out the hard way.
+
+Let's split `AirPassengers`, training on everything through 1958 and holding back the final two years.
+
+```r title="Split the series into training and test periods"
+train_air <- window(AirPassengers, end = c(1958, 12))
+test_air  <- window(AirPassengers, start = c(1959, 1))
+
+c(train_months = length(train_air), test_months = length(test_air))
+#> train_months  test_months
+#>          120           24
+```
+
+`window()` slices a time series by date rather than by row number, taking `c(year, month)` pairs. We kept 120 months for training and set aside the last 24, which the model will never see.
+
+Now fit on the training portion only, forecast the 24 held-out months, and count the hits.
+
+```r title="Compare claimed coverage against actual coverage"
+fc_test <- forecast(ets(train_air), h = length(test_air), level = c(80, 95))
+
+inside_80 <- test_air >= fc_test$lower[, "80%"] & test_air <= fc_test$upper[, "80%"]
+inside_95 <- test_air >= fc_test$lower[, "95%"] & test_air <= fc_test$upper[, "95%"]
+
+round(c(nominal_80 = 0.80, actual_80 = mean(inside_80),
+        nominal_95 = 0.95, actual_95 = mean(inside_95)), 3)
+#> nominal_80  actual_80 nominal_95  actual_95
+#>      0.800      0.292      0.950      0.875
+```
+
+We fitted `ets()` to the training months alone, forecast 24 steps at both confidence levels, then built two logical vectors marking whether each actual value fell between its bounds. `mean()` of a logical vector gives the proportion of TRUE values, which is exactly the observed coverage. The `nominal_` numbers are the coverage we asked for, and the `actual_` numbers are the coverage we got.
+
+The results are uncomfortable, and that is why they are worth showing. The 80% interval was supposed to catch about 19 of the 24 months, and it caught 7. The 95% interval was supposed to catch roughly 23, and it caught 21.
+
+Both intervals are too narrow, and there are real reasons for that. The interval only accounts for random noise around the fitted model. It does not account for the model being slightly the wrong shape, nor for the growth pattern in 1959 and 1960 running a little differently from the 1949 to 1958 stretch the model learned on. Nothing in the arithmetic can price in "my model is not quite right", and in practice that is often the largest source of forecast error.
+
+[KEY INSIGHT]
+**An interval only prices in the noise your model already knows about.** It cannot price in the risk that the model is the wrong shape for the future, which is why measured coverage on held-out data usually comes back worse than the level you asked for.
+
+Coverage is only half the story, though. An interval from zero to infinity would cover 100% of outcomes and be completely useless, so width has to be read alongside it.
+
+```r title="Measure the width you are paying for that coverage"
+mean_width <- mean(fc_test$upper[, "95%"] - fc_test$lower[, "95%"])
+
+round(c(mean_95_width = mean_width, mean_actual_level = mean(test_air),
+        width_as_pct_of_level = 100 * mean_width / mean(test_air)), 1)
+#>         mean_95_width     mean_actual_level width_as_pct_of_level
+#>                 173.4                 452.2                  38.3
+```
+
+We averaged the 95% interval width across all 24 test months, compared it against the average passenger count over the same period, and expressed the width as a percentage of that level.
+
+The average 95% interval spans 173 thousand passengers against an average level of 452 thousand, so it is 38% as wide as the thing being forecast. Judge that against your decision. Booking crew rosters within a 38% band is probably workable; committing to aircraft purchases on it is not. A good forecast report gives both numbers, because coverage without width flatters the model and width without coverage is meaningless.
+
+[WARNING]
+**Never quote a coverage level you have not tested on held-out data.** The 80% interval above delivered 29% coverage on real out-of-sample months, so a report that promised "80% confidence" would have been wrong about the very thing it was most confident about.
+
+**Try it:** Coverage usually decays as the horizon grows. Check the 95% coverage over just the first test year, 1959, and compare it against the 87.5% across both years.
+
+```r title="Your turn: coverage in the first test year"
+ex_first_year <- window(test_air, end = c(1959, 12))
+
+# Check which of the first 12 test months fell inside the 95% bounds of fc_test,
+# then report the count inside and the coverage proportion
+# your code here
+# Expected: 10 months inside, coverage near 0.833
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="First-year coverage solution"
+ex_inside <- ex_first_year >= fc_test$lower[1:12, "95%"] &
+             ex_first_year <= fc_test$upper[1:12, "95%"]
+round(c(months_inside = sum(ex_inside), coverage_year1 = mean(ex_inside)), 3)
+#>  months_inside coverage_year1
+#>         10.000          0.833
+```
+
+**Explanation:** The first year alone covered 83.3%, slightly below the 87.5% across both years. Coverage does not decay uniformly here because the interval widens with horizon at the same time as the errors grow, so the two effects partly offset. What matters is that both numbers sit under the promised 95%, so the shortfall is a property of the model rather than a fluke of one year.
+
+</details>
+
+## Complete Example
+
+Let's run the whole workflow once, start to finish, on a series we have not touched. `USAccDeaths` records monthly accidental deaths in the United States from 1973 to 1978. We will train on everything up to the end of 1977, forecast all of 1978 with a 95% interval, then check the interval against what actually happened.
+
+```r title="Fit, forecast and inspect the interval"
+train_deaths <- window(USAccDeaths, end = c(1977, 12))
+test_deaths  <- window(USAccDeaths, start = c(1978, 1))
+
+model_deaths <- ets(train_deaths)
+fc_deaths    <- forecast(model_deaths, h = 12, level = 95)
+
+round(head(as.data.frame(fc_deaths), 3), 0)
+#>          Point Forecast Lo 95 Hi 95
+#> Jan 1978           7948  7388  8509
+#> Feb 1978           7262  6672  7853
+#> Mar 1978           8020  7291  8750
+```
+
+We held back 1978, fitted `ets()` on the five preceding years, then forecast 12 months at a single 95% level. January 1978 comes out at 7948 deaths with an interval from 7388 to 8509, a range of about 1100.
+
+Now the part that most workflows skip. Did those intervals actually contain what happened?
+
+```r title="Score the interval against what happened"
+inside_deaths <- test_deaths >= fc_deaths$lower[, "95%"] &
+                 test_deaths <= fc_deaths$upper[, "95%"]
+
+round(c(months_inside = sum(inside_deaths), coverage = mean(inside_deaths),
+        mean_width = mean(fc_deaths$upper[, "95%"] - fc_deaths$lower[, "95%"]),
+        width_as_pct_of_level = 100 * mean(fc_deaths$upper[, "95%"] - fc_deaths$lower[, "95%"]) / mean(test_deaths)), 2)
+#>         months_inside              coverage            mean_width width_as_pct_of_level
+#>                 12.00                  1.00               2036.00                 23.13
+```
+
+We compared every 1978 actual against its bounds, then reported four numbers: how many months landed inside, the coverage proportion, the average interval width, and that width as a share of the average monthly death count.
+
+All 12 months landed inside, giving 100% coverage against a promised 95%. The average width is 2036 deaths, which is 23% of the typical monthly level. Both numbers are healthier than the airline case: better coverage on a proportionally tighter interval.
+
+The contrast is the lesson. The same `ets()` function with the same 95% setting under-covered badly on `AirPassengers` and covered fully on `USAccDeaths`. Coverage is a property of a specific model paired with a specific series, never a guarantee that ships with the function, which is exactly why you test it every time.
+
+[TIP]
+**Report coverage and width as a pair, never one alone.** Coverage by itself can be gamed by widening the interval until it catches everything, and width by itself says nothing about whether the range can be trusted.
+
+Finally, draw the forecast with the truth laid over the top.
+
+```r title="Plot the interval against the actual 1978 values"
+autoplot(fc_deaths) +
+  autolayer(test_deaths, series = "Actual 1978") +
+  labs(title = "US accidental deaths: 1978 interval against what actually happened",
+       x = "Year", y = "Deaths per month") +
+  theme_minimal(base_size = 13)
+```
+
+`autoplot()` draws the history, the point forecast and the shaded interval, then `autolayer()` adds the held-out 1978 actuals as a separate coloured line on top. This single picture is the most honest forecast report you can hand somebody: here is what I predicted, here is the range I claimed, here is what happened.
+
+Every 1978 point tracks inside the band, and the seasonal dip and summer peak both land where the model expected. When a chart looks like this, the interval earned its keep.
+
+## Practice Exercises
+
+### Exercise 1: Prediction intervals across a predictor range
+
+Fit a model predicting `mpg` from `hp` (horsepower) in `mtcars`, then produce 90% prediction intervals at hp values of 100, 150 and 200. Add a width column and work out which of the three is narrowest, then explain why.
+
+```r title="Exercise 1 starter"
+my_hp_model <- lm(mpg ~ hp, data = mtcars)
+
+# Build a data frame of hp values 100, 150, 200
+# Get 90% prediction intervals, then cbind the inputs, the interval and a width column
+# Hint: width = upr - lwr
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 1 solution"
+my_hp_grid <- data.frame(hp = c(100, 150, 200))
+my_hp_pi <- predict(my_hp_model, newdata = my_hp_grid, interval = "prediction", level = 0.90)
+cbind(my_hp_grid, round(my_hp_pi, 2), width = round(my_hp_pi[, "upr"] - my_hp_pi[, "lwr"], 2))
+#>    hp   fit   lwr   upr width
+#> 1 100 23.28 16.57 29.98 13.41
+#> 2 150 19.86 13.21 26.52 13.32
+#> 3 200 16.45  9.73 23.17 13.44
+```
+
+**Explanation:** The hp = 150 interval is narrowest at 13.32, because the mean horsepower in `mtcars` is about 147 and the leverage term in the standard error formula is smallest at the centre of the data. The differences are tiny, though, since the irreducible noise term dominates all three, which is the same pattern you saw with car weight.
+
+</details>
+
+### Exercise 2: Pick a model on coverage and width together
+
+Hold out 1977 from `USAccDeaths` and train on everything before it. Forecast 1977 twice, once with `ets()` and once with `snaive()` (the seasonal naive method, which simply repeats last year's value). Score both on 95% coverage and mean interval width, then decide which model you would ship.
+
+```r title="Exercise 2 starter"
+my_train <- window(USAccDeaths, end = c(1976, 12))
+my_test  <- window(USAccDeaths, start = c(1977, 1), end = c(1977, 12))
+
+# Build both 12-month forecasts at level 95
+# Write a score() helper returning coverage and mean_width for a forecast object
+# Hint: f$lower[, 1] and f$upper[, 1] give the bounds when there is only one level
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 2 solution"
+my_ets    <- forecast(ets(my_train), h = 12, level = 95)
+my_snaive <- snaive(my_train, h = 12, level = 95)
+
+score <- function(f) c(coverage = mean(my_test >= f$lower[, 1] & my_test <= f$upper[, 1]),
+                       mean_width = mean(f$upper[, 1] - f$lower[, 1]))
+
+round(rbind(ets = score(my_ets), snaive = score(my_snaive)), 2)
+#>        coverage mean_width
+#> ets           1    2324.57
+#> snaive        1    2628.87
+```
+
+**Explanation:** Both methods covered all 12 months, so coverage cannot separate them. Width can: `ets()` delivers the same coverage in a band that is about 300 deaths narrower every month. When two models are equally honest, the more precise one wins, and this is exactly why you report both numbers rather than coverage alone.
+
+</details>
+
+### Exercise 3: Prove the coverage claim is literal
+
+A 50% prediction interval sounds almost useless, but it makes a precise claim: half of new observations should land inside it. Test that claim by simulation. Generate 3000 small datasets from `y = 3 + 2x` with noise of sd 5, build a 50% prediction interval at `x = 8` each time, and check how often a genuinely new observation falls inside.
+
+```r title="Exercise 3 starter"
+set.seed(808)
+my_reps <- 3000
+
+# Loop my_reps times. Each pass: build xv = 1:15, yv from the true model plus rnorm(15, sd = 5),
+# fit lm(yv ~ xv), get a level = 0.50 prediction interval at xv = 8,
+# draw one new_y from the true model, and record whether it fell inside.
+# Hint: store results in a logical vector, then take its mean
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 3 solution"
+my_covered <- logical(my_reps)
+for (i in seq_len(my_reps)) {
+  xv <- 1:15
+  yv <- 3 + 2 * xv + rnorm(15, sd = 5)
+  mv <- lm(yv ~ xv)
+  band  <- predict(mv, data.frame(xv = 8), interval = "prediction", level = 0.50)
+  new_y <- 3 + 2 * 8 + rnorm(1, sd = 5)
+  my_covered[i] <- new_y >= band[2] & new_y <= band[3]
+}
+round(c(nominal = 0.50, observed = mean(my_covered)), 3)
+#>  nominal observed
+#>    0.500    0.502
+```
+
+**Explanation:** Observed coverage is 0.502 against a nominal 0.500. The claim is exactly as literal as it sounds. This also shows what "correct" looks like, which is the yardstick you hold your real forecasts against when their measured coverage comes back at 0.29.
+
+</details>
+
+## Frequently asked questions
+
+**Is a prediction interval the same as a confidence interval?**
+
+No, and the gap is large. A confidence interval covers the average outcome at a given input, while a prediction interval covers a single new outcome. In the 4000-run simulation on this page, a 95% confidence interval contained the next observation only 34.2% of the time, so the two are not interchangeable.
+
+**Why is my prediction interval so wide?**
+
+Because it carries irreducible noise, the variation between individual outcomes that no model can explain. That term does not shrink with more data. If your interval is wider than you can act on, the fix is a better model with genuinely informative predictors, not a narrower interval.
+
+**Can I make the interval narrower?**
+
+Three honest routes exist. Lower the confidence level, which trades coverage for tightness. Improve the model so that less variation is left unexplained. Collect more data, which shrinks the parameter-uncertainty terms but never the noise term.
+
+Anything else is just relabelling the same uncertainty. A narrower interval that you did not earn is simply a wrong interval.
+
+**Do prediction intervals require normally distributed data?**
+
+They require roughly normal *residuals*, not normal data. Check with a residual plot or `shapiro.test()`. If the residuals are skewed, pass `bootstrap = TRUE` to `forecast()` or `naive()` and the interval will be built from the residuals' actual shape instead.
+
+**Why does the interval widen when I predict far outside my data range?**
+
+The leverage term in the standard error formula grows with the squared distance from the mean of your predictor. Be careful, though: that widening only prices in extra statistical noise, not the possibility that the relationship changes shape entirely outside the range you observed. Extrapolation is riskier than the interval admits.
+
+**Which R functions give prediction intervals?**
+
+`predict()` with `interval = "prediction"` covers `lm` and `glm` style models. `forecast()` from the forecast package returns them for time series models such as `ets()` and `arima()`. The tidyverts `fable` package produces full forecast distributions from which any interval can be extracted.
+
+## Summary
+
+![The full path from a fitted model to an interval you can defend](screenshots/Prediction-Intervals-in-R-workflow.webp)
+*Figure 3: The full path from a fitted model to a prediction interval you can defend.*
+
+| Idea | What to remember |
+|---|---|
+| What it is | A range a single future observation should fall inside, with a stated probability |
+| Two sources | Uncertainty about the fitted line, plus irreducible noise in any individual outcome |
+| vs confidence interval | A confidence interval covers the average outcome, and caught a new observation only 34.2% of the time in simulation |
+| For a regression | `predict(model, newdata, interval = "prediction", level = 0.95)` |
+| For a forecast | `forecast(model, h)` returns 80% and 95% bounds in `$lower` and `$upper` |
+| Why it widens | Each step inherits earlier errors; for a random walk the width grows exactly as the square root of the horizon |
+| When residuals are skewed | Use `bootstrap = TRUE` so the interval takes its shape from the real residuals |
+| Transformed models | Back-transformed intervals are asymmetric by design, and that is correct |
+| Always do this | Test coverage on held-out data, and report interval width beside it |
+
+The habit worth taking away is small and cheap. Whenever you produce a forecast, produce its interval, then check on held-out data whether that interval kept its promise. A point forecast that turns out wrong damages your credibility. An interval that was honest about its own uncertainty, even a wide one, protects it.
+
+## References
+
+1. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd edition. Section 5.5, Distributional forecasts and prediction intervals. [Link](https://otexts.com/fpp3/prediction-intervals.html)
+2. Hyndman, R.J. & Athanasopoulos, G. *Forecasting: Principles and Practice*, 3rd edition. Section 3.1, Transformations and adjustments (back-transformed intervals). [Link](https://otexts.com/fpp3/transformations.html)
+3. R Core Team. `predict.lm` documentation, the source of `interval = "prediction"`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/predict.lm.html)
+4. Hyndman, R.J. `forecast` package reference, `forecast.ets`. [Link](https://pkg.robjhyndman.com/forecast/reference/forecast.ets.html)
+5. Hyndman, R.J. & Khandakar, Y. (2008). Automatic Time Series Forecasting: The forecast Package for R. *Journal of Statistical Software*, 27(3). [Link](https://www.jstatsoft.org/article/view/v027i03)
+6. `forecast` package on CRAN. [Link](https://cran.r-project.org/package=forecast)
+7. R Core Team. *An Introduction to R*, the reference for `lm()` and model formulas. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+8. `fable` package documentation, distributional forecasting in the tidyverts framework. [Link](https://fable.tidyverts.org/)
+
+## Continue Learning
+
+- [Forecast Accuracy in R](Forecast-Accuracy-in-R.html) scores how close your point forecasts land, which is the natural companion to knowing how uncertain they are.
+- [ETS Models in R](ETS-Models-in-R.html) explains the exponential smoothing models that produced every forecast interval on this page.
+- [Confidence Intervals in R](Confidence-Intervals-in-R.html) goes deep on the other interval, the one that covers an average rather than a single outcome.
+- [Time Series Cross-Validation in R](Time-Series-Cross-Validation-in-R.html) validates a model across many forecast origins instead of the single holdout used here.
