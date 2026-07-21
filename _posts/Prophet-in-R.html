@@ -1,0 +1,1532 @@
+---
+title: "Prophet in R: Forecast with Trend, Seasonality, Holidays"
+description: "Prophet in R splits a series into trend, seasonality, and holidays. Learn prophet(), changepoints, Fourier order, custom seasonalities, and holiday effects."
+keywords: "Prophet in R, prophet package R, facebook Prophet R, time series forecasting in R, changepoint prior scale, add_seasonality, add_country_holidays, Fourier order seasonality, prophet cross validation, additive forecasting model"
+mathjax: true
+webr: true
+curriculum_id: "3.8.17"
+post_type: "C"
+auto_link_terms: "Prophet in R|Prophet model|Prophet forecasting|prophet()|facebook Prophet|additive forecasting model|changepoint.prior.scale|add_seasonality()|add_country_holidays()|Fourier order|piecewise linear trend|prophet_plot_components()"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Prophet"
+sidebar_order: "21"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">Prophet is a forecasting package that treats a time series as a sum of four readable parts: a bendy trend line, repeating seasonal waves, one-off holiday bumps, and leftover noise. You hand it a two-column data frame and it hands back a dated forecast with an uncertainty band, plus the value of every part on every day. This post builds each of those parts by hand first, so that when <code>prophet()</code> produces them you already know what you are looking at.</p>
+
+<h2>What does a Prophet forecast look like in R?</h2>
+
+<p>Most forecasting tools give you a number and no story. Prophet gives you four numbers per day that add up to the forecast, so you can point at a spike and say "that one is Black Friday." Before we can forecast anything we need something to forecast, so the first block builds three years of daily store revenue out of parts we choose ourselves.</p>
+
+<p>Building the data by hand is not a shortcut, it is the whole teaching trick. Because we decide the trend, the weekend dip, the yearly wave, and the promo spikes, we can later check whether Prophet found them. Press Run on the block below.</p>
+
+<div class="webr-container" data-block-title="Build three years of daily revenue">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build three years of daily revenue</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+# One row per day, 2022-01-01 through 2024-12-31.
+ds &lt;- seq(as.Date(&quot;2022-01-01&quot;), as.Date(&quot;2024-12-31&quot;), by = &quot;day&quot;)
+t  &lt;- seq_along(ds)                            # 1, 2, 3, ... a plain day counter
+day_of_year &lt;- as.numeric(format(ds, &quot;%j&quot;))    # 1 to 365, for the yearly pattern
+is_weekend  &lt;- format(ds, &quot;%u&quot;) %in% c(&quot;6&quot;, &quot;7&quot;)
+
+# Four ingredients, each one a decision we are making on purpose.
+trend  &lt;- 200 + 0.15 * t + 0.30 * pmax(t - 550, 0)   # grows, then grows faster
+weekly &lt;- ifelse(is_weekend, -30, 12)                # weekends are quiet
+yearly &lt;- 35 * sin(2 * pi * (day_of_year - 80) / 365.25)
+promo  &lt;- ifelse(ds %in% as.Date(c(&quot;2022-11-25&quot;, &quot;2023-11-24&quot;, &quot;2024-11-29&quot;)), 260, 0)
+noise  &lt;- rnorm(length(ds), mean = 0, sd = 12)
+
+sales &lt;- data.frame(ds = ds, y = trend + weekly + yearly + promo + noise)
+head(sales, 5)
+#&gt;           ds        y
+#&gt; 1 2022-01-01 142.1792
+#&gt; 2 2022-01-02 123.2575
+#&gt; 3 2022-01-03 180.1763
+#&gt; 4 2022-01-04 177.7903
+#&gt; 5 2022-01-05 171.1193
+nrow(sales)
+#&gt; [1] 1096</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the ingredients from the top. <code>trend</code> starts at 200 and climbs 0.15 units a day, and the <code>pmax(t - 550, 0)</code> term adds another 0.30 a day but only after day 550, which is a growth spurt that starts in July 2023. <code>weekly</code> subtracts 30 on Saturdays and Sundays and adds 12 on weekdays. <code>yearly</code> is a sine wave that peaks in summer, <code>promo</code> adds a 260-unit spike on exactly three Black Fridays, and <code>noise</code> scatters everything by about 12 units.</p>
+
+<p>The two column names matter more than they look. Prophet always wants a data frame with a date column called <code>ds</code> and a numeric column called <code>y</code>, and it will refuse to run if they are named anything else. That is the entire input contract.</p>
+
+<p>Now look at the range of what we just built.</p>
+
+<div class="webr-container" data-block-title="Summarise the revenue series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise the revenue series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(sales$y)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;   110.2   242.2   302.8   324.0   412.6   755.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The median day earns about 303 and the busiest day earns 756. That maximum is one of the Black Friday spikes, sitting more than twice as high as a typical day. A forecasting model that has no way to represent one-off events will either miss those spikes or smear them across the whole November.</p>
+
+<p>Seeing the shape is faster than reading six numbers, so let us plot it.</p>
+
+<div class="webr-container" data-block-title="Plot the raw revenue series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the raw revenue series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(sales, aes(x = ds, y = y)) +
+  geom_line(colour = &quot;grey40&quot;, linewidth = 0.3) +
+  labs(title = &quot;Daily store revenue, 2022 to 2024&quot;,
+       x = &quot;Date&quot;, y = &quot;Revenue&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You should see three things at once. The floor drifts upward year after year. The line is fuzzy rather than clean, because weekdays and weekends sit at different heights. And three thin towers stick up in late November. Those three features are exactly the trend, the seasonality and the holidays, and separating them again is Prophet's whole job.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The prophet package cannot run in this page's browser sandbox, so its blocks are marked "run locally".</strong> Prophet compiles a <a class="auto-link" href="Stan-in-R.html" title="Stan in R: Fit Your First Bayesian Model With cmdstanr in 10 Minutes">Stan model</a> behind the scenes, which needs a full local <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a>. Install it once with <code>install.packages(&quot;prophet&quot;)</code>, then paste the "run locally" blocks into RStudio. Every output shown in this post came from a real run on R 4.6.0 with prophet 1.1.7.</div></div>
+
+<p>With the data in hand, a complete forecast is four lines.</p>
+
+<pre><code class="language-r">library(prophet)
+
+m        &lt;- prophet(sales, daily.seasonality = FALSE)
+future   &lt;- make_future_dataframe(m, periods = 90)
+set.seed(7)
+forecast &lt;- predict(m, future)
+
+tail(forecast[, c(&quot;ds&quot;, &quot;yhat&quot;, &quot;yhat_lower&quot;, &quot;yhat_upper&quot;)], 3)
+#&gt;              ds     yhat yhat_lower yhat_upper
+#&gt; 1184 2025-03-29 547.2167   525.9803   569.0919
+#&gt; 1185 2025-03-30 547.6662   524.8928   570.2400
+#&gt; 1186 2025-03-31 590.0562   567.1896   611.8276</code></pre>
+
+<p>Take the four lines one at a time. <code>prophet(sales)</code> fits the model and returns a model object, <code>make_future_dataframe(m, periods = 90)</code> copies the historical dates and appends 90 more days, <code>predict(m, future)</code> scores every one of those dates, and <code>tail()</code> shows the last three. We passed <code>daily.seasonality = FALSE</code> because our data is one row per day, so there is no within-day pattern to find, and saying so keeps the console quiet.</p>
+
+<p>The three columns are the whole point. <code>yhat</code> is the forecast, and <code>yhat_lower</code> and <code>yhat_upper</code> bracket it with an 80 percent uncertainty interval by default. On 31 March 2025 the model expects about 590 units and would be mildly surprised by anything outside 567 to 612. Notice that day is a Monday, which is why it sits 42 units above the Sunday before it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Call set.seed() before predict() or your interval bounds will move every run.</strong> Prophet computes <code>yhat</code> deterministically but simulates <code>yhat_lower</code> and <code>yhat_upper</code> from 1000 random draws, so the point forecast is stable while the band wobbles slightly unless you fix the seed.</div></div>
+
+<p>It helps to confirm exactly how many rows you are now holding.</p>
+
+<pre><code class="language-r">c(history_rows = nrow(sales), future_rows = nrow(future))
+#&gt; history_rows  future_rows
+#&gt;         1096         1186</code></pre>
+
+<p>The forecast data frame has 1186 rows, not 90. Prophet scores the history as well as the future, which is what lets you compare fitted values against what actually happened. The last 90 rows are the genuine forecast, and everything before that is the model explaining the past.</p>
+
+<p>The built-in plot puts all of that on one chart.</p>
+
+<pre><code class="language-r">plot(m, forecast)</code></pre>
+
+<p><img src="screenshots/Prophet-in-R-forecast-plot.webp" alt="Prophet forecast of daily revenue with an uncertainty band and three Black Friday spikes" class="img-responsive img-zoomable" loading="lazy" width="1100" height="628" /></p>
+
+<p><em>Figure 1: Three years of history plus a 90-day forecast. The blue line is yhat, the shaded band is the uncertainty interval, and the three tall spikes are Black Friday.</em></p>
+
+<p>Black dots are the observed days and the blue line is the fitted and forecast value. The line thickens into a dense zigzag because it is tracking the weekday and weekend difference at daily resolution. Now look at the three tall dots in late November: the blue line passes well below every one of them. This model has a trend and two seasonalities but no holiday term, so it has no column that can switch on for a single named date, and the promos land in the error instead. Closing that gap is what the holidays section further down is for.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare the average revenue in the first 90 days of <code>sales</code> with the average in the last 90 days, and report how many times bigger the recent period is.</p>
+<div class="webr-container" data-block-title="Your turn: compare early and late averages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare early and late averages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: the mean of the first 90 days, then the mean of the LAST 90 days.
+# The second line still uses head(). Change it to tail(), then run.
+ex_first &lt;- mean(head(sales$y, 90))
+ex_last  &lt;- mean(head(sales$y, 90))
+
+round(c(first_90 = ex_first, last_90 = ex_last, ratio = ex_last / ex_first), 2)
+#&gt; first_90  last_90    ratio
+#&gt;   188.27   188.27     1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Early versus late averages solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Early versus late averages solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_first &lt;- mean(head(sales$y, 90))
+ex_last  &lt;- mean(tail(sales$y, 90))
+round(c(first_90 = ex_first, last_90 = ex_last, ratio = ex_last / ex_first), 2)
+#&gt; first_90  last_90    ratio
+#&gt;   188.27   483.66     2.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>head(sales$y, 90)</code> takes the first 90 values and <code>tail()</code> takes the last 90. Revenue has grown 2.57 times over three years, which is the <a class="auto-link" href="Holts-Method-in-R.html" title="Holt's Method in R: Forecast Trend Without Seasonality">trend component</a> doing its work.</p>
+
+</details>
+</section>
+
+<h2>How does Prophet split a series into parts?</h2>
+
+<p>Prophet's model is a single sentence written as an equation. Every day's value is the trend on that day, plus whatever the seasonal patterns say about that day, plus whatever the holidays say, plus an error term for everything those three parts do not account for.</p>
+
+<p>$$y(t) = g(t) + s(t) + h(t) + \varepsilon(t)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y(t)$ = the observed value on day $t$</li>
+
+<li>$g(t)$ = the trend, a straight line that is allowed to change slope at a few dates</li>
+
+<li>$s(t)$ = the seasonality, one or more repeating waves such as weekly and yearly</li>
+
+<li>$h(t)$ = the holiday effect, a bump that switches on only for listed dates</li>
+
+<li>$\varepsilon(t)$ = the error, everything the three parts above could not explain</li>
+
+</ul>
+
+<p><img src="screenshots/Prophet-in-R-additive-anatomy.webp" alt="Trend, seasonality, holidays, and noise adding together into one forecast" class="img-responsive img-zoomable" loading="lazy" width="964" height="1282" /></p>
+
+<p><em>Figure 2: Prophet adds four parts together to produce each day's forecast.</em></p>
+
+<p>The plus signs are what make the parts separable. Each part contributes its own number to each day's total, so any one of them can be pulled out and read on its own. A classic ARIMA model has no comparable notion of "the holiday effect", because its parameters describe how yesterday relates to today, not what each calendar feature contributes.</p>
+
+<p>We already have the true parts, because we built them. Let us look at them side by side.</p>
+
+<div class="webr-container" data-block-title="Show the true components side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show the true components side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parts &lt;- data.frame(
+  ds     = ds,
+  trend  = round(trend, 1),
+  weekly = weekly,
+  yearly = round(yearly, 1),
+  promo  = promo,
+  noise  = round(noise, 1),
+  y      = round(sales$y, 1)
+)
+head(parts, 3)
+#&gt;           ds trend weekly yearly promo noise     y
+#&gt; 1 2022-01-01 200.2    -30  -34.2     0   6.2 142.2
+#&gt; 2 2022-01-02 200.3    -30  -34.1     0 -13.0 123.3
+#&gt; 3 2022-01-03 200.4     12  -33.9     0   1.7 180.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one day taken apart. On 1 January 2022 the trend contributes 200.2, the weekend costs 30, the yearly wave is at its winter low of minus 34.2, there is no promo, and noise adds 6.2. Those five numbers add to 142.2, which is exactly the <code>y</code> column.</p>
+
+<p>The third row is a Monday, so the weekly column flips from minus 30 to plus 12 and the total jumps by 42 even though the trend has barely moved. That 42-unit weekday step is the single largest short-term driver in this series.</p>
+
+<p>Now check a day where all four parts are large at once.</p>
+
+<div class="webr-container" data-block-title="Recompose Black Friday 2023">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recompose Black Friday 2023</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">row &lt;- parts[parts$ds == as.Date(&quot;2023-11-24&quot;), ]
+row
+#&gt;             ds trend weekly yearly promo noise   y
+#&gt; 693 2023-11-24 346.8     12  -31.6   260 -12.2 575
+with(row, trend + weekly + yearly + promo + noise)
+#&gt; [1] 575</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On Black Friday 2023 the trend has risen to 346.8, it is a Friday so the weekly term adds 12, the yearly wave is deep in its late-autumn trough at minus 31.6, and the promo adds 260. The five parts sum to 575, matching <code>y</code> to the decimal.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Additivity is not a technical detail, it is the reason Prophet is worth learning.</strong> Because the model is a sum, you can attribute any day's forecast to named causes, tell your finance team that 260 of Friday's revenue is promotional, and change one component without refitting your understanding of the others.</div></div>
+
+<p>Prophet returns exactly this decomposition. Here are the columns it produces.</p>
+
+<pre><code class="language-r">names(forecast)[1:12]
+#&gt;  [1] &quot;ds&quot;                   &quot;trend&quot;                &quot;additive_terms&quot;       &quot;additive_terms_lower&quot;
+#&gt;  [5] &quot;additive_terms_upper&quot; &quot;weekly&quot;               &quot;weekly_lower&quot;         &quot;weekly_upper&quot;
+#&gt;  [9] &quot;yearly&quot;               &quot;yearly_lower&quot;         &quot;yearly_upper&quot;         &quot;multiplicative_terms&quot;</code></pre>
+
+<p>There is a <code>trend</code> column, a <code>weekly</code> column, and a <code>yearly</code> column, each with <code>_lower</code> and <code>_upper</code> uncertainty bounds. <code>additive_terms</code> is the sum of every additive seasonal and holiday effect, and <code>multiplicative_terms</code> is the same for multiplicative ones, which we will meet shortly. Prophet found the weekly and yearly patterns on its own, because it turns on any seasonality for which the data covers at least two full cycles.</p>
+
+<p>The columns really do add up.</p>
+
+<pre><code class="language-r">head(forecast[, c(&quot;ds&quot;, &quot;trend&quot;, &quot;weekly&quot;, &quot;yearly&quot;, &quot;yhat&quot;)], 3)
+#&gt;           ds    trend    weekly    yearly     yhat
+#&gt; 1 2022-01-01 199.7050 -29.75573 -35.95419 133.9951
+#&gt; 2 2022-01-02 199.8642 -30.11979 -35.55212 134.1923
+#&gt; 3 2022-01-03 200.0233  11.50865 -35.15966 176.3723
+
+r &lt;- forecast[1, ]
+c(sum_of_parts = r$trend + r$weekly + r$yearly, yhat = r$yhat)
+#&gt; sum_of_parts         yhat
+#&gt;     133.9951     133.9951</code></pre>
+
+<p>Compare these fitted numbers with the true ones from the <code>parts</code> table above. Prophet estimated the day-one trend at 199.7 against a true 200.2, the weekend effect at minus 29.8 against a true minus 30, and the winter seasonal dip at minus 36.0 against a true minus 34.2. It recovered all three from nothing but dates and values.</p>
+
+<p>Prophet draws the same breakdown for you in one call.</p>
+
+<pre><code class="language-r">prophet_plot_components(m, forecast)</code></pre>
+
+<p><img src="screenshots/Prophet-in-R-components-plot.webp" alt="Four stacked panels showing the fitted trend, holidays, weekly, and yearly components" class="img-responsive img-zoomable" loading="lazy" width="1100" height="864" /></p>
+
+<p><em>Figure 3: prophet_plot_components() draws each fitted part on its own panel.</em></p>
+
+<p>The trend panel climbs and visibly steepens through 2023, which is our day-550 growth spurt. The weekly panel shows a flat weekday plateau near plus 12 dropping to about minus 30 on Saturday and Sunday. The yearly panel peaks around late June and bottoms out in December, matching the sine wave we planted. This one chart is the fastest sanity check in the whole workflow.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pick 4 July 2024 out of the <code>parts</code> table and confirm its five components add back to the <code>y</code> value.</p>
+<div class="webr-container" data-block-title="Your turn: recompose another date">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recompose another date</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: pull 2024-07-04 out of parts and add its five components back up.
+# The date below is 2022-01-01. Change it to 2024-07-04, then run.
+ex_row &lt;- parts[parts$ds == as.Date(&quot;2022-01-01&quot;), ]
+
+ex_row
+#&gt;           ds trend weekly yearly promo noise     y
+#&gt; 1 2022-01-01 200.2    -30  -34.2     0   6.2 142.2
+with(ex_row, trend + weekly + yearly + promo + noise)
+#&gt; [1] 142.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Recompose another date solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recompose another date solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_row &lt;- parts[parts$ds == as.Date(&quot;2024-07-04&quot;), ]
+ex_row
+#&gt;             ds trend weekly yearly promo noise     y
+#&gt; 916 2024-07-04 447.2     12   33.9     0 -12.5 480.6
+with(ex_row, trend + weekly + yearly + promo + noise)
+#&gt; [1] 480.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> July sits at the top of the yearly wave, so <code>yearly</code> is plus 33.9 here instead of the minus 31.6 we saw in November. Same model, opposite side of the year.</p>
+
+</details>
+</section>
+
+<h2>How does the trend bend at changepoints?</h2>
+
+<p>A straight line is too rigid for a real business and a free-form curve is too flexible, because it will bend to fit noise and then extrapolate that noise into the future. Prophet takes the middle path with a <strong>piecewise linear trend</strong>: one straight line whose slope is allowed to change at a small number of dates called changepoints.</p>
+
+<p>The mechanism is simpler than the name suggests. To let a line change slope on day 550, you add one extra column that is zero before day 550 and counts upward after it. That column is called a hinge, and <code>pmax(t - 550, 0)</code> builds it in one expression.</p>
+
+<div class="webr-container" data-block-title="Fit a trend with one hinge">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a trend with one hinge</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hinge    &lt;- pmax(t - 550, 0)     # 0,0,...,0,1,2,3,... starting at day 550
+fit_bend &lt;- lm(sales$y ~ t + hinge)
+round(coef(fit_bend), 3)
+#&gt; (Intercept)           t       hinge
+#&gt;     197.712       0.165       0.262</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression returns three numbers. The intercept 197.712 is where the line starts, the <code>t</code> coefficient 0.165 is the daily growth before the bend, and the <code>hinge</code> coefficient 0.262 is the extra growth added afterwards. Compare those with the truth we planted: an intercept of 200, a slope of 0.15, and an extra 0.30 after day 550.</p>
+
+<p>The two slopes are easier to read when you add them.</p>
+
+<div class="webr-container" data-block-title="Read the slope before and after the bend">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the slope before and after the bend</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slope_before &lt;- coef(fit_bend)[[&quot;t&quot;]]
+slope_after  &lt;- coef(fit_bend)[[&quot;t&quot;]] + coef(fit_bend)[[&quot;hinge&quot;]]
+round(c(before = slope_before, after = slope_after), 3)
+#&gt; before  after
+#&gt;  0.165  0.427</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Growth ran at 0.165 units a day, then jumped to 0.427 a day, which is roughly two and a half times faster. That is what a changepoint is: not a jump in the level, but a jump in the rate of change. The line stays connected, it just tilts.</p>
+
+<p>Prophet does not know where the bend is, so it offers the trend many places to bend and then penalises every bend it uses.</p>
+
+<p><img src="screenshots/Prophet-in-R-changepoint-logic.webp" alt="Prophet places 25 candidate changepoints, penalises each bend, and keeps only the ones that survive" class="img-responsive img-zoomable" loading="lazy" width="1950" height="690" /></p>
+
+<p><em>Figure 4: Prophet offers the trend 25 places to bend, then penalises every bend so only real ones survive.</em></p>
+
+<p>Let us see the candidates it laid down.</p>
+
+<pre><code class="language-r">length(m$changepoints)
+#&gt; [1] 25
+range(as.Date(m$changepoints))
+#&gt; [1] &quot;2022-02-05&quot; &quot;2024-05-25&quot;</code></pre>
+
+<p>There are 25 candidates, spread from February 2022 to May 2024. Note where they stop: May 2024 is roughly 80 percent of the way through our data, because <code>changepoint.range</code> defaults to 0.8. By default Prophet places no changepoint in the final fifth of the series, because a bend fitted to the last few weeks is usually noise rather than a real change of direction.</p>
+
+<p>Each candidate gets a slope adjustment called a delta, and the penalty pushes most of them to essentially zero.</p>
+
+<pre><code class="language-r">deltas &lt;- m$params$delta[1, ]
+big    &lt;- which(abs(deltas) &gt; 0.01)
+data.frame(changepoint = m$changepoints[big], delta = round(deltas[big], 4))
+#&gt;   changepoint  delta
+#&gt; 1  2023-05-06 0.0611
+#&gt; 2  2023-06-10 0.1329
+#&gt; 3  2023-07-15 0.1196
+#&gt; 4  2023-08-19 0.0841
+#&gt; 5  2023-09-23 0.0357</code></pre>
+
+<p>Only five of the 25 candidates have a meaningful delta, and all five sit in mid-2023. Our true bend was on 4 July 2023, and the largest deltas land on 10 June and 15 July, straddling it. The other 20 candidates were shrunk to nothing by the penalty, which is exactly the behaviour we wanted.</p>
+
+<p>The strength of that penalty is one argument, <code>changepoint.prior.scale</code>, and it is the knob you will reach for most often.</p>
+
+<pre><code class="language-r">m_stiff &lt;- prophet(sales, daily.seasonality = FALSE, changepoint.prior.scale = 0.001)
+m_loose &lt;- prophet(sales, daily.seasonality = FALSE, changepoint.prior.scale = 0.5)
+
+total_bend &lt;- function(mod) sum(abs(mod$params$delta[1, ]))
+round(c(stiff   = total_bend(m_stiff),
+        default = total_bend(m),
+        loose   = total_bend(m_loose)), 3)
+#&gt;   stiff default   loose
+#&gt;   0.307   0.453   0.733</code></pre>
+
+<p><code>total_bend()</code> adds up the absolute size of all 25 slope adjustments, so it measures how much bending the model allowed itself in total. Dropping the prior scale from the default 0.05 to 0.001 cuts total bending by a third, and raising it to 0.5 lets the trend bend 60 percent more than the default. Small values buy you a stiffer, more conservative trend, and large values let the trend chase every wobble.</p>
+
+<p>That flexibility shows up directly in the forecast.</p>
+
+<pre><code class="language-r">f_stiff &lt;- predict(m_stiff, future)
+f_loose &lt;- predict(m_loose, future)
+round(c(stiff   = tail(f_stiff$trend, 1),
+        default = tail(forecast$trend, 1),
+        loose   = tail(f_loose$trend, 1)), 1)
+#&gt;   stiff default   loose
+#&gt;   552.1   569.5   570.0</code></pre>
+
+<p>Ninety days out, the stiff model predicts a trend of 552 while the default and loose models both predict about 570, a spread of roughly 3 percent. On a smooth series like ours the disagreement is modest, but on a noisy series with a genuine recent shift the same three settings can differ by a great deal more, because whatever slope the trend has at the end of the history is the slope it will carry forward forever.</p>
+
+<p>Prophet can draw the changepoints straight onto the forecast chart.</p>
+
+<pre><code class="language-r">plot(m, forecast) + add_changepoints_to_plot(m)</code></pre>
+
+<p><img src="screenshots/Prophet-in-R-changepoints-plot.webp" alt="Forecast plot with the fitted trend in red and dashed vertical lines at each active changepoint" class="img-responsive img-zoomable" loading="lazy" width="1100" height="628" /></p>
+
+<p><em>Figure 5: The red line is the fitted trend and the dashed verticals are the changepoints Prophet actually used.</em></p>
+
+<p>The red line is the trend with the seasonality stripped away, and every dashed vertical is a changepoint carrying a non-trivial delta. You can see the red line lift its angle as it passes through the 2023 cluster. If that red line looks like it is chasing every dip, lower <code>changepoint.prior.scale</code>. If it looks like a ruler laid over an obvious shift, raise it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Changepoints only live in the first 80 percent of your history by default.</strong> If your series genuinely changed direction two months ago and Prophet is ignoring it, that default is usually why, and <code>changepoint.range = 0.95</code> is the argument that lets the trend bend closer to the present.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the same hinge model but put the knot at day 800 instead of 550, and report the slope before and after.</p>
+<div class="webr-container" data-block-title="Your turn: move the knot to day 800">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: move the knot to day 800</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: put the bend at day 800 instead of day 550.
+# Change the 550 below to 800, then run.
+ex_hinge &lt;- pmax(t - 550, 0)
+ex_fit   &lt;- lm(sales$y ~ t + ex_hinge)
+
+round(c(before = coef(ex_fit)[[&quot;t&quot;]],
+        after  = coef(ex_fit)[[&quot;t&quot;]] + coef(ex_fit)[[&quot;ex_hinge&quot;]]), 3)
+#&gt; before  after
+#&gt;  0.165  0.427</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Knot at day 800 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Knot at day 800 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hinge &lt;- pmax(t - 800, 0)
+ex_fit   &lt;- lm(sales$y ~ t + ex_hinge)
+round(c(before = coef(ex_fit)[[&quot;t&quot;]],
+        after  = coef(ex_fit)[[&quot;t&quot;]] + coef(ex_fit)[[&quot;ex_hinge&quot;]]), 3)
+#&gt; before  after
+#&gt;  0.241  0.545</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With the knot in the wrong place the model still fits something, but it now reports a pre-bend slope of 0.241, halfway between the true 0.15 and 0.45. A misplaced changepoint smears the two real growth rates together, which is precisely why Prophet tests 25 positions instead of trusting one.</p>
+
+</details>
+</section>
+
+<h2>How does Prophet model seasonality with Fourier terms?</h2>
+
+<p>A <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> is any shape that repeats on a fixed cycle: a weekend dip that repeats every 7 days, a summer peak that repeats every 365.25 days. Prophet represents each of those shapes as a sum of sine and cosine waves, which is called a Fourier series.</p>
+
+<p>The idea is worth a sentence of intuition before the formula. Any smooth repeating shape, however lumpy, can be rebuilt by stacking simple waves on top of each other. The first wave completes a single cycle per year, the next completes two cycles, the next three, and so on upward. The more waves you allow, the more detailed a shape you can reproduce.</p>
+
+<p>$$s(t) = \sum_{k=1}^{N} \left[ a_k \cos\left(\frac{2\pi k t}{P}\right) + b_k \sin\left(\frac{2\pi k t}{P}\right) \right]$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$P$ = the period of the cycle in days, so 7 for weekly and 365.25 for yearly</li>
+
+<li>$N$ = the <strong>Fourier order</strong>, the number of sine and cosine pairs you allow</li>
+
+<li>$a_k, b_k$ = the coefficients Prophet estimates, two per pair</li>
+
+<li>$t$ = the day</li>
+
+</ul>
+
+<p>Prophet defaults to $N = 10$ for yearly seasonality and $N = 3$ for weekly. Let us build those terms ourselves so the argument stops being abstract.</p>
+
+<div class="webr-container" data-block-title="Build Fourier terms by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build Fourier terms by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fourier_terms &lt;- function(x, period, order) {
+  m &lt;- do.call(cbind, lapply(seq_len(order), function(k)
+    cbind(sin(2 * pi * k * x / period), cos(2 * pi * k * x / period))))
+  colnames(m) &lt;- paste0(rep(c(&quot;sin&quot;, &quot;cos&quot;), times = order),
+                        rep(seq_len(order), each = 2))
+  m
+}
+
+X3 &lt;- fourier_terms(day_of_year, period = 365.25, order = 3)
+round(head(X3, 3), 4)
+#&gt;        sin1   cos1   sin2   cos2   sin3   cos3
+#&gt; [1,] 0.0172 0.9999 0.0344 0.9994 0.0516 0.9987
+#&gt; [2,] 0.0344 0.9994 0.0688 0.9976 0.1030 0.9947
+#&gt; [3,] 0.0516 0.9987 0.1030 0.9947 0.1542 0.9880
+dim(X3)
+#&gt; [1] 1096    6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The helper loops over <code>k</code> from 1 to <code>order</code> and, for each <code>k</code>, produces one sine column and one cosine column whose frequency is <code>k</code> cycles per period. Order 3 therefore yields 6 columns, which is where <code>dim()</code>'s second number comes from. In early January all six values sit near 0 or 1, because we are right at the start of the cycle.</p>
+
+<p>That is all a seasonality is inside Prophet: 6 extra columns for weekly, 20 for yearly, handed to a linear model. Higher order means more columns, which means a shape that can wiggle more.</p>
+
+<p>To see what the order actually buys you, we need a shape that a single wave cannot reproduce. Here is a deliberately blocky one: a flat baseline that jumps to 100 for the six weeks around new year.</p>
+
+<div class="webr-container" data-block-title="Measure what Fourier order buys you">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure what Fourier order buys you</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spiky &lt;- ifelse(day_of_year &gt;= 330 | day_of_year &lt;= 10, 100, 0)
+
+r2 &lt;- c(
+  order_1  = summary(lm(spiky ~ fourier_terms(day_of_year, 365.25, 1)))$r.squared,
+  order_3  = summary(lm(spiky ~ fourier_terms(day_of_year, 365.25, 3)))$r.squared,
+  order_10 = summary(lm(spiky ~ fourier_terms(day_of_year, 365.25, 10)))$r.squared,
+  order_20 = summary(lm(spiky ~ fourier_terms(day_of_year, 365.25, 20)))$r.squared
+)
+round(r2, 3)
+#&gt;  order_1  order_3 order_10 order_20
+#&gt;    0.275    0.685    0.903    0.957</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each line regresses the blocky shape on a Fourier basis of increasing order and reports how much of the shape was captured. A single sine and cosine pair explains only 27.5 percent, because one smooth wave cannot make a square corner. Order 3 reaches 68.5 percent, order 10 reaches 90.3 percent, and order 20 reaches 95.7 percent.</p>
+
+<p>That is the trade-off in one table. Raising the Fourier order lets the seasonal curve turn sharper corners, which is what you want for a genuinely spiky calendar effect. It also means more coefficients estimated from the same data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A high Fourier order will fit noise and carry it into next year.</strong> Each extra order adds two parameters, so <code>yearly.seasonality = 30</code> gives the model 60 chances to memorise last year's random wiggles and then repeat them as if they were a real pattern. Raise the order only when the components plot shows a real shape being flattened.</div></div>
+
+<p>You can add a seasonality Prophet did not guess, for example a monthly billing cycle.</p>
+
+<pre><code class="language-r">m_month &lt;- prophet(daily.seasonality = FALSE)
+m_month &lt;- add_seasonality(m_month, name = &quot;monthly&quot;, period = 30.5, fourier.order = 5)
+m_month &lt;- fit.prophet(m_month, sales)
+
+set.seed(7)
+f_month &lt;- predict(m_month, future)
+round(range(f_month$monthly), 2)
+#&gt; [1] -1.79  2.91</code></pre>
+
+<p>Notice the three-step pattern. <code>prophet()</code> with no data argument creates an unfitted model, <code>add_seasonality()</code> registers the extra component, and <code>fit.prophet()</code> finally fits it, because Prophet refuses to add a seasonality to a model that is already fitted. <code>add_seasonality()</code> takes a name, a period measured in days, then the Fourier order.</p>
+
+<p>Now read the result honestly. The fitted monthly component ranges only from minus 1.79 to plus 2.91 on a series whose typical day is around 300, so it is worth less than 1 percent. There is no monthly cycle in this data, and the model correctly found almost nothing. A component that hovers near zero is a component you should delete.</p>
+
+<p>Sometimes seasonal swings grow as the business grows, and adding a fixed number of units is the wrong shape.</p>
+
+<pre><code class="language-r">m_mult &lt;- prophet(sales, daily.seasonality = FALSE, seasonality.mode = &quot;multiplicative&quot;)
+set.seed(7)
+f_mult &lt;- predict(m_mult, future)
+head(f_mult[, c(&quot;ds&quot;, &quot;trend&quot;, &quot;multiplicative_terms&quot;, &quot;yhat&quot;)], 3)
+#&gt;           ds    trend multiplicative_terms     yhat
+#&gt; 1 2022-01-01 180.4627          -0.17667152 148.5800
+#&gt; 2 2022-01-02 180.8288          -0.17721616 148.7830
+#&gt; 3 2022-01-03 181.1949          -0.05900856 170.5029</code></pre>
+
+<p>With <code>seasonality.mode = &quot;multiplicative&quot;</code> the seasonal columns become percentages rather than units. On 1 January the model says the season is minus 17.7 percent, so <code>yhat</code> is the trend of 180.5 multiplied by 1 minus 0.177, giving 148.6. Use this mode when your components plot shows seasonal swings that are visibly wider in later years than earlier ones; use the default additive mode when the swing height looks constant, as it does in our series.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the first sine and cosine pair for a weekly cycle over days 1 to 7, and check which day returns exactly 0 and 1.</p>
+<div class="webr-container" data-block-title="Your turn: one weekly Fourier pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one weekly Fourier pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: one sine and cosine pair over a 7-day cycle, not a yearly one.
+# Change period = 365.25 to period = 7, then run.
+ex_pair &lt;- fourier_terms(1:7, period = 365.25, order = 1)
+
+round(ex_pair, 3)
+#&gt;       sin1  cos1
+#&gt; [1,] 0.017 1.000
+#&gt; [2,] 0.034 0.999
+#&gt; [3,] 0.052 0.999
+#&gt; [4,] 0.069 0.998
+#&gt; [5,] 0.086 0.996
+#&gt; [6,] 0.103 0.995
+#&gt; [7,] 0.120 0.993</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weekly Fourier pair solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weekly Fourier pair solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pair &lt;- fourier_terms(1:7, period = 7, order = 1)
+round(ex_pair, 3)
+#&gt;        sin1   cos1
+#&gt; [1,]  0.782  0.623
+#&gt; [2,]  0.975 -0.223
+#&gt; [3,]  0.434 -0.901
+#&gt; [4,] -0.434 -0.901
+#&gt; [5,] -0.975 -0.223
+#&gt; [6,] -0.782  0.623
+#&gt; [7,]  0.000  1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Day 7 completes exactly one full cycle, so the sine returns to 0 and the cosine to 1. That wrap-around is what makes the pattern repeat every week forever, with no extra bookkeeping.</p>
+
+</details>
+</section>
+
+<h2>How do you add holidays and one-off events?</h2>
+
+<p>A holiday in Prophet is not a date the package looks up for you by default. It is a table you supply, listing every occurrence of the event in both the past and the future, and Prophet turns each row into an on-off switch that shifts the forecast on that day.</p>
+
+<p>The table needs two columns at minimum: <code>holiday</code>, a name, and <code>ds</code>, a date. Two more are optional and extremely useful: <code>lower_window</code> and <code>upper_window</code>, which stretch the effect to the days around the event.</p>
+
+<div class="webr-container" data-block-title="Build a holidays table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a holidays table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">black_friday &lt;- data.frame(
+  holiday      = &quot;black_friday&quot;,
+  ds           = as.Date(c(&quot;2022-11-25&quot;, &quot;2023-11-24&quot;, &quot;2024-11-29&quot;, &quot;2025-11-28&quot;)),
+  lower_window = 0,
+  upper_window = 2
+)
+black_friday
+#&gt;        holiday         ds lower_window upper_window
+#&gt; 1 black_friday 2022-11-25            0            2
+#&gt; 2 black_friday 2023-11-24            0            2
+#&gt; 3 black_friday 2024-11-29            0            2
+#&gt; 4 black_friday 2025-11-28            0            2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three of these dates are in our history and the fourth, 28 November 2025, is in the future. That fourth row is what lets the forecast include next year's Black Friday, and forgetting it is the most common Prophet mistake there is.</p>
+
+<p><code>lower_window = 0</code> means the effect starts on the day itself, and <code>upper_window = 2</code> means it continues for two more days, covering the shopping weekend. Windows can go backwards too: <code>lower_window = -1</code> would include the Thursday before.</p>
+
+<p>The window is easier to trust once you see the dates it really produces.</p>
+
+<div class="webr-container" data-block-title="Expand a window into dated rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Expand a window into dated rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">expand_window &lt;- function(h) {
+  do.call(rbind, lapply(seq_len(nrow(h)), function(i) {
+    data.frame(holiday = h$holiday[i],
+               ds      = h$ds[i] + h$lower_window[i]:h$upper_window[i])
+  }))
+}
+head(expand_window(black_friday), 6)
+#&gt;        holiday         ds
+#&gt; 1 black_friday 2022-11-25
+#&gt; 2 black_friday 2022-11-26
+#&gt; 3 black_friday 2022-11-27
+#&gt; 4 black_friday 2023-11-24
+#&gt; 5 black_friday 2023-11-25
+#&gt; 6 black_friday 2023-11-26
+nrow(expand_window(black_friday))
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four dates with a three-day window each become 12 dated rows, and Prophet fits a separate coefficient for each position in the window. So the Friday, the Saturday, and the Sunday each get their own <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> rather than sharing one. That is why a window is better than three separate holiday rows: the positions stay linked to the anchor date, which moves every year.</p>
+
+<p>Now feed the table to the model.</p>
+
+<pre><code class="language-r">m_hol  &lt;- prophet(sales, holidays = black_friday, daily.seasonality = FALSE)
+future &lt;- make_future_dataframe(m_hol, periods = 90)
+set.seed(7)
+f_hol  &lt;- predict(m_hol, future)
+
+bf_row &lt;- f_hol[format(f_hol$ds, &quot;%Y-%m-%d&quot;) == &quot;2024-11-29&quot;, ]
+round(c(black_friday = bf_row$black_friday, yhat = bf_row$yhat), 2)
+#&gt; black_friday         yhat
+#&gt;       257.99       752.39</code></pre>
+
+<p>The forecast data frame now carries a column named after the holiday. On 29 November 2024 that column reads 257.99, against a true planted effect of 260, so Prophet recovered the promo size to within 1 percent. The total forecast for that day is 752.39, of which more than a third is the holiday.</p>
+
+<p>The full range of that column tells you the rest of the story.</p>
+
+<pre><code class="language-r">round(range(f_hol$black_friday), 2)
+#&gt; [1] -10.25 257.99</code></pre>
+
+<p>The maximum 257.99 is the Friday itself. The minimum minus 10.25 comes from the Saturday and Sunday positions in the window, where Prophet learned a small negative effect, because in our data the promo lasted exactly one day and the weekend after it was ordinary. That is a real finding, not a bug: the window let the model discover that the spillover days are slightly below normal.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A holiday table with no future dates changes your history and not your forecast.</strong> Prophet only applies a holiday on dates that appear in the table, so if your last listed occurrence is in the past, the model will fit the historical spikes beautifully and then predict a completely flat November.</div></div>
+
+<p>For public holidays you do not have to type the dates yourself.</p>
+
+<pre><code class="language-r">m_us &lt;- prophet(daily.seasonality = FALSE)
+m_us &lt;- add_country_holidays(m_us, country_name = &quot;US&quot;)
+m_us &lt;- fit.prophet(m_us, sales)
+
+head(m_us$train.holiday.names, 6)
+#&gt; [1] &quot;New Year's Day&quot;
+#&gt; [2] &quot;Martin Luther King Jr. Day&quot;
+#&gt; [3] &quot;Washington's Birthday&quot;
+#&gt; [4] &quot;Memorial Day&quot;
+#&gt; [5] &quot;Juneteenth National Independence Day&quot;
+#&gt; [6] &quot;Juneteenth National Independence Day (Observed)&quot;
+length(m_us$train.holiday.names)
+#&gt; [1] 15</code></pre>
+
+<p><code>add_country_holidays()</code> pulls a full national calendar, here 15 distinct US holidays covering our three years, including observed-day variants. It follows the same unfitted-then-fit pattern as <code>add_seasonality()</code>. You can combine it with your own table by passing <code>holidays =</code> to <code>prophet()</code> and calling <code>add_country_holidays()</code> as well, and the two sets are simply stacked.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Give a big, confident event its own prior scale.</strong> Adding a <code>prior_scale</code> column to your holidays table, for example <code>prior_scale = 20</code> on a marketing launch, tells Prophet to trust that effect more than the default 10 and shrink it less towards zero.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Widen the Black Friday window to cover the Monday after as well, then count how many dated rows it expands to.</p>
+<div class="webr-container" data-block-title="Your turn: widen the holiday window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: widen the holiday window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: stretch the window one more day so it covers the Monday after.
+# Change the 2 below to 3, then run.
+ex_bf &lt;- black_friday
+ex_bf$upper_window &lt;- 2
+
+nrow(expand_window(ex_bf))
+#&gt; [1] 12
+tail(expand_window(ex_bf), 4)
+#&gt;         holiday         ds
+#&gt; 9  black_friday 2024-12-01
+#&gt; 10 black_friday 2025-11-28
+#&gt; 11 black_friday 2025-11-29
+#&gt; 12 black_friday 2025-11-30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Widen the holiday window solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Widen the holiday window solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bf &lt;- black_friday
+ex_bf$upper_window &lt;- 3
+nrow(expand_window(ex_bf))
+#&gt; [1] 16
+tail(expand_window(ex_bf), 4)
+#&gt;         holiday         ds
+#&gt; 13 black_friday 2025-11-28
+#&gt; 14 black_friday 2025-11-29
+#&gt; 15 black_friday 2025-11-30
+#&gt; 16 black_friday 2025-12-01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Four dates times four days each gives 16 rows, and Prophet now estimates four separate coefficients, one per position in the window. Cyber Monday gets its own effect rather than being averaged into the weekend.</p>
+
+</details>
+</section>
+
+<h2>How do you check whether the forecast is any good?</h2>
+
+<p>A forecast that looks convincing on a chart can still be worse than guessing. The only honest test is to hide part of the data, forecast it, and compare against what actually happened. Let us hold out the last 91 days, which is exactly 13 weeks and therefore keeps the weekdays aligned.</p>
+
+<div class="webr-container" data-block-title="Split the series into train and test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split the series into train and test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- sales[1:1005, ]
+test  &lt;- sales[1006:1096, ]
+c(train_days = nrow(train), test_days = nrow(test))
+#&gt; train_days  test_days
+#&gt;       1005         91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The split is by position rather than at random, and that part is not negotiable. Shuffling a time series would let the model peek at the future, which inflates every score you compute afterwards.</p>
+
+<p>Before scoring any model you need something to beat. The simplest sensible competitor here is a seasonal naive forecast: predict each future day using the value from 91 days earlier, which lands on the same weekday.</p>
+
+<div class="webr-container" data-block-title="Score a seasonal naive baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score a seasonal naive baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">snaive &lt;- tail(train$y, 91)     # the 91 days immediately before the test period
+errors &lt;- test$y - snaive
+
+round(c(MAE  = mean(abs(errors)),
+        RMSE = sqrt(mean(errors^2)),
+        MAPE = mean(abs(errors / test$y)) * 100), 2)
+#&gt;   MAE  RMSE  MAPE
+#&gt; 17.10 32.71  3.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three metrics, three different questions. <strong>MAE</strong> is the average size of the miss in original units, so this baseline is off by about 17 units on a typical day. <strong>RMSE</strong> squares the errors before averaging, which punishes big misses harder, and its value of 32.71 being nearly double the MAE tells you a few days went badly wrong. <strong>MAPE</strong> expresses the miss as a percentage of the actual value, so 3.37 percent, which is convenient for comparing series measured on different scales.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A forecast metric with no baseline is a number with no meaning.</strong> "Our MAPE is 3.4 percent" sounds impressive until you learn that copying last quarter's numbers scores the same, so always report your model and a dumb baseline side by side.</div></div>
+
+<p>One holdout is one lucky or unlucky quarter. Prophet's <code>cross_validation()</code> repeats the exercise at several cutoff dates, refitting each time, which is called rolling-origin evaluation.</p>
+
+<pre><code class="language-r">df_cv &lt;- cross_validation(m_hol, initial = 730, period = 90,
+                          horizon = 90, units = &quot;days&quot;)
+dim(df_cv)
+#&gt; [1] 360   6
+head(df_cv[, c(&quot;ds&quot;, &quot;yhat&quot;, &quot;y&quot;, &quot;cutoff&quot;)], 3)
+#&gt;           ds     yhat        y     cutoff
+#&gt; 1 2024-01-07 302.3303 286.9056 2024-01-06
+#&gt; 2 2024-01-08 344.3144 362.0223 2024-01-06
+#&gt; 3 2024-01-09 345.3743 341.9425 2024-01-06</code></pre>
+
+<p>The three arguments define the schedule. <code>initial = 730</code> trains on the first two years, <code>horizon = 90</code> forecasts 90 days past each cutoff, and <code>period = 90</code> moves the cutoff forward 90 days each round. With 1096 days that gives 4 rounds of 90 forecasts, hence 360 rows, each carrying both the prediction <code>yhat</code> and the truth <code>y</code>.</p>
+
+<p><code>performance_metrics()</code> then turns those 360 paired numbers into a score for every forecast distance.</p>
+
+<pre><code class="language-r">perf &lt;- performance_metrics(df_cv)
+head(perf[, c(&quot;horizon&quot;, &quot;mae&quot;, &quot;rmse&quot;, &quot;mape&quot;, &quot;coverage&quot;)], 5)
+#&gt;   horizon      mae     rmse       mape  coverage
+#&gt; 1  9 days 7.919223 10.98456 0.01881885 0.8333333
+#&gt; 2 10 days 8.134143 11.02726 0.01927401 0.8333333
+#&gt; 3 11 days 8.177788 11.16888 0.01915235 0.8333333
+#&gt; 4 12 days 7.973348 11.08646 0.01869578 0.8333333
+#&gt; 5 13 days 7.620197 10.69788 0.01814742 0.8611111</code></pre>
+
+<p>Read this table by horizon. Nine days out the model is off by 7.92 units on average, or 1.88 percent, and the error creeps up only slightly by day 13. <code>coverage</code> is the share of actual values that fell inside the 80 percent interval, and 0.83 against a target of 0.80 means the intervals are honest, neither over-confident nor uselessly wide. The table starts at 9 days rather than 1 because <code>performance_metrics()</code> smooths over a rolling window by default.</p>
+
+<p>Finally, the comparison that matters: Prophet against the naive baseline, on the same held-out days.</p>
+
+<pre><code class="language-r">m_tr   &lt;- prophet(train, holidays = black_friday, daily.seasonality = FALSE)
+fut_tr &lt;- make_future_dataframe(m_tr, periods = 91)
+set.seed(7)
+f_tr      &lt;- predict(m_tr, fut_tr)
+yhat_test &lt;- tail(f_tr$yhat, 91)
+
+round(c(prophet_MAE = mean(abs(test$y - yhat_test)),
+        naive_MAE   = mean(abs(test$y - snaive))), 2)
+#&gt; prophet_MAE   naive_MAE
+#&gt;        8.97       17.10
+round(c(prophet_RMSE = sqrt(mean((test$y - yhat_test)^2)),
+        naive_RMSE   = sqrt(mean((test$y - snaive)^2))), 2)
+#&gt; prophet_RMSE   naive_RMSE
+#&gt;        11.36        32.71</code></pre>
+
+<p>Both forecasts cover the same 91 days and neither model saw them during fitting, so this is a fair fight. Prophet's MAE of 8.97 is 47 percent lower than the baseline's 17.10, and its RMSE of 11.36 is 65 percent lower than 32.71. The bigger gap on RMSE is the more interesting result: it means Prophet's worst days are far less bad, because it knows about Black Friday and the baseline does not.</p>
+
+<p>Now you have a defensible sentence for a stakeholder: "Prophet roughly halves our average <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">forecast error</a> against repeating last quarter, and cuts our worst misses by two thirds."</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score a third baseline that simply repeats the very last training value for all 91 days, and compare its MAE with the seasonal naive.</p>
+<div class="webr-container" data-block-title="Your turn: score a flat baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score a flat baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: repeat the LAST training value 91 times.
+# head() grabs the first value. Change head to tail, then run.
+ex_flat &lt;- rep(head(train$y, 1), 91)
+
+round(c(flat_MAE   = mean(abs(test$y - ex_flat)),
+        snaive_MAE = mean(abs(test$y - snaive))), 2)
+#&gt;   flat_MAE snaive_MAE
+#&gt;     341.49      17.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Flat baseline solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flat baseline solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_flat &lt;- rep(tail(train$y, 1), 91)
+round(c(flat_MAE   = mean(abs(test$y - ex_flat)),
+        snaive_MAE = mean(abs(test$y - snaive))), 2)
+#&gt;   flat_MAE snaive_MAE
+#&gt;      28.32      17.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The flat baseline is 66 percent worse, because it throws away both the trend and the weekday pattern. Which baseline you choose changes how impressive your model looks, so pick the strongest one you can defend.</p>
+
+</details>
+</section>
+
+<h2>When should you not use Prophet?</h2>
+
+<p>Prophet is a curve fitted to calendar features, and the date is its only input. It reads a date, computes trend plus seasonality plus holidays, and returns a number. What it never does is look at yesterday's error, which is the single biggest structural difference between Prophet and the ARIMA family.</p>
+
+<p>That gap has a visible signature: leftover correlation in the residuals. Here is a series where the errors are strongly autocorrelated, meaning a high day tends to be followed by another high day.</p>
+
+<div class="webr-container" data-block-title="Simulate autocorrelated errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate autocorrelated errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+n &lt;- 400
+e &lt;- numeric(n)
+e[1] &lt;- rnorm(1, 0, 5)
+for (i in 2:n) e[i] &lt;- 0.8 * e[i - 1] + rnorm(1, 0, 5)   # today carries 80% of yesterday
+
+tt   &lt;- seq_len(n)
+y_ar &lt;- 100 + 0.5 * tt + e
+res_ar &lt;- residuals(lm(y_ar ~ tt))
+
+a_ar &lt;- acf(res_ar, lag.max = 3, plot = FALSE)
+round(setNames(as.numeric(a_ar$acf)[2:4], paste0(&quot;lag&quot;, 1:3)), 3)
+#&gt;  lag1  lag2  lag3
+#&gt; 0.829 0.649 0.523</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The loop builds an error term that carries 80 percent of yesterday's error forward. Two functions are doing the work in the last two lines. <code>residuals()</code> returns what is left over after the fitted line is subtracted from the data, and <code>acf()</code> measures how strongly those leftovers correlate with themselves a fixed number of days apart. The first entry <code>acf()</code> reports is the lag-0 correlation, which is always exactly 1, so <code>[2:4]</code> is what picks out lags 1, 2 and 3.</p>
+
+<p>After fitting a perfectly correct straight-line trend, the residuals still correlate 0.829 with themselves one day later. The trend line is right, and yet a large share of tomorrow's error is already predictable from today's, and Prophet has no term that could use it.</p>
+
+<p>Compare that with residuals that hold no information at all.</p>
+
+<div class="webr-container" data-block-title="Compare against white-noise residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare against white-noise residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+res_white &lt;- rnorm(400, 0, 5)
+a_w &lt;- acf(res_white, lag.max = 3, plot = FALSE)
+round(setNames(as.numeric(a_w$acf)[2:4], paste0(&quot;lag&quot;, 1:3)), 3)
+#&gt;   lag1   lag2   lag3
+#&gt;  0.132 -0.051 -0.023</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the lag-1 correlation is 0.132 and the rest hover around zero, which is what "nothing left to extract" looks like. That is the reference picture. Whenever your residual <a class="auto-link" href="ACF-and-PACF-in-R.html" title="ACF and PACF in R: How to Read the Plots for ARIMA Orders">ACF</a> looks like the 0.829 case instead of this one, Prophet cannot fix it for you, because it has no term that uses the previous day's error.</p>
+
+<p>For the record, our own model passes this test.</p>
+
+<pre><code class="language-r">res_prophet &lt;- test$y - yhat_test
+a_p &lt;- acf(res_prophet, lag.max = 3, plot = FALSE)
+round(setNames(as.numeric(a_p$acf)[2:4], paste0(&quot;lag&quot;, 1:3)), 3)
+#&gt;   lag1   lag2   lag3
+#&gt; -0.014 -0.037  0.076</code></pre>
+
+<p>All three values sit near zero, so on this series Prophet extracted essentially everything there was. That is unsurprising, because we built the data with independent noise. Real business data rarely behaves so well, which is exactly why you should run this check before shipping.</p>
+
+<p>The second limitation is about the future rather than the past.</p>
+
+<pre><code class="language-r">tail(f_tr[, c(&quot;ds&quot;, &quot;trend&quot;)], 2)
+#&gt;              ds    trend
+#&gt; 1095 2024-12-30 528.6058
+#&gt; 1096 2024-12-31 529.0603</code></pre>
+
+<p>Whatever slope the trend holds on the last day of history, roughly 0.45 units a day here, is the slope it carries forward for as long as you ask it to. Prophet has no concept of a growth rate that ought to flatten out, and no notion of market saturation. For bounded quantities you can pass <code>growth = &quot;logistic&quot;</code> and supply a <code>cap</code> column, but for anything else the straight-line extrapolation is what you get.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Prophet is not automatically the most accurate choice.</strong> In Hyndman and Athanasopoulos's <em>Forecasting: Principles and Practice</em>, Prophet is beaten by both ARIMA and ETS on quarterly cement production, and does not outperform <a class="auto-link" href="Fourier-Terms-in-R.html" title="Fourier Terms in R: Model Complex Seasonality">dynamic harmonic regression</a> on electricity demand, so treat it as one candidate to benchmark rather than a default winner.</div></div>
+
+<p>Here is how the three families compare on the questions that usually decide the choice.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Prophet</th>
+<th>ARIMA</th>
+<th>ETS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Uses yesterday's error?</td>
+<td>No</td>
+<td>Yes, that is its core</td>
+<td>Partly, through the error term</td>
+</tr>
+<tr>
+<td>Handles named holidays?</td>
+<td>Yes, built in</td>
+<td>Only via manual regressors</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Handles multiple seasonalities?</td>
+<td>Yes, weekly plus yearly plus custom</td>
+<td>Only one, or via harmonics</td>
+<td>One</td>
+</tr>
+<tr>
+<td>Survives missing dates and outliers?</td>
+<td>Yes, gaps are fine</td>
+<td>Needs a regular grid</td>
+<td>Needs a regular grid</td>
+</tr>
+<tr>
+<td>Explains its own forecast?</td>
+<td>Yes, component by component</td>
+<td>Not really</td>
+<td>Somewhat, by state</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reading across, Prophet wins on calendar features, messy data, and explainability, and loses on short-horizon accuracy where autocorrelation dominates. Daily business data with holidays and gaps is squarely its home ground. Smooth quarterly economic series with 40 observations are not.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Raise the autocorrelation coefficient from 0.8 to 0.95 and report the new lag-1 residual correlation.</p>
+<div class="webr-container" data-block-title="Your turn: strengthen the autocorrelation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: strengthen the autocorrelation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: carry 95 percent of yesterday's error instead of 80 percent.
+# Change the 0.8 in the loop to 0.95, then run.
+set.seed(99)
+ex_e &lt;- numeric(400)
+ex_e[1] &lt;- rnorm(1, 0, 5)
+for (i in 2:400) ex_e[i] &lt;- 0.8 * ex_e[i - 1] + rnorm(1, 0, 5)
+
+ex_res &lt;- residuals(lm((100 + 0.5 * (1:400) + ex_e) ~ I(1:400)))
+round(as.numeric(acf(ex_res, lag.max = 1, plot = FALSE)$acf)[2], 3)
+#&gt; [1] 0.829</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stronger autocorrelation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stronger autocorrelation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_e &lt;- numeric(400)
+ex_e[1] &lt;- rnorm(1, 0, 5)
+for (i in 2:400) ex_e[i] &lt;- 0.95 * ex_e[i - 1] + rnorm(1, 0, 5)
+
+ex_res &lt;- residuals(lm((100 + 0.5 * (1:400) + ex_e) ~ I(1:400)))
+round(as.numeric(acf(ex_res, lag.max = 1, plot = FALSE)$acf)[2], 3)
+#&gt; [1] 0.949</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 0.95 the residual correlation reaches 0.949, so almost all of tomorrow's error is knowable today. On data like this an ARIMA model would beat Prophet comfortably, no matter how carefully you tune the changepoints.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: an end-to-end forecast</h2>
+
+<p>Everything above, condensed into one script you can run start to finish. It builds the data, declares the holidays, holds out the last quarter, then fits and scores a forecast against it.</p>
+
+<pre><code class="language-r">library(prophet)
+
+# 1. Data: a two-column frame named ds and y
+set.seed(2026)
+ds &lt;- seq(as.Date(&quot;2022-01-01&quot;), as.Date(&quot;2024-12-31&quot;), by = &quot;day&quot;)
+t  &lt;- seq_along(ds)
+doy &lt;- as.numeric(format(ds, &quot;%j&quot;))
+sales &lt;- data.frame(
+  ds = ds,
+  y  = 200 + 0.15 * t + 0.30 * pmax(t - 550, 0) +
+       ifelse(format(ds, &quot;%u&quot;) %in% c(&quot;6&quot;, &quot;7&quot;), -30, 12) +
+       35 * sin(2 * pi * (doy - 80) / 365.25) +
+       ifelse(ds %in% as.Date(c(&quot;2022-11-25&quot;, &quot;2023-11-24&quot;, &quot;2024-11-29&quot;)), 260, 0) +
+       rnorm(length(ds), 0, 12)
+)
+
+# 2. Holidays, including a future occurrence
+black_friday &lt;- data.frame(
+  holiday = &quot;black_friday&quot;,
+  ds = as.Date(c(&quot;2022-11-25&quot;, &quot;2023-11-24&quot;, &quot;2024-11-29&quot;, &quot;2025-11-28&quot;)),
+  lower_window = 0, upper_window = 2
+)
+
+# 3. Hold out the last 91 days
+train &lt;- sales[1:1005, ]
+test  &lt;- sales[1006:1096, ]
+
+# 4. Fit and forecast
+m_full   &lt;- prophet(train, holidays = black_friday, daily.seasonality = FALSE)
+fut_full &lt;- make_future_dataframe(m_full, periods = 91)
+set.seed(7)
+f_full  &lt;- predict(m_full, fut_full)
+horizon &lt;- tail(f_full, 91)
+
+# 5. Score against the truth
+round(c(MAE  = mean(abs(test$y - horizon$yhat)),
+        RMSE = sqrt(mean((test$y - horizon$yhat)^2)),
+        MAPE = mean(abs((test$y - horizon$yhat) / test$y)) * 100), 2)
+#&gt;   MAE  RMSE  MAPE
+#&gt;  8.97 11.36  1.87
+
+horizon[horizon$ds == max(horizon$ds), c(&quot;ds&quot;, &quot;yhat&quot;, &quot;yhat_lower&quot;, &quot;yhat_upper&quot;)]
+#&gt;              ds     yhat yhat_lower yhat_upper
+#&gt; 1096 2024-12-31 506.3716   491.9385   522.7603</code></pre>
+
+<p>The five numbered steps are the whole workflow, and step 3 is the one people skip. Without a holdout you have a chart, not a forecast you can defend. This model is off by 1.87 percent on days it never saw, and on the final day it predicts 506 with an 80 percent interval of 492 to 523.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas at once. Each is solvable with only what this post covered, and each uses <code>my_</code> variable names so it will not clobber anything above.</p>
+
+<h3>Exercise 1: Rebuild Prophet's model with lm()</h3>
+
+<p>Prophet is a linear model with carefully chosen columns. Build that model yourself: regress <code>sales$y</code> on a day counter, a hinge at day 550, a 6th-order yearly Fourier basis, and a weekend indicator. Report the R-squared and the residual standard deviation.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: rebuild the model with lm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: rebuild the model with lm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The starter uses the day counter alone. Add three more blocks of columns:
+#   pmax(t - 550, 0), fourier_terms(day_of_year, 365.25, 6), and as.numeric(is_weekend).
+# Hint: cbind() them all into my_X. Both helpers already exist from earlier blocks.
+
+my_X   &lt;- cbind(t = t)
+my_fit &lt;- lm(sales$y ~ my_X)
+
+round(c(r_squared = summary(my_fit)$r.squared,
+        resid_sd  = sd(residuals(my_fit))), 3)
+#&gt; r_squared  resid_sd
+#&gt;     0.838    41.173</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rebuild the model with lm solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebuild the model with lm solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_hinge &lt;- pmax(t - 550, 0)
+my_X &lt;- cbind(t = t, hinge = my_hinge,
+              fourier_terms(day_of_year, 365.25, 6),
+              wknd = as.numeric(is_weekend))
+my_fit &lt;- lm(sales$y ~ my_X)
+
+round(c(r_squared = summary(my_fit)$r.squared,
+        resid_sd  = sd(residuals(my_fit))), 3)
+#&gt; r_squared  resid_sd
+#&gt;     0.970    17.731</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A plain <code>lm()</code> with the right columns explains 97 percent of the variation. The residual SD of 17.7 is higher than the 12 we planted, because this model has no holiday term and the three Black Friday spikes land entirely in the residuals. Add a promo indicator and it drops close to 12.</p>
+
+</details>
+
+<h3>Exercise 2: Write a reusable holiday-table builder</h3>
+
+<p>Typing holiday tables by hand gets old fast. Write <code>holiday_frame(name, dates, before, after)</code> that returns the fully expanded data frame with one row per affected day. Test it on Black Friday with a one-day lead and two-day tail, and on New Year with no window.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: holiday_frame()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: holiday_frame()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The starter ignores before and after, so it returns one row per date.
+# Fix the body so each date expands to date + (-before):after.
+# Hint: do.call(rbind, lapply(dates, function(d) ...)) stacks the per-date frames.
+
+holiday_frame &lt;- function(name, dates, before = 0, after = 0) {
+  data.frame(holiday = name, ds = as.Date(dates))
+}
+
+my_bf &lt;- holiday_frame(&quot;black_friday&quot;,
+                       c(&quot;2022-11-25&quot;, &quot;2023-11-24&quot;, &quot;2024-11-29&quot;), before = 1, after = 2)
+my_ny &lt;- holiday_frame(&quot;new_year&quot;, c(&quot;2023-01-01&quot;, &quot;2024-01-01&quot;))
+c(black_friday_rows = nrow(my_bf), new_year_rows = nrow(my_ny))
+#&gt; black_friday_rows     new_year_rows
+#&gt;                 3                 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="holiday_frame() solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">holiday_frame() solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">holiday_frame &lt;- function(name, dates, before = 0, after = 0) {
+  do.call(rbind, lapply(dates, function(d)
+    data.frame(holiday = name, ds = as.Date(d) + (-before):after)))
+}
+
+my_bf &lt;- holiday_frame(&quot;black_friday&quot;,
+                       c(&quot;2022-11-25&quot;, &quot;2023-11-24&quot;, &quot;2024-11-29&quot;), before = 1, after = 2)
+my_ny &lt;- holiday_frame(&quot;new_year&quot;, c(&quot;2023-01-01&quot;, &quot;2024-01-01&quot;))
+c(black_friday_rows = nrow(my_bf), new_year_rows = nrow(my_ny))
+#&gt; black_friday_rows     new_year_rows
+#&gt;                12                 2
+head(my_bf, 4)
+#&gt;        holiday         ds
+#&gt; 1 black_friday 2022-11-24
+#&gt; 2 black_friday 2022-11-25
+#&gt; 3 black_friday 2022-11-26
+#&gt; 4 black_friday 2022-11-27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Three dates times a four-day span gives 12 rows, and <code>before = 1</code> makes the first row the Thursday. Passing the expanded frame to <code>prophet(holidays = )</code> is equivalent to using <code>lower_window</code> and <code>upper_window</code>, and it is easier to inspect.</p>
+
+</details>
+
+<h3>Exercise 3: Tune changepoint flexibility with cross-validation</h3>
+
+<p>Rather than eyeballing the trend, pick <code>changepoint.prior.scale</code> by score. Loop over 0.01, 0.05, and 0.5, cross-validate each fit, and report the <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a> for each. This one needs a local R session.</p>
+
+<pre><code class="language-r"># The starter refits the model three times but never passes cps to it,
+# so all three rows come out identical. Add changepoint.prior.scale = cps.
+
+grid &lt;- c(0.01, 0.05, 0.5)
+my_scores &lt;- sapply(grid, function(cps) {
+  mod &lt;- prophet(sales, holidays = black_friday, daily.seasonality = FALSE)
+  cv  &lt;- cross_validation(mod, initial = 730, period = 180,
+                          horizon = 90, units = &quot;days&quot;)
+  mean(abs(cv$y - cv$yhat))
+})
+
+data.frame(changepoint.prior.scale = grid, cv_MAE = round(my_scores, 2))
+#&gt;   changepoint.prior.scale cv_MAE
+#&gt; 1                    0.01   9.01
+#&gt; 2                    0.05   9.01
+#&gt; 3                    0.50   9.01</code></pre>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">grid &lt;- c(0.01, 0.05, 0.5)
+my_scores &lt;- sapply(grid, function(cps) {
+  mod &lt;- prophet(sales, holidays = black_friday, daily.seasonality = FALSE,
+                 changepoint.prior.scale = cps)
+  cv &lt;- cross_validation(mod, initial = 730, period = 180,
+                         horizon = 90, units = &quot;days&quot;)
+  mean(abs(cv$y - cv$yhat))
+})
+
+data.frame(changepoint.prior.scale = grid, cv_MAE = round(my_scores, 2))
+#&gt;   changepoint.prior.scale cv_MAE
+#&gt; 1                    0.01   9.02
+#&gt; 2                    0.05   9.01
+#&gt; 3                    0.50   9.97</code></pre>
+
+<p><strong>Explanation:</strong> The default 0.05 wins by a hair over 0.01, and the loose 0.5 setting is 10 percent worse because the flexible trend chases noise near the cutoffs. On a series with a genuine recent regime change the ranking would flip, which is why you tune instead of guess.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Is the R version of Prophet the same as the Python one?</h3>
+
+<p>Same model, same maths, same fitted numbers. Both packages are thin wrappers around one shared Stan program, so a series fitted in either language gives you the same forecast. The only real difference is spelling: R uses dots in argument names, as in <code>changepoint.prior.scale</code>, while Python uses underscores, as in <code>changepoint_prior_scale</code>. Python tutorials therefore translate almost line for line.</p>
+
+<h3>Why does prophet() print "Disabling daily seasonality"?</h3>
+
+<p>It is telling you it looked for a within-day pattern and correctly decided not to fit one. Prophet enables a seasonality only when your data covers at least two full cycles of it, and daily seasonality needs several observations <em>inside</em> each day, which one-row-per-day data does not have. Passing <code>daily.seasonality = FALSE</code> yourself is not a fix for a problem, it just makes the decision explicit and quiets the message.</p>
+
+<h3>How much history does Prophet need?</h3>
+
+<p>The honest floor is two full cycles of the longest pattern you want it to find. Fit our three-year series on its first 300 days and Prophet prints "Disabling yearly seasonality" and drops the <code>yearly</code> column entirely, because 300 days is less than two years. Weekly seasonality survives that cut easily, since 300 days is more than 40 weeks. So a year of daily data is enough for weekday effects, and you need roughly two years before an annual shape means anything.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Check which seasonalities actually got fitted before you trust the components plot.</strong> Run <code>names(forecast)</code> and look for the <code>yearly</code> and <code>weekly</code> columns. A missing column means Prophet silently declined to fit that pattern, and no amount of tuning elsewhere will bring it back.</div></div>
+
+<h3>Can Prophet handle missing days and outliers?</h3>
+
+<p>Yes to both, and this is one of its genuine advantages. Delete 200 random days from our 1096-day series and <code>prophet()</code> fits without complaint, then still returns a prediction for every date including the ones you removed, because it models a function of the date rather than a chain of consecutive observations. ARIMA and ETS both need a regular grid and would need those gaps filled first. For a known-bad outlier, set its <code>y</code> to <code>NA</code> rather than deleting the row, so the date stays in the frame while the value stops influencing the fit.</p>
+
+<h3>Can I feed Prophet other variables, like price or weather?</h3>
+
+<p>Yes, with <code>add_regressor()</code>, which follows the same unfitted-then-<code>fit.prophet()</code> pattern as <code>add_seasonality()</code>: you register the column name, then fit. The catch is that the column must exist in the future data frame as well as the training one, because Prophet needs the regressor's value on every date it scores. That makes it a good fit for things you already know in advance, such as a published price schedule or a booked marketing calendar. For something like weather you would have to forecast the regressor first, and that forecast's error then flows straight into yours.</p>
+
+<h3>Why is my forecast going negative when my data cannot be?</h3>
+
+<p>Because the default trend is a straight line and nothing stops it crossing zero. Fit a short declining series and <code>yhat</code> reaches minus 44, which is nonsense for revenue or headcount. Two fixes exist: model <code>log(y)</code> and exponentiate the forecast afterwards, which cannot produce a negative, or switch to <code>growth = &quot;logistic&quot;</code> and supply a <code>floor</code> column alongside the usual <code>cap</code>.</p>
+
+<h3>Should I use Prophet or auto.arima()?</h3>
+
+<p>Benchmark both, then let the holdout decide. Reach for Prophet first when your data is daily or sub-daily, has several seasonal cycles at once, is driven by a calendar of named events, or has gaps. Reach for ARIMA first when the series is short and smooth, when the horizon is a few steps rather than a few months, or when the residual check in the previous section shows <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">leftover autocorrelation</a> that Prophet has no way to use.</p>
+
+<h3>Why does installing prophet take so long?</h3>
+
+<p>Because it compiles. The package imports <code>rstan</code> and <code>StanHeaders</code> and links against <code>BH</code> and <code>RcppEigen</code>, so <code>install.packages(&quot;prophet&quot;)</code> builds a substantial amount of C++ the first time. That is also the reason its blocks in this post are marked "run locally": the compiled Stan backend cannot run inside a browser sandbox, while the plain R blocks around it can.</p>
+
+<h2>Summary</h2>
+
+<p>Prophet models a time series as trend plus seasonality plus holidays plus noise, and every one of those parts has a named argument that controls it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Component</th>
+<th>What it models</th>
+<th>Main arguments</th>
+<th>Symptom that it is wrong</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trend <code>g(t)</code></td>
+<td>Long-run growth with a few slope changes</td>
+<td><code>changepoint.prior.scale</code>, <code>changepoint.range</code>, <code>n.changepoints</code>, <code>growth</code></td>
+<td>Trend chases noise, or ignores an obvious recent shift</td>
+</tr>
+<tr>
+<td>Seasonality <code>s(t)</code></td>
+<td>Repeating weekly, yearly, or custom cycles</td>
+<td><code>yearly.seasonality</code>, <code>weekly.seasonality</code>, <code>add_seasonality()</code>, <code>seasonality.mode</code></td>
+<td>Seasonal shape looks flattened, or swings grow with the level</td>
+</tr>
+<tr>
+<td>Holidays <code>h(t)</code></td>
+<td>Named one-off events plus their windows</td>
+<td><code>holidays</code>, <code>lower_window</code>, <code>upper_window</code>, <code>prior_scale</code>, <code>add_country_holidays()</code></td>
+<td>Historical spikes are fitted but the forecast is flat</td>
+</tr>
+<tr>
+<td>Uncertainty</td>
+<td>The interval around <code>yhat</code></td>
+<td><code>interval.width</code>, <code>uncertainty.samples</code>, <code>mcmc.samples</code></td>
+<td>Coverage far from the target, or bounds that move every run</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Prophet-in-R-tuning-guide.webp" alt="A decision chart mapping each forecast symptom to the Prophet argument that fixes it" class="img-responsive img-zoomable" loading="lazy" width="1058" height="1282" /></p>
+
+<p><em>Figure 6: Which knob to turn when the forecast looks wrong.</em></p>
+
+<p>The workflow itself is short and always the same:</p>
+
+<ol>
+
+<li>Shape your data into two columns named <code>ds</code> and <code>y</code>.</li>
+
+<li>Build a holidays table that includes future occurrences, then fit with <code>prophet()</code>.</li>
+
+<li>Read <code>prophet_plot_components()</code> before you read any metric.</li>
+
+<li>Score against a naive baseline on held-out days, using <code>cross_validation()</code> for a fair average.</li>
+
+<li>Check the <a class="auto-link" href="ARIMA-Diagnostics-in-R.html" title="ARIMA Diagnostics in R: checkresiduals() and Ljung-Box">residual autocorrelation</a>, and reach for ARIMA if it is far from zero.</li>
+
+</ol>
+
+<p>Prophet earns its place when your data is daily, messy, calendar-driven, and needs to be explained to someone who does not model for a living. It is the wrong tool when short-horizon accuracy is everything and yesterday predicts today.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Taylor, S. J. and Letham, B. <em>Forecasting at Scale</em>. The American Statistician, 72(1), 37-45 (2018). The original Prophet paper. <a href="https://research.facebook.com/publications/forecasting-at-scale/">Link</a></li>
+
+<li>Prophet documentation. Quick Start, R section. The shortest path from a <code>ds</code> / <code>y</code> data frame to a plotted forecast, with the R and Python calls side by side. <a href="https://facebook.github.io/prophet/docs/quick_start.html">Link</a></li>
+
+<li>Prophet documentation. Seasonality, Holiday Effects, and Regressors. The full argument list behind this post's seasonality and holiday sections, plus <code>add_regressor()</code> for external variables. <a href="https://facebook.github.io/prophet/docs/seasonality,_holiday_effects,_and_regressors.html">Link</a></li>
+
+<li>Prophet documentation. Trend Changepoints. Read this before tuning <code>changepoint.prior.scale</code>, <code>changepoint.range</code>, or supplying your own changepoint dates. <a href="https://facebook.github.io/prophet/docs/trend_changepoints.html">Link</a></li>
+
+<li>Prophet documentation. Diagnostics and cross-validation. Explains how <code>initial</code>, <code>period</code>, and <code>horizon</code> interact, and what each column of <code>performance_metrics()</code> means. <a href="https://facebook.github.io/prophet/docs/diagnostics.html">Link</a></li>
+
+<li>R Core Team and Taylor, S. J. Package 'prophet' reference manual, CRAN. The authoritative list of every R argument and its default, useful when the website documents the Python spelling. <a href="https://cran.r-project.org/web/packages/prophet/prophet.pdf">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, section 12.2 Prophet model. An independent assessment, including the benchmark results where Prophet loses to ARIMA and ETS. <a href="https://otexts.com/fpp3/prophet.html">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, chapter 5.8 Evaluating point forecast accuracy. The reference treatment of the error metrics used above, and of why a baseline is required. <a href="https://otexts.com/fpp3/accuracy.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="ARIMA-in-R.html">ARIMA Models in R</a></strong> teaches the model family that does use yesterday's error, and is the natural benchmark whenever your Prophet residuals fail the autocorrelation check.</li>
+
+<li><strong><a href="ETS-Models-in-R.html">ETS Models in R</a></strong> covers the Error, Trend, Seasonal framework, another decomposition-style approach with an automatic model chooser.</li>
+
+<li><strong><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R</a></strong> goes deeper on rolling-origin evaluation, the technique behind <code>cross_validation()</code>.</li>
+
+</ul>
+
+{% endraw %}
