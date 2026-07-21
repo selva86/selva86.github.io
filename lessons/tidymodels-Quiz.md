@@ -5,7 +5,7 @@ keywords: "R quiz, tidymodels, recipes, parsnip, workflows, rsample, yardstick, 
 post_type: "LESSON"
 curriculum_id: "6.50.8"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-tidymodels"
 course_title: "Modeling with tidymodels"
 course_lesson: "8"

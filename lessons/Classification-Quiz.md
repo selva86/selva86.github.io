@@ -5,7 +5,7 @@ keywords: "R quiz, classification, kNN, naive bayes, decision trees, confusion m
 post_type: "LESSON"
 curriculum_id: "6.30.7"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-classification"
 course_title: "Classification in R"
 course_lesson: "7"

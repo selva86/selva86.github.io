@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.30.3"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-classification"
 course_title: "Classification in R"
 course_lesson: "3"

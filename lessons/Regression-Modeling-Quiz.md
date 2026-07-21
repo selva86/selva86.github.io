@@ -5,7 +5,7 @@ keywords: "R quiz, regression, OLS, multicollinearity, logistic regression, ds-r
 post_type: "LESSON"
 curriculum_id: "6.20.9"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-regression"
 course_title: "Regression Modeling in R"
 course_lesson: "9"

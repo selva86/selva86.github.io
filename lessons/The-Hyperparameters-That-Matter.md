@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.40.3"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-boosting"
 course_title: "Gradient Boosting in R"
 course_lesson: "3"

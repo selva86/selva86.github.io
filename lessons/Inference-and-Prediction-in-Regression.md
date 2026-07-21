@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.20.6"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-regression"
 course_title: "Regression Modeling in R"
 course_lesson: "6"

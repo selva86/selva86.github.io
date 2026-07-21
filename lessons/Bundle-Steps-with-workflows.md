@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.50.3"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-tidymodels"
 course_title: "Modeling with tidymodels"
 course_lesson: "3"
