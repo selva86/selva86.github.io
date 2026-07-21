@@ -43,7 +43,7 @@ const SCRIPTS =
 '<script src="/www/account.js?v=2"></script>'+
 '<script defer src="/www/consent-banner.js?v=2"></script>'+
 '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon=\'{"token": "edf7e3d50c3e4130a913e7f144643624"}\'></script>'+
-'<script defer src="/www/auth-hydrate.js?v=11"></script>'+
+'<script defer src="/www/auth-hydrate.js?v=14"></script>'+
 '<script defer src="/www/persona-menu.js?v=4"></script>'+
 '<script defer src="/www/signin-nudge.js?v=10"></script>';
 

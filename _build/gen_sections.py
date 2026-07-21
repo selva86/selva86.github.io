@@ -103,7 +103,7 @@ def render_masthead(active):
 
 def render_scripts(page_js=None):
     parts = [ANALYTICS,
-             '  <script defer src="/www/auth-hydrate.js?v=11"></script>',
+             '  <script defer src="/www/auth-hydrate.js?v=14"></script>',
              '  <script defer src="/www/sections-v3.js?v=2"></script>',
              '  <script defer src="/www/site-nav.js?v=2"></script>',
              '  <script defer src="/www/practice-nav.js?v=10"></script>',
