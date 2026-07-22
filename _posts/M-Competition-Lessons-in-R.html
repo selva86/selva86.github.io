@@ -1,0 +1,1011 @@
+---
+title: "What the M Competitions Teach About Forecasting"
+description: "The M competitions are the biggest forecasting contests ever run. See their core lessons in R: simple models compete, combining forecasts wins, test honestly."
+keywords: "M competition, forecasting competition, forecast combination, forecast accuracy, MASE, ETS, ARIMA, Theta method, time series forecasting in R, Makridakis"
+mathjax: true
+webr: true
+curriculum_id: "TS2-10.5"
+post_type: "C"
+auto_link_terms: "M competitions|M competition|M4 competition|M5 competition|forecast combination|combining forecasts|Theta method|Makridakis|forecasting competition|combine forecasts"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "M-Competition Lessons"
+sidebar_order: "58"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">The M competitions are a series of large, open forecasting contests, run by Spyros Makridakis since 1982, that test which methods actually predict the future best. Their verdicts have shaped modern practice: simple methods are hard to beat, combining forecasts reliably helps, and you must judge accuracy honestly on data the model never saw. This tutorial reproduces those lessons in a few lines of R so you can watch them happen.</p>
+
+<p>Instead of taking these findings on faith, we are going to run miniature versions of the competitions ourselves. Every claim below comes with runnable code, so by the end you will have your own tiny forecasting bake-off that you can point at any series. We use the classic <code>forecast</code> package throughout because it gives us every method and every score in one place.</p>
+
+<h2>What are the M competitions, and why should you care?</h2>
+
+<p>A forecasting competition works like a fair exam. Everyone gets the same history, hides the most recent stretch, forecasts it, and then scores those predictions against what really happened. The M competitions did this at massive scale and settled decades of arguments with evidence instead of opinion. We start by running that exact test on a single series so the mechanic is concrete before anything else.</p>
+
+<p>Here is the whole idea in one block. We take the monthly airline passengers series that ships with R, hide the last two years, forecast them with a deliberately dumb method, and score the result. The dumb method is the "seasonal naive" forecast: it simply predicts that each month will match the same month one year earlier.</p>
+
+<div class="webr-container" data-block-title="Hide the tail and score one forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hide the tail and score one forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+library(dplyr)
+# Hide the last 2 years of monthly airline passengers as a &quot;test set&quot;
+train &lt;- window(AirPassengers, end = c(1958, 12))
+test  &lt;- window(AirPassengers, start = c(1959, 1))
+
+# Forecast those 24 hidden months, then score against what really happened
+fc &lt;- snaive(train, h = 24)
+round(accuracy(fc, test)[&quot;Test set&quot;, c(&quot;MASE&quot;, &quot;MAPE&quot;, &quot;RMSE&quot;)], 2)
+#&gt;  MASE  MAPE  RMSE 
+#&gt;  2.49 15.52 76.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That tiny block is the entire M-competition machine in miniature. We split the series into a <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> (the model is allowed to see it) and a <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> (kept hidden). We forecast 24 months ahead with <code>snaive()</code>, then <code>accuracy()</code> compares the forecast to the hidden <code>test</code> values and reports three error scores. Smaller scores mean a better forecast. We now have a number to beat, <code>MAPE</code> of 15.52 percent, and every method later in this post will be judged the same fair way.</p>
+
+<p><img src="screenshots/M-Competition-Lessons-in-R-holdout-mechanic.webp" alt="The M-competition test: hide the tail of a series, forecast it, then score the prediction against what actually happened." class="img-responsive img-zoomable" loading="lazy" width="2048" height="690" /></p>
+
+<p><em>Figure 1: The M-competition test: hide the tail of a series, forecast it, then score the prediction against what actually happened.</em></p>
+
+<p>The competitions grew enormously over four decades. The table below is your map for the rest of the post: each row is one competition, and the last column is the headline result we will reproduce or explain.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Competition</th>
+<th>Year</th>
+<th>How many series</th>
+<th>Headline result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M1</td>
+<td>1982</td>
+<td>1,001</td>
+<td>Simple methods do as well as complex ones</td>
+</tr>
+<tr>
+<td>M2</td>
+<td>1993</td>
+<td>29 (real time)</td>
+<td>Confirmed M1 on live data</td>
+</tr>
+<tr>
+<td>M3</td>
+<td>2000</td>
+<td>3,003</td>
+<td>The simple Theta method won</td>
+</tr>
+<tr>
+<td>M4</td>
+<td>2018</td>
+<td>100,000</td>
+<td>A stats-plus-machine-learning hybrid won</td>
+</tr>
+<tr>
+<td>M5</td>
+<td>2020</td>
+<td>42,840 (retail)</td>
+<td>Gradient-boosted trees won</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A forecast is only proven on data the model never saw.</strong> Any method can fit the past perfectly by memorising it; the M competitions judge only the hidden future, which is the sole test that predicts real-world performance.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Set up your own hold-out on a different series. Split the <code>USAccDeaths</code> monthly series so the training set ends in December 1977 and the test set is all of 1978, then confirm the test set has 12 months.</p>
+<div class="webr-container" data-block-title="Your turn: split USAccDeaths into train and test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: split USAccDeaths into train and test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the two windows, then check the test length
+ex_train &lt;- window(USAccDeaths, end = c(1977, 12))
+ex_test  &lt;- window(USAccDeaths, start = ______)   # start of 1978
+length(ex_test)
+#&gt; Expected: 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Split USAccDeaths solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split USAccDeaths solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_train &lt;- window(USAccDeaths, end = c(1977, 12))
+ex_test  &lt;- window(USAccDeaths, start = c(1978, 1))
+length(ex_test)
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>window()</code> slices a time series by calendar position. Ending the training set in December 1977 and starting the test set in January 1978 leaves exactly the 12 months of 1978 to forecast.</p>
+
+</details>
+</section>
+
+<h2>Why do simpler methods so often win?</h2>
+
+<p>The most famous finding of the M competitions is uncomfortable for anyone who loves complicated models: statistically sophisticated methods do not automatically forecast better than simple ones. To see it, we pit four methods against each other on the same hold-out. Here is a one-line description of each, in plain language, before we run anything:</p>
+
+<ul>
+
+<li><strong>Seasonal naive:</strong> repeat last year's value for each month. The floor everything must beat.</li>
+
+<li><strong>ETS:</strong> <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a>, a weighted average that leans on recent months and tracks trend and season.</li>
+
+<li><strong>ARIMA:</strong> an <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">autoregressive model</a> that predicts each point from recent points and recent errors.</li>
+
+<li><strong>Theta:</strong> the strikingly simple method that won the M3 competition, built from just two smoothed lines.</li>
+
+</ul>
+
+<p>We fit all four to the same <code>train</code>, forecast the same 24 months, and score them with one helper so the comparison is airtight. The helper computes three errors we will lean on: MASE, RMSE, and MAPE (we unpack what each means in a later section).</p>
+
+<div class="webr-container" data-block-title="Fit four methods and score them">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit four methods and score them</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc_snaive &lt;- snaive(train, h = 24)                  # last year repeated
+fc_ets    &lt;- forecast(ets(train), h = 24)           # exponential smoothing
+fc_arima  &lt;- forecast(auto.arima(train), h = 24)    # ARIMA
+fc_theta  &lt;- thetaf(train, h = 24)                  # Theta, the M3 winner
+
+scale_mae &lt;- mean(abs(diff(train, lag = 12)))       # yardstick for MASE
+score &lt;- function(f) {
+  e &lt;- as.numeric(f) - as.numeric(test)
+  c(MASE = mean(abs(e)) / scale_mae,
+    RMSE = sqrt(mean(e^2)),
+    MAPE = mean(abs(e / as.numeric(test))) * 100)
+}
+
+results &lt;- rbind(
+  `Seasonal naive` = score(fc_snaive$mean),
+  ETS              = score(fc_ets$mean),
+  ARIMA            = score(fc_arima$mean),
+  Theta            = score(fc_theta$mean)
+)
+round(results, 2)
+#&gt;                MASE  RMSE  MAPE
+#&gt; Seasonal naive 2.49 76.99 15.52
+#&gt; ETS            2.21 72.55 13.30
+#&gt; ARIMA          2.40 74.25 14.93
+#&gt; Theta          2.21 71.36 13.34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the table one row at a time. The <code>$mean</code> inside each forecast object is the vector of 24 predicted values, and <code>score()</code> turns each vector into three error numbers. Lower is better in every column, so scan down each column for the smallest value.</p>
+
+<p>The result is exactly the M-competition story. The two simplest methods, ETS and Theta, post the lowest errors. The more elaborate ARIMA lands behind both of them, and the <a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">seasonal naive baseline</a> is the worst, as expected. Nothing here says complex models are bad; it says complexity has to earn its keep against a simple, well-chosen alternative, and here it did not.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Complexity must earn its place against a benchmark.</strong> A model is only worth its extra moving parts if it beats a simple method on hidden data; if it cannot, the simple method is the better engineering choice because it is faster and easier to trust.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> How much does ignoring seasonality cost? Forecast the same <code>train</code> with the plain, non-seasonal <code>naive()</code> (it just repeats the very last value forever) and score it with our <code>score()</code> helper.</p>
+<div class="webr-container" data-block-title="Your turn: score a non-seasonal naive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score a non-seasonal naive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast with plain naive() and score it
+ex_naive &lt;- naive(train, h = 24)
+round(score(______), 2)          # pass the forecast's mean vector
+#&gt; Expected: MASE far above the seasonal naive's 2.49</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Non-seasonal naive solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-seasonal naive solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_naive &lt;- naive(train, h = 24)
+round(score(ex_naive$mean), 2)
+#&gt;   MASE   RMSE   MAPE 
+#&gt;   4.03 137.33  23.58</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Plain <code>naive()</code> repeats the final observed value, so it flatlines and misses every <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">seasonal swing</a>. Its MASE of 4.03 is far worse than the seasonal naive's 2.49, which is why seasonal naive, not plain naive, is the honest benchmark for seasonal data.</p>
+
+</details>
+</section>
+
+<h2>Does combining forecasts really beat the best single method?</h2>
+
+<p>If the M competitions have one signature lesson, this is it: instead of agonising over which single model to trust, average several of them. A <a class="auto-link" href="Combining-Forecasts-in-R.html" title="Combining Forecasts in R: Ensemble Averaging">combined forecast</a> is often more accurate than the individual forecasts inside it, and it is almost always safer. Let us test that claim directly by averaging our three real models, point by point, into one forecast.</p>
+
+<div class="webr-container" data-block-title="Average three forecasts into one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average three forecasts into one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average the ETS, ARIMA, and Theta forecasts month by month
+fc_combo &lt;- (fc_ets$mean + fc_arima$mean + fc_theta$mean) / 3
+
+results &lt;- rbind(results, Combination = score(fc_combo))
+round(results, 2)
+#&gt;                MASE  RMSE  MAPE
+#&gt; Seasonal naive 2.49 76.99 15.52
+#&gt; ETS            2.21 72.55 13.30
+#&gt; ARIMA          2.40 74.25 14.93
+#&gt; Theta          2.21 71.36 13.34
+#&gt; Combination    2.27 72.08 13.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We added one row to the table. <code>fc_combo</code> is just the arithmetic mean of three forecast vectors, and we scored it exactly like the others. Now compare that new bottom row to the four above it.</p>
+
+<p>Notice what the combination did and did not do. It did not top the table on this single series; Theta edged it out on RMSE, and ETS tied Theta on MASE. But look again: the combination beat ARIMA and the seasonal naive on every metric, and it was never the worst at anything. That is the real prize. You would have needed to know in advance that Theta was the star to beat the average, and in practice you never know that in advance.</p>
+
+<p><img src="screenshots/M-Competition-Lessons-in-R-combination-flow.webp" alt="Combining forecasts: average several models point by point for a lower, steadier error." class="img-responsive img-zoomable" loading="lazy" width="1730" height="842" /></p>
+
+<p><em>Figure 2: Combining forecasts: average several models point by point for a lower, steadier error.</em></p>
+
+<p>Why does averaging help at all? Different models make different mistakes. ETS might overshoot in a month where ARIMA undershoots, so when you average them the errors partly cancel. It is the same reason a diversified portfolio is steadier than any single stock: you are not trying to pick the winner, you are smoothing out the losers.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>A simple average is a strong, hard-to-beat default.</strong> Before reaching for fancy weighting schemes, average a few solid, different models with equal weights; in the M competitions this plain combination beat the large majority of far more sophisticated single entries.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Combinations do not have to use three models. Build a two-model average of just ETS and Theta, then score it.</p>
+<div class="webr-container" data-block-title="Your turn: combine two models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: combine two models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average the ETS and Theta forecasts, then score
+ex_combo2 &lt;- (______ + ______) / 2
+round(score(ex_combo2), 2)
+#&gt; Expected: RMSE close to the three-model combination's 72.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-model combination solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-model combination solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_combo2 &lt;- (fc_ets$mean + fc_theta$mean) / 2
+round(score(ex_combo2), 2)
+#&gt;  MASE  RMSE  MAPE 
+#&gt;  2.21 71.92 13.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Averaging the two strongest members gives an RMSE of 71.92, a hair better than the three-model average here because the weaker ARIMA is left out. In general you will not know which members are strongest ahead of time, which is exactly why broad, equal-weight combinations are so reliable.</p>
+
+</details>
+</section>
+
+<h2>Why does the best method change with your error metric?</h2>
+
+<p>You may have noticed that "which method is best?" already had different answers in different columns. That is the third M-competition lesson: the ranking of methods depends on the accuracy measure you choose. Before we prove it, here is what each of our three metrics actually means, in plain terms.</p>
+
+<ul>
+
+<li><strong>RMSE</strong> (<a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">root mean squared error</a>) is the typical size of a miss, in the original units (passengers). Because it squares errors, it punishes a few large misses heavily.</li>
+
+<li><strong>MAPE</strong> (<a class="auto-link" href="yardstick-mape-in-R.html" title="yardstick mape() in R: Scale-Free Percentage Error">mean absolute percentage error</a>) is the average miss as a percentage of the actual value. It is easy to explain but behaves badly when actual values are near zero.</li>
+
+<li><strong>MASE</strong> (<a class="auto-link" href="yardstick-mase-in-R.html" title="yardstick mase() in R: Scale-Free Forecast Error">mean absolute scaled error</a>) divides your error by the error of a seasonal <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">naive forecast</a>. Below 1 means you beat that baseline; above 1 means you did worse.</li>
+
+</ul>
+
+<p>MASE is the metric the M4 competition leaned on, precisely because dividing by a baseline makes it comparable across series of wildly different scales. If you like formulas, here is the intuition made exact. The top is your average miss on the test set; the bottom is the seasonal naive's average miss on the training set.</p>
+
+<p>$$\text{MASE} = \frac{\frac{1}{h}\sum_{t=1}^{h} \left| y_t - \hat{y}_t \right|}{\frac{1}{n-m}\sum_{t=m+1}^{n} \left| y_t - y_{t-m} \right|}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = the actual value, and $\hat{y}_t$ = your forecast for it</li>
+
+<li>$h$ = the number of forecast points (24 months here)</li>
+
+<li>$n$ = the length of the training set, and $m$ = the season length (12 for monthly data)</li>
+
+<li>the denominator is the training-set error of predicting each month from the same month a year earlier</li>
+
+</ul>
+
+<p>If you are not interested in the formula, skip it: the code above already computed MASE as <code>mean(abs(e)) / scale_mae</code>, which is the same thing. Now let us rank all five methods under each metric and watch the winner move.</p>
+
+<div class="webr-container" data-block-title="Rank methods under each metric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank methods under each metric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rank each method within each metric column (1 = best, lowest error)
+apply(round(results, 2), 2, rank)
+#&gt;                MASE RMSE MAPE
+#&gt; Seasonal naive  5.0    5    5
+#&gt; ETS             1.5    3    1
+#&gt; ARIMA           4.0    4    4
+#&gt; Theta           1.5    1    2
+#&gt; Combination     3.0    2    3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rank()</code> turns each column of errors into positions, where 1 is best. Reading across the rows shows the same methods trading places depending on the yardstick. Under MASE, ETS and Theta tie for first (the 1.5 is the average of ranks 1 and 2 for a tie). Under RMSE, Theta alone is first. Under MAPE, ETS is first and Theta drops to second. The combination shifts too, from third on MASE to second on RMSE.</p>
+
+<p>The practical takeaway is blunt: never let someone tell you a method is "the most accurate" without asking accurate by which measure. Pick the metric that matches the cost of your errors first, then rank methods. If a single huge miss would be a disaster, weigh RMSE; if you need a scale-free number to compare across many products, use MASE.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>MAPE breaks down when actual values are near zero or can be negative.</strong> Dividing by a tiny actual value produces an enormous percentage, and MAPE also punishes over-forecasts and under-forecasts unequally, which is why the later M competitions moved to scaled measures like MASE and RMSSE.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Ask the table a direct question. Which single method has the lowest RMSE?</p>
+<div class="webr-container" data-block-title="Your turn: find the best method by RMSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the best method by RMSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Return the name of the method with the smallest RMSE
+names(which.min(results[, ______]))
+#&gt; Expected: &quot;Theta&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Best method by RMSE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Best method by RMSE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">names(which.min(results[, &quot;RMSE&quot;]))
+#&gt; [1] &quot;Theta&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>results[, &quot;RMSE&quot;]</code> pulls out the RMSE column, <code>which.min()</code> finds the row with the smallest value, and <code>names()</code> reports it. Theta wins on RMSE even though it only tied for first on MASE, which is the whole point of this section.</p>
+
+</details>
+</section>
+
+<h2>How does the forecast horizon change the answer?</h2>
+
+<p>There is a fourth lever the M competitions surfaced: how far ahead you forecast changes which method looks best. A model that nails next month may drift badly two years out, and vice versa. We can see this on the very same forecasts by scoring them over a short window and a long window separately.</p>
+
+<div class="webr-container" data-block-title="Compare error at short and long horizons">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare error at short and long horizons</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse &lt;- function(f, a) sqrt(mean((as.numeric(f) - as.numeric(a))^2))
+h_short &lt;- 1:6     # the first 6 months
+h_long  &lt;- 1:24    # the full 2 years
+
+data.frame(
+  method    = c(&quot;Seasonal naive&quot;, &quot;ETS&quot;, &quot;ARIMA&quot;, &quot;Theta&quot;),
+  RMSE_6mo  = round(c(rmse(fc_snaive$mean[h_short], test[h_short]),
+                      rmse(fc_ets$mean[h_short],    test[h_short]),
+                      rmse(fc_arima$mean[h_short],  test[h_short]),
+                      rmse(fc_theta$mean[h_short],  test[h_short])), 1),
+  RMSE_24mo = round(c(rmse(fc_snaive$mean[h_long], test[h_long]),
+                      rmse(fc_ets$mean[h_long],    test[h_long]),
+                      rmse(fc_arima$mean[h_long],  test[h_long]),
+                      rmse(fc_theta$mean[h_long],  test[h_long])), 1)
+)
+#&gt;           method RMSE_6mo RMSE_24mo
+#&gt; 1 Seasonal naive     40.5      77.0
+#&gt; 2            ETS     28.3      72.5
+#&gt; 3          ARIMA     38.8      74.3
+#&gt; 4          Theta     32.2      71.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We sliced each forecast vector into its first 6 points and its full 24 points, then measured RMSE on each slice. The two columns tell different stories. Over the first six months, ETS is clearly the most accurate at 28.3, with Theta second. Over the full two years, they swap: Theta takes first at 71.4 and ETS slips to second. The best method genuinely depends on the horizon you care about.</p>
+
+<p>This is why a good evaluation always scores at the horizon you will actually use. If you plan production one month ahead, a two-year-average error is the wrong number to optimise, and it might steer you to the wrong model entirely.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Match your evaluation horizon to the decision the forecast feeds.</strong> Inventory reordering, quarterly budgets, and multi-year capacity planning live at different horizons, so score your candidates over the lead time that matters for the choice at hand.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Zoom in even further. Compute the ETS forecast's RMSE over just the first three months.</p>
+<div class="webr-container" data-block-title="Your turn: ETS error over the first 3 months">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ETS error over the first 3 months</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score ETS on months 1 to 3 only
+ex_h &lt;- 1:3
+round(rmse(fc_ets$mean[ex_h], test[ex_h]), 1)
+#&gt; Expected: about 11.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ETS three-month RMSE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ETS three-month RMSE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_h &lt;- 1:3
+round(rmse(fc_ets$mean[ex_h], test[ex_h]), 1)
+#&gt; [1] 11.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Restricting the index to <code>1:3</code> scores only the nearest three months, where ETS is at its sharpest (11.8) because short-term forecasts have less room to drift than long ones.</p>
+
+</details>
+</section>
+
+<h2>Does the lesson hold across many series, or did we get lucky?</h2>
+
+<p>Everything so far ran on one series. That is exactly the trap the M competitions were built to avoid: any method can win on a lucky example. The real power of the competitions came from averaging results over thousands of series, so a good method has to be good on average, not just on your favourite chart. Let us build a small version of that idea over seven built-in series.</p>
+
+<p>We write one function that runs our whole mini-contest on any series, then apply it across a list. For each series it holds out the last 24 points, fits all four methods plus the combination, and returns their MASE (scaled per series so the numbers are comparable).</p>
+
+<div class="webr-container" data-block-title="Run the contest across seven series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the contest across seven series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">series_list &lt;- list(
+  AirPassengers = AirPassengers, USAccDeaths = USAccDeaths,
+  nottem = nottem, co2 = co2, ldeaths = ldeaths,
+  wineind = wineind, gas = gas
+)
+
+run_contest &lt;- function(y, h = 24) {
+  n  &lt;- length(y)
+  tr &lt;- subset(y, end = n - h)
+  te &lt;- subset(y, start = n - h + 1)
+  s  &lt;- mean(abs(diff(tr, lag = frequency(y))))
+  f_snv   &lt;- snaive(tr, h = h)$mean
+  f_ets   &lt;- forecast(ets(tr), h = h)$mean
+  f_arima &lt;- forecast(auto.arima(tr), h = h)$mean
+  f_theta &lt;- thetaf(tr, h = h)$mean
+  f_combo &lt;- (f_ets + f_arima + f_theta) / 3
+  mase &lt;- function(f) mean(abs(as.numeric(f) - as.numeric(te))) / s
+  c(SeasonalNaive = mase(f_snv), ETS = mase(f_ets),
+    ARIMA = mase(f_arima), Theta = mase(f_theta), Combination = mase(f_combo))
+}
+
+scores &lt;- t(sapply(series_list, run_contest))
+round(scores, 2)
+#&gt;               SeasonalNaive  ETS ARIMA Theta Combination
+#&gt; AirPassengers          2.49 2.21  2.40  2.21        2.27
+#&gt; USAccDeaths            0.70 0.43  0.62  0.66        0.53
+#&gt; nottem                 0.70 0.60  0.64  0.60        0.61
+#&gt; co2                    1.86 0.21  0.22  0.63        0.28
+#&gt; ldeaths                0.65 0.53  0.54  0.65        0.52
+#&gt; wineind                0.92 0.76  0.75  0.82        0.73
+#&gt; gas                    3.20 3.33  3.96  2.74        3.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sapply()</code> runs <code>run_contest()</code> on each series and <code>t()</code> turns the result into a tidy one-row-per-series table. Scan the columns and the core M-competition lesson is clear: no single method wins everywhere. ETS is superb on <code>co2</code> (0.21) but the worst on <code>gas</code> (3.33), where Theta alone does well at 2.74. Every method has a series it is bad at.</p>
+
+<p>Now collapse the table to a single verdict by averaging each method's MASE across all seven series. This is the miniature version of "average over thousands of series."</p>
+
+<div class="webr-container" data-block-title="Average each method across all series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average each method across all series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Mean MASE per method across all seven series, best first
+round(sort(colMeans(scores)), 3)
+#&gt;           ETS   Combination         Theta         ARIMA SeasonalNaive 
+#&gt;         1.154         1.183         1.189         1.305         1.504</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On average, ETS finishes first and the combination edges out Theta for second, with both well ahead of ARIMA and the seasonal naive baseline. The combination did not top the podium, but think about what it bought you: without knowing in advance that ETS would win, the combination still beat three of the four individual methods and came within a whisker of the best. It is the one choice you could have made up front with no risk of a disaster.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Judge methods on many series, not on your one favourite chart.</strong> A method that looks unbeatable on a single well-behaved series can be mediocre on average; the M competitions earned their authority by scoring every method on thousands of series, and your own evaluations get more trustworthy the more series you test.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The combination is meant to be safe. On how many of the seven series does it beat the seasonal naive baseline?</p>
+<div class="webr-container" data-block-title="Your turn: count where the combination beats naive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count where the combination beats naive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count series where Combination has lower MASE than SeasonalNaive
+ex_wins &lt;- sum(scores[, &quot;Combination&quot;] &lt; scores[, ______])
+ex_wins
+#&gt; Expected: 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Count combination wins solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count combination wins solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wins &lt;- sum(scores[, &quot;Combination&quot;] &lt; scores[, &quot;SeasonalNaive&quot;])
+ex_wins
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The combination beats the naive baseline on 6 of the 7 series. The exception is <code>gas</code>, where a strong <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a> makes the naive forecast unusually hard to beat, a healthy reminder that the benchmark is not a pushover.</p>
+
+</details>
+</section>
+
+<h2>What did M4 and M5 change: machine learning, hybrids, and cross-learning?</h2>
+
+<p>The lessons above come mostly from the first three competitions. The two most recent ones, M4 in 2018 and M5 in 2020, brought machine learning into the arena, and the results are worth understanding because they refined the classic lessons rather than overturning them.</p>
+
+<p><img src="screenshots/M-Competition-Lessons-in-R-timeline.webp" alt="Five M competitions across four decades, and the headline result of each." class="img-responsive img-zoomable" loading="lazy" width="2248" height="856" /></p>
+
+<p><em>Figure 3: Five M competitions across four decades, and the headline result of each.</em></p>
+
+<p>In <strong>M4</strong> (100,000 series), the winner was a hybrid that bolted a neural network onto exponential smoothing, and second place went to a method called FFORMA that used machine learning to decide how to weight a pool of statistical models. The blunt subplot: pure machine-learning entries, with no statistical backbone, mostly did worse than the humble combination benchmark. Combining and <a class="auto-link" href="Global-Forecasting-Models-in-R.html" title="Global Forecasting Models in R: Learn Across Many Series">cross-learning</a> won; naive deep learning did not.</p>
+
+<p>In <strong>M5</strong> (Walmart retail sales), the story finally tilted toward machine learning. Gradient-boosted trees dominated both tracks. The difference was the data: M5 gave competitors thousands of related product series plus prices, promotions, and calendar events, and it rewarded models that learn across all series at once ("cross-learning") and forecast a whole distribution, not just a single number. With rich features and many related series, machine learning earned its complexity.</p>
+
+<p>FFORMA's idea, choosing model weights from the shape of a series, is easy to make concrete. The <code>feasts</code> package measures features like how strong a series' <a class="auto-link" href="Time-Series-EDA-in-R.html" title="Time Series EDA in R: Trend, Seasonality, Autocorrelation">trend and seasonality</a> are, on a 0-to-1 scale. A method like FFORMA feeds exactly these numbers into a model that decides which forecasters to trust.</p>
+
+<div class="webr-container" data-block-title="Measure a series like FFORMA does">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure a series like FFORMA does</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(feasts)
+
+# Score how strong the trend and yearly season are (0 to 1)
+as_tsibble(AirPassengers) |&gt;
+  features(value, feat_stl) |&gt;
+  dplyr::select(trend_strength, seasonal_strength_year)
+#&gt; # A tibble: 1 × 2
+#&gt;   trend_strength seasonal_strength_year
+#&gt;            &lt;dbl&gt;                  &lt;dbl&gt;
+#&gt; 1          0.991                  0.941</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The airline series scores 0.99 for trend strength and 0.94 for <a class="auto-link" href="Time-Series-Features-in-R.html" title="Time Series Features with feasts: Fingerprint Thousands of Series">seasonal strength</a>, confirming what the eye sees: a strong upward trend plus a strong yearly cycle. A feature-based system measures dozens of series this way and learns, for example, to lean on seasonal methods when <code>seasonal_strength_year</code> is high. That is a combination that adapts to each series, and it is the through-line from the classic M lessons to the modern winners.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The classic lessons were refined by M4 and M5, not repealed.</strong> Combining still helps, simple baselines are still the bar to clear, and honest out-of-sample testing still rules; machine learning wins when it is paired with many related series and informative features, as in M5's retail data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Measure the shape of a different series. Compute the trend and seasonal strength of the <code>co2</code> series.</p>
+<div class="webr-container" data-block-title="Your turn: STL features of co2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: STL features of co2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as_tsibble(co2) |&gt;
+  features(value, feat_stl) |&gt;
+  dplyr::select(______, seasonal_strength_year)
+#&gt; Expected: trend near 1.00, seasonal near 0.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="co2 STL features solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">co2 STL features solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as_tsibble(co2) |&gt;
+  features(value, feat_stl) |&gt;
+  dplyr::select(trend_strength, seasonal_strength_year)
+#&gt; # A tibble: 1 × 2
+#&gt;   trend_strength seasonal_strength_year
+#&gt;            &lt;dbl&gt;                  &lt;dbl&gt;
+#&gt; 1          1.000                  0.990</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The atmospheric CO2 series has an almost perfect trend (1.000) and a very strong seasonal cycle (0.990), which is why the trend-and-season-aware methods like ETS did so well on it back in the seven-series contest.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>To pull the whole idea into one reusable tool, here is a self-contained mini M-competition. Give it any seasonal series and a horizon; it holds out the tail, fits every method plus the combination, and returns a sorted MASE leaderboard. This single function is the practical distillation of everything above.</p>
+
+<div class="webr-container" data-block-title="A reusable mini M-competition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A reusable mini M-competition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forecast)
+
+m_contest &lt;- function(y, h = 24) {
+  n  &lt;- length(y)
+  tr &lt;- subset(y, end = n - h)          # training set
+  te &lt;- subset(y, start = n - h + 1)    # hidden test set
+  s  &lt;- mean(abs(diff(tr, lag = frequency(y))))  # MASE yardstick
+
+  f &lt;- list(
+    `Seasonal naive` = snaive(tr, h = h)$mean,
+    ETS              = forecast(ets(tr), h = h)$mean,
+    ARIMA            = forecast(auto.arima(tr), h = h)$mean,
+    Theta            = thetaf(tr, h = h)$mean
+  )
+  f$Combination &lt;- (f$ETS + f$ARIMA + f$Theta) / 3
+
+  mase &lt;- sapply(f, function(p) mean(abs(as.numeric(p) - as.numeric(te))) / s)
+  sort(round(mase, 2))
+}
+
+# Run the whole contest on a fresh series, end to end
+m_contest(USAccDeaths, h = 12)
+#&gt;    Combination            ETS          ARIMA          Theta Seasonal naive 
+#&gt;           0.47           0.48           0.48           0.50           0.54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On the US accidental deaths series with a one-year hold-out, the combination comes out on top at 0.47, just ahead of <a class="auto-link" href="ETS-vs-ARIMA-in-R.html" title="ETS vs ARIMA in R: Which Forecasting Model Should You Use?">ETS and ARIMA</a>, with the seasonal naive baseline last. Point <code>m_contest()</code> at any series you like and you have run your own M competition: split, forecast, combine, score, and rank, all in one call.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Try each before opening the solution. They use <code>my_</code> variable names so they will not disturb the objects we built above.</p>
+
+<h3>Exercise 1: Run the contest on a new series</h3>
+
+<p>Run a mini-contest on the <code>fdeaths</code> series (monthly female lung-disease deaths). Hold out the last 12 months, forecast with ETS and Theta, build their two-model combination, and report the MASE of all three. Which is lowest?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: mirror run_contest(), but only ETS, Theta, and their average
+my_y     &lt;- fdeaths
+my_h     &lt;- 12
+my_n     &lt;- length(my_y)
+my_train &lt;- subset(my_y, end = my_n - my_h)
+my_test  &lt;- subset(my_y, start = my_n - my_h + 1)
+my_scale &lt;- mean(abs(diff(my_train, lag = 12)))
+
+# Fit ETS and Theta, average them, then compute MASE for each
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_y     &lt;- fdeaths
+my_h     &lt;- 12
+my_n     &lt;- length(my_y)
+my_train &lt;- subset(my_y, end = my_n - my_h)
+my_test  &lt;- subset(my_y, start = my_n - my_h + 1)
+my_scale &lt;- mean(abs(diff(my_train, lag = 12)))
+
+my_ets   &lt;- forecast(ets(my_train), h = my_h)$mean
+my_theta &lt;- thetaf(my_train, h = my_h)$mean
+my_combo &lt;- (my_ets + my_theta) / 2
+
+my_mase &lt;- function(f) mean(abs(as.numeric(f) - as.numeric(my_test))) / my_scale
+round(c(ETS = my_mase(my_ets), Theta = my_mase(my_theta),
+        Combination = my_mase(my_combo)), 2)
+#&gt;         ETS       Theta Combination 
+#&gt;        0.40        0.40        0.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ETS and Theta tie at 0.40, and averaging them nudges the error down to 0.39. Even a two-model combination shaves error off both members, the combination lesson in miniature.</p>
+
+</details>
+
+<h3>Exercise 2: Is the combination ever the worst?</h3>
+
+<p>Using the tutorial's <code>scores</code> matrix (seven series by five methods), find the best method and the worst method on each series. Confirm that no single method wins everywhere, and check whether the combination is ever the worst performer.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: apply which.min and which.max across the rows of scores
+# names(which.min(r)) gives the best method for a row r
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">apply(scores, 1, function(r) names(which.min(r)))   # best on each series
+#&gt; AirPassengers   USAccDeaths        nottem           co2       ldeaths 
+#&gt;         &quot;ETS&quot;         &quot;ETS&quot;         &quot;ETS&quot;         &quot;ETS&quot; &quot;Combination&quot; 
+#&gt;       wineind           gas 
+#&gt; &quot;Combination&quot;       &quot;Theta&quot;
+apply(scores, 1, function(r) names(which.max(r)))   # worst on each series
+#&gt;   AirPassengers     USAccDeaths          nottem             co2         ldeaths 
+#&gt; &quot;SeasonalNaive&quot; &quot;SeasonalNaive&quot; &quot;SeasonalNaive&quot; &quot;SeasonalNaive&quot; &quot;SeasonalNaive&quot; 
+#&gt;         wineind             gas 
+#&gt; &quot;SeasonalNaive&quot;         &quot;ARIMA&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The best method changes from series to series (ETS four times, Combination twice, Theta once), so no method is universally best. Meanwhile the combination never appears in the "worst" list. That is the practical case for combining: it rarely wins outright, but it protects you from ever being last.</p>
+
+</details>
+
+<h3>Exercise 3: The metric decides the winner</h3>
+
+<p>Using the tutorial's five-method <code>results</code> table, report which method has the best (lowest) MAPE and which has the best RMSE. Show that the two metrics disagree.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: which.min() on a single column of results, then names()
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(best_MAPE = names(which.min(results[, &quot;MAPE&quot;])),
+  best_RMSE = names(which.min(results[, &quot;RMSE&quot;])))
+#&gt; best_MAPE best_RMSE 
+#&gt;     &quot;ETS&quot;   &quot;Theta&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> MAPE crowns ETS while RMSE crowns Theta on the very same forecasts. Whenever you read that a method is "the most accurate," this exercise is the reflex you want: ask, accurate by which measure?</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Are the M competitions still relevant now that deep learning exists?</h3>
+
+<p>Yes. The two most recent competitions, M4 in 2018 and M5 in 2020, both allowed machine learning, and its wins came only when the data had many related series and rich features, as in M5's retail sales. When you have a handful of ordinary series, a plain combination of ETS, ARIMA, and Theta is still hard to beat, and honest out-of-sample testing still decides the winner. Machine learning extended these lessons rather than replacing them.</p>
+
+<h3>Which method should I try first on my own series?</h3>
+
+<p>Start with ETS and the Theta method, and always score them against a seasonal naive forecast so you have a floor to beat. Both are one-line calls in the <code>forecast</code> package (<code>ets()</code> and <code>thetaf()</code>), both were strong across the seven series in this post, and neither needs tuning. If a more complex model cannot beat them on your hold-out, keep the simple one.</p>
+
+<h3>What is the practical difference between MASE and MAPE?</h3>
+
+<p>MAPE reports the average miss as a percentage of the actual value, which is easy to explain but blows up when actual values are near zero. MASE divides your error by a seasonal naive forecast's error, so a value below 1 means you beat that baseline and the number is comparable across series of any scale. For comparing methods across many different series, prefer MASE, which is the measure the M4 competition leaned on.</p>
+
+<h3>How many models should I combine?</h3>
+
+<p>Not many. A simple equal-weight average of two or three genuinely different methods captures most of the benefit, because the gain comes from the models making different mistakes that partly cancel. In this post a three-model average was never the worst method on any series, and even a two-model ETS-plus-Theta average shaved error off both members.</p>
+
+<h3>Can I run this whole contest on my own data?</h3>
+
+<p>Yes. Any regular seasonal time series works: pass it to the <code>m_contest()</code> function from the Complete Example, choose a horizon, and it splits, forecasts, combines, scores, and ranks in one call. The only requirement is enough history that the hold-out you cut off still leaves the model a few full seasonal cycles to learn from.</p>
+
+<h2>Summary</h2>
+
+<p>The M competitions replaced forecasting folklore with evidence, and you just reproduced their core findings on real data. Here is the whole post in one table, with the R move that demonstrates each lesson.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Lesson from the M competitions</th>
+<th>What it means for you</th>
+<th>The R move that shows it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Simple methods are hard to beat</td>
+<td>Always benchmark against seasonal naive, ETS, and Theta before adding complexity</td>
+<td><code>score()</code> on four methods</td>
+</tr>
+<tr>
+<td>Combining forecasts is a safe default</td>
+<td>Average several different models; it is rarely worst and often near best</td>
+<td><code>(ets + arima + theta) / 3</code></td>
+</tr>
+<tr>
+<td>The metric changes the winner</td>
+<td>Pick the error measure that matches your costs, then rank</td>
+<td><code>apply(results, 2, rank)</code></td>
+</tr>
+<tr>
+<td>The horizon changes the winner</td>
+<td>Score at the lead time you actually use</td>
+<td>RMSE over <code>1:6</code> vs <code>1:24</code></td>
+</tr>
+<tr>
+<td>Test honestly and at scale</td>
+<td>Judge on hidden data across many series, not one</td>
+<td><code>sapply(series_list, run_contest)</code></td>
+</tr>
+<tr>
+<td>Machine learning wins with scale and features</td>
+<td>Bring cross-learning and good features, as M5's retail data did</td>
+<td><code>features(value, feat_stl)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/M-Competition-Lessons-in-R-lessons-mindmap.webp" alt="The durable lessons of the M competitions at a glance." class="img-responsive img-zoomable" loading="lazy" width="2082" height="1012" /></p>
+
+<p><em>Figure 4: The durable lessons of the M competitions at a glance.</em></p>
+
+<p>The unifying thread is humility. The M competitions reward forecasters who benchmark against simple methods, combine rather than gamble on one model, judge accuracy on the metric and horizon that matter, and never trust a score on data the model has already seen.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Makridakis, S., Spiliotis, E., & Assimakopoulos, V. (2020). The M4 Competition: 100,000 time series and 61 forecasting methods. <em>International Journal of Forecasting</em>. <a href="https://www.sciencedirect.com/science/article/pii/S0169207019301128">Link</a></li>
+
+<li>Makridakis, S., Spiliotis, E., & Assimakopoulos, V. (2022). M5 accuracy competition: Results, findings, and conclusions. <em>International Journal of Forecasting</em>. <a href="https://www.sciencedirect.com/science/article/pii/S0169207021001874">Link</a></li>
+
+<li>Makridakis, S., & Hibon, M. (2000). The M3-Competition: results, conclusions and implications. <em>International Journal of Forecasting</em>. <a href="https://www.sciencedirect.com/science/article/abs/pii/S0169207000000571">Link</a></li>
+
+<li>Hyndman, R. J., & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em> (3rd ed.). OTexts. <a href="https://otexts.com/fpp3/">Link</a></li>
+
+<li>Smyl, S. (2020). A hybrid method of exponential smoothing and recurrent neural networks for time series forecasting (M4 winner). <em>International Journal of Forecasting</em>. <a href="https://www.sciencedirect.com/science/article/abs/pii/S0169207019301153">Link</a></li>
+
+<li>Montero-Manso, P., Athanasopoulos, G., Hyndman, R. J., & Talagala, T. S. (2020). FFORMA: Feature-based forecast model averaging. <em>International Journal of Forecasting</em>. <a href="https://www.sciencedirect.com/science/article/abs/pii/S0169207019300895">Link</a></li>
+
+<li>Hyndman, R. J. forecast package reference (thetaf, ets, accuracy). <a href="https://pkg.robjhyndman.com/forecast/">Link</a></li>
+
+<li>feasts and the tidyverts project reference. <a href="https://feasts.tidyverts.org/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Combining-Forecasts-in-R.html">Combining Forecasts in R</a> goes beyond the simple average, showing how to weight and stack forecasts for even better combinations.</li>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a> covers MASE, sMAPE, and RMSSE in depth, so you can choose the right metric with confidence.</li>
+
+<li><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R</a> replaces our single hold-out with many <a class="auto-link" href="Backtesting-Forecasts-in-R.html" title="Backtesting Forecast Models in R at Scale">rolling origins</a>, the fairest way to score a forecasting method.</li>
+
+</ul>
+
+{% endraw %}
