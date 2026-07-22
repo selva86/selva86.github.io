@@ -1,0 +1,1286 @@
+---
+title: "Optimal Forecast Reconciliation in R: MinT with fable"
+description: "Learn MinT optimal forecast reconciliation in R with fable. Compare ols, wls_var, wls_struct and mint_shrink, rebuild the G matrix by hand, and see which wins."
+keywords: "MinT reconciliation in R, optimal forecast reconciliation, min_trace fable, mint_shrink, minimum trace reconciliation, hierarchical forecasting in R, trace minimization, coherent forecasts, wls_var reconciliation, shrinkage covariance forecasting"
+mathjax: true
+webr: true
+curriculum_id: "TS2-12.3"
+post_type: "C"
+auto_link_terms: "min_trace()|MinT reconciliation|minimum trace reconciliation|optimal reconciliation|mint_shrink|wls_var|wls_struct|mint_cov|trace minimization|optimal forecast reconciliation|MinT with fable|shrinkage covariance estimator"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "MinT Reconciliation"
+sidebar_order: "35"
+---
+<!-- md2html:generated -->
+
+<p class="lead">MinT, short for minimum trace, is a forecast reconciliation method that nudges every forecast in a hierarchy at once so the parts add up to the whole, and it picks the nudge that makes the total variance of the reconciled forecast errors as small as possible. This tutorial builds it from the ground up in R with fable, rebuilds what <code>min_trace()</code> computes using nothing but <code>solve()</code> and <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">matrix multiplication</a>, and then measures on held-out data whether it actually forecasts better.</p>
+
+<h2>What does MinT reconciliation actually do?</h2>
+
+<p>Bottom-up, top-down and middle-out all work the same way. Each one nominates a single level of the hierarchy, treats that level's forecasts as correct, and rebuilds every other level from it, discarding every forecast made anywhere else. MinT keeps all of them instead. The fastest way to see the difference is to run both and put the numbers next to each other.</p>
+
+<p>We will use Tasmanian tourism, from the <code>tourism</code> dataset that ships with the <code>tsibble</code> package. It records quarterly overnight trips in Australia from 1998 to 2017. Keeping one state and breaking it down by trip purpose gives us five series: four purposes plus their total. Five is small enough that we can print every matrix in full later on and check the arithmetic by hand.</p>
+
+<div class="webr-container" data-block-title="Reconcile a Tasmanian hierarchy with MinT">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reconcile a Tasmanian hierarchy with MinT</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+library(fable)
+library(dplyr)
+library(tidyr)
+
+options(pillar.sigfig = 5)
+
+tas &lt;- tourism |&gt;
+  filter(State == &quot;Tasmania&quot;) |&gt;
+  as_tibble() |&gt;
+  summarise(Trips = sum(Trips), .by = c(Quarter, Purpose)) |&gt;
+  as_tsibble(index = Quarter, key = Purpose) |&gt;
+  aggregate_key(Purpose, Trips = sum(Trips))
+
+fc &lt;- tas |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(bottom_up = bottom_up(base),
+            mint = min_trace(base, &quot;mint_shrink&quot;)) |&gt;
+  forecast(h = 1)
+
+wide &lt;- fc |&gt;
+  as_tibble() |&gt;
+  select(Purpose, .model, .mean) |&gt;
+  pivot_wider(names_from = .model, values_from = .mean)
+
+wide |&gt; mutate(across(where(is.numeric), function(x) round(x, 1)))
+#&gt; # A tibble: 5 × 4
+#&gt;   Purpose        base bottom_up   mint
+#&gt;   &lt;chr*&gt;        &lt;dbl&gt;     &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 Business      137.7     137.7  148.2
+#&gt; 2 Holiday       627.8     627.8  669.2
+#&gt; 3 Other          25.7      25.7   27.1
+#&gt; 4 Visiting      230.3     230.3  234.2
+#&gt; 5 &lt;aggregated&gt; 1120.2    1021.5 1078.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four things happened there. <code>summarise()</code> collapsed Tasmania's regions so that purpose is the only breakdown left, and <code>as_tsibble()</code> declared the time column and the column that identifies a series. <code>aggregate_key(Purpose, ...)</code> then added the total as extra rows, labelled <code>&lt;aggregated&gt;</code>. Finally <code>model()</code> fitted an independent <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a> model to each of the five series, and <code>reconcile()</code> added two more columns that reuse those five fits without refitting anything.</p>
+
+<p>Now read the table across. The <code>base</code> column is what the five models said on their own: 137.7 for Business, 627.8 for Holiday, 25.7 for Other, 230.3 for Visiting. Add those four and you get 1021.5, but the model fitted to the total says 1120.2. The same data, the same software, two answers that differ by 98.7 thousand trips.</p>
+
+<p>The <code>bottom_up</code> column fixes this by ignoring the total's model. The four purposes are untouched, and the total is simply overwritten with their sum. The <code>mint</code> column does something different: every single number changed. Business moved up, Holiday moved up, and the total came down from 1120.2 to 1078.8, landing between the two original answers.</p>
+
+<p>Both fixes are supposed to be coherent, meaning the parts genuinely add to the whole. Let's not take that on trust.</p>
+
+<div class="webr-container" data-block-title="Check that the parts add to the total">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check that the parts add to the total</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gaps &lt;- wide |&gt;
+  summarise(across(c(base, bottom_up, mint),
+                   function(x) sum(x[!is_aggregated(Purpose)]) -
+                               x[is_aggregated(Purpose)]))
+round(gaps, 4)
+#&gt; # A tibble: 1 × 3
+#&gt;      base bottom_up  mint
+#&gt;     &lt;dbl&gt;     &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 -98.686         0     0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>is_aggregated()</code> is the test fable gives you for "is this row one of the <code>&lt;aggregated&gt;</code> rows <code>aggregate_key()</code> added?", so <code>x[!is_aggregated(Purpose)]</code> picks the four purposes and <code>x[is_aggregated(Purpose)]</code> picks the total. For each column we then added the four purpose forecasts and subtracted the total forecast. If the numbers are coherent, that difference is zero. The base forecasts miss by -98.686, so the four purposes fall almost 99 thousand trips short of what the total's own model predicts. Both reconciled columns come back exactly zero.</p>
+
+<p>That single number, -98.686, is the whole problem. Bottom-up puts all 98.686 of it on the total. MinT splits it across all five series, giving the largest share to the series whose past forecast errors were largest, which is the calculation the rest of this tutorial works through.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every reconciliation method is a rule for splitting one incoherence.</strong> The gap between the aggregate forecast and the sum of its parts is a fixed quantity produced by the base models. No reconciliation method creates information; each one only chooses how to divide that fixed gap.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> MinT moved every one of the five forecasts. Measure how far. Compute the difference between the <code>mint</code> and <code>base</code> columns for each purpose.</p>
+<div class="webr-container" data-block-title="Your turn: measure how far MinT moved each forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure how far MinT moved each forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_move &lt;- NULL
+# ex_move: start from `wide`, keep Purpose, and add a column
+#   moved = mint - base, rounded to 1 decimal.
+# Expected: Business 10.5, Holiday 41.4, Other 1.4, Visiting 3.9,
+#           &lt;aggregated&gt; -41.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="How far MinT moved each forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How far MinT moved each forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_move &lt;- wide |&gt;
+  select(Purpose, base, mint) |&gt;
+  mutate(moved = round(mint - base, 1)) |&gt;
+  select(Purpose, moved)
+
+ex_move
+#&gt; # A tibble: 5 × 2
+#&gt;   Purpose      moved
+#&gt;   &lt;chr*&gt;       &lt;dbl&gt;
+#&gt; 1 Business      10.5
+#&gt; 2 Holiday       41.4
+#&gt; 3 Other          1.4
+#&gt; 4 Visiting       3.9
+#&gt; 5 &lt;aggregated&gt; -41.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The four upward moves add to 57.2 and the total moves down 41.4, which together close the 98.686 gap. Notice that Holiday absorbed 41.4 of the adjustment while Other absorbed 1.4. MinT put most of the correction on Holiday, whose past forecast errors are much the largest of the four, and left the closely forecast series nearly alone. The next two sections show where that ranking comes from.</p>
+
+</details>
+</section>
+
+<h2>Why does using every level beat trusting just one?</h2>
+
+<p>Imagine five instruments in a room, all measuring parts of the same quantity. Four measure a component each, the fifth measures the whole room, and the four disagree with the fifth. If you throw away the fifth reading and just add up the four, you have made a decision: the room instrument is worthless. That is exactly what bottom-up does, and in this hierarchy it is a bad decision.</p>
+
+<p>We can check it directly. Every fitted model leaves behind residuals, the gaps between what it predicted one step ahead and what actually happened. Small residuals mean the model tracks its series well. <code>accuracy()</code> summarises them into error scores, and we need two: RMSE, the <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">root mean squared error</a>, which is in the same units as the data, and MAPE, the <a class="auto-link" href="yardstick-mape-in-R.html" title="yardstick mape() in R: Scale-Free Percentage Error">mean absolute percentage error</a>.</p>
+
+<div class="webr-container" data-block-title="Score each base model on its own series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score each base model on its own series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_base &lt;- tas |&gt; model(base = ETS(Trips))
+
+fit_base |&gt;
+  accuracy() |&gt;
+  select(Purpose, RMSE, MAPE) |&gt;
+  mutate(across(where(is.numeric), function(x) round(x, 2)))
+#&gt; # A tibble: 5 × 3
+#&gt;   Purpose       RMSE  MAPE
+#&gt;   &lt;chr*&gt;       &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Business     23.01 17.75
+#&gt; 2 Holiday      59.65 13.16
+#&gt; 3 Other         8.45 31.53
+#&gt; 4 Visiting     27.11 14.46
+#&gt; 5 &lt;aggregated&gt; 79.17  9.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the RMSE column and the total looks like the worst series in the table at 79.17. That reading is wrong, and it is the single most common mistake people make with hierarchies. RMSE is measured in trips, and the total is roughly six times bigger than any purpose, so of course its errors are bigger in absolute terms.</p>
+
+<p>MAPE divides the error by the size of the thing being forecast, which is the fair comparison. On that scale the total is the best forecast series in the hierarchy at 9.74 percent, against 31.53 percent for Other.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never compare RMSE across series of different sizes.</strong> RMSE is in the units of the data, so a bigger series will almost always show a bigger RMSE even when its model is better. Use a scale-free measure such as MAPE or MASE when ranking series against each other, and keep RMSE for comparing methods on the same series.</div></div>
+
+<p>So bottom-up discards the most accurately forecast series in the hierarchy. Does its replacement total actually do worse? We can answer that without any forecasting at all, by comparing the total's own one-step residuals against the sum of the four bottom-level residuals. That sum is precisely the error bottom-up would have made at the top, quarter after quarter.</p>
+
+<div class="webr-container" data-block-title="Compare the total&#x27;s own errors against bottom-up">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the total&#x27;s own errors against bottom-up</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">E &lt;- fit_base |&gt;
+  residuals(type = &quot;response&quot;) |&gt;
+  as_tibble() |&gt;
+  select(Quarter, Purpose, .resid) |&gt;
+  pivot_wider(names_from = Purpose, values_from = .resid)
+
+series &lt;- c(&quot;Business&quot;, &quot;Holiday&quot;, &quot;Other&quot;, &quot;Visiting&quot;, &quot;&lt;aggregated&gt;&quot;)
+E &lt;- as.matrix(E[, series])
+
+c(own_model = sd(E[, &quot;&lt;aggregated&gt;&quot;]),
+  bottom_up = sd(rowSums(E[, 1:4]))) |&gt; round(2)
+#&gt; own_model bottom_up 
+#&gt;     78.90     81.09</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>residuals(type = &quot;response&quot;)</code> pulls the one-step errors in the original units of the data, and <code>pivot_wider()</code> reshapes them into a matrix <code>E</code> with 80 rows, one per quarter, and 5 columns, one per series. We will reuse <code>E</code> heavily from here on, so it is worth knowing exactly what it holds: column 5 is the total's own error each quarter, and <code>rowSums(E[, 1:4])</code> is the error bottom-up would have made at the top that same quarter.</p>
+
+<p>The total's own model has an error standard deviation of 78.90. Bottom-up's implied total has 81.09. Adding the four purposes is measurably worse than just asking the total's model, by about 3 percent. That is a small loss here, but it is a loss taken for nothing, and in bigger hierarchies it is much larger.</p>
+
+<p>There is a second reason the bottom-level errors do not simply cancel out when you add them. They are related to each other.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Look for that relationship. Correlate the four bottom-level residual columns, <code>E[, 1:4]</code>, and round to 2 decimals.</p>
+<div class="webr-container" data-block-title="Your turn: correlate the bottom-level errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlate the bottom-level errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_corr &lt;- NULL
+# ex_corr: correlate the four bottom-level residual columns, E[, 1:4],
+#   and round to 2 decimals.
+# Expected: Holiday and Visiting correlate about 0.42, everything else
+#   is 0.19 or smaller.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Correlation between bottom-level errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation between bottom-level errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_corr &lt;- round(cor(E[, 1:4]), 2)
+ex_corr
+#&gt;          Business Holiday Other Visiting
+#&gt; Business     1.00    0.01  0.10     0.04
+#&gt; Holiday      0.01    1.00  0.19     0.42
+#&gt; Other        0.10    0.19  1.00     0.11
+#&gt; Visiting     0.04    0.42  0.11     1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Holiday and Visiting errors move together at 0.42. In a quarter where the holiday model's error is large and positive, the visiting-friends model's error that quarter is usually positive too, which makes sense since both respond to school holidays and weather. That correlation is real information about the hierarchy, and bottom-up cannot use it. MinT can.</p>
+
+</details>
+</section>
+
+<h2>What are the two matrices behind every reconciliation?</h2>
+
+<p>Everything from here rests on two matrices. Once you have them, MinT stops being a package feature and becomes four lines of linear algebra you could write yourself.</p>
+
+<p><img src="screenshots/MinT-Reconciliation-in-R-mint-pipeline.webp" alt="How MinT builds its mapping from residuals and sums the result back up the hierarchy" class="img-responsive img-zoomable" loading="lazy" width="2248" height="520" /></p>
+
+<p><em>Figure 1: MinT builds its mapping from the residual history, then sums the result back up the hierarchy.</em></p>
+
+<p>The first matrix is called the <strong>summing matrix</strong>, written $\mathbf{S}$. It is a lookup table that says how to build every series in the hierarchy out of the bottom-level series alone. Our hierarchy has 4 bottom series and 5 series in total, so $\mathbf{S}$ has 5 rows and 4 columns. Each row is a recipe: put a 1 in a column if that bottom series contributes to this row, and a 0 if it does not.</p>
+
+<div class="webr-container" data-block-title="Build the summing matrix by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the summing matrix by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">S &lt;- rbind(diag(4), rep(1, 4))
+rownames(S) &lt;- series
+colnames(S) &lt;- series[1:4]
+S
+#&gt;              Business Holiday Other Visiting
+#&gt; Business            1       0     0        0
+#&gt; Holiday             0       1     0        0
+#&gt; Other               0       0     1        0
+#&gt; Visiting            0       0     0        1
+#&gt; &lt;aggregated&gt;        1       1     1        1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>diag(4)</code> gives the 4 by 4 identity matrix, which says each bottom series is built from itself and nothing else. <code>rep(1, 4)</code> is the extra row for the total, which is built from all four. That is the entire hierarchy encoded in 20 numbers.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You never build S yourself in practice, and its row order is a convention.</strong> <code>aggregate_key()</code> records the structure when it creates the <a class="auto-link" href="dplyr-summarise-in-R.html" title="dplyr summarise() in R: Aggregate Data with Stats">aggregate rows</a> and <code>min_trace()</code> reconstructs S internally, so we build it here only to make the algebra visible. Textbooks put the total in the first row while fable puts <code>&lt;aggregated&gt;</code> last; neither is more correct, and all that matters is that S, the residual matrix and the forecast vector share one order, which is why we defined <code>series</code> once and index everything by it.</div></div>
+
+<p>The second matrix is $\mathbf{G}$. Where $\mathbf{S}$ builds the hierarchy up from the bottom, $\mathbf{G}$ goes the other way: it takes all 5 base forecasts and boils them down to 4 bottom-level numbers. It has 4 rows and 5 columns. Every reconciliation method in existence is one particular choice of $\mathbf{G}$, and the reconciled forecasts are always</p>
+
+<p>$$\tilde{\mathbf{y}} = \mathbf{S}\,\mathbf{G}\,\hat{\mathbf{y}}$$</p>
+
+<p>where $\hat{\mathbf{y}}$ is the stack of 5 base forecasts, $\mathbf{G}$ maps them down to the bottom level, and $\mathbf{S}$ sums them back up. Because the last step is always $\mathbf{S}$, the result is coherent no matter what $\mathbf{G}$ you pick. That is worth pausing on: coherence is free and automatic. The only thing $\mathbf{G}$ affects is accuracy.</p>
+
+<p>Bottom-up is the easiest $\mathbf{G}$ to write. It says: take the four bottom forecasts as they are, and ignore the total.</p>
+
+<div class="webr-container" data-block-title="Write bottom-up as a G matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write bottom-up as a G matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">G_bu &lt;- cbind(diag(4), rep(0, 4))
+rownames(G_bu) &lt;- series[1:4]
+colnames(G_bu) &lt;- series
+
+yhat &lt;- wide$base
+names(yhat) &lt;- as.character(wide$Purpose)
+yhat &lt;- yhat[series]
+
+round(as.vector(S %*% G_bu %*% yhat), 2)
+#&gt; [1]  137.68  627.85   25.70  230.28 1021.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>G_bu</code> is the identity matrix with a column of zeros glued on the end. Multiplying it by <code>yhat</code> keeps the first four forecasts and multiplies the total by zero, discarding it, and then <code>S %*%</code> adds those four back up. The result, 137.68, 627.85, 25.70, 230.28, 1021.51, is exactly the <code>bottom_up</code> column from the very first table. We have just reimplemented <code>bottom_up()</code> in one line.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a different G. Make one that ignores all four bottom forecasts and instead gives every purpose one quarter of the total, then sums back up.</p>
+<div class="webr-container" data-block-title="Your turn: build an equal-split G">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build an equal-split G</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_split &lt;- NULL
+# ex_split: build a 4 x 5 matrix G_eq that ignores the four bottom
+#   forecasts and gives every purpose one quarter of the total.
+#   Then compute S %*% G_eq %*% yhat and round to 2 decimals.
+# Expected: 280.05 280.05 280.05 280.05 1120.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Equal-split G solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equal-split G solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">G_eq &lt;- cbind(matrix(0, nrow = 4, ncol = 4), rep(0.25, 4))
+ex_split &lt;- round(as.vector(S %*% G_eq %*% yhat), 2)
+ex_split
+#&gt; [1]  280.05  280.05  280.05  280.05 1120.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first four columns are zero, so the bottom forecasts are ignored entirely. The last column is 0.25 in every row, so each purpose gets a quarter of 1120.19. This is a crude top-down method, and it is coherent, which proves the point: coherence tells you nothing about quality. Splitting Tasmania's tourism equally between business and holiday travel is obviously nonsense, yet the numbers add up perfectly.</p>
+
+</details>
+</section>
+
+<h2>Why does MinT minimise the trace of the forecast error covariance?</h2>
+
+<p>We now have infinitely many coherent options and no way to rank them. MinT's answer is to pick the $\mathbf{G}$ that makes the reconciled forecasts as accurate as possible, and to define "as accurate as possible" in a way that can be solved with algebra rather than search.</p>
+
+<p>Start with the errors. Let $\mathbf{W}$ be the <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> of the base forecast errors: entry $(i,j)$ says how the error on series $i$ moves with the error on series $j$. Since the reconciled forecast is $\mathbf{S}\mathbf{G}\hat{\mathbf{y}}$, a fixed matrix times the base forecasts, its error covariance is that same fixed matrix applied on both sides:</p>
+
+<p>$$\mathbf{V} = \mathbf{S}\mathbf{G}\,\mathbf{W}\,\mathbf{G}'\mathbf{S}'$$</p>
+
+<p>The diagonal of $\mathbf{V}$ holds the error variance of each reconciled series. Adding the diagonal up gives the total forecast error variance across the whole hierarchy, and the sum of a matrix diagonal has a name: the <strong>trace</strong>. So minimising the trace of $\mathbf{V}$ means making the hierarchy's total forecast error variance as small as it can be. That is where "minimum trace" comes from.</p>
+
+<p>One constraint stops the answer being degenerate. We want the reconciled forecasts to stay unbiased whenever the base forecasts are unbiased, and that holds exactly when</p>
+
+<p>$$\mathbf{S}\mathbf{G}\mathbf{S} = \mathbf{S}$$</p>
+
+<p>In words: if you take a set of forecasts that are already coherent, running them through reconciliation must leave them alone. Minimising the trace subject to that constraint has a closed-form solution, derived by Wickramasuriya, Athanasopoulos and Hyndman:</p>
+
+<p>$$\mathbf{G} = (\mathbf{S}'\mathbf{W}^{-1}\mathbf{S})^{-1}\mathbf{S}'\mathbf{W}^{-1}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\mathbf{S}$ = the summing matrix, 5 by 4 in our example</li>
+
+<li>$\mathbf{W}$ = the covariance matrix of the base forecast errors, 5 by 5</li>
+
+<li>$\mathbf{W}^{-1}$ = its inverse, which is what does the weighting: series with small errors get large weight</li>
+
+<li>$\mathbf{G}$ = the resulting map from base forecasts down to the bottom level, 4 by 5</li>
+
+</ul>
+
+<p>If that formula looks familiar, it should. It is the generalised least squares estimator, the same one behind weighted regression. MinT is a regression of the base forecasts onto the coherent subspace, weighted by how much you trust each forecast. Everything else in this tutorial is about where $\mathbf{W}$ comes from.</p>
+
+<p><em>If you would rather not work through the algebra, you can skip to the code below. The formula above is the only thing you need to carry forward.</em></p>
+
+<p>So how do we get $\mathbf{W}$? We estimate it from the residuals we already have in <code>E</code>. Here is the exact expression fabletools uses internally.</p>
+
+<div class="webr-container" data-block-title="Estimate the base error covariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate the base error covariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- nrow(E)
+W &lt;- crossprod(E) / n
+round(W, 1)
+#&gt;              Business Holiday Other Visiting &lt;aggregated&gt;
+#&gt; Business        529.6    24.5  20.3     25.2        494.2
+#&gt; Holiday          24.5  3557.9 102.7    690.8       4132.1
+#&gt; Other            20.3   102.7  71.4     27.0        207.6
+#&gt; Visiting         25.2   690.8  27.0    734.7       1499.8
+#&gt; &lt;aggregated&gt;    494.2  4132.1 207.6   1499.8       6267.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>crossprod(E)</code> computes <code>t(E) %*% E</code>, so entry $(i,j)$ is the sum over all 80 quarters of residual $i$ times residual $j$, and dividing by <code>n</code> averages them. This is not quite <code>cov()</code>: it does not subtract the column means, because a well-fitted forecast model should already have residuals centred on zero. The diagonal holds the error variances, and 6267.2 for the total is close to the square of the 78.90 we computed earlier. The off-diagonal entries carry the correlations, and the large 4132.1 between Holiday and the total says the total's errors are mostly holiday errors.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This is a one-step-ahead covariance used at every horizon.</strong> The theory defines a separate W for each forecast horizon, but estimating one per horizon needs data nobody has. fable estimates W once from one-step residuals and reuses it, which assumes the error structure keeps its shape as the horizon grows. That assumption is usually harmless and occasionally the reason a long-horizon reconciliation disappoints.</div></div>
+
+<p>Now we can settle the argument with numbers. Build MinT's $\mathbf{G}$ from the formula, then score both candidate reconciliations by the quantity MinT claims to minimise.</p>
+
+<div class="webr-container" data-block-title="Compare the trace under two reconciliations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the trace under two reconciliations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">G_mint &lt;- solve(t(S) %*% solve(W) %*% S) %*% t(S) %*% solve(W)
+
+trace_of &lt;- function(G) sum(diag(S %*% G %*% W %*% t(G) %*% t(S)))
+
+c(bottom_up = trace_of(G_bu), mint = trace_of(G_mint)) |&gt; round(1)
+#&gt; bottom_up      mint 
+#&gt;   11568.1   10885.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>trace_of()</code> is the formula $\mathbf{V} = \mathbf{S}\mathbf{G}\mathbf{W}\mathbf{G}'\mathbf{S}'$ written directly in R, with <code>diag()</code> pulling out the variances and <code>sum()</code> adding them. Bottom-up scores 11568.1 and MinT scores 10885.0, about 6 percent lower. MinT wins here by construction, because it solved the optimisation that this number defines. The real question, which we come back to in the accuracy section, is whether that advantage survives on data the models have never seen.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MinT is <a class="auto-link" href="Weighted-Least-Squares-in-R.html" title="Weighted Least Squares in R: Handle Heteroscedasticity with Weights">weighted least squares</a> on the base forecasts, not a smarter forecasting model.</strong> It refits nothing. It takes the forecasts you already produced and projects them onto the set of coherent forecasts, weighting each one by the inverse of its error variance. Series the models forecast well are held nearly fixed; noisy series absorb the adjustment.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Check that both reconciliations respect the unbiasedness condition. Verify that $\mathbf{S}\mathbf{G}\mathbf{S}$ equals $\mathbf{S}$ for <code>G_bu</code> and for <code>G_mint</code>.</p>
+<div class="webr-container" data-block-title="Your turn: check the unbiasedness condition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check the unbiasedness condition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_unbiased &lt;- NULL
+# ex_unbiased: check the unbiasedness condition S %*% G %*% S == S for
+#   both G_bu and G_mint. Use max(abs(S %*% G %*% S - S)) for each.
+# Expected: both numbers are 0 (or a value like 1e-13).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Unbiasedness check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unbiasedness check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_unbiased &lt;- c(bottom_up = max(abs(S %*% G_bu %*% S - S)),
+                 mint = max(abs(S %*% G_mint %*% S - S)))
+signif(ex_unbiased, 3)
+#&gt; bottom_up      mint 
+#&gt;  0.00e+00  3.77e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bottom-up satisfies the condition exactly and MinT satisfies it to 3.77e-15, which is floating-point noise from inverting a 5 by 5 matrix. Try the same check on the <code>G_eq</code> you built earlier and you will get a large non-zero number. That is the formal statement of why top-down methods are biased: they fail this condition, so even perfectly unbiased base forecasts come out skewed.</p>
+
+</details>
+</section>
+
+<h2>Can you rebuild min_trace()'s answer by hand?</h2>
+
+<p>We have a formula for $\mathbf{G}$ and a way to estimate $\mathbf{W}$. If our understanding is right, putting them together should reproduce <code>min_trace()</code> digit for digit. Let's test that.</p>
+
+<p>We will use the simplest realistic weighting first. Take the diagonal of <code>W</code> and throw away everything else. That keeps each series' own error variance and pretends the series are unrelated. This is what fable calls <code>method = &quot;wls_var&quot;</code>, and it is the default.</p>
+
+<div class="webr-container" data-block-title="Rebuild the wls_var reconciliation by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebuild the wls_var reconciliation by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">W_wls_var &lt;- diag(diag(W))
+G_wls_var &lt;- solve(t(S) %*% solve(W_wls_var) %*% S) %*% t(S) %*% solve(W_wls_var)
+by_hand &lt;- as.vector(S %*% G_wls_var %*% yhat)
+round(by_hand, 4)
+#&gt; [1]  142.3641  659.3065   26.3276  236.7784 1064.7766</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>diag(diag(W))</code> is a two-step idiom worth knowing: the inner <code>diag()</code> pulls the diagonal out as a vector, and the outer <code>diag()</code> builds a fresh matrix with that vector on its diagonal and zeros everywhere else. The next line is the closed-form solution copied straight from the maths, and the third applies it. Now ask fable for the same thing.</p>
+
+<div class="webr-container" data-block-title="Compare the hand rebuild against fable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the hand rebuild against fable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">from_fable &lt;- tas |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(wls_var = min_trace(base, &quot;wls_var&quot;)) |&gt;
+  forecast(h = 1) |&gt;
+  as_tibble() |&gt;
+  filter(.model == &quot;wls_var&quot;)
+
+fable_vals &lt;- setNames(from_fable$.mean, as.character(from_fable$Purpose))[series]
+
+max(abs(by_hand - fable_vals))
+#&gt; [1] 2.842171e-14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The largest disagreement anywhere in the five numbers is 2.842171e-14, which is about a hundred-millionth of a millionth of a trip. That is the precision limit of double-precision arithmetic, not a difference in method. Our three lines and fable's <code>min_trace()</code> are computing the same thing.</p>
+
+<p>This matters for more than satisfaction. Once you know <code>min_trace()</code> is <code>solve(t(S) %*% solve(W) %*% S) %*% t(S) %*% solve(W)</code>, you can reason about it: it will slow down as the hierarchy grows, because inverting $\mathbf{W}$ costs roughly the cube of the number of series, and it will fail outright if $\mathbf{W}$ cannot be inverted. Most usefully, you know that choosing a method means choosing $\mathbf{W}$, nothing more.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Turn on sparse mode for large hierarchies.</strong> Retail and web hierarchies routinely run to thousands of series, and a dense S matrix wastes memory storing mostly zeros. Install the Matrix package and <code>min_trace()</code> switches to sparse linear algebra automatically. You can force the choice either way with the <code>sparse</code> argument.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the rebuild once more with the least informative weighting there is. Use the 5 by 5 identity matrix, which treats every series as equally reliable and uncorrelated.</p>
+<div class="webr-container" data-block-title="Your turn: rebuild the ols reconciliation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rebuild the ols reconciliation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ols &lt;- NULL
+# ex_ols: repeat the rebuild with W = the 5 x 5 identity matrix, which is
+#   what method = &quot;ols&quot; uses. Round the reconciled vector to 3 decimals.
+# Expected: 157.418 647.584 45.434 250.019 1100.455</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ordinary least squares rebuild solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ordinary least squares rebuild solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">W_ols &lt;- diag(5)
+G_ols &lt;- solve(t(S) %*% solve(W_ols) %*% S) %*% t(S) %*% solve(W_ols)
+ex_ols &lt;- round(as.vector(S %*% G_ols %*% yhat), 3)
+ex_ols
+#&gt; [1]  157.418  647.584  45.434  250.019 1100.455</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With every series weighted equally, the 98.686 gap is shared out almost evenly: each purpose picks up about 19.7 and the total drops by the same amount. Look at Other, which went from 25.7 to 45.4, a 77 percent increase on a series whose entire error variance is 71.4. Treating a tiny series as equally reliable as a series 50 times its size is how <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">ordinary least squares</a> gets into trouble.</p>
+
+</details>
+</section>
+
+<h2>What changes between the five min_trace methods?</h2>
+
+<p><code>min_trace()</code> accepts five values for <code>method</code>, and they all run the identical formula. The only thing that changes is $\mathbf{W}$, and what changes with $\mathbf{W}$ is how much of the residual history the reconciliation is allowed to look at.</p>
+
+<p><img src="screenshots/MinT-Reconciliation-in-R-w-ladder.webp" alt="The five reconciliation methods ordered by how much residual information each one uses" class="img-responsive img-zoomable" loading="lazy" width="2248" height="384" /></p>
+
+<p><em>Figure 2: The five methods differ only in how much of the residual history the W matrix is allowed to see.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>method</th>
+<th>What W is</th>
+<th>Uses the data?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ols</code></td>
+<td>Identity matrix</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>wls_struct</code></td>
+<td>Diagonal, each entry counts the bottom series feeding that row</td>
+<td>No, structure only</td>
+</tr>
+<tr>
+<td><code>wls_var</code></td>
+<td>Diagonal of the residual covariance</td>
+<td>Yes, variances only</td>
+</tr>
+<tr>
+<td><code>mint_shrink</code></td>
+<td>Residual covariance pulled part-way toward its diagonal</td>
+<td>Yes, damped correlations</td>
+</tr>
+<tr>
+<td><code>mint_cov</code></td>
+<td>Full residual covariance</td>
+<td>Yes, all correlations</td>
+</tr>
+</tbody>
+</table>
+
+<p>Only <code>wls_struct</code> needs explaining. Its entry for a row is simply the number of bottom-level series that feed into it, on the reasoning that a total built from four series should have roughly four times the error variance of one of them. It is the method to reach for when you have no residuals at all, for instance when the base forecasts came from a human judgement process rather than a model.</p>
+
+<p>Let's line up the four diagonal choices and see how different they really are.</p>
+
+<div class="webr-container" data-block-title="Compare the diagonals of four W matrices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the diagonals of four W matrices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">W_wls_struct &lt;- diag(c(1, 1, 1, 1, 4))
+
+data.frame(series = series,
+           ols = diag(W_ols),
+           wls_struct = diag(W_wls_struct),
+           wls_var = round(diag(W_wls_var), 1),
+           mint_cov = round(diag(W), 1))
+#&gt;                    series ols wls_struct wls_var mint_cov
+#&gt; Business         Business   1          1   529.6    529.6
+#&gt; Holiday           Holiday   1          1  3557.9   3557.9
+#&gt; Other               Other   1          1    71.4     71.4
+#&gt; Visiting         Visiting   1          1   734.7    734.7
+#&gt; &lt;aggregated&gt; &lt;aggregated&gt;   1          4  6267.2   6267.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>ols</code> column says every series is equally trustworthy. The <code>wls_struct</code> column says the total is four times as uncertain as a purpose, which is a reasonable guess from the shape of the tree. The <code>wls_var</code> column measures it instead, and finds the true ratio between Holiday and Other is 3557.9 to 71.4, roughly 50 to 1, which no amount of staring at the tree would have revealed.</p>
+
+<p>Notice also that <code>wls_var</code> and <code>mint_cov</code> share an identical diagonal. They differ only in whether the off-diagonal correlations are kept.</p>
+
+<p>Now run all five through fable and see what each one predicts.</p>
+
+<div class="webr-container" data-block-title="Run all five reconciliation methods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run all five reconciliation methods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_five &lt;- tas |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(ols = min_trace(base, &quot;ols&quot;),
+            wls_struct = min_trace(base, &quot;wls_struct&quot;),
+            wls_var = min_trace(base, &quot;wls_var&quot;),
+            mint_cov = min_trace(base, &quot;mint_cov&quot;),
+            mint_shrink = min_trace(base, &quot;mint_shrink&quot;)) |&gt;
+  forecast(h = 1) |&gt;
+  as_tibble() |&gt;
+  select(Purpose, .model, .mean) |&gt;
+  pivot_wider(names_from = .model, values_from = .mean)
+
+all_five |&gt; mutate(across(where(is.numeric), function(x) round(x, 1)))
+#&gt; # A tibble: 5 × 7
+#&gt;   Purpose        base    ols wls_struct wls_var mint_cov mint_shrink
+#&gt;   &lt;chr*&gt;        &lt;dbl&gt;  &lt;dbl&gt;      &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1 Business      137.7  157.4      150     142.4    175.6       148.2
+#&gt; 2 Holiday       627.8  647.6      640.2   659.3    715.6       669.2
+#&gt; 3 Other          25.7   45.4       38      26.3     30.6        27.1
+#&gt; 4 Visiting      230.3  250        242.6   236.8    222.3       234.2
+#&gt; 5 &lt;aggregated&gt; 1120.2 1100.5     1070.8  1064.8   1144.1       1078.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Choosing a reconciliation method is choosing what you claim to know about your forecast errors.</strong> <code>ols</code> claims you know nothing. <code>wls_struct</code> claims you know only the shape of the tree. <code>wls_var</code> claims you know each series' error size. <code>mint_cov</code> claims you know the whole correlation structure. Pick the strongest claim your data can actually support.</div></div>
+
+<p>The spread is wide. For the total the five methods span 1064.8 to 1144.1, a range of 79 thousand trips, which is most of the size of the original incoherence. Look at Other in particular: <code>ols</code> pushes it to 45.4 while <code>wls_var</code> moves it only to 26.3. <code>wls_var</code> weights each series by the inverse of its own error variance, and Other's variance is the smallest in the table at 71.4, so it carries the most weight and therefore takes the smallest correction.</p>
+
+<p><code>mint_cov</code> moves the forecasts furthest of the five. It is the only one using the off-diagonal correlations, and it alone sends Visiting down rather than up: Visiting's errors correlate with Holiday's at 0.42, so once <code>mint_cov</code> has raised Holiday it treats part of Visiting's shortfall as already covered. Those off-diagonal entries are also the least reliably estimated numbers in W, which brings us to shrinkage.</p>
+
+<p>The problem with <code>mint_cov</code> is that a 5 by 5 covariance matrix has 15 distinct entries estimated from 80 observations, and that ratio gets worse fast. With 100 series you are estimating 5,050 numbers, and the correlations you measure are then mostly noise. <code>mint_shrink</code> handles this by pulling the estimated matrix part-way back toward its own diagonal, by an amount called the shrinkage intensity, written lambda, which is computed from the data rather than set by you. The rule for computing it is the one Schafer and Strimmer published in 2005 in <em>Statistical Applications in Genetics and Molecular Biology</em>, and fabletools implements it directly. Here is that calculation, transcribed exactly from the fabletools source.</p>
+
+<div class="webr-container" data-block-title="Compute the shrinkage intensity lambda">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the shrinkage intensity lambda</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">target &lt;- diag(diag(W))
+xs &lt;- scale(E, center = FALSE, scale = sqrt(diag(W)))
+v &lt;- (1 / (n * (n - 1))) * (crossprod(xs^2) - (1 / n) * crossprod(xs)^2)
+diag(v) &lt;- 0
+d &lt;- (cov2cor(W) - cov2cor(target))^2
+
+lambda &lt;- max(min(sum(v) / sum(d), 1), 0)
+round(lambda, 4)
+#&gt; [1] 0.103</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The logic is a ratio of noise to signal. <code>target</code> is the diagonal-only matrix we want to shrink toward, and <code>xs</code> rescales the residuals so every column has unit scale, making the correlations comparable. <code>v</code> then estimates how uncertain each measured correlation is, while <code>d</code> measures how far each measured correlation sits from the target's zero.</p>
+
+<p>Divide total uncertainty by total distance and you get lambda. When the correlations are wobbly relative to their own size, lambda goes up and the matrix is pulled hard toward the diagonal. Here it comes out at 0.103, so we travel 10 percent of the way.</p>
+
+<div class="webr-container" data-block-title="See the correlations before and after shrinking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the correlations before and after shrinking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">W_shrink &lt;- lambda * target + (1 - lambda) * W
+
+rbind(mint_cov = cov2cor(W)[&quot;&lt;aggregated&gt;&quot;, 1:4],
+      mint_shrink = cov2cor(W_shrink)[&quot;&lt;aggregated&gt;&quot;, 1:4]) |&gt; round(3)
+#&gt;             Business Holiday Other Visiting
+#&gt; mint_cov       0.271   0.875 0.310    0.699
+#&gt; mint_shrink    0.243   0.785 0.278    0.627</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every correlation between the total and its four purposes has been pulled about 10 percent toward zero. Holiday drops from 0.875 to 0.785, Visiting from 0.699 to 0.627. The structure survives, the confidence in it is dialled back. Feed <code>W_shrink</code> into the same closed-form solution and you get the <code>mint_shrink</code> column from the table above, 148.2, 669.2, 27.1, 234.2 and 1078.8, which is exactly what the very first code block in this tutorial produced.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>mint_cov needs a W it can invert, and mint_shrink always has one.</strong> Shrinking toward the diagonal keeps enough weight on the diagonal for the inverse to exist, so <code>mint_shrink</code> still runs on hierarchies where <code>mint_cov</code> stops with an error. The last section runs that failure and reads the message it prints.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm that lambda genuinely interpolates between the two methods we already know. Build W at lambda equal to 0 and at lambda equal to 1, and check what each one equals.</p>
+<div class="webr-container" data-block-title="Your turn: check the two lambda endpoints">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check the two lambda endpoints</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lambda &lt;- NULL
+# ex_lambda: confirm the two endpoints. Build W at lambda = 0 and at
+#   lambda = 1, then compare each to W (mint_cov) and to W_wls_var using
+#   max(abs(...)).
+# Expected: both differences are 0.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lambda endpoint solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lambda endpoint solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lambda &lt;- c(lambda_0_vs_mint_cov = max(abs(0 * target + 1 * W - W)),
+               lambda_1_vs_wls_var = max(abs(1 * target + 0 * W - W_wls_var)))
+ex_lambda
+#&gt; lambda_0_vs_mint_cov  lambda_1_vs_wls_var 
+#&gt;                    0                    0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At lambda equal to 0 the shrunk matrix is exactly <code>mint_cov</code>'s W, and at lambda equal to 1 it is exactly <code>wls_var</code>'s W. So <code>mint_shrink</code> is not a sixth method at all. It is a dial between two of the methods you already understand, with the data choosing where the dial sits.</p>
+
+</details>
+</section>
+
+<h2>Which method forecasts best, and when does MinT fail?</h2>
+
+<p>Everything so far has been in-sample. MinT minimises the trace by construction, so of course it wins on a metric it was built to optimise using data it has already seen. The only test that counts is a holdout.</p>
+
+<p><img src="screenshots/MinT-Reconciliation-in-R-choose-method.webp" alt="A decision path for choosing a min_trace method based on series length and residual correlation" class="img-responsive img-zoomable" loading="lazy" width="2142" height="842" /></p>
+
+<p><em>Figure 3: A starting point for choosing a method, to be confirmed on a holdout set.</em></p>
+
+<p>Five series is too small for a fair contest, so we scale up. Breaking all of Australian tourism down by state and then by purpose gives 41 series: 32 state-and-purpose combinations, 8 state totals and one national total. That shape is what the slash in <code>aggregate_key(State / Purpose, ...)</code> asks for: the slash means Purpose is nested inside State, so fable adds an aggregate row for each of the 8 states as well as the single national row. A star instead, <code>aggregate_key(State * Purpose, ...)</code>, would ask for a crossed structure, where you also get a row for each purpose summed across all states. We train on everything up to the end of 2015 and forecast the two years held back.</p>
+
+<div class="webr-container" data-block-title="Score every method on a two-year holdout">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score every method on a two-year holdout</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">big &lt;- tourism |&gt;
+  as_tibble() |&gt;
+  summarise(Trips = sum(Trips), .by = c(Quarter, State, Purpose)) |&gt;
+  as_tsibble(index = Quarter, key = c(State, Purpose)) |&gt;
+  aggregate_key(State / Purpose, Trips = sum(Trips))
+
+train &lt;- big |&gt; filter(Quarter &lt;= yearquarter(&quot;2015 Q4&quot;))
+
+fc_big &lt;- train |&gt;
+  model(base = ETS(Trips ~ error(&quot;A&quot;) + trend(&quot;A&quot;) + season(&quot;A&quot;))) |&gt;
+  reconcile(bottom_up = bottom_up(base),
+            ols = min_trace(base, &quot;ols&quot;),
+            wls_struct = min_trace(base, &quot;wls_struct&quot;),
+            wls_var = min_trace(base, &quot;wls_var&quot;),
+            mint_shrink = min_trace(base, &quot;mint_shrink&quot;)) |&gt;
+  forecast(h = &quot;2 years&quot;)
+
+acc_big &lt;- fc_big |&gt;
+  accuracy(data = big, measures = list(rmse = RMSE)) |&gt;
+  mutate(level = case_when(is_aggregated(State) ~ &quot;Total&quot;,
+                           is_aggregated(Purpose) ~ &quot;State&quot;,
+                           TRUE ~ &quot;Bottom&quot;)) |&gt;
+  summarise(rmse = mean(rmse), .by = c(.model, level))
+
+acc_big |&gt;
+  mutate(rmse = round(rmse, 1)) |&gt;
+  pivot_wider(names_from = level, values_from = rmse)
+#&gt; # A tibble: 6 × 4
+#&gt;   .model      Bottom State  Total
+#&gt;   &lt;chr&gt;        &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 base          92.1 248.3  571.3
+#&gt; 2 bottom_up     92.1 282.2 1490.7
+#&gt; 3 mint_shrink   83.7 235.8  956.1
+#&gt; 4 ols           88.1 239.8  607.1
+#&gt; 5 wls_struct    87.4 246    940.7
+#&gt; 6 wls_var       85.7 250.2 1117.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three notes on the setup before reading the numbers. We fixed the ETS form to additive <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">error, trend and season</a> instead of letting <code>ETS()</code> select one per series, so the comparison is about reconciliation and not about <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a> drifting between series. RMSE is averaged within each level, which is fair because we are comparing methods on the same series rather than series against each other. And <code>mint_cov</code> is missing from the list on purpose: at 41 series it has to estimate a 41 by 41 covariance matrix well enough to invert, which is the case it handles worst, and the next code block shows what happens when you ask for it anyway.</p>
+
+<p>Now the results, which are more interesting than the textbooks suggest. At the bottom level, where 32 of the 41 series live, every reconciliation beats the unreconciled base forecast, and <code>mint_shrink</code> is best at 83.7 against 92.1. Bottom-up ties with base at exactly 92.1, which it must, since bottom-up never touches the bottom level. At the state level <code>mint_shrink</code> wins again, 235.8 against 248.3 for base.</p>
+
+<p>At the total, everything loses to the base forecast. Nothing beats simply asking the national model, at 571.3. Bottom-up is the worst by a long way at 1490.7, over two and a half times the base RMSE, which is the strongest argument against it in this tutorial. <code>ols</code> comes closest at 607.1, and <code>mint_shrink</code> sits at 956.1.</p>
+
+<p>That pattern is not a bug in MinT, it is what the objective asks for. The trace it minimises is a sum over all 41 series, so it will trade accuracy away on the single national series whenever that buys more accuracy across the 32 bottom ones.</p>
+
+<p>The practical reading follows directly. If your business genuinely only cares about the national total, reconciliation is the wrong tool and you should forecast that one series directly. If you need the whole hierarchy to be usable, <code>mint_shrink</code> gave you the best bottom and state forecasts in the table.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with mint_shrink and always score it against bottom_up and base.</strong> It is the safest of the data-driven options and usually the best, but "usually" is doing real work in that sentence. The comparison above takes about ten extra lines to run once and tells you the answer for your data instead of somebody else's.</div></div>
+
+<p>The other thing worth knowing is how <code>min_trace()</code> fails, because it fails loudly rather than silently. Cut the training window down to six years and the 41 series no longer have enough history to estimate a full 41 by 41 covariance matrix.</p>
+
+<div class="webr-container" data-block-title="Watch mint_cov fail on a short window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Watch mint_cov fail on a short window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">short &lt;- big |&gt; filter(Quarter &gt;= yearquarter(&quot;2010 Q1&quot;),
+                       Quarter &lt;= yearquarter(&quot;2015 Q4&quot;))
+
+attempt &lt;- try(short |&gt;
+  model(base = ETS(Trips ~ error(&quot;A&quot;) + trend(&quot;A&quot;) + season(&quot;A&quot;))) |&gt;
+  reconcile(mint_cov = min_trace(base, &quot;mint_cov&quot;)) |&gt;
+  forecast(h = 1), silent = TRUE)
+
+c(series = n_keys(short), quarters = length(unique(short$Quarter)))
+cat(tail(strsplit(conditionMessage(attr(attempt, &quot;condition&quot;)), &quot;\n&quot;)[[1]], 1), &quot;\n&quot;)
+#&gt;   series quarters 
+#&gt;       41       24 
+#&gt; ! min_trace needs covariance matrix to be positive definite.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three pieces of that block are worth naming. <code>try(..., silent = TRUE)</code> runs the pipeline and hands back the error object instead of halting, <code>conditionMessage(attr(attempt, &quot;condition&quot;))</code> pulls the message text out of that object, and the <code>strsplit()</code> plus <code>tail()</code> pair prints only its last line.</p>
+
+<p>The message tells you the problem: 41 series and only 24 quarters of residuals. A covariance matrix estimated from fewer observations than series is guaranteed to be singular, which means it has no inverse, and the closed-form solution needs one. <code>min_trace()</code> checks the <a class="auto-link" href="Eigenvalues-and-Eigenvectors-in-R.html" title="Eigenvalues & Eigenvectors in R: eigen(), Why They Power PCA & More">eigenvalues</a> of W before solving and stops rather than returning a garbage answer.</p>
+
+<p>Swap <code>mint_cov</code> for <code>mint_shrink</code> on the same data and it runs, because the shrinkage puts enough weight on the diagonal to make the matrix invertible again. That single property is why <code>mint_shrink</code> is the practical default for wide hierarchies.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Turn the bottom-level column of the holdout table into something easier to talk about. Express each method's RMSE as a percentage change against the base forecast.</p>
+<div class="webr-container" data-block-title="Your turn: measure the bottom-level gain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: measure the bottom-level gain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gain &lt;- NULL
+# ex_gain: from acc_big, keep level == &quot;Bottom&quot; and add a column pct that
+#   gives each model's RMSE as a percentage change against the base row.
+# Expected: base 0, bottom_up 0, mint_shrink -9.1, wls_var -7, wls_struct
+#   -5.2, ols -4.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bottom-level percentage gain solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bottom-level percentage gain solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gain &lt;- acc_big |&gt;
+  filter(level == &quot;Bottom&quot;) |&gt;
+  mutate(pct = round(100 * (rmse / rmse[.model == &quot;base&quot;] - 1), 1)) |&gt;
+  select(.model, rmse, pct) |&gt;
+  arrange(pct)
+
+ex_gain
+#&gt; # A tibble: 6 × 3
+#&gt;   .model        rmse   pct
+#&gt;   &lt;chr&gt;        &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 mint_shrink 83.697  -9.1
+#&gt; 2 wls_var     85.679  -7  
+#&gt; 3 wls_struct  87.369  -5.2
+#&gt; 4 ols         88.072  -4.4
+#&gt; 5 base        92.113   0  
+#&gt; 6 bottom_up   92.113   0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 9.1 percent cut in bottom-level RMSE, for zero extra modelling work, is a large return. The ordering also matches the ladder from Figure 2 exactly: the more of the residual history a method uses, the better it did here. That will not hold on every dataset, which is why you measure it.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: reconcile Victorian livestock end to end</h2>
+
+<p>Here is the whole workflow on a hierarchy we have not touched, with nothing carried over from the sections above. Victorian livestock slaughter counts, from the <code>aus_livestock</code> dataset in <code>tsibbledata</code>, broken down by animal type: seven animals plus their total, monthly from 2010.</p>
+
+<div class="webr-container" data-block-title="End-to-end MinT on Victorian livestock">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end MinT on Victorian livestock</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibbledata)
+
+vic &lt;- aus_livestock |&gt;
+  filter(State == &quot;Victoria&quot;, Month &gt;= yearmonth(&quot;2010 Jan&quot;)) |&gt;
+  as_tibble() |&gt;
+  summarise(Count = sum(Count), .by = c(Month, Animal)) |&gt;
+  as_tsibble(index = Month, key = Animal) |&gt;
+  aggregate_key(Animal, Count = sum(Count))
+
+vic_fc &lt;- vic |&gt;
+  model(base = ETS(Count ~ error(&quot;A&quot;) + trend(&quot;A&quot;) + season(&quot;A&quot;))) |&gt;
+  reconcile(mint = min_trace(base, &quot;mint_shrink&quot;)) |&gt;
+  forecast(h = 3)
+
+vic_fc |&gt;
+  as_tibble() |&gt;
+  filter(.model == &quot;mint&quot;) |&gt;
+  summarise(total_k = round(sum(.mean[is_aggregated(Animal)]) / 1000, 1),
+            parts_k = round(sum(.mean[!is_aggregated(Animal)]) / 1000, 1),
+            gap = round(sum(.mean[is_aggregated(Animal)]) -
+                        sum(.mean[!is_aggregated(Animal)]), 6),
+            .by = Month)
+#&gt; # A tibble: 3 × 4
+#&gt;      Month total_k parts_k   gap
+#&gt;      &lt;mth&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2019 Jan  1662.5  1662.5     0
+#&gt; 2 2019 Feb  1748.8  1748.8     0
+#&gt; 3 2019 Mar  1743    1743       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five steps, and only one of them is new: build the hierarchy with <code>aggregate_key()</code>, fit one model per series with <code>model()</code>, add the MinT column with <code>reconcile()</code>, forecast with <code>forecast()</code>, then verify coherence.</p>
+
+<p>That last step is the one people skip and should not. For all three months the reconciled total matches the sum of the seven animals to six decimal places, on counts in the millions.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Build S and G for a new hierarchy</h3>
+
+<p>A hierarchy has three bottom-level series and one total, so four rows and three columns. Build its summing matrix <code>my_S</code>, write the bottom-up <code>my_G</code>, and confirm the unbiasedness condition holds. Save the maximum absolute discrepancy to <code>my_hier</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: build S and G">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: build S and G</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_hier &lt;- NULL
+# Exercise 1: build the summing matrix for a hierarchy with 3 bottom
+# series and one total (4 rows, 3 columns), then write the bottom-up G
+# and confirm S %*% G %*% S equals S.
+# Hint: rbind(diag(3), rep(1, 3)) and cbind(diag(3), rep(0, 3))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_S &lt;- rbind(diag(3), rep(1, 3))
+my_G &lt;- cbind(diag(3), rep(0, 3))
+my_hier &lt;- max(abs(my_S %*% my_G %*% my_S - my_S))
+my_hier
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The pattern generalises to any single-level hierarchy: <code>diag(m)</code> stacked under a row of ones gives S for m bottom series, and <code>diag(m)</code> with a zero column glued on gives bottom-up's G. Because both matrices contain only exact zeros and ones, the check returns a clean 0 with no floating-point residue at all.</p>
+
+</details>
+
+<h3>Exercise 2: Rank the four W choices by trace</h3>
+
+<p>For the Tasmania hierarchy, compute the trace of the reconciled error covariance under all four W matrices built in this tutorial. Score every one of them with the full <code>W</code>, since that is our best estimate of the real error structure. Save the four traces to <code>my_trace</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: rank the W choices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: rank the W choices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_trace &lt;- NULL
+# Exercise 2: for the Tasmania hierarchy, compute the trace of the
+# reconciled error covariance under all four W choices used in this
+# tutorial (W_ols, W_wls_struct, W_wls_var, W), always scoring with the
+# full W. Which choice gives the smallest trace?
+# Hint: reuse trace_of() and build G the same way each time.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">G_of &lt;- function(Wx) solve(t(S) %*% solve(Wx) %*% S) %*% t(S) %*% solve(Wx)
+
+my_trace &lt;- c(ols = trace_of(G_of(W_ols)),
+              wls_struct = trace_of(G_of(W_wls_struct)),
+              wls_var = trace_of(G_of(W_wls_var)),
+              mint_cov = trace_of(G_of(W))) 
+
+round(my_trace, 1)
+#&gt;        ols wls_struct    wls_var   mint_cov 
+#&gt;    11106.0    11227.9    11189.0    10885.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mint_cov</code> wins at 10885.0, and it has to. The trace is being scored with the same <code>W</code> that <code>mint_cov</code> used to build its G, so this is the exact quantity the closed-form solution minimises. Any other choice of W solves a different problem and must score worse on this one. Compare these to the 11568.1 that bottom-up scored earlier: all four beat it. That is the theoretical case for MinT, and it is why the holdout test in the previous section matters so much, because the theory only holds when your estimate of W is right.</p>
+
+</details>
+
+<h3>Exercise 3: Does MinT beat bottom-up on Tasmania?</h3>
+
+<p>Refit the Tasmania hierarchy on data up to the end of 2014, forecast the three years held back, and compare RMSE for <code>base</code>, <code>bottom_up</code> and <code>mint_shrink</code> averaged across all five series. Save the result to <code>my_shrink</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: score Tasmania on a holdout">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: score Tasmania on a holdout</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_shrink &lt;- NULL
+# Exercise 3: refit the Tasmania hierarchy on data up to 2014 Q4, forecast
+# the three years held out, and compare RMSE for base, bottom_up and
+# mint_shrink averaged over all five series.
+# Hint: filter(Quarter &lt;= yearquarter(&quot;2014 Q4&quot;)), then forecast(h = &quot;3 years&quot;)
+# and accuracy(data = tas).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_shrink &lt;- tas |&gt;
+  filter(Quarter &lt;= yearquarter(&quot;2014 Q4&quot;)) |&gt;
+  model(base = ETS(Trips)) |&gt;
+  reconcile(bottom_up = bottom_up(base),
+            mint_shrink = min_trace(base, &quot;mint_shrink&quot;)) |&gt;
+  forecast(h = &quot;3 years&quot;) |&gt;
+  accuracy(data = tas) |&gt;
+  summarise(RMSE = round(mean(RMSE), 2), .by = .model)
+
+my_shrink
+#&gt; # A tibble: 3 × 2
+#&gt;   .model       RMSE
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 base        64.48
+#&gt; 2 bottom_up   60.49
+#&gt; 3 mint_shrink 61.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bottom-up wins at 60.49, with <code>mint_shrink</code> second at 61.99. Both beat the unreconciled base. This is the honest answer and it is worth sitting with, because it contradicts the 41-series result from the previous section. Five series give MinT only 15 covariance entries to work with and very little correlation structure to exploit, so its extra machinery earns nothing. MinT's advantage grows with the width of the hierarchy, and on a hierarchy this narrow bottom-up is hard to beat.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Which method should I use if I only get one shot?</strong> <code>mint_shrink</code>. It uses the correlations when they are trustworthy, backs off when they are not, and never fails on a singular covariance matrix. If your series are shorter than the number of series in the hierarchy, <code>wls_struct</code> is the safer fallback since it does not touch the residuals at all.</p>
+
+<p><strong>Why is <code>wls_var</code> the default rather than <code>mint_shrink</code>?</strong> Speed and safety. <code>wls_var</code> inverts a diagonal matrix, which is trivially cheap and never singular, so it works on any hierarchy of any size without thought. It is a defensible default, not a recommendation for your specific problem.</p>
+
+<p><strong>Can reconciliation produce negative forecasts?</strong> Yes. Nothing in the closed-form solution knows your data cannot go below zero, and <code>ols</code> in particular can push a small series negative when it loads a large correction onto it. Check with <code>sum(.mean &lt; 0)</code> on your fable. If it happens, use a variance-aware method such as <code>wls_var</code> or <code>mint_shrink</code>, which put much smaller corrections on small series, or model on a log scale.</p>
+
+<p><strong>Does reconciliation fix the <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">prediction intervals</a> too?</strong> Yes, in current fable. The reconciled distributions come from the same $\mathbf{S}\mathbf{G}$ mapping applied to the base forecast distributions, so the intervals are coherent along with the means. They are only as good as your $\mathbf{W}$ estimate, so a shaky covariance estimate gives shaky intervals.</p>
+
+<p><strong>What if my hierarchy does not aggregate by summing?</strong> <code>min_trace()</code> requires sums. Averages, ratios and medians break the $\mathbf{S}$ matrix, since $\mathbf{S}$ can only contain the zeros and ones that encode "add this in". Convert to a summable quantity first: forecast counts and totals rather than rates, then divide afterwards.</p>
+
+<p><strong>Can I tell MinT that one level matters more than the others?</strong> Not through <code>min_trace()</code>. The trace weights every series equally, and in principle you would weight the diagonal of $\mathbf{V}$ before summing it to tilt the optimisation toward the levels you care about, but fable exposes no argument for that. Your practical choice is between reconciling the whole hierarchy and forecasting your priority series on its own, unreconciled.</p>
+
+<p><strong>Should the base models be <a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">ETS or ARIMA</a>?</strong> Either. Reconciliation is completely indifferent to how the base forecasts were made, which is one of its best properties. You can even mix them, fitting <code>ARIMA()</code> to the seasonal series and <code>ETS()</code> to the rest, then reconcile the lot. All MinT needs from the base fit is residuals and point forecasts.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Coherence</td>
+<td>Guaranteed by the final <code>S %*%</code> step, so every method is coherent. Coherence says nothing about accuracy</td>
+</tr>
+<tr>
+<td>The two matrices</td>
+<td>S sums bottom series up; G maps all base forecasts down to the bottom. Every method is a choice of G</td>
+</tr>
+<tr>
+<td>MinT's objective</td>
+<td>Minimise the trace of $\mathbf{S}\mathbf{G}\mathbf{W}\mathbf{G}'\mathbf{S}'$, the total forecast error variance across the hierarchy</td>
+</tr>
+<tr>
+<td>The closed form</td>
+<td>$\mathbf{G} = (\mathbf{S}'\mathbf{W}^{-1}\mathbf{S})^{-1}\mathbf{S}'\mathbf{W}^{-1}$, which is weighted least squares</td>
+</tr>
+<tr>
+<td><code>ols</code></td>
+<td>W is the identity. Ignores the data, over-corrects small series</td>
+</tr>
+<tr>
+<td><code>wls_struct</code></td>
+<td>W counts contributing series. Use when residuals are unavailable</td>
+</tr>
+<tr>
+<td><code>wls_var</code></td>
+<td>W is the residual variance diagonal. The default, fast and never singular</td>
+</tr>
+<tr>
+<td><code>mint_cov</code></td>
+<td>W is the full residual covariance. Most aggressive, fails when series outnumber observations</td>
+</tr>
+<tr>
+<td><code>mint_shrink</code></td>
+<td>W is <code>mint_cov</code> pulled toward <code>wls_var</code> by a data-chosen lambda. The practical default</td>
+</tr>
+<tr>
+<td>The rebuild recipe</td>
+<td><code>W &lt;- crossprod(E) / n</code>, then <code>G &lt;- solve(t(S) %*% solve(W) %*% S) %*% t(S) %*% solve(W)</code>, then <code>S %*% G %*% yhat</code></td>
+</tr>
+<tr>
+<td>The honest caveat</td>
+<td>MinT wins at the disaggregated levels and can lose at the top. Always score on a holdout</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, Section 11.3: Forecast reconciliation. <a href="https://otexts.com/fpp3/reconciliation.html">Link</a></li>
+
+<li>Wickramasuriya, S. L., Athanasopoulos, G. & Hyndman, R. J. (2019). Optimal forecast reconciliation for hierarchical and grouped time series through trace minimization. <em>Journal of the American Statistical Association</em>, 114(526), 804-819. <a href="https://robjhyndman.com/papers/mint.pdf">Link</a></li>
+
+<li>fabletools reference: <code>min_trace()</code>, minimum trace forecast reconciliation. <a href="https://fabletools.tidyverts.org/reference/min_trace.html">Link</a></li>
+
+<li>tidyverts/fabletools source, <code>R/reconciliation.R</code>, the implementation of every W variant quoted in this tutorial. <a href="https://github.com/tidyverts/fabletools/blob/main/R/reconciliation.R">Link</a></li>
+
+<li>Hyndman, R. J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, Section 11.1: Hierarchical and grouped time series. <a href="https://otexts.com/fpp3/hts.html">Link</a></li>
+
+<li>tsibble package reference, tidy temporal data frames. <a href="https://tsibble.tidyverts.org/">Link</a></li>
+
+<li>fable package reference, forecasting models for tidy time series. <a href="https://fable.tidyverts.org/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Hierarchical-Time-Series-in-R.html">Hierarchical and Grouped Time Series in R</a> builds the hierarchy itself, covering <code>aggregate_key()</code>, nested versus crossed structures and what coherence means before any reconciliation happens.</li>
+
+<li><a href="Forecast-Reconciliation-in-R.html">Forecast Reconciliation in R: Bottom-Up to Middle-Out</a> works through the single-level family that MinT replaces, including the top-down proportion rules and why they are biased.</li>
+
+<li><a href="Combining-Forecasts-in-R.html">Combining Forecasts in R</a> applies the same weighted-average logic across competing models on one series, rather than across levels of one hierarchy.</li>
+
+</ul>
+
