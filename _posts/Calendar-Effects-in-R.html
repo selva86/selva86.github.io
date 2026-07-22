@@ -1,0 +1,1753 @@
+---
+title: "Calendar Effects in R: Trading Days, Holidays, Time-Zone Traps"
+description: "Fix calendar effects in R: adjust for trading days, build holiday regressors with lubridate, and avoid DST and time zone traps that corrupt forecasts."
+keywords: "calendar effects in R, trading day adjustment R, holiday regressor R, lubridate time zones, DST R time series, business days R, TSLM calendar regressor, moving holidays R"
+mathjax: false
+webr: true
+curriculum_id: "TS2-1.5"
+post_type: "C"
+auto_link_terms: "calendar effects|calendar effect|trading day adjustment|trading days|holiday regressor|moving holidays|business days in R|daylight saving time in R|force_tz()|with_tz()|calendar regressor|day-of-week counts"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Calendar Effects"
+sidebar_order: "49"
+---
+<!-- md2html:generated -->
+
+<p class="lead">A calendar effect is a movement in a time series caused purely by how the calendar happens to fall, different numbers of working days per month, holidays that shift date each year, and clocks that jump forward and back, rather than by any real change in the activity you are measuring. Left alone, these effects get baked into your seasonal estimates and your forecasts inherit the error.</p>
+
+<h2>What is a calendar effect, and why does it wreck a forecast?</h2>
+
+<p>Here is the cleanest way to feel the problem. Build one year of daily activity with no trend, no seasonality, and no randomness at all: every weekday earns exactly 100, every weekend earns exactly 0. Then add the days up by month, which is what almost every reporting system does.</p>
+
+<div class="webr-container" data-block-title="Build a zero-signal daily series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a zero-signal daily series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+library(dplyr)
+
+# Every weekday earns exactly 100. Every weekend earns exactly 0.
+days &lt;- seq(as.Date(&quot;2024-01-01&quot;), as.Date(&quot;2024-12-31&quot;), by = &quot;day&quot;)
+daily &lt;- tibble(
+  date  = days,
+  sales = ifelse(wday(days, week_start = 1) &lt;= 5, 100, 0)
+)
+
+monthly &lt;- daily |&gt;
+  group_by(month = floor_date(date, &quot;month&quot;)) |&gt;
+  summarise(sales = sum(sales), .groups = &quot;drop&quot;)
+
+print(monthly, n = 12)
+#&gt; # A tibble: 12 × 2
+#&gt;    month      sales
+#&gt;    &lt;date&gt;     &lt;dbl&gt;
+#&gt;  1 2024-01-01  2300
+#&gt;  2 2024-02-01  2100
+#&gt;  3 2024-03-01  2100
+#&gt;  4 2024-04-01  2200
+#&gt;  5 2024-05-01  2300
+#&gt;  6 2024-06-01  2000
+#&gt;  7 2024-07-01  2300
+#&gt;  8 2024-08-01  2200
+#&gt;  9 2024-09-01  2100
+#&gt; 10 2024-10-01  2300
+#&gt; 11 2024-11-01  2100
+#&gt; 12 2024-12-01  2200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through the code: <code>seq()</code> lays out all 366 days of 2024, <code>wday(days, week_start = 1)</code> numbers Monday as 1 through Sunday as 7 so the <code>&lt;= 5</code> test picks out weekdays, and <code>floor_date(date, &quot;month&quot;)</code> snaps every date back to the first of its month so <code>group_by()</code> can total them.</p>
+
+<p>Now read the output. June says 2000 and January says 2300. Nothing about the business changed between those two months. June 2024 simply contained 20 weekdays and January contained 23. That gap is entirely an artefact of where the weekends happened to fall in 2024.</p>
+
+<div class="webr-container" data-block-title="Measure the phantom swing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measure the phantom swing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">range(monthly$sales)
+#&gt; [1] 2000 2300
+
+diff(range(monthly$sales)) / mean(monthly$sales)
+#&gt; [1] 0.1374046</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 13.7% peak-to-trough swing, in a series that by construction contains no information whatsoever. If you handed this to <code>auto.arima()</code> or an <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS model</a>, the two standard automatic forecasting methods, it would estimate a seasonal pattern from those numbers, and that pattern would be wrong the moment the calendar shifted in a later year.</p>
+
+<p><img src="screenshots/Calendar-Effects-in-R-three-effects.webp" alt="The three families of calendar effect feeding into a single distorted forecast" class="img-responsive img-zoomable" loading="lazy" width="1934" height="1130" /></p>
+
+<p><em>Figure 1: The three families of calendar effect and the single failure they all lead to.</em></p>
+
+<p>The diagram splits the problem into the three families you will meet. <strong>Trading days</strong> are the one you just saw: months contain different numbers of working days. <strong>Moving holidays</strong> are festivals like Easter or Diwali that land on a different date each year, so they migrate between months. <strong>Clock shifts</strong> are <a class="auto-link" href="Dates-and-Times-Drills-in-R.html" title="Dates and Times Drills: 15 R Problems That Trip Everyone Up">daylight saving</a> transitions and time zone mistakes, which quietly change how many hours a "day" contains. The rest of this tutorial handles each in turn, and every technique here is plain lubridate and dplyr, so nothing depends on a specialist calendar package.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The calendar is a measuring instrument, not part of your signal.</strong> When a monthly total goes up, part of that rise is real activity and part is simply that the month offered more opportunities to trade. <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">Seasonal adjustment</a> cannot separate the two for you, because a fixed monthly seasonal factor assumes every January is the same, and calendar-wise no two Januarys are.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Work out which month of 2026 has the fewest weekdays and which has the most. Build the daily grid for 2026, count weekdays per month, then keep only the rows matching the minimum or the maximum.</p>
+<div class="webr-container" data-block-title="Your turn: find the extreme months of 2026">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the extreme months of 2026</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_days &lt;- seq(as.Date(&quot;2026-01-01&quot;), as.Date(&quot;2026-12-31&quot;), by = &quot;day&quot;)
+
+ex_counts &lt;- tibble(date = ex_days) |&gt;
+  group_by(ex_month = floor_date(date, &quot;month&quot;)) |&gt;
+  summarise(ex_n = sum(wday(date, week_start = 1) &lt;= 5), .groups = &quot;drop&quot;)
+
+# Now keep only the smallest and largest months:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extreme weekday months solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extreme weekday months solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_days &lt;- seq(as.Date(&quot;2026-01-01&quot;), as.Date(&quot;2026-12-31&quot;), by = &quot;day&quot;)
+
+ex_counts &lt;- tibble(date = ex_days) |&gt;
+  group_by(ex_month = floor_date(date, &quot;month&quot;)) |&gt;
+  summarise(ex_n = sum(wday(date, week_start = 1) &lt;= 5), .groups = &quot;drop&quot;)
+
+ex_counts |&gt; filter(ex_n == min(ex_n) | ex_n == max(ex_n))
+#&gt; # A tibble: 3 × 2
+#&gt;   ex_month    ex_n
+#&gt;   &lt;date&gt;     &lt;int&gt;
+#&gt; 1 2026-02-01    20
+#&gt; 2 2026-07-01    23
+#&gt; 3 2026-12-01    23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> February 2026 offers 20 weekdays while July and December offer 23. That is a 15% spread before a single customer has done anything, and it is why raw month-on-month comparisons mislead.</p>
+
+</details>
+</section>
+
+<h2>How do you count trading days in R?</h2>
+
+<p>Everything in this tutorial is built on one function, so it is worth getting it exactly right. <code>wday()</code> turns a date into a day-of-week number, but its default numbering catches almost everyone out.</p>
+
+<p>By default R follows the US convention where Sunday is day 1 and Saturday is day 7. That means the natural-looking test <code>wday(x) &lt;= 5</code> selects Sunday through Thursday, which is wrong nearly everywhere. Passing <code>week_start = 1</code> switches to the ISO convention where Monday is 1 and Sunday is 7, and then <code>&lt;= 5</code> really does mean Monday to Friday.</p>
+
+<div class="webr-container" data-block-title="Check the wday numbering convention">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the wday numbering convention</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_days &lt;- as.Date(c(&quot;2024-07-01&quot;, &quot;2024-07-05&quot;, &quot;2024-07-06&quot;, &quot;2024-07-07&quot;))
+
+tibble(
+  date    = sample_days,
+  wday_no = wday(sample_days, week_start = 1),
+  wday_lb = wday(sample_days, label = TRUE, week_start = 1),
+  weekday = wday(sample_days, week_start = 1) &lt;= 5
+)
+#&gt; # A tibble: 4 × 4
+#&gt;   date       wday_no wday_lb weekday
+#&gt;   &lt;date&gt;       &lt;dbl&gt; &lt;ord&gt;   &lt;lgl&gt;  
+#&gt; 1 2024-07-01       1 Mon     TRUE   
+#&gt; 2 2024-07-05       5 Fri     TRUE   
+#&gt; 3 2024-07-06       6 Sat     FALSE  
+#&gt; 4 2024-07-07       7 Sun     FALSE  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three columns, three jobs. <code>wday_no</code> is the raw number you compute with, <code>wday_lb</code> adds <code>label = TRUE</code> to get a readable <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factor</a> you can filter on by name, and <code>weekday</code> is the logical flag that does the actual work. Monday came back as 1, Sunday as 7, and <code>weekday</code> is <code>TRUE</code> for the two weekdays and <code>FALSE</code> for the weekend, exactly as intended. Always sanity-check this on dates whose weekday you already know before trusting a count built on top of it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>R numbers Sunday as day 1 unless you say otherwise.</strong> Without week_start = 1, the filter wday(x) <= 5 quietly selects Sunday through Thursday, so your "working day" counts will be wrong by exactly one day per week and every downstream regressor inherits the error. Set the argument every time.</div></div>
+
+<p>With the convention pinned down, counting weekdays per month is a two-line <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>. This is your first real calendar regressor, and the word is worth pinning down too: a regressor is simply an extra column you hand to a model as an explanatory variable. Here that column holds one number per month, the count of weekdays that month contained.</p>
+
+<div class="webr-container" data-block-title="Count weekdays in every month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count weekdays in every month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">weekday_counts &lt;- daily |&gt;
+  mutate(is_weekday = wday(date, week_start = 1) &lt;= 5) |&gt;
+  group_by(month = floor_date(date, &quot;month&quot;)) |&gt;
+  summarise(n_weekday = sum(is_weekday), .groups = &quot;drop&quot;)
+
+print(weekday_counts, n = 12)
+#&gt; # A tibble: 12 × 2
+#&gt;    month      n_weekday
+#&gt;    &lt;date&gt;         &lt;int&gt;
+#&gt;  1 2024-01-01        23
+#&gt;  2 2024-02-01        21
+#&gt;  3 2024-03-01        21
+#&gt;  4 2024-04-01        22
+#&gt;  5 2024-05-01        23
+#&gt;  6 2024-06-01        20
+#&gt;  7 2024-07-01        23
+#&gt;  8 2024-08-01        22
+#&gt;  9 2024-09-01        21
+#&gt; 10 2024-10-01        23
+#&gt; 11 2024-11-01        21
+#&gt; 12 2024-12-01        22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The trick that makes this work is <code>sum()</code> on a logical vector. R treats <code>TRUE</code> as 1 and <code>FALSE</code> as 0, so summing the <code>is_weekday</code> flag counts how many days passed the test. That pattern, flag each day then sum the flag, is the engine behind every regressor in this tutorial.</p>
+
+<p>Compare this column against the sales table from the previous section and they match perfectly: 23 weekdays gave 2300, 20 weekdays gave 2000. You have now explained 100% of that phantom seasonality with a single number per month.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Not all weekdays are equally common. Count how many Fridays fall in each month of 2025. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> the daily grid down to Fridays, then count by month.</p>
+<div class="webr-container" data-block-title="Your turn: count Fridays per month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count Fridays per month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fri &lt;- tibble(date = seq(as.Date(&quot;2025-01-01&quot;), as.Date(&quot;2025-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  # keep only Fridays, then count by month
+  # your code here
+
+print(ex_fri, n = 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fridays per month solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fridays per month solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fri &lt;- tibble(date = seq(as.Date(&quot;2025-01-01&quot;), as.Date(&quot;2025-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  filter(wday(date, label = TRUE, week_start = 1) == &quot;Fri&quot;) |&gt;
+  count(ex_month = month(date, label = TRUE))
+
+print(ex_fri, n = 12)
+#&gt; # A tibble: 12 × 2
+#&gt;    ex_month     n
+#&gt;    &lt;ord&gt;    &lt;int&gt;
+#&gt;  1 Jan          5
+#&gt;  2 Feb          4
+#&gt;  3 Mar          4
+#&gt;  4 Apr          4
+#&gt;  5 May          5
+#&gt;  6 Jun          4
+#&gt;  7 Jul          4
+#&gt;  8 Aug          5
+#&gt;  9 Sep          4
+#&gt; 10 Oct          5
+#&gt; 11 Nov          4
+#&gt; 12 Dec          4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because <code>label = TRUE</code> returns a factor, you can filter by the readable name <code>&quot;Fri&quot;</code> instead of remembering that Friday is number 5. Four months of 2025 contain five Fridays and eight contain four. If Friday is your biggest trading day, that difference alone moves monthly revenue by several percent, which is exactly the effect the seven-regressor approach later in this tutorial is designed to capture.</p>
+
+</details>
+</section>
+
+<h2>How do you build a holiday calendar without a specialist package?</h2>
+
+<p>Weekends are easy because they repeat on a fixed weekly cycle. Holidays are harder, and they come in two flavours. Some sit on a fixed date every year, like Christmas on 25 December. Others are defined by a rule, like "the fourth Thursday of November". The rule-based ones are where people reach for a package, and they do not need to.</p>
+
+<p>The trick is to notice that the <em>nth occurrence</em> of a weekday within a month is pure arithmetic on the day-of-month number. The first Monday of a month always falls on day 1 to 7, the second on day 8 to 14, and so on. So <code>ceiling(mday / 7)</code> tells you which occurrence you are looking at, whatever the weekday. The mirror-image test for the <em>last</em> occurrence asks whether another day of the same weekday would still fit inside the month. Adding 7 days to it would run past the end, so the test reduces to checking that the date sits in the final seven days of the month.</p>
+
+<div class="webr-container" data-block-title="Label each day&#x27;s position in its month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label each day&#x27;s position in its month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cal &lt;- tibble(date = seq(as.Date(&quot;2024-01-01&quot;), as.Date(&quot;2026-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(
+    yr      = year(date),
+    mo      = month(date),
+    dy      = mday(date),
+    dow     = wday(date, label = TRUE, week_start = 1),
+    nth     = ceiling(dy / 7),                 # 1st, 2nd, 3rd ... of this weekday
+    is_last = dy &gt; days_in_month(date) - 7     # last of this weekday in the month
+  )
+
+cal |&gt; filter(mo == 11, yr == 2024, dow == &quot;Thu&quot;)
+#&gt; # A tibble: 4 × 7
+#&gt;   date          yr    mo    dy dow     nth is_last
+#&gt;   &lt;date&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt; &lt;ord&gt; &lt;dbl&gt; &lt;lgl&gt;  
+#&gt; 1 2024-11-07  2024    11     7 Thu       1 FALSE  
+#&gt; 2 2024-11-14  2024    11    14 Thu       2 FALSE  
+#&gt; 3 2024-11-21  2024    11    21 Thu       3 FALSE  
+#&gt; 4 2024-11-28  2024    11    28 Thu       4 TRUE   </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output shows all four Thursdays in November 2024 with their <code>nth</code> labels running 1, 2, 3, 4. The 28th is both the fourth Thursday and the last one, so <code>is_last</code> is <code>TRUE</code> there and <code>FALSE</code> everywhere else.</p>
+
+<p>That single grid now answers every "nth weekday of the month" question by filtering, with no loops and no <a class="auto-link" href="Date-Time-Manipulation-Exercises-in-R.html" title="Date-Time Manipulation Exercises in R: 18 Practice Problems">date arithmetic</a>.</p>
+
+<div class="webr-container" data-block-title="Extract rule-based holidays">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract rule-based holidays</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Thanksgiving = 4th Thursday of November
+cal |&gt; filter(mo == 11, dow == &quot;Thu&quot;, nth == 4) |&gt; pull(date)
+#&gt; [1] &quot;2024-11-28&quot; &quot;2025-11-27&quot; &quot;2026-11-26&quot;
+
+# Memorial Day = LAST Monday of May
+cal |&gt; filter(mo == 5, dow == &quot;Mon&quot;, is_last) |&gt; pull(date)
+#&gt; [1] &quot;2024-05-27&quot; &quot;2025-05-26&quot; &quot;2026-05-25&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two filters, six correct dates across three years. <code>pull()</code> just extracts the <code>date</code> column as a plain vector so the output is easy to read.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The nth-weekday grid replaces an entire package.</strong> Once you have the columns nth and is_last, every rule-based holiday in any country is a one-line filter: third Monday of January, second Sunday of May, last Friday of August. Build the grid once for your whole date range and reuse it.</div></div>
+
+<p>Fixed-date holidays bring their own wrinkle. When Christmas or Independence Day lands on a weekend, most employers shift the day off to the nearest weekday. The convention in the United States is that a Saturday holiday is observed on the preceding Friday and a Sunday holiday on the following Monday.</p>
+
+<div class="webr-container" data-block-title="Apply the observed-day shift rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the observed-day shift rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">observed &lt;- function(d) {
+  dow &lt;- wday(d, week_start = 1)
+  d + ifelse(dow == 6, -1L, ifelse(dow == 7, 1L, 0L))   # Sat -&gt; Fri, Sun -&gt; Mon
+}
+
+jul4 &lt;- as.Date(c(&quot;2026-07-04&quot;, &quot;2027-07-04&quot;, &quot;2028-07-04&quot;))
+
+tibble(
+  actual   = jul4,
+  fell_on  = wday(jul4, label = TRUE, week_start = 1),
+  observed = observed(jul4)
+)
+#&gt; # A tibble: 3 × 3
+#&gt;   actual     fell_on observed  
+#&gt;   &lt;date&gt;     &lt;ord&gt;   &lt;date&gt;    
+#&gt; 1 2026-07-04 Sat     2026-07-03
+#&gt; 2 2027-07-04 Sun     2027-07-05
+#&gt; 3 2028-07-04 Tue     2028-07-04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The nested <code>ifelse()</code> adds minus one day for a Saturday, plus one day for a Sunday, and zero otherwise. Because <code>ifelse()</code> is vectorised, the function handles a whole column of dates at once.</p>
+
+<p>The result covers all three cases in one table. 2026 shifts back to Friday the 3rd, 2027 shifts forward to Monday the 5th, and 2028 already falls on a Tuesday so nothing moves. Getting this right matters more than it looks, because when a holiday sits next to a month boundary the shift carries it across. 1 January 2028 falls on a Saturday, so the day off is taken on Friday 31 December 2027, which puts the lost trading day in a different month and a different year from the holiday itself.</p>
+
+<p>Now assemble both halves into one reusable function.</p>
+
+<div class="webr-container" data-block-title="Assemble a US federal holiday calendar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assemble a US federal holiday calendar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">us_holidays &lt;- function(years) {
+  g &lt;- tibble(date = seq(make_date(min(years), 1, 1),
+                         make_date(max(years), 12, 31), by = &quot;day&quot;)) |&gt;
+    mutate(mo = month(date), dy = mday(date),
+           dow = wday(date, label = TRUE, week_start = 1),
+           nth = ceiling(dy / 7),
+           is_last = dy &gt; days_in_month(date) - 7)
+
+  fixed &lt;- g |&gt; filter((mo == 1  &amp; dy == 1)  | (mo == 6  &amp; dy == 19) |
+                       (mo == 7  &amp; dy == 4)  | (mo == 11 &amp; dy == 11) |
+                       (mo == 12 &amp; dy == 25))
+
+  floating &lt;- g |&gt; filter(
+    (mo == 1  &amp; dow == &quot;Mon&quot; &amp; nth == 3) |   # MLK Day
+    (mo == 2  &amp; dow == &quot;Mon&quot; &amp; nth == 3) |   # Presidents Day
+    (mo == 5  &amp; dow == &quot;Mon&quot; &amp; is_last)  |   # Memorial Day
+    (mo == 9  &amp; dow == &quot;Mon&quot; &amp; nth == 1) |   # Labor Day
+    (mo == 10 &amp; dow == &quot;Mon&quot; &amp; nth == 2) |   # Columbus Day
+    (mo == 11 &amp; dow == &quot;Thu&quot; &amp; nth == 4)     # Thanksgiving
+  )
+
+  sort(unique(c(observed(fixed$date), floating$date)))
+}
+
+us_holidays(2025)
+#&gt;  [1] &quot;2025-01-01&quot; &quot;2025-01-20&quot; &quot;2025-02-17&quot; &quot;2025-05-26&quot; &quot;2025-06-19&quot;
+#&gt;  [6] &quot;2025-07-04&quot; &quot;2025-09-01&quot; &quot;2025-10-13&quot; &quot;2025-11-11&quot; &quot;2025-11-27&quot;
+#&gt; [11] &quot;2025-12-25&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function rebuilds the grid for whatever years you ask for, pulls the five fixed dates and pushes them through <code>observed()</code>, pulls the six rule-based ones, then <code>sort(unique(...))</code> merges the two vectors and removes any overlap.</p>
+
+<p>Eleven dates come back for 2025, which is the correct count for US federal holidays. Spot-check a couple: 20 January is the third Monday, and 26 May is the last Monday of May. You now have a holiday calendar you fully control and can adapt to any country by editing two filters.</p>
+
+<p>Moving festivals are the last piece, and Easter is the one that matters most for European and Latin American series. Its date is set by a lunar rule, so it can land anywhere between 22 March and 25 April. The standard closed-form solution is the anonymous Gregorian computus, and it is plain arithmetic.</p>
+
+<div class="webr-container" data-block-title="Compute Easter Sunday for any year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute Easter Sunday for any year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">easter_date &lt;- function(year) {
+  a &lt;- year %% 19;  b &lt;- year %/% 100;  cc &lt;- year %% 100
+  d &lt;- b %/% 4;     e &lt;- b %% 4;        f &lt;- (b + 8) %/% 25
+  g &lt;- (b - f + 1) %/% 3
+  h &lt;- (19 * a + b - d - g + 15) %% 30
+  i &lt;- cc %/% 4;    k &lt;- cc %% 4
+  l &lt;- (32 + 2 * e + 2 * i - h - k) %% 7
+  m &lt;- (a + 11 * h + 22 * l) %/% 451
+  make_date(year, (h + l - 7 * m + 114) %/% 31,
+                  ((h + l - 7 * m + 114) %% 31) + 1)
+}
+
+easter &lt;- easter_date(2024:2028)
+
+tibble(year = 2024:2028, easter = easter,
+       month = month(easter, label = TRUE), dow = wday(easter, label = TRUE))
+#&gt; # A tibble: 5 × 4
+#&gt;    year easter     month dow  
+#&gt;   &lt;int&gt; &lt;date&gt;     &lt;ord&gt; &lt;ord&gt;
+#&gt; 1  2024 2024-03-31 Mar   Sun  
+#&gt; 2  2025 2025-04-20 Apr   Sun  
+#&gt; 3  2026 2026-04-05 Apr   Sun  
+#&gt; 4  2027 2027-03-28 Mar   Sun  
+#&gt; 5  2028 2028-04-16 Apr   Sun  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You do not need to follow the modular arithmetic, it is a published algorithm and every operator here is <code>%%</code> (remainder) or <code>%/%</code> (integer division) applied to whole vectors at once. Feed it a vector of years and it returns a vector of dates.</p>
+
+<p>The <code>dow</code> column returning Sunday five times out of five is your correctness check, since Easter is Sunday by definition. Look at what the <code>month</code> column does though: 2024 and 2027 put Easter in March, the other three years put it in April. For a monthly retail series that single fact moves an entire holiday's worth of trade between two months, and no fixed seasonal factor can absorb it.</p>
+
+<p>For US financial data specifically, exchange calendars differ from federal ones. The <code>timeDate</code> package ships them, and comparing it against what you just built is instructive. This block needs a local R session rather than the browser.</p>
+
+<pre><code class="language-r"># Run this locally in RStudio: timeDate is not available in the browser
+library(timeDate)
+
+nyse &lt;- as.Date(holidayNYSE(2025))
+nyse
+#&gt;  [1] &quot;2025-01-01&quot; &quot;2025-01-20&quot; &quot;2025-02-17&quot; &quot;2025-04-18&quot; &quot;2025-05-26&quot;
+#&gt;  [6] &quot;2025-06-19&quot; &quot;2025-07-04&quot; &quot;2025-09-01&quot; &quot;2025-11-27&quot; &quot;2025-12-25&quot;
+
+length(nyse)
+#&gt; [1] 10</code></pre>
+
+<p>Compare that list against your federal one and two differences jump out. The NYSE closes on Good Friday (18 April 2025), which is not a federal holiday at all. It stays open on Columbus Day and Veterans Day, which are federal holidays. Ten dates against eleven, and only nine of them overlap.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Which calendar is correct is a business question, not a technical one.</strong> A payroll series follows federal holidays, an equities series follows the exchange calendar, and a European retail series follows neither. Pick the calendar that matches when your business actually stops, and write it down, because the next person to touch the model will assume something different.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Labor Day in the United States is the first Monday of September. Use the <code>nth</code> trick to find it for 2025, 2026 and 2027.</p>
+<div class="webr-container" data-block-title="Your turn: find Labor Day">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find Labor Day</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- tibble(date = seq(as.Date(&quot;2025-01-01&quot;), as.Date(&quot;2027-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(ex_nth = ceiling(mday(date) / 7))
+
+# Filter to September, Mondays, first occurrence, then pull the dates:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Labor Day solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Labor Day solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- tibble(date = seq(as.Date(&quot;2025-01-01&quot;), as.Date(&quot;2027-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(ex_nth = ceiling(mday(date) / 7))
+
+ex_grid |&gt;
+  filter(month(date) == 9,
+         wday(date, label = TRUE, week_start = 1) == &quot;Mon&quot;,
+         ex_nth == 1) |&gt;
+  pull(date)
+#&gt; [1] &quot;2025-09-01&quot; &quot;2026-09-07&quot; &quot;2027-09-06&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Three filters stack up to define the rule exactly as it is written in law: September, Monday, first occurrence. Note how far the date moves, from the 1st in 2025 to the 7th in 2026. That six-day drift is enough to shift a long weekend's trade out of one week and into another.</p>
+
+</details>
+</section>
+
+<h2>How do you feed the calendar into a forecasting model?</h2>
+
+<p>You now have the ingredients. The next step is turning them into a column your model can use, which means counting trading days properly (weekdays that are not holidays) and attaching that count to a <a class="auto-link" href="Time-Series-Objects-in-R.html" title="Time Series Objects in R: ts, xts, zoo, or tsibble?">time series object</a>.</p>
+
+<p>The workflow below is the one worth memorising, because the last step is where most people come unstuck.</p>
+
+<p><img src="screenshots/Calendar-Effects-in-R-regressor-workflow.webp" alt="Building a calendar regressor, from daily flags through to future values" class="img-responsive img-zoomable" loading="lazy" width="2248" height="326" /></p>
+
+<p><em>Figure 2: Turning a raw calendar into a model regressor, and the future-values step people forget.</em></p>
+
+<p>Start by flagging every day in a long span, well past the end of your data, then aggregating to the series frequency. Building the calendar out into the future costs nothing now and saves you at forecast time.</p>
+
+<div class="webr-container" data-block-title="Count trading days per month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count trading days per month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tsibble)
+
+hols &lt;- us_holidays(2019:2026)
+
+trading &lt;- tibble(date = seq(as.Date(&quot;2019-01-01&quot;), as.Date(&quot;2026-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(is_trading = wday(date, week_start = 1) &lt;= 5 &amp; !(date %in% hols))
+
+td_month &lt;- trading |&gt;
+  group_by(month = yearmonth(date)) |&gt;
+  summarise(n_trading = sum(is_trading), .groups = &quot;drop&quot;)
+
+td_month |&gt; filter(year(month) == 2025) |&gt; print(n = 12)
+#&gt; # A tibble: 12 × 2
+#&gt;       month n_trading
+#&gt;       &lt;mth&gt;     &lt;int&gt;
+#&gt;  1 2025 Jan        21
+#&gt;  2 2025 Feb        19
+#&gt;  3 2025 Mar        21
+#&gt;  4 2025 Apr        22
+#&gt;  5 2025 May        21
+#&gt;  6 2025 Jun        20
+#&gt;  7 2025 Jul        22
+#&gt;  8 2025 Aug        21
+#&gt;  9 2025 Sep        21
+#&gt; 10 2025 Oct        22
+#&gt; 11 2025 Nov        18
+#&gt; 12 2025 Dec        22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two things changed from the earlier weekday count. The <code>is_trading</code> flag now has a second condition, <code>!(date %in% hols)</code>, which excludes any date appearing in the holiday vector. And <code>yearmonth()</code> from tsibble replaces <code>floor_date()</code>, producing the monthly index type that tsibble and fable expect.</p>
+
+<p>The 2025 numbers run from 18 to 22. November is the low month because it loses Veterans Day and Thanksgiving on top of having only 20 weekdays. That is a 22% spread between the best and worst month of a single year, which no seasonal factor fitted on other years will reproduce.</p>
+
+<p>Next, build a monthly series and attach the regressor. The simulated series below has a real upward trend and a genuine December uplift, plus the trading-day effect, so there is something for the model to actually separate.</p>
+
+<div class="webr-container" data-block-title="Build a monthly tsibble with the regressor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a monthly tsibble with the regressor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(fable)
+
+set.seed(2024)
+sales_daily &lt;- trading |&gt;
+  filter(date &lt;= as.Date(&quot;2025-12-31&quot;)) |&gt;
+  mutate(
+    trend_part = 0.02 * as.numeric(date - as.Date(&quot;2019-01-01&quot;)),
+    dec_boost  = ifelse(month(date) == 12, 30, 0),
+    sales      = is_trading * (100 + trend_part + dec_boost + rnorm(n(), 0, 8))
+  )
+
+sales_month &lt;- sales_daily |&gt;
+  group_by(month = yearmonth(date)) |&gt;
+  summarise(sales = round(sum(sales)), .groups = &quot;drop&quot;) |&gt;
+  left_join(td_month, by = &quot;month&quot;) |&gt;
+  as_tsibble(index = month)
+
+head(sales_month, 5)
+#&gt; # A tsibble: 5 x 3 [1M]
+#&gt;      month sales n_trading
+#&gt;      &lt;mth&gt; &lt;dbl&gt;     &lt;int&gt;
+#&gt; 1 2019 Jan  2039        21
+#&gt; 2 2019 Feb  1921        19
+#&gt; 3 2019 Mar  2109        21
+#&gt; 4 2019 Apr  2241        22
+#&gt; 5 2019 May  2226        22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the construction: multiplying by <code>is_trading</code> zeroes out closed days, <code>trend_part</code> adds a slow rise of about 0.02 per day, <code>dec_boost</code> adds a genuine December lift, and <code>rnorm()</code> supplies noise. The <code>left_join()</code> then glues the regressor column on, and <code>as_tsibble(index = month)</code> declares which column is time.</p>
+
+<p>The printed header <code>[1M]</code> confirms tsibble recognised a monthly series. Each row now carries both the value and the number of trading days that produced it, which is exactly what a regression model needs.</p>
+
+<p>Now the payoff. Fit two models on the same data, one that only knows about trend and month-of-year, and one that also sees the trading-day count.</p>
+
+<div class="webr-container" data-block-title="Compare a plain model against a calendar model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare a plain model against a calendar model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- sales_month |&gt;
+  model(
+    plain    = TSLM(sales ~ trend() + season()),
+    calendar = TSLM(sales ~ trend() + season() + n_trading)
+  )
+
+glance(fit) |&gt; select(.model, r_squared, sigma2, AICc)
+#&gt; # A tibble: 2 × 4
+#&gt;   .model   r_squared sigma2  AICc
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 plain        0.932 13098.  816.
+#&gt; 2 calendar     0.991  1738.  648.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>TSLM()</code> is fable's time series linear model. <code>trend()</code> inserts a straight-line time index and <code>season()</code> inserts eleven monthly dummy variables, so <code>plain</code> is the standard textbook specification. The <code>calendar</code> model is identical plus one extra column. <code>glance()</code> then pulls out the fit statistics for both.</p>
+
+<p>The difference is not marginal. Residual variance (<code>sigma2</code>) falls from 13098 to 1738, a factor of 7.5. AICc is a model-comparison score that rewards fit and penalises extra parameters, and lower is better, so a drop of 168 points is a large win rather than a rounding difference. One column did all of that, because the eleven seasonal dummies were trying to capture something that genuinely changes from year to year, and a fixed dummy per month cannot.</p>
+
+<div class="webr-container" data-block-title="Inspect the calendar model coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the calendar model coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit |&gt; select(calendar) |&gt; report()
+#&gt; Series: sales 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -90.488 -26.612   1.523  23.639 101.088 
+#&gt; 
+#&gt; Coefficients:
+#&gt;                 Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)    -641.3724   125.6164  -5.106 2.72e-06 ***
+#&gt; trend()          12.7537     0.1895  67.286  &lt; 2e-16 ***
+#&gt; season()year2    -7.3186    23.6224  -0.310   0.7576    
+#&gt; season()year3   -19.7535    24.2572  -0.814   0.4182    
+#&gt; season()year4   -33.9336    23.3546  -1.453   0.1507    
+#&gt; season()year5   -30.2566    22.7192  -1.332   0.1873    
+#&gt; season()year6   -23.5774    22.3229  -1.056   0.2945    
+#&gt; season()year7   -25.5267    22.9174  -1.114   0.2692    
+#&gt; season()year8   -28.6650    24.2905  -1.180   0.2420    
+#&gt; season()year9   -40.9352    22.3543  -1.831   0.0713 .  
+#&gt; season()year10   -9.5966    22.7705  -0.421   0.6747    
+#&gt; season()year11  -34.4362    23.4245  -1.470   0.1460    
+#&gt; season()year12  621.4674    22.8021  27.255  &lt; 2e-16 ***
+#&gt; n_trading       131.3384     6.0908  21.563  &lt; 2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 41.69 on 70 degrees of freedom
+#&gt; Multiple R-squared: 0.9911,	Adjusted R-squared: 0.9895
+#&gt; F-statistic: 602.1 on 13 and 70 DF, p-value: &lt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the most informative output in the tutorial, so read it carefully. <code>n_trading</code> has an estimate of 131.34 with a t value of 21.6, meaning each extra trading day is worth about 131 units of sales and the evidence for it is overwhelming.</p>
+
+<p>Now look at the seasonal dummies. Months 2 through 11 are all statistically indistinguishable from zero, with p-values from 0.07 to 0.76. Only <code>season()year12</code> survives, at 621, which is the genuine December uplift that was built into the data. The model has correctly separated the two: real seasonality lives in the December dummy, and the calendar noise lives in <code>n_trading</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Seasonality and calendar effects are two different jobs, and one cannot do the other.</strong> A seasonal dummy says "Januarys are like this", which assumes every January is interchangeable. A trading-day regressor says "this particular January had 23 working days". Give the model both and each one handles the pattern it is actually shaped for.</div></div>
+
+<p>Here is the step the workflow diagram flagged at its end. A model with an external regressor cannot forecast from a horizon alone, because it has no idea what <code>n_trading</code> will be next March. Ask for six steps ahead and it stops.</p>
+
+<div class="webr-container" data-block-title="Forecasting without regressors fails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecasting without regressors fails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">msg &lt;- tryCatch(forecast(fit |&gt; select(calendar), h = 6),
+                error = function(e) conditionMessage(e))
+
+cat(grep(&quot;not found|Unable to compute&quot;, strsplit(msg, &quot;\n&quot;)[[1]], value = TRUE), sep = &quot;\n&quot;)
+#&gt; ! object 'n_trading' not found
+#&gt;   Unable to compute required variables from provided `new_data`.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tryCatch()</code> catches the error instead of halting, and <code>grep()</code> picks out the two informative lines from fable's message. The complaint is precise: it needs <code>n_trading</code> and cannot invent it.</p>
+
+<p>This is the single most common stumble when moving from <code>TSLM(y ~ trend() + season())</code> to a model with real predictors, and the error message is honest about the cause. The fix is to supply the future calendar, which you already built.</p>
+
+<div class="webr-container" data-block-title="Build future regressor values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build future regressor values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">future_cal &lt;- td_month |&gt;
+  filter(month &gt; yearmonth(&quot;2025 Dec&quot;), month &lt;= yearmonth(&quot;2026 Jun&quot;)) |&gt;
+  as_tsibble(index = month)
+
+future_cal
+#&gt; # A tsibble: 6 x 2 [1M]
+#&gt;      month n_trading
+#&gt;      &lt;mth&gt;     &lt;int&gt;
+#&gt; 1 2026 Jan        20
+#&gt; 2 2026 Feb        19
+#&gt; 3 2026 Mar        22
+#&gt; 4 2026 Apr        22
+#&gt; 5 2026 May        20
+#&gt; 6 2026 Jun        21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because <code>td_month</code> was built all the way to the end of 2026, the future values are just a filter away. This is why the earlier advice to extend the calendar past your data pays off.</p>
+
+<p>Notice that these are not forecasts. The number of trading days in March 2026 is a known fact, fixed by arithmetic. That certainty is precisely what makes calendar regressors so useful: unlike most predictors, you never have to forecast them first.</p>
+
+<div class="webr-container" data-block-title="Forecast with future calendar values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast with future calendar values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc &lt;- fit |&gt; select(calendar) |&gt; forecast(new_data = future_cal)
+
+fc |&gt; as_tibble() |&gt; select(month, n_trading, .mean)
+#&gt; # A tibble: 6 × 3
+#&gt;      month n_trading .mean
+#&gt;      &lt;mth&gt;     &lt;int&gt; &lt;dbl&gt;
+#&gt; 1 2026 Jan        20 3069.
+#&gt; 2 2026 Feb        19 2944.
+#&gt; 3 2026 Mar        22 3338.
+#&gt; 4 2026 Apr        22 3336.
+#&gt; 5 2026 May        20 3090.
+#&gt; 6 2026 Jun        21 3241.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Swapping <code>h = 6</code> for <code>new_data = future_cal</code> gives fable both the horizon and the regressor values in one object, so it forecasts happily.</p>
+
+<p>Look at the relationship between the two columns. February is forecast lowest at 2944 with 19 trading days, March and April highest at around 3337 with 22. The forecast is now tracking the actual shape of 2026's calendar rather than assuming next February will resemble an average February.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a model with <code>n_trading</code> on <code>sales_month</code> and read off just that coefficient. Use <code>tidy()</code> to get a tidy coefficient table, then filter to the term you want.</p>
+<div class="webr-container" data-block-title="Your turn: extract the trading-day coefficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract the trading-day coefficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- sales_month |&gt; model(ex_m = TSLM(sales ~ trend() + season() + n_trading))
+
+# Get a coefficient table and keep only the n_trading row:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trading-day coefficient solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trading-day coefficient solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- sales_month |&gt; model(ex_m = TSLM(sales ~ trend() + season() + n_trading))
+
+tidy(ex_fit) |&gt; filter(term == &quot;n_trading&quot;) |&gt; select(term, estimate)
+#&gt; # A tibble: 1 × 2
+#&gt;   term      estimate
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;
+#&gt; 1 n_trading     131.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tidy()</code> turns a fitted model into a data frame with one row per coefficient, which is far easier to filter than reading a printed summary. The 131 matches the <code>report()</code> output above, and it has a directly useful business reading: gaining one trading day is worth roughly 131 units.</p>
+
+</details>
+</section>
+
+<h2>Why do seven day counts beat one trading-day total?</h2>
+
+<p>A single trading-day count assumes every working day is worth the same. For an office that is roughly true. For a restaurant, a cinema or a supermarket it is badly false, because Saturday might do triple Monday's business while Sunday sits somewhere in between.</p>
+
+<p>The fix, which comes from the official seasonal adjustment literature, is to replace one count with seven: how many Mondays, how many Tuesdays, and so on. Building them is a <code>count()</code> plus a reshape.</p>
+
+<div class="webr-container" data-block-title="Count each weekday separately">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count each weekday separately</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+retail &lt;- tibble(date = seq(as.Date(&quot;2016-01-01&quot;), as.Date(&quot;2025-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(dow = wday(date, label = TRUE, week_start = 1))
+
+dow_counts &lt;- retail |&gt;
+  count(month = yearmonth(date), dow) |&gt;
+  pivot_wider(names_from = dow, values_from = n, values_fill = 0)
+
+head(dow_counts, 4)
+#&gt; # A tibble: 4 × 8
+#&gt;      month   Mon   Tue   Wed   Thu   Fri   Sat   Sun
+#&gt;      &lt;mth&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1 2016 Jan     4     4     4     4     5     5     5
+#&gt; 2 2016 Feb     5     4     4     4     4     4     4
+#&gt; 3 2016 Mar     4     5     5     5     4     4     4
+#&gt; 4 2016 Apr     4     4     4     4     5     5     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>count()</code> gives one row per month-weekday combination, and <code>pivot_wider()</code> spreads the <code>dow</code> values into seven columns with the counts as values. Ten years of history gives the model enough variation to work with, which matters here more than usual.</p>
+
+<p>Every month has either four or five of each weekday, and which weekdays get the extra one rotates. January 2016 had five Fridays, Saturdays and Sundays; February 2016 had five Mondays instead. For a weekend-heavy business those two months are not comparable at all.</p>
+
+<p>Now build a series where weekends genuinely dominate, and pit one regressor against seven.</p>
+
+<div class="webr-container" data-block-title="One total against seven day counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One total against seven day counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+weights &lt;- c(Mon = 80, Tue = 80, Wed = 85, Thu = 95, Fri = 120, Sat = 260, Sun = 180)
+
+retail_month &lt;- retail |&gt;
+  mutate(sales = weights[as.character(dow)] + rnorm(n(), 0, 6)) |&gt;
+  group_by(month = yearmonth(date)) |&gt;
+  summarise(sales = round(sum(sales)), .groups = &quot;drop&quot;) |&gt;
+  left_join(dow_counts, by = &quot;month&quot;) |&gt;
+  mutate(n_days = Mon + Tue + Wed + Thu + Fri + Sat + Sun) |&gt;
+  as_tsibble(index = month)
+
+fit2 &lt;- retail_month |&gt;
+  model(
+    total_days = TSLM(sales ~ n_days),
+    seven_days = TSLM(sales ~ Mon + Tue + Wed + Thu + Fri + Sat + Sun - 1)
+  )
+
+glance(fit2) |&gt; select(.model, sigma2, AICc)
+#&gt; # A tibble: 2 × 3
+#&gt;   .model     sigma2  AICc
+#&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 total_days 14078. 1150.
+#&gt; 2 seven_days  1053.  845.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>weights</code> vector sets each weekday's true daily value, and indexing it by <code>as.character(dow)</code> looks up the right one for every date. The <code>- 1</code> in the second formula drops the intercept, which is necessary because the seven counts already add up to the length of the month and would otherwise be perfectly collinear with it.</p>
+
+<p>Residual variance falls from 14078 to 1053, a factor of 13, and AICc drops by 305 points. The total-days model knew February was short but had no way to know whether it was short of Saturdays or short of Tuesdays, and for this business those are very different things.</p>
+
+<div class="webr-container" data-block-title="Recover the value of each weekday">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recover the value of each weekday</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(fit2) |&gt; filter(.model == &quot;seven_days&quot;) |&gt;
+  mutate(truth = as.numeric(weights[term])) |&gt;
+  select(term, estimate, std.error, truth)
+#&gt; # A tibble: 7 × 4
+#&gt;   term  estimate std.error truth
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Mon       88.1      8.12    80
+#&gt; 2 Tue       77.1      8.38    80
+#&gt; 3 Wed       79.8      8.34    85
+#&gt; 4 Thu       98.9      8.01    95
+#&gt; 5 Fri      116.       8.06   120
+#&gt; 6 Sat      266.       8.12   260
+#&gt; 7 Sun      174.       8.13   180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding a <code>truth</code> column by looking up the same <code>weights</code> vector lets you grade the model directly, which you can only do with <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> but which is the fastest way to build trust in a technique.</p>
+
+<p>Every estimate lands within roughly one standard error of the value used to generate the data. Saturday comes back at 266 against a truth of 260, Monday at 88 against 80. The model has recovered the entire weekly profile from nothing but monthly totals and day counts, which is a genuinely surprising amount of information to extract from twelve numbers a year.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Seven day-count regressors need a long history to behave.</strong> The counts only ever take the values 4 or 5, so they barely vary and they are close to collinear with month length. On three years of monthly data the coefficients swing wildly. This example used ten years. If you have less than about five, use a single trading-day count or group the days into weekday and weekend.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the weekend story by ranking the coefficients. Sort the seven-day model's estimates from largest to smallest and show the top three.</p>
+<div class="webr-container" data-block-title="Your turn: rank the weekday coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank the weekday coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit5 &lt;- retail_month |&gt; model(ex_m5 = TSLM(sales ~ Mon+Tue+Wed+Thu+Fri+Sat+Sun - 1))
+
+# Sort the coefficients from largest to smallest and take the top 3:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ranked weekday coefficients solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ranked weekday coefficients solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit5 &lt;- retail_month |&gt; model(ex_m5 = TSLM(sales ~ Mon+Tue+Wed+Thu+Fri+Sat+Sun - 1))
+
+tidy(ex_fit5) |&gt; arrange(desc(estimate)) |&gt; select(term, estimate) |&gt; head(3)
+#&gt; # A tibble: 3 × 2
+#&gt;   term  estimate
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1 Sat       266.
+#&gt; 2 Sun       174.
+#&gt; 3 Fri       116.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>arrange(desc(estimate))</code> sorts largest first. The weekend plus Friday take the top three slots, and Saturday alone is worth about three Mondays. A month that happens to contain five Saturdays instead of four gains roughly 266 units for reasons that have nothing to do with demand.</p>
+
+</details>
+</section>
+
+<h2>What breaks when the clock changes?</h2>
+
+<p>Everything so far worked in whole days, where a date is unambiguous. Move to hourly or sub-daily data and a new class of bug appears, because the relationship between "clock reading" and "moment in time" stops being one-to-one twice a year.</p>
+
+<p>Two <a class="auto-link" href="lubridate-Cheat-Sheet-R.html" title="lubridate Cheat Sheet: Parse, Extract, Modify, and Do Arithmetic on Dates">lubridate functions</a> handle the conversion between them, and they do opposite things. Mixing them up is the most common date-time bug in R.</p>
+
+<p><img src="screenshots/Calendar-Effects-in-R-tz-decision.webp" alt="Deciding between force_tz and with_tz" class="img-responsive img-zoomable" loading="lazy" width="1046" height="1758" /></p>
+
+<p><em>Figure 3: Choosing between force_tz() and with_tz().</em></p>
+
+<p>The distinction is worth stating plainly before you see the code. A timestamp carries two pieces of information: an instant (a specific moment in the history of the universe) and a clock reading (the digits a local wall clock would show). <code>force_tz()</code> keeps the digits and changes the instant. <code>with_tz()</code> keeps the instant and changes the digits.</p>
+
+<div class="webr-container" data-block-title="force_tz against with_tz">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">force_tz against with_tz</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t &lt;- ymd_hms(&quot;2024-06-01 09:00:00&quot;, tz = &quot;UTC&quot;)
+t
+#&gt; [1] &quot;2024-06-01 09:00:00 UTC&quot;
+
+force_tz(t, &quot;America/New_York&quot;)   # keep the digits, move the instant
+#&gt; [1] &quot;2024-06-01 09:00:00 EDT&quot;
+
+with_tz(t,  &quot;America/New_York&quot;)   # keep the instant, move the digits
+#&gt; [1] &quot;2024-06-01 05:00:00 EDT&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same input, two very different outputs. <code>force_tz()</code> still reads 09:00 but it is now a New York morning, four hours later in real time than the UTC original. <code>with_tz()</code> still refers to the identical moment, but expressed in New York it reads 05:00.</p>
+
+<p>The practical rule: use <code>force_tz()</code> when your data arrived as naive local timestamps that R wrongly labelled UTC on import, and use <code>with_tz()</code> when you have correct instants and want to display or aggregate them in someone's local time.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A timestamp is an instant plus a label, and the two can be changed independently.</strong> Every time zone bug in R comes down to changing the one you did not mean to change. Before writing either function, finish this sentence out loud: "the digits are right and the label is wrong" (use force_tz) or "the instant is right and I want to see it elsewhere" (use with_tz).</div></div>
+
+<p>Now the part that silently destroys data. On the spring-forward night the local clock jumps straight from 02:00 to 03:00, so 02:30 never existed.</p>
+
+<div class="webr-container" data-block-title="A clock reading that never happened">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A clock reading that never happened</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ymd_hms(&quot;2024-03-10 02:30:00&quot;, tz = &quot;America/New_York&quot;)
+#&gt; [1] NA
+#&gt; Warning message:
+#&gt;  1 failed to parse. </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rather than inventing a plausible instant, lubridate returns <code>NA</code> and warns. That is the right behaviour, but a warning in the middle of a long import script is easy to miss, and you end up with a hole in the series that surfaces much later as a mysterious gap.</p>
+
+<p>The autumn transition creates the opposite problem. When the clock falls back, 01:30 happens twice, once on daylight time and once an hour later on standard time.</p>
+
+<div class="webr-container" data-block-title="A clock reading that happened twice">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A clock reading that happened twice</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">amb &lt;- ymd_hms(&quot;2024-11-03 01:30:00&quot;, tz = &quot;America/New_York&quot;)
+amb
+#&gt; [1] &quot;2024-11-03 01:30:00 EST&quot;
+
+with_tz(amb, &quot;UTC&quot;)
+#&gt; [1] &quot;2024-11-03 06:30:00 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No warning at all this time. Lubridate silently resolved the ambiguity by picking the standard-time occurrence, shown by the <code>EST</code> label and confirmed by the 06:30 UTC conversion (the daylight-time reading would have been 05:30 UTC).</p>
+
+<p>That is a full hour of error, applied silently, on one day a year. If your data source recorded the first occurrence instead, every value in that hour is now attributed to the wrong hour.</p>
+
+<p>Arithmetic has its own version of the trap. Adding "a day" can mean two different things, and lubridate makes you choose.</p>
+
+<div class="webr-container" data-block-title="Calendar days against exact durations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Calendar days against exact durations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">start &lt;- ymd_hms(&quot;2024-03-09 12:00:00&quot;, tz = &quot;America/New_York&quot;)
+
+start + days(1)    # calendar period: same clock reading tomorrow
+#&gt; [1] &quot;2024-03-10 12:00:00 EDT&quot;
+
+start + ddays(1)   # exact duration: 86400 seconds later
+#&gt; [1] &quot;2024-03-10 13:00:00 EDT&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>days(1)</code> is a <em>period</em>, meaning "the same time tomorrow", so it lands on noon regardless of what the clock did overnight. <code>ddays(1)</code> is a <em>duration</em>, meaning exactly 86400 seconds, and because 10 March lost an hour it overshoots to 13:00.</p>
+
+<p>Neither is wrong. Business logic ("the shop opens at noon tomorrow") wants <code>days(1)</code>. Physical measurement ("24 hours of exposure") wants <code>ddays(1)</code>. Choosing by accident is what causes trouble, and the default habit of writing <code>+ 86400</code> always gives you the duration behaviour whether you wanted it or not.</p>
+
+<p>The consequence for aggregation is that days are not all the same length. Generate hourly timestamps across the spring transition and count them.</p>
+
+<div class="webr-container" data-block-title="The 23-hour day">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The 23-hour day</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hourly &lt;- tibble(
+  ts = seq(ymd_hms(&quot;2024-03-08 00:00:00&quot;, tz = &quot;America/New_York&quot;),
+           ymd_hms(&quot;2024-03-12 23:00:00&quot;, tz = &quot;America/New_York&quot;),
+           by = &quot;hour&quot;)
+)
+
+hourly |&gt; count(day = as_date(ts))
+#&gt; # A tibble: 5 × 2
+#&gt;   day            n
+#&gt;   &lt;date&gt;     &lt;int&gt;
+#&gt; 1 2024-03-08    24
+#&gt; 2 2024-03-09    24
+#&gt; 3 2024-03-10    23
+#&gt; 4 2024-03-11    24
+#&gt; 5 2024-03-12    24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>seq()</code> steps hour by hour through local time and <code>count()</code> tallies how many landed on each date. Ten March got 23 rows because the 02:00 hour does not exist in that zone.</p>
+
+<p>The autumn transition does the reverse.</p>
+
+<div class="webr-container" data-block-title="The 25-hour day">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The 25-hour day</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fall &lt;- tibble(
+  ts = seq(ymd_hms(&quot;2024-11-02 00:00:00&quot;, tz = &quot;America/New_York&quot;),
+           ymd_hms(&quot;2024-11-04 23:00:00&quot;, tz = &quot;America/New_York&quot;),
+           by = &quot;hour&quot;)
+)
+
+fall |&gt; count(day = as_date(ts))
+#&gt; # A tibble: 3 × 2
+#&gt;   day            n
+#&gt;   &lt;date&gt;     &lt;int&gt;
+#&gt; 1 2024-11-02    24
+#&gt; 2 2024-11-03    25
+#&gt; 3 2024-11-04    24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Twenty-five hours on 3 November. Now think about what a daily <code>sum()</code> does to that: energy load, web traffic and call volumes all get a free 4% bump on one day each autumn and a 4% dip each spring, purely from clock arithmetic. Every anomaly detector you run will flag both.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Daily sums of hourly data are wrong twice a year.</strong> One day has 23 observations and another has 25, so totals are inflated and deflated by about 4% with no change in activity. Either aggregate with <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">mean()</a> instead of sum(), or record the observation count alongside the total so you can normalise later.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the effect on a different year. Count the hourly observations per day between 8 and 10 March 2025 in New York, and find the short day.</p>
+<div class="webr-container" data-block-title="Your turn: find the 23-hour day of 2025">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the 23-hour day of 2025</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hours &lt;- tibble(
+  ex_ts = seq(ymd_hms(&quot;2025-03-08 00:00:00&quot;, tz = &quot;America/New_York&quot;),
+              ymd_hms(&quot;2025-03-10 23:00:00&quot;, tz = &quot;America/New_York&quot;), by = &quot;hour&quot;)
+)
+
+# Count rows per local date:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Short day of 2025 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Short day of 2025 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hours &lt;- tibble(
+  ex_ts = seq(ymd_hms(&quot;2025-03-08 00:00:00&quot;, tz = &quot;America/New_York&quot;),
+              ymd_hms(&quot;2025-03-10 23:00:00&quot;, tz = &quot;America/New_York&quot;), by = &quot;hour&quot;)
+)
+
+ex_hours |&gt; count(ex_day = as_date(ex_ts))
+#&gt; # A tibble: 3 × 2
+#&gt;   ex_day         n
+#&gt;   &lt;date&gt;     &lt;int&gt;
+#&gt; 1 2025-03-08    24
+#&gt; 2 2025-03-09    23
+#&gt; 3 2025-03-10    24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> In 2025 the transition fell on 9 March rather than 10 March, because the rule is "the second Sunday in March" and that is a rule-based date exactly like the holidays earlier. The short day moves every year, so hard-coding last year's date will not protect you.</p>
+
+</details>
+</section>
+
+<h2>Which time zone should your time series live in?</h2>
+
+<p>The previous section showed what goes wrong. This one gives you the policy that prevents it, and it comes down to three decisions made in the right order.</p>
+
+<p>First, understand why a naive timestamp string is not enough information. The same text, read in three different zones, is three genuinely different moments.</p>
+
+<div class="webr-container" data-block-title="One string, three different instants">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One string, three different instants</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">naive &lt;- &quot;2024-06-01 09:00:00&quot;
+
+sapply(c(&quot;America/New_York&quot;, &quot;Europe/London&quot;, &quot;Asia/Tokyo&quot;),
+       function(z) format(with_tz(as.POSIXct(naive, tz = z), &quot;UTC&quot;), &quot;%Y-%m-%d %H:%M UTC&quot;))
+#&gt;       America/New_York          Europe/London             Asia/Tokyo 
+#&gt; &quot;2024-06-01 13:00 UTC&quot; &quot;2024-06-01 08:00 UTC&quot; &quot;2024-06-01 00:00 UTC&quot; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sapply()</code> runs the same conversion for each of the three zone names: interpret the string in that zone with <code>as.POSIXct(tz = z)</code>, then express the result in UTC so all three are directly comparable.</p>
+
+<p>Thirteen hours separate the New York and Tokyo readings of the identical text. Worse, <code>as.POSIXct()</code> with no <code>tz</code> argument at all does not fail, it silently uses whatever zone the machine is configured for. The same script then produces different numbers on your laptop, your colleague's laptop and the production server.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Store UTC, aggregate local, display local.</strong> Convert every timestamp to UTC the moment it enters your pipeline so arithmetic and joins are unambiguous. Convert to the business time zone only when grouping into days or hours, because human behaviour follows local clocks. Convert to the reader's zone only at the final formatting step.</div></div>
+
+<p>The middle step of that rule deserves a demonstration, because it is where judgement is actually required. Take the same hourly instants from the previous section and count them by UTC date instead of local date.</p>
+
+<div class="webr-container" data-block-title="Counting the same instants in UTC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Counting the same instants in UTC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hourly |&gt;
+  mutate(ts_utc = with_tz(ts, &quot;UTC&quot;)) |&gt;
+  count(day_utc = as_date(ts_utc))
+#&gt; # A tibble: 6 × 2
+#&gt;   day_utc        n
+#&gt;   &lt;date&gt;     &lt;int&gt;
+#&gt; 1 2024-03-08    19
+#&gt; 2 2024-03-09    24
+#&gt; 3 2024-03-10    24
+#&gt; 4 2024-03-11    24
+#&gt; 5 2024-03-12    24
+#&gt; 6 2024-03-13     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every full day in the middle now has exactly 24 hours, DST transition or not. The partial 19 and 4 at the ends are just the five-day local window straddling six UTC dates, which is the offset at work rather than a bug.</p>
+
+<p>So which is right? It depends on what the data measures. Electricity demand, retail footfall and app usage follow human routines, so they belong on local days even though those days are ragged. Server throughput, sensor readings and anything physical belongs on UTC days, where every day really is 24 hours long. Choose deliberately, then write the choice into the code as a comment, because the two produce different answers and both look reasonable.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the <code>ex_hours</code> object from the previous exercise and recount it by UTC date instead of local date, then compare the row count.</p>
+<div class="webr-container" data-block-title="Your turn: recount in UTC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recount in UTC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Convert ex_ts to UTC, then count by UTC date:
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="UTC recount solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">UTC recount solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hours |&gt; mutate(ex_utc = with_tz(ex_ts, &quot;UTC&quot;)) |&gt; count(ex_day = as_date(ex_utc))
+#&gt; # A tibble: 4 × 2
+#&gt;   ex_day         n
+#&gt;   &lt;date&gt;     &lt;int&gt;
+#&gt; 1 2025-03-08    19
+#&gt; 2 2025-03-09    24
+#&gt; 3 2025-03-10    24
+#&gt; 4 2025-03-11     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 23-hour day has vanished. In UTC, 9 March 2025 has a full 24 hours because UTC never observes daylight saving. Three local dates became four UTC dates, which is the five-hour offset splitting the window differently, not lost or duplicated data. The totals still match: 71 observations either way.</p>
+
+</details>
+</section>
+
+<h2>Complete Example</h2>
+
+<p>Time to put the whole toolkit to work on one realistic problem. You have eight years of daily revenue for a US business that closes at weekends and on federal holidays. The question is whether a calendar regressor measurably improves a forecast, tested honestly on data the model never saw.</p>
+
+<p>The plan is: build a holiday-aware trading-day calendar running past the end of the data, aggregate revenue to months, train on 2018 through 2024, test on 2025, and compare a plain seasonal model against a calendar-aware one.</p>
+
+<div class="webr-container" data-block-title="Train and test a calendar-aware model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Train and test a calendar-aware model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hols_full &lt;- us_holidays(2018:2027)
+
+calendar &lt;- tibble(date = seq(as.Date(&quot;2018-01-01&quot;), as.Date(&quot;2026-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(is_trading = wday(date, week_start = 1) &lt;= 5 &amp; !(date %in% hols_full)) |&gt;
+  group_by(month = yearmonth(date)) |&gt;
+  summarise(n_trading = sum(is_trading), .groups = &quot;drop&quot;)
+
+set.seed(909)
+revenue &lt;- tibble(date = seq(as.Date(&quot;2018-01-01&quot;), as.Date(&quot;2025-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(open = wday(date, week_start = 1) &lt;= 5 &amp; !(date %in% hols_full),
+         daily = open * (4000 + 1.2 * as.numeric(date - as.Date(&quot;2018-01-01&quot;)) +
+                         ifelse(month(date) == 12, 900, 0) + rnorm(n(), 0, 250))) |&gt;
+  group_by(month = yearmonth(date)) |&gt;
+  summarise(revenue = round(sum(daily)), .groups = &quot;drop&quot;) |&gt;
+  left_join(calendar, by = &quot;month&quot;) |&gt;
+  as_tsibble(index = month)
+
+train &lt;- revenue |&gt; filter(year(month) &lt;= 2024)
+test  &lt;- revenue |&gt; filter(year(month) == 2025)
+
+models &lt;- train |&gt;
+  model(plain    = TSLM(revenue ~ trend() + season()),
+        calendar = TSLM(revenue ~ trend() + season() + n_trading))
+
+accuracy(forecast(models, new_data = test), revenue) |&gt;
+  select(.model, RMSE, MAPE)
+#&gt; # A tibble: 2 × 3
+#&gt;   .model    RMSE  MAPE
+#&gt;   &lt;chr&gt;    &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 calendar 2499.  1.18
+#&gt; 2 plain    6684.  3.58</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Following the pipeline: <code>calendar</code> runs to the end of 2026 so future values are ready, <code>revenue</code> simulates daily takings with a trend and a December uplift then rolls up to months, <code>train</code> and <code>test</code> split at the end of 2024, and <code>accuracy()</code> scores both models' 2025 forecasts against what actually happened.</p>
+
+<p>The verdict is decisive. <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">Mean absolute percentage error</a> falls from 3.58% to 1.18%, and root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a> from 6684 to 2499. The calendar model's typical monthly forecast error is less than a third of the plain model's, from one extra column that required no forecasting of its own.</p>
+
+<p>With the better model chosen on evidence, produce the forecast that the business actually asked for.</p>
+
+<div class="webr-container" data-block-title="Forecast the first half of 2026">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast the first half of 2026</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">future &lt;- calendar |&gt;
+  filter(month &gt; yearmonth(&quot;2025 Dec&quot;), month &lt;= yearmonth(&quot;2026 Jun&quot;)) |&gt;
+  as_tsibble(index = month)
+
+models |&gt; select(calendar) |&gt; forecast(new_data = future) |&gt;
+  as_tibble() |&gt; select(month, n_trading, .mean) |&gt; mutate(.mean = round(.mean))
+#&gt; # A tibble: 6 × 3
+#&gt;      month n_trading  .mean
+#&gt;      &lt;mth&gt;     &lt;int&gt;  &lt;dbl&gt;
+#&gt; 1 2026 Jan        20 152224
+#&gt; 2 2026 Feb        19 147241
+#&gt; 3 2026 Mar        22 163917
+#&gt; 4 2026 Apr        22 164957
+#&gt; 5 2026 May        20 155614
+#&gt; 6 2026 Jun        21 161288</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>filter()</code> slices the pre-built calendar down to the forecast window, and <code>round()</code> tidies the output for reporting.</p>
+
+<p>The forecast tells a story a plain model could not. February 2026 is the weakest month at 147k, but not because February is inherently weak, it is because 2026 gives it only 19 trading days. If the business compares February against March and sees a 17k gap, the calendar explains almost all of it, and nobody needs to launch an investigation into a sales slump that never happened.</p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Build an Easter regressor split across months</h3>
+
+<p>Easter moves between March and April, so a monthly series needs its effect apportioned between the two. The standard method treats the holiday as a window of days and gives each month the fraction of that window it contains.</p>
+
+<p>Build a regressor for 2018 to 2025 using a 7-day window ending on Easter Sunday (the six days before, plus Easter itself). For each month that overlaps a window, report how many of the 7 days fell in it and what share of the window that is. You will need the <code>easter_date()</code> function from earlier in the tutorial.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_years  &lt;- 2018:2025
+my_easter &lt;- easter_date(my_years)
+
+# Hint: build one row per window-day with rep(), then count by yearmonth()
+# Expand each Easter into its 7-day window:
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Easter regressor solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Easter regressor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_years  &lt;- 2018:2025
+my_easter &lt;- easter_date(my_years)
+
+my_window &lt;- tibble(
+  easter = rep(my_easter, each = 7),
+  day    = rep(my_easter, each = 7) - rep(6:0, times = length(my_easter))
+)
+
+my_easter_reg &lt;- my_window |&gt;
+  count(my_month = yearmonth(day), name = &quot;n_days&quot;) |&gt;
+  mutate(easter_share = n_days / 7)
+
+my_easter_reg
+#&gt; # A tibble: 10 × 3
+#&gt;    my_month n_days easter_share
+#&gt;       &lt;mth&gt;  &lt;int&gt;        &lt;dbl&gt;
+#&gt;  1 2018 Mar      6        0.857
+#&gt;  2 2018 Apr      1        0.143
+#&gt;  3 2019 Apr      7        1    
+#&gt;  4 2020 Apr      7        1    
+#&gt;  5 2021 Mar      3        0.429
+#&gt;  6 2021 Apr      4        0.571
+#&gt;  7 2022 Apr      7        1    
+#&gt;  8 2023 Apr      7        1    
+#&gt;  9 2024 Mar      7        1    
+#&gt; 10 2025 Apr      7        1    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rep(my_easter, each = 7)</code> repeats each Easter date seven times, and subtracting <code>rep(6:0, ...)</code> walks backwards from six days before to Easter itself. <code>count()</code> then does the apportioning automatically, because days that crossed a month boundary land in different <code>yearmonth()</code> groups.</p>
+
+<p>Read the interesting years. 2018 splits 6 days into March and 1 into April; 2021 splits 3 and 4. The other six years fall entirely within one month. That <code>easter_share</code> column is what you feed to <code>TSLM()</code> as a regressor, and it is the same logic the US Census Bureau's <code>genhol</code> function implements for X-13ARIMA-SEATS.</p>
+
+</details>
+
+<h3>Exercise 2: Decide which series has a trading-day effect</h3>
+
+<p>You are handed two monthly series and asked which one needs a calendar adjustment. Guessing from a plot is unreliable because a trading-day effect looks a lot like ordinary seasonality.</p>
+
+<p>Build both series with the code below, then regress each on <code>n_trading</code> and use the coefficient's t statistic and <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> to decide. Reshape to long form and use a keyed tsibble so one <code>model()</code> call handles both. Expect a t statistic above 10 for the series that has an effect and below 2 for the one that does not.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(4242)
+my_cal &lt;- tibble(date = seq(as.Date(&quot;2018-01-01&quot;), as.Date(&quot;2025-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(wd = wday(date, week_start = 1) &lt;= 5) |&gt;
+  group_by(my_month = yearmonth(date)) |&gt;
+  summarise(n_trading = sum(wd), .groups = &quot;drop&quot;)
+
+my_series &lt;- my_cal |&gt;
+  mutate(series_a = round(500 * n_trading + rnorm(n(), 0, 400)),
+         series_b = round(11000 + 20 * row_number() + rnorm(n(), 0, 400)))
+
+# Hint: pivot_longer() then as_tsibble(index = ..., key = ...), then tidy()
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trading-day detection solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trading-day detection solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(4242)
+my_cal &lt;- tibble(date = seq(as.Date(&quot;2018-01-01&quot;), as.Date(&quot;2025-12-31&quot;), by = &quot;day&quot;)) |&gt;
+  mutate(wd = wday(date, week_start = 1) &lt;= 5) |&gt;
+  group_by(my_month = yearmonth(date)) |&gt;
+  summarise(n_trading = sum(wd), .groups = &quot;drop&quot;)
+
+my_series &lt;- my_cal |&gt;
+  mutate(series_a = round(500 * n_trading + rnorm(n(), 0, 400)),
+         series_b = round(11000 + 20 * row_number() + rnorm(n(), 0, 400))) |&gt;
+  pivot_longer(c(series_a, series_b), names_to = &quot;series&quot;, values_to = &quot;value&quot;) |&gt;
+  as_tsibble(index = my_month, key = series)
+
+my_check &lt;- my_series |&gt; model(td = TSLM(value ~ n_trading))
+
+tidy(my_check) |&gt; filter(term == &quot;n_trading&quot;) |&gt;
+  select(series, estimate, statistic, p.value)
+#&gt; # A tibble: 2 × 4
+#&gt;   series   estimate statistic  p.value
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 series_a    625.     13.9   1.49e-24
+#&gt; 2 series_b    -58.0    -0.825 4.12e- 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Reshaping to long form and declaring <code>key = series</code> makes a keyed tsibble, so a single <code>model()</code> call fits <a class="auto-link" href="Global-Forecasting-Models-in-R.html" title="Global Forecasting Models in R: Learn Across Many Series">one model per series</a> and <code>tidy()</code> returns both coefficient sets stacked with a <code>series</code> column.</p>
+
+<p>The answer is unambiguous. Series A has a t statistic of 13.9 and a p-value near zero, so it needs a trading-day regressor. Series B has t = -0.83 and p = 0.41, which is exactly what noise looks like, so adding the regressor there would only cost a degree of freedom. Series B was built from a trend plus noise with no calendar dependence at all.</p>
+
+</details>
+
+<h3>Exercise 3: Aggregate hourly data safely across a DST transition</h3>
+
+<p>An energy team gives you hourly load readings across the November fall-back weekend and asks for daily figures. The readings are deliberately constant at 100 for every single hour, so any variation you see in the daily output is an artefact and not a signal.</p>
+
+<p>Build the hourly frame below, then group by local date and report three things per day: the number of observations, the sum of load, and the mean of load. Then explain which of <code>sum()</code> and <code>mean()</code> you would ship to the energy team, and why.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_hours &lt;- tibble(
+  ts = seq(ymd_hms(&quot;2024-11-02 00:00:00&quot;, tz = &quot;America/New_York&quot;),
+           ymd_hms(&quot;2024-11-04 23:00:00&quot;, tz = &quot;America/New_York&quot;), by = &quot;hour&quot;)
+) |&gt; mutate(load = 100)
+
+# Hint: group_by(as_date(ts)) then summarise n(), sum() and mean() together
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="DST-safe aggregation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">DST-safe aggregation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_hours &lt;- tibble(
+  ts = seq(ymd_hms(&quot;2024-11-02 00:00:00&quot;, tz = &quot;America/New_York&quot;),
+           ymd_hms(&quot;2024-11-04 23:00:00&quot;, tz = &quot;America/New_York&quot;), by = &quot;hour&quot;)
+) |&gt; mutate(load = 100)
+
+my_hours |&gt;
+  group_by(my_day = as_date(ts)) |&gt;
+  summarise(n_obs = n(), total = sum(load), average = mean(load), .groups = &quot;drop&quot;)
+#&gt; # A tibble: 3 × 4
+#&gt;   my_day     n_obs total average
+#&gt;   &lt;date&gt;     &lt;int&gt; &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 2024-11-02    24  2400     100
+#&gt; 2 2024-11-03    25  2500     100
+#&gt; 3 2024-11-04    24  2400     100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>n_obs</code> column is the tell: 3 November carries 25 readings because the 01:00 hour occurred twice. The <code>total</code> column duly reports 2500 against 2400 on the neighbouring days, a 4.2% spike, even though the load never changed by a single unit. The <code>average</code> column stays flat at 100, which is the truth.</p>
+
+<p>Ship the mean, or ship the sum with <code>n_obs</code> beside it so the reader can normalise. Shipping a bare daily sum guarantees that one day every autumn looks like a demand surge and one day every spring looks like an outage, and both will be investigated by someone who does not know about clocks.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>Why not just divide the monthly total by the number of trading days?</h3>
+
+<p>That is the obvious alternative and it does remove most of the distortion, but it forces the effect to be exactly proportional: 5% more trading days must mean 5% more sales. A regressor lets the model estimate the per-day value from the data instead of assuming it, which matters when part of the month's activity is fixed (a subscription base, a standing order) and does not scale with opening days at all. Dividing also destroys the units of the series, so your forecast comes back as "sales per trading day" and has to be multiplied out again.</p>
+
+<h3>Does a weekly or daily series need this too?</h3>
+
+<p>A weekly series is the one case that mostly escapes, because every week contains exactly seven days and one of each weekday, so there are no trading-day counts to vary. It still needs holiday handling, since a public holiday inside a week is a genuine loss. Daily series have the opposite problem: the day-of-week pattern is not a nuisance count any more, it is the seasonality itself, so you model it directly with a weekly seasonal term plus holiday dummies rather than with the monthly counts built here.</p>
+
+<h3>What about leap years and months of different lengths?</h3>
+
+<p>Month length is handled automatically, because counting weekdays or trading days per month already absorbs it. February 2024 gets 20 trading days and February 2025 gets 19, and the extra one is the leap day itself, 29 February 2024, which happened to fall on a Thursday. <code>n_trading</code> carries that difference without any extra work. The only place you have to think about it separately is the <code>is_last</code> test, which is why the code calls <code>days_in_month(date)</code> instead of hard-coding 30 or 31.</p>
+
+<h3>Should I use a package like timeDate or bizdays instead of writing this myself?</h3>
+
+<p>Use a package when it already ships the exact calendar you need, which is the case for major exchanges (<code>timeDate::holidayNYSE()</code>) and for the financial centres covered by <code>bizdays</code>. Build it yourself when your calendar is company-specific, regional, or simply not in any package, which covers most real business series: a warehouse that shuts for a local festival, a clinic with its own <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">closure</a> days. The grid pattern in this tutorial is worth knowing either way, because it is what lets you edit a packaged calendar rather than accept it.</p>
+
+<h3>One trading-day count or seven day-of-week counts?</h3>
+
+<p>Start with one count and only move to seven if the business genuinely trades at different rates on different days. Seven regressors need roughly five years of monthly data before the coefficients settle, because each count only ever takes the value 4 or 5. A useful middle option when history is short is two columns, weekday count and weekend-day count, which captures most of the retail pattern at a quarter of the parameter cost.</p>
+
+<h3>Do auto.arima() or ETS handle calendar effects on their own?</h3>
+
+<p>No. Both estimate a fixed seasonal pattern, meaning one factor for January that is reused for every January, so a January with 23 trading days and a January with 21 get the same adjustment. That is exactly the assumption calendar effects violate. The fix is to pass the calendar in as an external regressor, which ARIMA supports through <code>ARIMA(y ~ n_trading + pdq(...))</code> in fable; ETS does not accept <a class="auto-link" href="ARIMAX-in-R.html" title="ARIMAX in R: ARIMA with External Regressors (xreg)">external regressors</a> at all, so a calendar-sensitive series is a reason to prefer a regression or <a class="auto-link" href="ARIMA-in-R.html" title="ARIMA in R: What AR, I, and MA Mean and How to Fit One">ARIMA model</a> over ETS.</p>
+
+<h2>Summary</h2>
+
+<p>Calendar effects are not exotic. They show up in any series aggregated to a period the calendar does not divide evenly, which is nearly all of them.</p>
+
+<p><img src="screenshots/Calendar-Effects-in-R-overview-mindmap.webp" alt="The calendar effects toolkit at a glance" class="img-responsive img-zoomable" loading="lazy" width="1686" height="928" /></p>
+
+<p><em>Figure 4: The calendar-effects toolkit at a glance.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Effect</th>
+<th>How it shows up</th>
+<th>Fix in R</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trading days</td>
+<td>Monthly totals swing 10-15% with no real change</td>
+<td>Count working days per month, add as a regressor</td>
+</tr>
+<tr>
+<td>Holidays</td>
+<td>Certain months dip for reasons no seasonal factor explains</td>
+<td>Build a holiday vector, exclude those dates from the count</td>
+</tr>
+<tr>
+<td>Observed shifts</td>
+<td>A holiday's cost lands in the wrong month</td>
+<td>Shift Saturday holidays to Friday, Sunday to Monday</td>
+</tr>
+<tr>
+<td>Moving festivals</td>
+<td>March and April swap places year to year</td>
+<td>Compute the date (Easter computus), split the window across months</td>
+</tr>
+<tr>
+<td>Unequal weekdays</td>
+<td>Weekend-heavy business, one total count underfits</td>
+<td>Use seven day-of-week counts instead of one</td>
+</tr>
+<tr>
+<td>DST transitions</td>
+<td>One day has 23 hours, another has 25</td>
+<td>Aggregate with mean(), or store the observation count</td>
+</tr>
+<tr>
+<td>Time zone drift</td>
+<td>Same script, different answers on different machines</td>
+<td>Store UTC, aggregate local, display local</td>
+</tr>
+</tbody>
+</table>
+
+<p>The key techniques, in the order you will reach for them:</p>
+
+<ol>
+
+<li><strong><code>wday(x, week_start = 1)</code></strong> so Monday is 1, otherwise every count is off by a day per week.</li>
+
+<li><strong><code>nth = ceiling(mday(x) / 7)</code><strong> and </strong><code>is_last = mday(x) &gt; days_in_month(x) - 7</code></strong> to express any "nth weekday of the month" holiday as a filter.</li>
+
+<li><strong><code>sum(logical_column)</code></strong> to turn per-day flags into per-period counts.</li>
+
+<li><strong><code>TSLM(y ~ trend() + season() + n_trading)</code></strong> to let seasonality and the calendar each do their own job.</li>
+
+<li><strong><code>forecast(new_data = ...)</code></strong>, never <code>h = ...</code>, once a model has an external regressor.</li>
+
+<li><strong><code>force_tz()</code> versus <code>with_tz()</code></strong>, decided by whether the digits or the instant is the thing that is already correct.</li>
+
+</ol>
+
+<p>The single most valuable habit is building the calendar past the end of your data. Future trading-day counts are arithmetic, not forecasts, so they cost nothing to compute and they are the one predictor you will never be uncertain about.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd Edition. Section 7.4: Some useful predictors (trading days, Easter, distributed lags). <a href="https://otexts.com/fpp3/useful-predictors.html">Link</a></li>
+
+<li>Monsell, B.C., <em>Issues in Modeling and Adjusting Calendar Effects in Economic Time Series</em>. US Census Bureau, Proceedings of ICES-III (2007). <a href="https://www.census.gov/library/working-papers/2007/adrm/monsell-01.html">Link</a></li>
+
+<li>Sax, C. & Eddelbuettel, D., <em>Seasonal Adjustment by X-13ARIMA-SEATS in R</em>. Journal of Statistical Software. Covers the <code>genhol()</code> function for moving-holiday regressors. <a href="https://cran.r-project.org/web/packages/seasonal/vignettes/seas.pdf">Link</a></li>
+
+<li>lubridate reference, time zone functions <code>force_tz()</code>, <code>with_tz()</code>, and the period versus duration distinction. <a href="https://lubridate.tidyverse.org/reference/index.html">Link</a></li>
+
+<li>fable reference, <code>TSLM()</code> and forecasting with external regressors via <code>new_data</code>. <a href="https://fable.tidyverts.org/reference/TSLM.html">Link</a></li>
+
+<li>Wang, E., Cook, D. & Hyndman, R.J., <em>A New Tidy Data Structure to Support Exploration and Modeling of Temporal Data</em>. Journal of Computational and Graphical Statistics (2020). The tsibble paper. <a href="https://doi.org/10.1080/10618600.2019.1695624">Link</a></li>
+
+<li>timeDate package, <code>holidayNYSE()</code> and other exchange calendars. <a href="https://search.r-project.org/CRAN/refmans/timeDate/html/holiday-NYSE.html">Link</a></li>
+
+<li>IANA Time Zone Database, the authoritative source behind every Olson zone name such as <code>America/New_York</code>. <a href="https://www.iana.org/time-zones">Link</a></li>
+
+<li>R Core Team, <em>An Introduction to R</em>, and the <code>?as.POSIXct</code> help page on the empty time zone default. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="Time-Series-Regression-in-R.html">Time Series Regression in R</a></strong> goes deeper on <code>TSLM()</code>, including the <a class="auto-link" href="Time-Series-Regression-in-R.html" title="Time Series Regression in R: TSLM and Spurious Regression">spurious regression trap</a> and how to check residual assumptions once you have added regressors like the ones built here.</li>
+
+<li><strong><a href="tsibble-in-R.html">tsibble in R</a></strong> explains the <a class="auto-link" href="fable-in-R.html" title="fable in R: Tidy Time Series Forecasting with tsibble">tsibble object</a> model used throughout this tutorial: index columns, keys for multiple series, and how to find and fill gaps in irregular data.</li>
+
+<li><strong><a href="Dates-and-Times-Drills-in-R.html">Dates and Times Drills in R</a></strong> is fifteen graded problems on parsing, arithmetic and time zones, and is the fastest way to make the lubridate patterns here automatic.</li>
+
+</ul>
+
