@@ -1,0 +1,1713 @@
+---
+title: "Backtesting Forecast Models in R at Scale"
+description: "Backtest forecast models in R at scale: build rolling origins with stretch_tsibble, score many models on many series, then prove the winner was not luck."
+keywords: "backtesting forecasts in R, time series backtesting, stretch_tsibble, rolling origin evaluation, forecast cross-validation in R, fable backtesting, RMSSE, compare forecasting models"
+mathjax: true
+webr: true
+curriculum_id: "TS2-10.4"
+post_type: "C"
+auto_link_terms: "backtest a forecast|backtesting forecasts|forecast backtesting|backtesting in R|stretch_tsibble|slide_tsibble|rolling origins|forecast origins|rolling origin evaluation|backtesting many series"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Backtesting Forecasts"
+sidebar_order: "45"
+---
+<!-- md2html:generated -->
+
+<p class="lead"><a class="auto-link" href="Time-Series-Cross-Validation-in-R.html" title="Time Series Cross-Validation in R with tsCV()">Backtesting a forecast</a> means refitting your model at many past points in time and scoring the forecasts it would actually have made from each one. In R, <code>stretch_tsibble()</code> builds those training windows, <code>model()</code> fits every candidate on each window, and <code>accuracy()</code> collapses thousands of forecast errors into one number per model.</p>
+
+<h2>Why does a single train/test split give you the wrong answer?</h2>
+
+<p>One holdout period is a sample of size one. You score each model against a single stretch of history, and nothing in the result tells you how much came from the model and how much came from that particular stretch. Hold out 2015 and one model looks best; hold out 2016 and a different one does. The block below scores the same three models on Victorian department-store sales at three cut-offs, one year apart. Everything here uses base R plus the tidyverts stack (tsibble for the data, fable for the models).</p>
+
+<div class="webr-container" data-block-title="Score three models at three cut-offs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score three models at three cut-offs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tsibble)
+library(tsibbledata)
+library(fable)
+library(fabletools)
+library(tidyr)
+library(ggplot2)
+
+library(lubridate)
+dept &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;, Industry == &quot;Department stores&quot;,
+         lubridate::year(Month) &gt;= 2005) |&gt;
+  select(Month, Turnover) |&gt;
+  as_tsibble(index = Month)
+
+one_split &lt;- function(cutoff) {
+  dept |&gt;
+    filter(Month &lt;= yearmonth(cutoff)) |&gt;
+    model(ets    = ETS(Turnover),
+          tslm   = TSLM(Turnover ~ trend() + season()),
+          snaive = SNAIVE(Turnover ~ drift())) |&gt;
+    forecast(h = 12) |&gt;
+    accuracy(dept) |&gt;
+    transmute(train_ends = cutoff, .model, RMSE = round(RMSE, 1))
+}
+
+split_scores &lt;- bind_rows(one_split(&quot;2014 Dec&quot;), one_split(&quot;2015 Dec&quot;), one_split(&quot;2016 Dec&quot;))
+split_scores |&gt; pivot_wider(names_from = .model, values_from = RMSE)
+#&gt; # A tibble: 3 × 4
+#&gt;   train_ends   ets snaive  tslm
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2014 Dec    25.5   21.9  21.6
+#&gt; 2 2015 Dec    16     21.6  21.9
+#&gt; 3 2016 Dec    15.7   15    19.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what that code did. <code>dept</code> pulls one monthly series (Victorian department-store turnover, 2005 to 2018) out of <code>aus_retail</code> and wraps it as a tsibble, a table that knows <code>Month</code> is its time column. The <code>one_split()</code> function takes a cut-off date, keeps only the months up to it as training data, fits three models on that training slice, forecasts the next 12 months, and asks <code>accuracy()</code> how far those forecasts landed from what really happened. <code>yearmonth(&quot;2014 Dec&quot;)</code> turns that string into a month value the tsibble can compare its <code>Month</code> column against.</p>
+
+<p>The three candidates are deliberately different in character. <code>ETS()</code> is <a class="auto-link" href="Exponential-Smoothing-in-R.html" title="Exponential Smoothing in R: ses() and the Alpha Parameter">exponential smoothing</a>: it tracks a level, a trend and a <a class="auto-link" href="Time-Series-Decomposition-in-R.html" title="Time Series Decomposition in R: STL vs Classical">seasonal pattern</a>, and R picks which of those pieces the series actually needs. <code>TSLM()</code> is an ordinary <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> of turnover on a straight-line trend plus one dummy variable per calendar month. <code>SNAIVE()</code> is the seasonal naive benchmark, which forecasts each month as the same month one year earlier, with <code>drift()</code> adding an adjustment for the average yearly change. RMSE is <a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">root mean squared error</a>: the typical size of a miss, in millions of dollars of turnover, where smaller is better.</p>
+
+<p>Now read the numbers. Train to the end of 2014 and <code>tslm</code> wins at 21.6. Move the cut-off forward one year and <code>ets</code> wins at 16.0. Move it one more year and <code>snaive</code> wins at 15.0. Three splits, three different champions, and the "loser" in one row is the "winner" in the next.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A single holdout measures the holdout as much as it measures the model.</strong> The 12 months you happened to hold out have their own weather, their own promotions and their own shocks, so the winner you crown is partly an accident of which year you set aside.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Two earlier cut-offs are already wired up below. Run the block and check whether the ranking from the table above holds in 2011 and 2012. Then change one of the two dates to a year of your choice.</p>
+<div class="webr-container" data-block-title="Your turn: two earlier cut-offs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two earlier cut-offs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_splits &lt;- bind_rows(one_split(&quot;2011 Dec&quot;), one_split(&quot;2012 Dec&quot;))
+ex_splits |&gt; pivot_wider(names_from = .model, values_from = RMSE)
+#&gt; # A tibble: 2 × 4
+#&gt;   train_ends   ets snaive  tslm
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2011 Dec    12.2   15.3  16.8
+#&gt; 2 2012 Dec    10.5    9.4  17  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reading the two earlier cut-offs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reading the two earlier cut-offs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_splits |&gt;
+  group_by(train_ends) |&gt;
+  slice_min(RMSE, n = 1) |&gt;
+  ungroup()
+#&gt; # A tibble: 2 × 3
+#&gt;   train_ends .model  RMSE
+#&gt;   &lt;chr&gt;      &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 2011 Dec   ets     12.2
+#&gt; 2 2012 Dec   snaive   9.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ets</code> wins 2011 and <code>snaive</code> wins 2012, so the flip-flopping is not confined to recent years. Notice also that every RMSE here is far lower than the 2014 to 2016 numbers. That is not because the models improved, it is because those particular years were easier to forecast.</p>
+
+</details>
+</section>
+
+<h2>What exactly is a rolling origin backtest?</h2>
+
+<p>The fix is to stop treating one cut-off as special and use all of them. A <strong><a class="auto-link" href="Feature-Engineering-for-Forecasting-in-R.html" title="Feature Engineering for Time Series Forecasting in R">forecast origin</a></strong> is any point in the past where you could have stood and made a forecast. A <a class="auto-link" href="Choosing-a-Forecasting-Model-in-R.html" title="Which Forecasting Model in R? A Decision Guide">rolling origin backtest</a> walks the origin forward through history, refits at every stop, forecasts a fixed number of months ahead, and pools every error into one score.</p>
+
+<p><img src="screenshots/Backtesting-Forecasts-in-R-rolling-origins.webp" alt="Three forecast origins, each training on history up to its cut-off and scoring the months that follow" class="img-responsive img-zoomable" loading="lazy" width="1322" height="986" /></p>
+
+<p><em>Figure 1: Each origin trains on everything up to a cut-off, then is scored on the months that follow.</em></p>
+
+<p>The critical rule is the one your intuition already suspects: the scoring window always sits <strong>after</strong> the training window. That is what separates this from ordinary cross-validation, which splits the rows into folds (chunks that take turns being the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>) chosen at random. Shuffle a time series and you train on 2018 to predict 2015, which no real forecast ever gets to do.</p>
+
+<p>In the tidyverts stack you do not write this loop by hand. <code>stretch_tsibble()</code> takes one series and returns a stack of training sets, one per origin, glued together into a single table with an id column marking which is which.</p>
+
+<div class="webr-container" data-block-title="Build every training window at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build every training window at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dept_cv_raw &lt;- dept |&gt; stretch_tsibble(.init = 96, .step = 6)
+dept_cv_raw
+#&gt; # A tsibble: 1,716 x 3 [1M]
+#&gt; # Key:       .id [13]
+#&gt;       Month Turnover   .id
+#&gt;       &lt;mth&gt;    &lt;dbl&gt; &lt;int&gt;
+#&gt;  1 2005 Jan     300.     1
+#&gt;  2 2005 Feb     260.     1
+#&gt;  3 2005 Mar     320.     1
+#&gt;  4 2005 Apr     286      1
+#&gt;  5 2005 May     318.     1
+#&gt;  6 2005 Jun     358.     1
+#&gt;  7 2005 Jul     318.     1
+#&gt;  8 2005 Aug     289      1
+#&gt;  9 2005 Sep     306.     1
+#&gt; 10 2005 Oct     316.     1
+#&gt; # ℹ 1,706 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two arguments control everything. <code>.init = 96</code> says the first training window holds 96 months (8 years) of history. <code>.step = 6</code> says each following window adds another 6 months. The result is 13 separate training sets stacked into 1,716 rows, and the new <code>.id</code> column says which <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> each row belongs to.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The .id column becomes a <a class="auto-link" href="tsibble-in-R.html" title="tsibble in R: Tidy Time Series Objects, Keys, and Gaps">tsibble key</a>, which is why the whole stack behaves like 13 separate series.</strong> Every function downstream (model, forecast, accuracy) already knows how to work series-by-series, so it will loop over your origins for free.</div></div>
+
+<p>The stacking is easier to believe once you count the rows in each window.</p>
+
+<div class="webr-container" data-block-title="How long is each training window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How long is each training window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dept_cv_raw |&gt;
+  as_tibble() |&gt;
+  count(.id, name = &quot;training_months&quot;) |&gt;
+  head(4)
+#&gt; # A tibble: 4 × 2
+#&gt;     .id training_months
+#&gt;   &lt;int&gt;           &lt;int&gt;
+#&gt; 1     1              96
+#&gt; 2     2             102
+#&gt; 3     3             108
+#&gt; 4     4             114</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Window 1 has the 96 months you asked for, window 2 has 102, window 3 has 108. Each one keeps all the history of the one before it and adds six more months. That is why this is called a <strong>stretching</strong> or <strong>expanding</strong> window.</p>
+
+<p>How many origins will you get? It is worth being able to predict this before you press Run, because this number multiplied by your model count is your compute bill.</p>
+
+<div class="webr-container" data-block-title="Count origins before you run anything">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count origins before you run anything</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_origins &lt;- function(n_obs, init, step, h) {
+  length(seq(from = init, to = n_obs - h, by = step))
+}
+n_origins(n_obs = 168, init = 96, step = 6, h = 12)
+#&gt; [1] 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function counts the training-window sizes you can reach by starting at <code>init</code> and stepping by <code>step</code>, stopping at <code>n_obs - h</code> so that every origin still has a full <code>h</code> months of future left to be scored on. With 168 months of data, a 96-month start, 6-month steps and a 12-month horizon, that is 11 usable origins, two fewer than the 13 windows <code>stretch_tsibble()</code> produced. The next section deals with those two extras.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set .init to at least two full seasonal cycles, and more if you can afford it.</strong> A seasonal model needs to see each month happen a few times before it can estimate that month's effect, so 24 months is a hard floor for monthly data and 60 or more is a comfortable one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The block below stretches with a 12-month step instead of 6. Predict how many windows you will get before you run it, then check.</p>
+<div class="webr-container" data-block-title="Your turn: a coarser step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a coarser step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cv &lt;- dept |&gt; stretch_tsibble(.init = 96, .step = 12)
+dplyr::n_distinct(ex_cv$.id)
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Checking the count against the formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Checking the count against the formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">length(seq(from = 96, to = 168, by = 12))
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The window sizes are 96, 108, 120, 132, 144, 156 and 168 months, which is 7 windows. Doubling the step roughly halves the number of origins, and therefore roughly halves the runtime.</p>
+
+</details>
+</section>
+
+<h2>How do you run a full backtest and read the score?</h2>
+
+<p>You now have training windows. Turning them into a model ranking takes three more calls, and one cleanup step that almost every tutorial skips.</p>
+
+<p><img src="screenshots/Backtesting-Forecasts-in-R-pipeline.webp" alt="The backtest pipeline from stretch_tsibble through accuracy to a deployment decision" class="img-responsive img-zoomable" loading="lazy" width="2248" height="314" /></p>
+
+<p><em>Figure 2: The five calls that turn a series into a model ranking, and the two decisions that follow.</em></p>
+
+<p>Start with the cleanup. <code>stretch_tsibble()</code> happily builds a window that ends on the very last month of your data. That origin has no future left to be scored against, and the one before it has only six months of future when you asked for twelve. Look at the tail:</p>
+
+<div class="webr-container" data-block-title="Inspect where each window ends">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect where each window ends</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">origin_ends &lt;- dept_cv_raw |&gt;
+  as_tibble() |&gt;
+  group_by(.id) |&gt;
+  summarise(train_end = max(Month))
+tail(origin_ends, 4)
+#&gt; # A tibble: 4 × 2
+#&gt;     .id train_end
+#&gt;   &lt;int&gt;     &lt;mth&gt;
+#&gt; 1    10  2017 Jun
+#&gt; 2    11  2017 Dec
+#&gt; 3    12  2018 Jun
+#&gt; 4    13  2018 Dec</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The data ends in December 2018. Origin 13 trains right up to the edge, so all 12 of its forecasts fall past the end of the data and score nothing. Origin 12 trains to June 2018, so only its first six forecasts can be scored. Nothing errors, nothing warns. The origin simply contributes fewer horizons than the others, which quietly tilts your average toward short-horizon forecasts that are easier to get right.</p>
+
+<div class="webr-container" data-block-title="Keep only origins with a full horizon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep only origins with a full horizon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">full_h  &lt;- origin_ends |&gt; filter(train_end &lt;= max(dept$Month) - 12) |&gt; pull(.id)
+dept_cv &lt;- dept_cv_raw |&gt; filter(.id %in% full_h)
+cat(&quot;origins kept:&quot;, length(full_h), &quot;of&quot;, max(origin_ends$.id), &quot;\n&quot;)
+#&gt; origins kept: 11 of 13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The filter keeps only origins whose training window ends at least 12 months before the data does. That leaves 11 origins, exactly the number <code>n_origins()</code> predicted. Every surviving origin now contributes the same 12 horizons, so the average is comparing like with like.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Untrimmed origins bias a backtest optimistic.</strong> The last few windows score only their easiest, shortest horizons, so they lower the pooled error and make the whole model set look better than it is.</div></div>
+
+<p>Now the actual backtest. Because <code>.id</code> is a key, one <code>model()</code> call fits every model on every origin, and one <code>forecast()</code> call produces every forecast.</p>
+
+<div class="webr-container" data-block-title="Fit every model on every origin">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit every model on every origin</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dept_fc &lt;- dept_cv |&gt;
+  model(ets    = ETS(Turnover),
+        tslm   = TSLM(Turnover ~ trend() + season()),
+        snaive = SNAIVE(Turnover ~ drift())) |&gt;
+  forecast(h = 12)
+
+dept_acc &lt;- dept_fc |&gt; accuracy(dept)
+dept_acc |&gt; transmute(.model, RMSE = round(RMSE, 2), MAE = round(MAE, 2), MASE = round(MASE, 3))
+#&gt; # A tibble: 3 × 4
+#&gt;   .model  RMSE   MAE  MASE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets     17.2  13.1 0.945
+#&gt; 2 snaive  17.1  13.3 0.96 
+#&gt; 3 tslm    18.9  15.2 1.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three calls did a lot of work. <code>model()</code> fitted 33 models (11 origins times 3 specifications), <code>forecast(h = 12)</code> produced 396 forecasts, and <code>accuracy(dept)</code> looked each one up against the real turnover for that month and pooled the errors. Passing the original <code>dept</code> as the second argument is what lets <code>accuracy()</code> find the truth: the forecasts know their dates, <code>dept</code> knows what actually happened on those dates. Two metrics sit beside RMSE in that table. MAE is the <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mean absolute error</a>, the average size of a miss without squaring it first, so it is less swayed by one large error. MASE divides that same error by how badly a seasonal <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">naive forecast</a> would have done on the training data, which puts it on a scale where 1 means "no better than repeating last year"; the section on combining series returns to why that rescaling matters.</p>
+
+<p>The verdict is much duller than any single split suggested, and that is the point. <code>ets</code> and <code>snaive</code> are effectively tied around 17, and <code>tslm</code> is clearly behind at 18.9. A sophisticated exponential smoothing model is failing to beat "the same month last year, nudged for trend". That is a genuinely useful finding, and no single split delivered it: two of the three splits earlier made <code>ets</code> look either much better or much worse than it really is.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> <code>dept_acc</code> already carries every metric <code>accuracy()</code> computes, not just the three shown. Pull out MAPE (<a class="auto-link" href="yardstick-mape-in-R.html" title="yardstick mape() in R: Scale-Free Percentage Error">mean absolute percentage error</a>) and ME (mean error, which reveals bias) from the same object.</p>
+<div class="webr-container" data-block-title="Your turn: two more metrics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two more metrics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_acc &lt;- dept_acc |&gt; transmute(.model, MAPE = round(MAPE, 2), ME = round(ME, 2))
+ex_acc
+#&gt; # A tibble: 3 × 3
+#&gt;   .model  MAPE    ME
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets     3.5   6.08
+#&gt; 2 snaive  3.61  3.7 
+#&gt; 3 tslm    4     5.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ranking by bias instead of size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ranking by bias instead of size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_acc |&gt; arrange(abs(ME))
+#&gt; # A tibble: 3 × 3
+#&gt;   .model  MAPE    ME
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 snaive  3.61  3.7 
+#&gt; 2 tslm    4     5.74
+#&gt; 3 ets     3.5   6.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every ME is positive, which means all three models forecast <strong>too low</strong> on average by 3.7 to 6.1 units. That is a systematic bias, not random noise, and <code>ets</code> has the most of it despite the best MAPE. A backtest that reports only RMSE hides this completely.</p>
+
+</details>
+</section>
+
+<h3>Which model wins at which forecast horizon?</h3>
+
+<p>A single pooled RMSE answers "which model is best on average across the next twelve months". Almost nobody actually needs that. A merchandising team reordering stock needs the next one to three months; a finance team building a budget needs month twelve. Those can have different winners.</p>
+
+<p>To split the score by horizon you need an <code>h</code> column that says how many months ahead each forecast was. The forecasts arrive in date order within each origin and model, so <code>row_number()</code> is enough, but the grouping has to be exactly right.</p>
+
+<div class="webr-container" data-block-title="Score the backtest by horizon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the backtest by horizon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dept_fc_h &lt;- dept_fc |&gt;
+  group_by(.id, .model) |&gt;
+  mutate(h = row_number()) |&gt;
+  ungroup() |&gt;
+  as_fable(response = &quot;Turnover&quot;, distribution = Turnover)
+
+acc_h &lt;- dept_fc_h |&gt; accuracy(dept, by = c(&quot;h&quot;, &quot;.model&quot;))
+acc_h |&gt;
+  transmute(h, .model, RMSE = round(RMSE, 1)) |&gt;
+  pivot_wider(names_from = .model, values_from = RMSE)
+#&gt; # A tibble: 12 × 4
+#&gt;        h   ets snaive  tslm
+#&gt;    &lt;int&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt;  1     1  19.2   12.5  18.2
+#&gt;  2     2  11     16.4  12.1
+#&gt;  3     3  11     16    13.6
+#&gt;  4     4  17.7   17.8  19  
+#&gt;  5     5  12.7   13.1  15.6
+#&gt;  6     6  20.7   24.3  26.7
+#&gt;  7     7  21.6   13    19.4
+#&gt;  8     8  11.4   16.6  12.1
+#&gt;  9     9  15.4   16.4  15.5
+#&gt; 10    10  19.2   17.7  19.5
+#&gt; 11    11  13.8   13.2  17.5
+#&gt; 12    12  25.7   23.6  29.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the code. <code>group_by(.id, .model)</code> then <code>row_number()</code> numbers the 12 forecasts inside each origin-and-model combination from 1 to 12. <code>ungroup()</code> drops the grouping, and <code>as_fable()</code> re-labels the result as a forecast table so <code>accuracy()</code> will still accept it. Then <code>by = c(&quot;h&quot;, &quot;.model&quot;)</code> tells <code>accuracy()</code> to compute one RMSE per horizon per model instead of one per model.</p>
+
+<p>Grouping by <code>.id</code> alone is a trap worth naming. It numbers rows 1 to 36 across all three models stacked together, so <code>ets</code> gets horizons 1 to 12, <code>tslm</code> gets 13 to 24 and <code>snaive</code> gets 25 to 36. The table comes out looking plausible and is completely wrong. Group by both.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A step that divides evenly into the seasonal period confounds horizon with calendar month.</strong> Here <code>.step = 6</code> on monthly data means every training window ends in either June or December, so h = 6 and h = 12 always land on the same two high-volume months. The h = 12 spike is partly December, not just distance.</div></div>
+
+<p>A picture makes the crossovers obvious.</p>
+
+<div class="webr-container" data-block-title="Plot RMSE against horizon">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot RMSE against horizon</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(acc_h, aes(x = h, y = RMSE, colour = .model)) +
+  geom_line(linewidth = 0.9) +
+  geom_point(size = 1.8) +
+  scale_x_continuous(breaks = 1:12) +
+  labs(title = &quot;Backtest RMSE by forecast horizon&quot;,
+       subtitle = &quot;Victorian department stores, 11 rolling origins&quot;,
+       x = &quot;Months ahead (h)&quot;, y = &quot;RMSE&quot;, colour = &quot;Model&quot;) +
+  theme_minimal(base_size = 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lines cross repeatedly, which is exactly what the pooled tie was hiding. <code>snaive</code> is dramatically better at h = 1 (12.5 against 19.2) and at h = 7, while <code>ets</code> is clearly better at h = 2, h = 3 and h = 8. If you only ever forecast one month ahead, the pooled table gave you the wrong recommendation.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>acc_h</code> to find the best model for short-range forecasting, meaning the average RMSE over h = 1 to 3.</p>
+<div class="webr-container" data-block-title="Your turn: the short-horizon winner">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: the short-horizon winner</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_short &lt;- acc_h |&gt;
+  filter(h &lt;= 3) |&gt;
+  group_by(.model) |&gt;
+  summarise(RMSE_h1_h3 = round(mean(RMSE), 2)) |&gt;
+  arrange(RMSE_h1_h3)
+ex_short
+#&gt; # A tibble: 3 × 2
+#&gt;   .model RMSE_h1_h3
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 ets          13.7
+#&gt; 2 tslm         14.6
+#&gt; 3 snaive       15.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Short horizons against long horizons">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Short horizons against long horizons</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">acc_h |&gt;
+  mutate(range = if_else(h &lt;= 3, &quot;h 1-3&quot;, &quot;h 4-12&quot;)) |&gt;
+  group_by(range, .model) |&gt;
+  summarise(RMSE = round(mean(RMSE), 2), .groups = &quot;drop&quot;) |&gt;
+  pivot_wider(names_from = range, values_from = RMSE)
+#&gt; # A tibble: 3 × 3
+#&gt;   .model `h 1-3` `h 4-12`
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 ets       13.7     17.6
+#&gt; 2 snaive    15.0     17.3
+#&gt; 3 tslm      14.6     19.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ets</code> wins the short range and <code>snaive</code> wins the long range, which is why they tie overall. Averaging over h = 1 to 3 also washes out the single bad h = 1 point for <code>ets</code>, a reminder that horizon-level numbers computed from only 11 origins are themselves noisy.</p>
+
+</details>
+</section>
+
+<h2>Should the window expand, slide, or tile?</h2>
+
+<p>So far every training window kept all the history before it. That is one of three ways to move a window through time, and the choice changes what your backtest is actually measuring.</p>
+
+<p><img src="screenshots/Backtesting-Forecasts-in-R-window-types.webp" alt="Expanding, sliding and tiling windows compared" class="img-responsive img-zoomable" loading="lazy" width="1550" height="986" /></p>
+
+<p><em>Figure 3: Expanding keeps every past observation, sliding forgets, tiling never overlaps.</em></p>
+
+<p><strong>Expanding</strong> windows (<code>stretch_tsibble()</code>) grow: origin 5 sees everything origin 4 saw plus six more months. This matches what you do in production, where you never throw data away, and it gives later origins more training data than earlier ones.</p>
+
+<p><strong>Sliding</strong> windows (<code>slide_tsibble()</code>) stay a fixed length and move: origin 5 gains six months at the end and loses six from the start. Every origin gets the same amount of training data, and anything older than 96 months is dropped from the training set entirely.</p>
+
+<p><strong>Tiling</strong> windows (<code>tile_tsibble()</code>) are fixed length and never overlap, which makes the folds closer to statistically independent at the cost of producing very few of them.</p>
+
+<div class="webr-container" data-block-title="Build fixed-length sliding windows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build fixed-length sliding windows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dept_slide &lt;- dept |&gt;
+  slide_tsibble(.size = 96, .step = 6) |&gt;
+  filter(.id %in% full_h)
+
+dept_slide |&gt;
+  as_tibble() |&gt;
+  group_by(.id) |&gt;
+  summarise(starts = min(Month), ends = max(Month), months = n()) |&gt;
+  head(3)
+#&gt; # A tibble: 3 × 4
+#&gt;     .id   starts     ends months
+#&gt;   &lt;int&gt;    &lt;mth&gt;    &lt;mth&gt;  &lt;int&gt;
+#&gt; 1     1 2005 Jan 2012 Dec     96
+#&gt; 2     2 2005 Jul 2013 Jun     96
+#&gt; 3     3 2006 Jan 2013 Dec     96</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.size = 96</code> replaces <code>.init = 96</code>, and the difference shows up in the <code>starts</code> column. Window 1 begins in January 2005, window 2 begins in July 2005, window 3 begins in January 2006. The start date marches forward in lockstep with the end date, so <code>months</code> stays pinned at 96 forever. Compare that to the expanding table earlier, where the count climbed 96, 102, 108, 114.</p>
+
+<p>Because the windows carry the same ids, the same trim applies and the two schemes become directly comparable.</p>
+
+<div class="webr-container" data-block-title="Sliding against expanding, same models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sliding against expanding, same models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slide_acc &lt;- dept_slide |&gt;
+  model(ets    = ETS(Turnover),
+        tslm   = TSLM(Turnover ~ trend() + season()),
+        snaive = SNAIVE(Turnover ~ drift())) |&gt;
+  forecast(h = 12) |&gt;
+  accuracy(dept)
+
+window_compare &lt;- bind_rows(
+  dept_acc  |&gt; transmute(window = &quot;expanding&quot;, .model, RMSE = round(RMSE, 2)),
+  slide_acc |&gt; transmute(window = &quot;sliding&quot;,   .model, RMSE = round(RMSE, 2))
+)
+window_compare |&gt; pivot_wider(names_from = window, values_from = RMSE)
+#&gt; # A tibble: 3 × 3
+#&gt;   .model expanding sliding
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 ets         17.2    17.1
+#&gt; 2 snaive      17.1    17.6
+#&gt; 3 tslm        18.9    20.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Forgetting old history helped <code>ets</code> very slightly (17.2 down to 17.1) and hurt the other two, with <code>tslm</code> suffering most (18.9 up to 20.7). That pattern makes sense: <code>tslm</code> fits a single straight trend line through whatever it is given, so a longer history gives it a steadier slope estimate. Since none of these gaps is large, expanding is the reasonable default for this series.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for sliding windows when you believe old history is actively misleading.</strong> A pricing change, a store <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">closure</a> or a pandemic makes 2015 a poor guide to 2019, and a fixed-length window is the simplest way to stop a model from averaging across the break.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Shorter windows give you more of them. Build sliding windows of 60 months instead of 96 and count how many you get.</p>
+<div class="webr-container" data-block-title="Your turn: shorter sliding windows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shorter sliding windows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_slide &lt;- dept |&gt; slide_tsibble(.size = 60, .step = 6)
+dplyr::n_distinct(ex_slide$.id)
+#&gt; [1] 19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Where the extra windows come from">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Where the extra windows come from</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_slide |&gt;
+  as_tibble() |&gt;
+  group_by(.id) |&gt;
+  summarise(starts = min(Month), ends = max(Month)) |&gt;
+  head(2)
+#&gt; # A tibble: 2 × 3
+#&gt;     .id   starts     ends
+#&gt;   &lt;int&gt;    &lt;mth&gt;    &lt;mth&gt;
+#&gt; 1     1 2005 Jan 2009 Dec
+#&gt; 2     2 2005 Jul 2010 Jun</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 60-month window fits inside the data 19 times instead of 13, because it can finish scanning much earlier. More origins means a more stable average, but each model now sees only five years of history, which is thin for estimating twelve monthly seasonal effects.</p>
+
+</details>
+</section>
+
+<h2>How do you scale a backtest to many series without melting your laptop?</h2>
+
+<p>Everything so far ran on one series. Real forecasting jobs have hundreds or thousands, and the cost of a backtest is brutally simple arithmetic:</p>
+
+<p><strong>fits = origins x series x models</strong></p>
+
+<p>Every one of those fits is a full model estimation. Here is what the corners of that grid look like for the 168-month series you have been using.</p>
+
+<div class="webr-container" data-block-title="Count the fits before you commit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count the fits before you commit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cost_grid &lt;- expand.grid(step = c(1, 3, 6, 12), series = c(1, 6, 152)) |&gt;
+  mutate(origins = sapply(step, function(s) n_origins(168, 96, s, 12)),
+         fits    = origins * series * 3)
+cost_grid
+#&gt;    step series origins  fits
+#&gt; 1     1      1      61   183
+#&gt; 2     3      1      21    63
+#&gt; 3     6      1      11    33
+#&gt; 4    12      1       6    18
+#&gt; 5     1      6      61  1098
+#&gt; 6     3      6      21   378
+#&gt; 7     6      6      11   198
+#&gt; 8    12      6       6   108
+#&gt; 9     1    152      61 27816
+#&gt; 10    3    152      21  9576
+#&gt; 11    6    152      11  5016
+#&gt; 12   12    152       6  2736</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the extremes. Three models on one series with a monthly step is 183 fits, which is seconds of work. The same three models across all 152 <code>aus_retail</code> series with a monthly step is 27,816 fits. At one second per fit that is nearly eight hours.</p>
+
+<p>When the bill is too high, pull the levers in this order:</p>
+
+<ol>
+
+<li><strong>Increase <code>.step</code> first.</strong> Going from 1 to 6 cuts the work by about 83 percent and costs you only precision in the average, not correctness. Overlapping origins are highly redundant anyway, since consecutive windows share almost all their data.</li>
+
+<li><strong>Cut the model list next.</strong> Backtest five candidates once to shortlist, then backtest the surviving two thoroughly.</li>
+
+<li><strong>Raise <code>.init</code> third.</strong> Fewer origins, and the ones you drop are the least representative ones (see the section on what ruins a backtest).</li>
+
+<li><strong>Never shrink <code>h</code> to save time.</strong> The horizon is set by the decision you are making, not by your compute budget.</li>
+
+</ol>
+
+<p>Scaling out is a one-word change: a tsibble with a <code>key</code> column holds many series, and <code>stretch_tsibble()</code> folds every one of them.</p>
+
+<div class="webr-container" data-block-title="Load a six-series panel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load a six-series panel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">six &lt;- c(&quot;Department stores&quot;,
+         &quot;Cafes, restaurants and takeaway food services&quot;,
+         &quot;Newspaper and book retailing&quot;,
+         &quot;Liquor retailing&quot;,
+         &quot;Hardware, building and garden supplies retailing&quot;,
+         &quot;Pharmaceutical, cosmetic and toiletry goods retailing&quot;)
+
+vic &lt;- aus_retail |&gt;
+  filter(State == &quot;Victoria&quot;, Industry %in% six, lubridate::year(Month) &gt;= 2010) |&gt;
+  transmute(Industry, Month, Turnover) |&gt;
+  as_tsibble(index = Month, key = Industry)
+
+vic
+#&gt; # A tsibble: 648 x 3 [1M]
+#&gt; # Key:       Industry [6]
+#&gt;    Industry                                         Month Turnover
+#&gt;    &lt;chr&gt;                                            &lt;mth&gt;    &lt;dbl&gt;
+#&gt;  1 Cafes, restaurants and takeaway food services 2010 Jan     658.
+#&gt;  2 Cafes, restaurants and takeaway food services 2010 Feb     611.
+#&gt;  3 Cafes, restaurants and takeaway food services 2010 Mar     704.
+#&gt;  4 Cafes, restaurants and takeaway food services 2010 Apr     698.
+#&gt;  5 Cafes, restaurants and takeaway food services 2010 May     692 
+#&gt;  6 Cafes, restaurants and takeaway food services 2010 Jun     670.
+#&gt;  7 Cafes, restaurants and takeaway food services 2010 Jul     724.
+#&gt;  8 Cafes, restaurants and takeaway food services 2010 Aug     749.
+#&gt;  9 Cafes, restaurants and takeaway food services 2010 Sep     736.
+#&gt; 10 Cafes, restaurants and takeaway food services 2010 Oct     705 
+#&gt; # ℹ 638 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>key = Industry</code> is the whole trick. The tsibble now holds six independent series of 108 months each, and every tidyverts verb will respect that boundary automatically. Nothing will ever average across industries by accident.</p>
+
+<div class="webr-container" data-block-title="Fold the panel and count the bill">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fold the panel and count the bill</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vic_ends &lt;- vic |&gt;
+  stretch_tsibble(.init = 72, .step = 6) |&gt;
+  as_tibble() |&gt;
+  group_by(.id) |&gt;
+  summarise(train_end = max(Month))
+
+vic_keep &lt;- vic_ends |&gt; filter(train_end &lt;= max(vic$Month) - 12) |&gt; pull(.id)
+vic_cv   &lt;- vic |&gt; stretch_tsibble(.init = 72, .step = 6) |&gt; filter(.id %in% vic_keep)
+
+cat(&quot;origins:&quot;, length(vic_keep),
+    &quot; series:&quot;, dplyr::n_distinct(vic_cv$Industry),
+    &quot; model fits:&quot;, length(vic_keep) * dplyr::n_distinct(vic_cv$Industry) * 3, &quot;\n&quot;)
+#&gt; origins: 5  series: 6  model fits: 90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The trim is identical to the single-series case, because <code>.id</code> still marks the origin and the origins are shared across all six series. Five origins times six series times three models is 90 fits.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The next block is the slow one, and that is the lesson.</strong> Ninety model estimations take roughly half a minute in your browser. Multiply by the 152-series, 61-origin corner of the grid above and you can feel why <code>.step</code> is the first lever anyone reaches for.</div></div>
+
+<div class="webr-container" data-block-title="Backtest all six series at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Backtest all six series at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vic_fc &lt;- vic_cv |&gt;
+  model(ets    = ETS(Turnover),
+        tslm   = TSLM(Turnover ~ trend() + season()),
+        snaive = SNAIVE(Turnover ~ drift())) |&gt;
+  forecast(h = 12)
+
+vic_acc &lt;- vic_fc |&gt; accuracy(vic)
+vic_acc |&gt;
+  transmute(Industry = substr(Industry, 1, 22), .model, RMSE = round(RMSE, 1)) |&gt;
+  pivot_wider(names_from = .model, values_from = RMSE)
+#&gt; # A tibble: 6 × 4
+#&gt;   Industry                 ets snaive  tslm
+#&gt;   &lt;chr&gt;                  &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Cafes, restaurants and  39.4   34.5  61.4
+#&gt; 2 Department stores       14.2   15.9  17.5
+#&gt; 3 Hardware, building and  17.1   23.2  27.6
+#&gt; 4 Liquor retailing         7.1    7.3  10.4
+#&gt; 5 Newspaper and book ret   4.5    8.6  10.7
+#&gt; 6 Pharmaceutical, cosmet  20.5   28.4  42.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The code is unchanged from the single-series version. <code>accuracy()</code> noticed the <code>Industry</code> key and reported one row per series per model, and <code>substr()</code> just shortens the industry names so the table fits on screen.</p>
+
+<p><code>ets</code> wins five of the six series and <code>snaive</code> takes cafes. But look at the RMSE column itself: 39.4 for cafes down to 4.5 for books. Those numbers are not on the same scale, and the next section is about why that makes averaging them dangerous.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose your real panel has 20 series and you want three models with a 6-month step on 168-month histories. Work out the fit count using the helper you already wrote.</p>
+<div class="webr-container" data-block-title="Your turn: budget a 20-series job">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: budget a 20-series job</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fits &lt;- n_origins(168, 96, 6, 12) * 20 * 3
+ex_fits
+#&gt; [1] 660</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="What a coarser step saves you">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What a coarser step saves you</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(step6 = n_origins(168, 96, 6, 12) * 20 * 3,
+  step12 = n_origins(168, 96, 12, 12) * 20 * 3)
+#&gt;  step6 step12 
+#&gt;    660    360</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 11 origins times 20 series times 3 models is 660 fits. Moving to a 12-month step drops that to 360, a 45 percent saving, in exchange for basing the average on 6 origins instead of 11.</p>
+
+</details>
+</section>
+
+<h2>How do you combine scores across series without letting the biggest one decide?</h2>
+
+<p>You have six numbers per model and you want one. The obvious move, averaging the RMSEs, quietly hands the decision to whichever series sells the most.</p>
+
+<div class="webr-container" data-block-title="Who really casts the votes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Who really casts the votes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse_share &lt;- vic_acc |&gt;
+  filter(.model == &quot;ets&quot;) |&gt;
+  transmute(Industry = substr(Industry, 1, 22),
+            RMSE = round(RMSE, 1),
+            share = paste0(round(100 * RMSE / sum(RMSE)), &quot;%&quot;)) |&gt;
+  arrange(desc(RMSE))
+rmse_share
+#&gt; # A tibble: 6 × 3
+#&gt;   Industry                RMSE share
+#&gt;   &lt;chr&gt;                  &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Cafes, restaurants and  39.4 38%  
+#&gt; 2 Pharmaceutical, cosmet  20.5 20%  
+#&gt; 3 Hardware, building and  17.1 17%  
+#&gt; 4 Department stores       14.2 14%  
+#&gt; 5 Liquor retailing         7.1 7%   
+#&gt; 6 Newspaper and book ret   4.5 4%   </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cafes contributes 38 percent of the total RMSE and books contributes 4 percent. In a plain average, the cafes series casts roughly nine times the vote of the books series, and it earns that power purely by being a bigger business. If your goal is "pick the model that forecasts our categories well", that weighting is not what you asked for.</p>
+
+<p>The fix is to divide every error by something that carries the same units, so the result has no units at all. The natural yardstick is how badly a seasonal naive forecast would have done on that same series.</p>
+
+<p>The intuition first: a scaled error of 1 means "this model was exactly as good as repeating last year's value". Below 1 means better than that, above 1 means worse. Because the comparison happens inside each series, a big series and a small series can finally be averaged.</p>
+
+<p>$$\text{RMSSE} = \sqrt{\frac{\frac{1}{h}\sum_{t=T+1}^{T+h}\left(y_t - \hat{y}_t\right)^2}{\frac{1}{T-m}\sum_{t=m+1}^{T}\left(y_t - y_{t-m}\right)^2}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y_t$ = what actually happened at time $t$</li>
+
+<li>$\hat{y}_t$ = what the model forecast for time $t$</li>
+
+<li>$h$ = number of forecast points being scored</li>
+
+<li>$T$ = number of observations in the training window</li>
+
+<li>$m$ = the seasonal period, which is 12 for monthly data</li>
+
+<li>the denominator = the average squared error of a seasonal naive forecast <strong>on the training data</strong>, which is the yardstick</li>
+
+</ul>
+
+<p>If you are not interested in the algebra, skip it. The only thing you need is that <code>fabletools</code> computes it for you when you name the measure.</p>
+
+<div class="webr-container" data-block-title="Score with RMSSE instead of RMSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score with RMSSE instead of RMSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vic_rmsse &lt;- vic_fc |&gt; accuracy(vic, measures = list(rmsse = RMSSE))
+vic_rmsse |&gt;
+  transmute(Industry = substr(Industry, 1, 22), .model, rmsse = round(rmsse, 2)) |&gt;
+  pivot_wider(names_from = .model, values_from = rmsse)
+#&gt; # A tibble: 6 × 4
+#&gt;   Industry                 ets snaive  tslm
+#&gt;   &lt;chr&gt;                  &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Cafes, restaurants and  0.86   0.75  1.34
+#&gt; 2 Department stores       0.83   0.93  1.02
+#&gt; 3 Hardware, building and  0.53   0.71  0.85
+#&gt; 4 Liquor retailing        0.52   0.53  0.76
+#&gt; 5 Newspaper and book ret  0.33   0.63  0.78
+#&gt; 6 Pharmaceutical, cosmet  0.66   0.91  1.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every number now sits in the same range regardless of how big the business is. Books, which had the smallest RMSE by far, turns out to be where <code>ets</code> performs best of all in relative terms (0.33, meaning a third of the seasonal naive error). And <code>tslm</code> scores above 1 on two series, meaning its forecasts for those industries were worse than simply repeating the same month from a year earlier.</p>
+
+<div class="webr-container" data-block-title="The two averages side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The two averages side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">metric_compare &lt;- vic_acc |&gt;
+  group_by(.model) |&gt;
+  summarise(mean_RMSE = round(mean(RMSE), 1)) |&gt;
+  left_join(vic_rmsse |&gt; group_by(.model) |&gt; summarise(mean_RMSSE = round(mean(rmsse), 3)),
+            by = &quot;.model&quot;)
+metric_compare
+#&gt; # A tibble: 3 × 3
+#&gt;   .model mean_RMSE mean_RMSSE
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 ets         17.1      0.621
+#&gt; 2 snaive      19.7      0.746
+#&gt; 3 tslm        28.3      1.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the two agree on the ordering, which is a comfort but not a guarantee. They disagree on the margin: mean RMSE says <code>tslm</code> is 66 percent worse than <code>ets</code>, mean RMSSE says 64 percent, and mean RMSE gets there mostly through the cafes series. Report the scaled number.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Averaging MAPE across series is worse than averaging RMSE, not better.</strong> A percentage error looks scale-free but explodes toward infinity whenever actual values approach zero, so one slow month in one small series can dominate the entire panel average.</div></div>
+
+<p>There is a third option that ignores magnitudes entirely: count wins and average ranks. If model A beats model B on 25 out of 30 series-and-origin combinations, that is persuasive no matter what the errors were.</p>
+
+<div class="webr-container" data-block-title="Win rate and mean rank across every cell">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Win rate and mean rank across every cell</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cell &lt;- vic_fc |&gt;
+  accuracy(vic, by = c(&quot;Industry&quot;, &quot;.id&quot;, &quot;.model&quot;), measures = list(rmsse = RMSSE))
+
+win_rate &lt;- cell |&gt;
+  group_by(Industry, .id) |&gt;
+  slice_min(rmsse, n = 1) |&gt;
+  ungroup() |&gt;
+  count(.model, name = &quot;wins&quot;) |&gt;
+  mutate(win_rate = paste0(round(100 * wins / sum(wins)), &quot;%&quot;))
+
+mean_rank &lt;- cell |&gt;
+  group_by(Industry, .id) |&gt;
+  mutate(rank = rank(rmsse)) |&gt;
+  ungroup() |&gt;
+  group_by(.model) |&gt;
+  summarise(mean_rank = round(mean(rank), 2), mean_rmsse = round(mean(rmsse), 3))
+
+cat(&quot;cells:&quot;, nrow(cell), &quot;\n&quot;)
+#&gt; cells: 90
+win_rate
+#&gt; # A tibble: 2 × 3
+#&gt;   .model  wins win_rate
+#&gt;   &lt;chr&gt;  &lt;int&gt; &lt;chr&gt;   
+#&gt; 1 ets       23 77%     
+#&gt; 2 snaive     7 23%     
+mean_rank
+#&gt; # A tibble: 3 × 3
+#&gt;   .model mean_rank mean_rmsse
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 ets         1.23      0.616
+#&gt; 2 snaive      1.87      0.726
+#&gt; 3 tslm        2.9       1.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding <code>.id</code> to the <code>by</code> argument is what makes this possible: instead of one score per series, you get one score per series <strong>per origin</strong>, giving 6 times 5 times 3 = 90 rows. <code>slice_min()</code> picks the best model in each of the 30 series-and-origin cells, and <code>rank()</code> scores 1 for best, 2 for second, 3 for worst inside each cell before averaging.</p>
+
+<p><code>ets</code> wins 23 of the 30 cells and carries a mean rank of 1.23, meaning it is nearly always first or second. <code>tslm</code> never wins a single cell, which is a far clearer statement than "its RMSE was 28.3".</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Win rate answers a different question from mean error, and it is usually the question you meant.</strong> Mean error asks "how much money do I lose"; win rate asks "how often would this choice have been right". Report both, and worry when they disagree.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recompute the win counts using only the three largest series (they are already sitting in <code>rmse_share</code>) and see whether the story changes.</p>
+<div class="webr-container" data-block-title="Your turn: win rate on the big three">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: win rate on the big three</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_big &lt;- rmse_share$Industry[1:3]
+ex_wins &lt;- cell |&gt;
+  mutate(Industry = substr(Industry, 1, 22)) |&gt;
+  filter(Industry %in% ex_big) |&gt;
+  group_by(Industry, .id) |&gt;
+  slice_min(rmsse, n = 1) |&gt;
+  ungroup() |&gt;
+  count(.model, name = &quot;wins&quot;)
+ex_wins
+#&gt; # A tibble: 2 × 2
+#&gt;   .model  wins
+#&gt;   &lt;chr&gt;  &lt;int&gt;
+#&gt; 1 ets       12
+#&gt; 2 snaive     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Big three against the full panel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Big three against the full panel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wins |&gt; mutate(share_of_15 = paste0(round(100 * wins / 15), &quot;%&quot;))
+#&gt; # A tibble: 2 × 3
+#&gt;   .model  wins share_of_15
+#&gt;   &lt;chr&gt;  &lt;int&gt; &lt;chr&gt;      
+#&gt; 1 ets       12 80%        
+#&gt; 2 snaive     3 20%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 12 of 15 is 80 percent, against 77 percent across all six series. The conclusion barely moves, which is reassuring: <code>ets</code> is not winning the panel on the strength of the small series alone.</p>
+
+</details>
+</section>
+
+<h2>Is the winning model actually better, or did it just get lucky?</h2>
+
+<p>A 77 percent win rate over 30 cells is encouraging, but 30 is not a big number. Toss a fair coin 30 times and 23 heads happens by chance often enough to be worth ruling out.</p>
+
+<p>The right way to test this is to exploit the pairing. Every cell scored <strong>both</strong> models on exactly the same series over exactly the same 12 months, so instead of comparing two averages you can look at the 30 differences directly. Pairing removes the "some series and some periods are just harder" noise, which is most of the noise.</p>
+
+<div class="webr-container" data-block-title="Turn 30 cells into 30 paired differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Turn 30 cells into 30 paired differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">paired &lt;- cell |&gt;
+  select(Industry, .id, .model, rmsse) |&gt;
+  pivot_wider(names_from = .model, values_from = rmsse) |&gt;
+  mutate(diff = ets - snaive)
+
+paired |&gt;
+  summarise(cells = n(),
+            mean_diff = round(mean(diff), 3),
+            sd_diff   = round(sd(diff), 3),
+            ets_wins  = sum(diff &lt; 0))
+#&gt; # A tibble: 1 × 4
+#&gt;   cells mean_diff sd_diff ets_wins
+#&gt;   &lt;int&gt;     &lt;dbl&gt;   &lt;dbl&gt;    &lt;int&gt;
+#&gt; 1    30     -0.11   0.242       23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>pivot_wider()</code> puts each model's score in its own column so the three rows per cell become one row with an <code>ets</code>, <code>snaive</code> and <code>tslm</code> column. Then <code>diff</code> is negative whenever <code>ets</code> did better.</p>
+
+<p>The average difference is -0.11 RMSSE, so <code>ets</code> beats <code>snaive</code> by about a tenth of a seasonal-naive error per cell. The standard deviation is 0.242, more than twice the size of the mean, which tells you the differences swing wildly from cell to cell. That spread is precisely why you cannot eyeball this.</p>
+
+<div class="webr-container" data-block-title="Test the 30 differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the 30 differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pair_t &lt;- t.test(paired$diff)
+cat(&quot;mean difference:&quot;, round(pair_t$estimate, 3),
+    &quot;\n95 pct CI:&quot;, round(pair_t$conf.int[1], 3), &quot;to&quot;, round(pair_t$conf.int[2], 3),
+    &quot;\np-value:&quot;, round(pair_t$p.value, 4), &quot;\n&quot;)
+#&gt; mean difference: -0.11 
+#&gt; 95 pct CI: -0.2 to -0.02 
+#&gt; p-value: 0.0189
+
+pair_sign &lt;- binom.test(sum(paired$diff &lt; 0), nrow(paired))
+cat(&quot;sign test p-value:&quot;, round(pair_sign$p.value, 4), &quot;\n&quot;)
+#&gt; sign test p-value: 0.0052</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two tests, deliberately. The <code>t.test()</code> on the differences asks whether their true average is zero and answers no, p = 0.0189, with a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a> running from -0.20 to -0.02 that never touches zero. The <code>binom.test()</code> <a class="auto-link" href="Sign-Test-in-R.html" title="Sign Test in R: The Simplest One-Sample Nonparametric Test">sign test</a> ignores the sizes entirely and just asks whether 23 wins out of 30 could come from a coin flip; at p = 0.0052 it says no. Two different questions, same conclusion, which is much stronger than either alone.</p>
+
+<p>This is also the answer to the single-series result from earlier. There, <code>ets</code> and <code>snaive</code> were tied at 17.2 against 17.1 on 11 origins, and you had no basis to prefer either. Widening to six series and 30 paired cells is what turned a coin flip into a decision.</p>
+
+<div class="webr-container" data-block-title="See the spread of the differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the spread of the differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(paired, aes(x = diff)) +
+  geom_histogram(bins = 12, fill = &quot;#8f7fe8&quot;, colour = &quot;white&quot;) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, linewidth = 0.8) +
+  labs(title = &quot;Per-cell RMSSE difference: ets minus snaive&quot;,
+       subtitle = &quot;Negative means ets forecast better on that series and origin&quot;,
+       x = &quot;RMSSE difference&quot;, y = &quot;Number of cells&quot;) +
+  theme_minimal(base_size = 12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The histogram shows the shape the <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> hide. Most of the mass sits just left of the dashed zero line, which is the many small <code>ets</code> wins, and there is a thin tail on the right where <code>snaive</code> won by a lot. <code>ets</code> wins often and narrowly; <code>snaive</code> wins rarely and widely.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Overlapping windows make these cells less independent than the test assumes.</strong> Consecutive origins share almost all their training data, so treat the <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> as a decision aid rather than a formal guarantee. The Diebold-Mariano test, available as dm.test in the forecast package, is the tool built for exactly this and adjusts for autocorrelated loss differences.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the same paired comparison for <code>ets</code> against <code>tslm</code>. The <code>cell</code> table already has everything you need.</p>
+<div class="webr-container" data-block-title="Your turn: test ets against tslm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test ets against tslm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_paired &lt;- cell |&gt;
+  select(Industry, .id, .model, rmsse) |&gt;
+  pivot_wider(names_from = .model, values_from = rmsse) |&gt;
+  mutate(diff = ets - tslm)
+signif(t.test(ex_paired$diff)$p.value, 3)
+#&gt; [1] 2.49e-08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="How lopsided the tslm comparison is">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How lopsided the tslm comparison is</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_paired |&gt;
+  summarise(mean_diff = round(mean(diff), 3),
+            ets_wins  = sum(diff &lt; 0),
+            cells     = n())
+#&gt; # A tibble: 1 × 3
+#&gt;   mean_diff ets_wins cells
+#&gt;       &lt;dbl&gt;    &lt;int&gt; &lt;int&gt;
+#&gt; 1    -0.398       30    30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ets</code> beats <code>tslm</code> in all 30 cells by an average of 0.398 RMSSE, and the p-value of 0.0000000249 reflects that. When a model loses every single cell you do not really need a test, which is the useful lesson: formal testing earns its keep on close calls, not on blowouts.</p>
+
+</details>
+</section>
+
+<h2>What silently ruins a backtest?</h2>
+
+<p>A backtest can run cleanly, print a tidy table and still be wrong. These are the failures that never raise an error.</p>
+
+<p>The first is the oldest one in forecasting: reporting how well a model fits data it has already seen.</p>
+
+<div class="webr-container" data-block-title="In-sample error is not forecast error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">In-sample error is not forecast error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dept_full_fit &lt;- dept |&gt;
+  model(ets    = ETS(Turnover),
+        tslm   = TSLM(Turnover ~ trend() + season()),
+        snaive = SNAIVE(Turnover ~ drift()))
+
+dept_full_fit |&gt;
+  accuracy() |&gt;
+  transmute(.model, in_sample_RMSE = round(RMSE, 2)) |&gt;
+  arrange(in_sample_RMSE)
+#&gt; # A tibble: 3 × 2
+#&gt;   .model in_sample_RMSE
+#&gt;   &lt;chr&gt;           &lt;dbl&gt;
+#&gt; 1 ets              12.0
+#&gt; 2 tslm             14.4
+#&gt; 3 snaive           16.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Calling <code>accuracy()</code> on a fitted model with no second argument scores its residuals, meaning how close it got to the data it was trained on. Compare with the backtest table from earlier: in-sample says <code>ets</code> 12.0, <code>tslm</code> 14.4, <code>snaive</code> 16.5, while the backtest said <code>snaive</code> 17.1, <code>ets</code> 17.2, <code>tslm</code> 18.9.</p>
+
+<p>Two things went wrong at once. Every number is optimistic (<code>ets</code> by 43 percent), and the <strong>ordering flipped</strong>: in-sample crowns <code>ets</code> a clear winner over <code>snaive</code> by 4.5 points, while the backtest has them tied. Flexible models like <code>ets</code> have more parameters to fit to the training data, so they gain the most when the score is computed from that same data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>In-sample error rewards flexibility, out-of-sample error rewards being right.</strong> Any comparison between a flexible model and a rigid one is biased toward the flexible one until you make the forecasts genuinely out of sample.</div></div>
+
+<p>The second failure is starting too early. Origins near the beginning of your data train on very little history, and a model fitted on too little history can produce forecasts that are not merely poor but absurd.</p>
+
+<div class="webr-container" data-block-title="How much does .init change the verdict">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How much does .init change the verdict</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">init_sweep &lt;- lapply(c(24, 60, 96), function(ini) {
+  cv &lt;- dept |&gt; stretch_tsibble(.init = ini, .step = 12)
+  keep &lt;- cv |&gt; as_tibble() |&gt; group_by(.id) |&gt; summarise(e = max(Month)) |&gt;
+    filter(e &lt;= max(dept$Month) - 12) |&gt; pull(.id)
+  cv |&gt;
+    filter(.id %in% keep) |&gt;
+    model(ets = ETS(Turnover), snaive = SNAIVE(Turnover ~ drift())) |&gt;
+    forecast(h = 12) |&gt;
+    accuracy(dept) |&gt;
+    transmute(.init = ini, origins = length(keep), .model, RMSE = round(RMSE, 2))
+})
+
+bind_rows(init_sweep) |&gt; pivot_wider(names_from = .model, values_from = RMSE)
+#&gt; # A tibble: 3 × 4
+#&gt;   .init origins   ets snaive
+#&gt;   &lt;dbl&gt;   &lt;int&gt; &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1    24      12  88.5   16.3
+#&gt; 2    60       9  14.4   16.3
+#&gt; 3    96       6  16.0   16.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>lapply()</code> runs the same backtest three times with different starting window sizes and stacks the results. Look at the <code>ets</code> column: 88.5, then 14.4, then 16.0. With only 24 months of history, <code>ets</code> has to estimate twelve seasonal effects from two observations each, and at least one origin produced a forecast so far off that it inflated the pooled RMSE more than fivefold. The <code>snaive</code> column barely moves (16.3, 16.3, 16.5) because a rigid model cannot go badly wrong.</p>
+
+<p>If you had run this backtest at <code>.init = 24</code> you would have concluded that <code>snaive</code> beats <code>ets</code> by a factor of five. It does not. One origin, trained on two years of data, decided the ranking for all twelve.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report the median RMSE across origins alongside the mean.</strong> A single blown fold moves the mean enormously and the median barely at all, so a large gap between the two is a fast signal that one origin needs investigating rather than averaging.</div></div>
+
+<p>Four more traps are worth naming even though they need your own data to demonstrate:</p>
+
+<ol>
+
+<li><strong>Transforms computed before splitting.</strong> Standardising, log-transforming with a global lambda, deseasonalising or smoothing the whole series first leaks future information into every training window, because the parameters of that transform were estimated using data the model should not have seen. Compute the transform inside each fold.</li>
+
+<li><strong>Regressors you would not have had.</strong> A model that uses next month's advertising spend backtests beautifully and cannot be deployed, because in production that column is itself a forecast. Either forecast the regressor too, or lag it far enough that it is genuinely known.</li>
+
+<li><strong>Choosing the model on the full series, then backtesting only the winner.</strong> The selection step saw all the data, so the backtest is scoring a choice that already knew the answer. Put the selection inside the fold: that is why <code>ETS()</code> is left to pick its own form at every origin here rather than being fixed once up front.</li>
+
+<li><strong>Refitting more often in the backtest than in production.</strong> If your job reruns quarterly but your backtest refits every month, your backtest is measuring a fresher model than the one you will actually ship.</li>
+
+</ol>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>.init</code> sweep results are already in <code>init_sweep</code>. Pull out just the <code>snaive</code> rows to confirm how little a rigid model cares about the starting window size.</p>
+<div class="webr-container" data-block-title="Your turn: snaive across .init values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: snaive across .init values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_init &lt;- bind_rows(init_sweep) |&gt; filter(.model == &quot;snaive&quot;)
+ex_init
+#&gt; # A tibble: 3 × 4
+#&gt;   .init origins .model  RMSE
+#&gt;   &lt;dbl&gt;   &lt;int&gt; &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1    24      12 snaive  16.3
+#&gt; 2    60       9 snaive  16.3
+#&gt; 3    96       6 snaive  16.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Measuring the sensitivity of each model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Measuring the sensitivity of each model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bind_rows(init_sweep) |&gt;
+  group_by(.model) |&gt;
+  summarise(worst = max(RMSE), best = min(RMSE), spread = round(max(RMSE) - min(RMSE), 2))
+#&gt; # A tibble: 2 × 4
+#&gt;   .model worst  best spread
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 ets     88.5  14.4  74.1 
+#&gt; 2 snaive  16.5  16.3   0.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Changing <code>.init</code> moves the <code>ets</code> score by 74.1 RMSE and the <code>snaive</code> score by 0.2. Any backtest setting that changes one model's score 370 times more than another's is not a neutral choice, it is part of the result.</p>
+
+</details>
+</section>
+
+<h2>Complete Example: from raw series to a deployed forecast</h2>
+
+<p>Here is the whole decision, end to end, using the objects already built above. Step one is to put the two scale-free verdicts side by side.</p>
+
+<div class="webr-container" data-block-title="The decision table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The decision table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">decision &lt;- mean_rank |&gt;
+  left_join(win_rate |&gt; select(.model, win_rate), by = &quot;.model&quot;) |&gt;
+  mutate(win_rate = replace_na(win_rate, &quot;0%&quot;)) |&gt;
+  arrange(mean_rank)
+decision
+#&gt; # A tibble: 3 × 4
+#&gt;   .model mean_rank mean_rmsse win_rate
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;      &lt;dbl&gt; &lt;chr&gt;   
+#&gt; 1 ets         1.23      0.616 77%     
+#&gt; 2 snaive      1.87      0.726 23%     
+#&gt; 3 tslm        2.9       1.01  0%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three verdicts agree. <code>ets</code> has the best mean rank (1.23), the best mean RMSSE (0.616) and the highest win rate (77 percent), and the paired tests from the previous section confirmed the gap over <code>snaive</code> is unlikely to be luck (p = 0.019 on the differences, p = 0.005 on the signs). <code>tslm</code> never won a cell and scores above 1, so it loses to seasonal naive on average and should not be shipped.</p>
+
+<p>Step two is the one people forget: the model you deploy is refit on <strong>everything</strong>, including the months the backtest held out. The backtest chose the recipe, not the final parameters.</p>
+
+<div class="webr-container" data-block-title="Refit the winner on all data and forecast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit the winner on all data and forecast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">final_fit &lt;- vic |&gt; model(ets = ETS(Turnover))
+final_fc  &lt;- final_fit |&gt; forecast(h = 12)
+
+final_fc |&gt;
+  as_tibble() |&gt;
+  filter(Industry == &quot;Department stores&quot;) |&gt;
+  transmute(Month, point_forecast = round(.mean, 1)) |&gt;
+  head(4)
+#&gt; # A tibble: 4 × 2
+#&gt;      Month point_forecast
+#&gt;      &lt;mth&gt;          &lt;dbl&gt;
+#&gt; 1 2019 Jan           367.
+#&gt; 2 2019 Feb           291.
+#&gt; 3 2019 Mar           365.
+#&gt; 4 2019 Apr           380.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>model()</code> on the untouched <code>vic</code> fits one ETS per industry using all 108 months, and <code>forecast(h = 12)</code> projects each one through 2019. The department-store numbers show the seasonal shape you would expect: a January that is still elevated from the Christmas run, a February trough, then a climb back.</p>
+
+<p>What the backtest bought you is the sentence you can now say out loud: across six categories and five origins, an automatically selected ETS beat both a seasonal naive benchmark and a trend-plus-season regression 77 percent of the time, by roughly a tenth of a seasonal-naive error, and the margin held up under a paired test. That is a defensible model choice, not a hunch.</p>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several ideas from the tutorial. Every object they need (<code>dept</code>, <code>vic</code>, <code>vic_fc</code>, <code>cell</code>, <code>dept_slide</code>) is already in your session.</p>
+
+<h3>Exercise 1: Backtest with a coarser step and trim it correctly</h3>
+
+<p>Build an expanding backtest of <code>dept</code> with <code>.init = 96</code> and <code>.step = 12</code>, trim the origins that do not have a full 12 months of future, then fit <code>ets</code>, <code>tslm</code> and <code>snaive</code> and rank them by RMSE. Compare your ranking to the <code>.step = 6</code> result (<code>ets</code> 17.2, <code>snaive</code> 17.1, <code>tslm</code> 18.9).</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: count the raw windows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: count the raw windows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: build the stretch and see how many raw windows you get
+my_cv &lt;- dept |&gt; stretch_tsibble(.init = 96, .step = 12)
+dplyr::n_distinct(my_cv$.id)
+#&gt; [1] 7
+
+# Step 2: trim to origins with a full 12 months of future, then fit and score
+# Hint: reuse the origin_ends / full_h pattern from the tutorial</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_keep &lt;- my_cv |&gt; as_tibble() |&gt; group_by(.id) |&gt; summarise(e = max(Month)) |&gt;
+  filter(e &lt;= max(dept$Month) - 12) |&gt; pull(.id)
+
+my_scores &lt;- my_cv |&gt;
+  filter(.id %in% my_keep) |&gt;
+  model(ets    = ETS(Turnover),
+        tslm   = TSLM(Turnover ~ trend() + season()),
+        snaive = SNAIVE(Turnover ~ drift())) |&gt;
+  forecast(h = 12) |&gt;
+  accuracy(dept) |&gt;
+  transmute(.model, RMSE = round(RMSE, 2)) |&gt;
+  arrange(RMSE)
+my_scores
+#&gt; # A tibble: 3 × 2
+#&gt;   .model  RMSE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 ets     16.0
+#&gt; 2 snaive  16.5
+#&gt; 3 tslm    18.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Seven raw windows trim to six usable ones. The ranking now puts <code>ets</code> ahead of <code>snaive</code> rather than a hair behind, which is the honest reading of a 6-origin backtest: with this few origins the top two are within noise of each other, exactly as the 11-origin version suggested. <code>tslm</code> stays last either way, and that is the conclusion you can actually rely on.</p>
+
+</details>
+
+<h3>Exercise 2: Does the ranking change between short and long horizons?</h3>
+
+<p>Using <code>vic_fc</code>, compute a per-cell RMSSE that is also broken out by horizon, bucket the horizons into h = 1 to 6 and h = 7 to 12, then report the mean rank of each model within each bucket. Does the same model lead in both?</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: add a horizon column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: add a horizon column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: number the forecasts within each series, origin and model
+my_bucket &lt;- vic_fc |&gt;
+  group_by(Industry, .id, .model) |&gt;
+  mutate(h = row_number()) |&gt;
+  ungroup() |&gt;
+  as_fable(response = &quot;Turnover&quot;, distribution = Turnover) |&gt;
+  accuracy(vic, by = c(&quot;Industry&quot;, &quot;.id&quot;, &quot;.model&quot;, &quot;h&quot;), measures = list(rmsse = RMSSE))
+head(my_bucket, 3)
+#&gt; # A tibble: 3 × 6
+#&gt;   Industry                                        .id .model     h .type  rmsse
+#&gt;   &lt;chr&gt;                                         &lt;int&gt; &lt;chr&gt;  &lt;int&gt; &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 Cafes, restaurants and takeaway food services     1 ets        1 Test  0.0564
+#&gt; 2 Cafes, restaurants and takeaway food services     1 ets        2 Test  0.0335
+#&gt; 3 Cafes, restaurants and takeaway food services     1 ets        3 Test  0.424 
+
+# Step 2: bucket h, average within each cell and bucket, then rank</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ranks &lt;- my_bucket |&gt;
+  mutate(bucket = if_else(h &lt;= 6, &quot;h 1-6&quot;, &quot;h 7-12&quot;)) |&gt;
+  group_by(Industry, .id, bucket, .model) |&gt;
+  summarise(rmsse = mean(rmsse), .groups = &quot;drop&quot;) |&gt;
+  group_by(Industry, .id, bucket) |&gt;
+  mutate(rank = rank(rmsse)) |&gt;
+  ungroup() |&gt;
+  group_by(bucket, .model) |&gt;
+  summarise(mean_rank = round(mean(rank), 2), .groups = &quot;drop&quot;) |&gt;
+  pivot_wider(names_from = bucket, values_from = mean_rank)
+my_ranks
+#&gt; # A tibble: 3 × 3
+#&gt;   .model `h 1-6` `h 7-12`
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 ets       1.33     1.67
+#&gt; 2 snaive    2        1.7 
+#&gt; 3 tslm      2.67     2.63</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ets</code> leads both buckets, so the overall recommendation survives. But its edge shrinks with distance: mean rank 1.33 versus 2.00 in the near term, narrowing to 1.67 versus 1.70 further out, which is effectively a tie. The practical reading is that <code>ets</code> earns its keep on short-range forecasts, and beyond six months you could ship the far cheaper seasonal naive with little loss.</p>
+
+</details>
+
+<h3>Exercise 3: Would you trust this result from one series alone?</h3>
+
+<p>Take the sliding-window backtest of <code>dept</code> (<code>dept_slide</code>, 11 origins), score <code>ets</code> and <code>snaive</code> per origin, then run a sign test on how often <code>ets</code> won. Compare the p-value to the 0.0052 you got from the six-series panel.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter: per-origin scores">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter: per-origin scores</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score each model separately on each origin, then reshape so one row = one origin
+# Hint: accuracy(..., by = c(&quot;.id&quot;, &quot;.model&quot;)) then pivot_wider
+# Then: binom.test(number of ets wins, number of origins)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_slide_cell &lt;- dept_slide |&gt;
+  model(ets = ETS(Turnover), snaive = SNAIVE(Turnover ~ drift())) |&gt;
+  forecast(h = 12) |&gt;
+  accuracy(dept, by = c(&quot;.id&quot;, &quot;.model&quot;)) |&gt;
+  select(.id, .model, RMSE) |&gt;
+  pivot_wider(names_from = .model, values_from = RMSE)
+
+my_sign &lt;- binom.test(sum(my_slide_cell$ets &lt; my_slide_cell$snaive), nrow(my_slide_cell))
+cat(&quot;origins where ets won:&quot;, sum(my_slide_cell$ets &lt; my_slide_cell$snaive),
+    &quot;of&quot;, nrow(my_slide_cell),
+    &quot;\nsign test p-value:&quot;, round(my_sign$p.value, 4), &quot;\n&quot;)
+#&gt; origins where ets won: 7 of 11 
+#&gt; sign test p-value: 0.5488</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ets</code> won 7 of 11 origins, a 64 percent win rate that looks similar to the panel's 77 percent, but the p-value is 0.5488. Eleven observations simply cannot separate a real edge from a coin flip. This is the argument for backtesting at scale in one number: the six-series panel did not make the model better, it made the evidence strong enough to act on.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<h3>How many origins do I actually need?</h3>
+
+<p>Enough that the winner is not decided by two or three folds. As a rough guide, aim for at least 20 origin-and-series cells before you trust a close call, and remember that widening across series is usually cheaper than shortening <code>.step</code>, because extra series add genuinely new information while extra origins mostly re-use the same history.</p>
+
+<h3>Should <code>.step</code> always be 1?</h3>
+
+<p>No. Consecutive origins share nearly all their training data, so their errors are heavily correlated and the twentieth origin adds far less information than the first. Stepping by a quarter of your seasonal period is a good default, and if you step by exactly the seasonal period every origin ends in the same calendar month, which confounds horizon with season.</p>
+
+<h3>Does a good backtest score mean my model is good?</h3>
+
+<p>It means it is better than the alternatives you tested, on the history you tested. That is all. Always include a naive benchmark such as <code>SNAIVE()</code> so the number has a floor, and treat any scaled error above 1 as a failure regardless of how good the RMSE looks.</p>
+
+<h3>Can I backtest a model that needs future regressors?</h3>
+
+<p>Yes, but you must supply the regressor values for each forecast window through the <code>new_data</code> argument of <code>forecast()</code>, and those values have to be ones you would genuinely have had at the origin. Feeding in the true future values measures a model you cannot deploy.</p>
+
+<h3>Should the deployed model be refit on all the data?</h3>
+
+<p>Yes. The backtest exists to choose the model specification, not to produce the forecast you ship. Once you have chosen, refit on the full history so the model sees the most recent months, which are usually the most relevant ones.</p>
+
+<h3>How is this different from tsCV() in the forecast package?</h3>
+
+<p><code>tsCV()</code> does the same rolling-origin job for <code>ts</code> objects and returns a matrix of errors that you summarise yourself. The tsibble approach shown here works on <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frames, handles many series through the key column without a loop, and returns errors already labelled by series, origin and model, which is what makes aggregation and paired testing straightforward. Use <code>tsCV()</code> for a quick single-series check and this pipeline when you are comparing models across a panel.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Backtesting-Forecasts-in-R-overview.webp" alt="Overview of the backtesting workflow" class="img-responsive img-zoomable" loading="lazy" width="1382" height="920" /></p>
+
+<p><em>Figure 4: The whole backtest in one picture: build origins, score forecasts, decide.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Decision</th>
+<th>Tool</th>
+<th>Gotcha to avoid</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build expanding origins</td>
+<td><code>stretch_tsibble(.init, .step)</code></td>
+<td>The last origins have no future to be scored on, so trim them</td>
+</tr>
+<tr>
+<td>Build fixed-length origins</td>
+<td><code>slide_tsibble(.size, .step)</code></td>
+<td>Short windows starve seasonal models</td>
+</tr>
+<tr>
+<td>Fit every model on every origin</td>
+<td><code>model()</code> on the stacked tsibble</td>
+<td>Libraries and specifications must be identical across origins</td>
+</tr>
+<tr>
+<td>Score the forecasts</td>
+<td><code>accuracy(fc, original_data)</code></td>
+<td>Never score against the stacked data, always the original</td>
+</tr>
+<tr>
+<td>Score by horizon</td>
+<td><code>group_by(.id, .model)</code> then <code>row_number()</code></td>
+<td>Grouping by <code>.id</code> alone silently mixes the models together</td>
+</tr>
+<tr>
+<td>Combine across series</td>
+<td><code>RMSSE</code> or <code>MASE</code>, plus win rate</td>
+<td>Plain RMSE hands the vote to your biggest series</td>
+</tr>
+<tr>
+<td>Confirm the winner</td>
+<td>Paired <code>t.test()</code> and <code>binom.test()</code></td>
+<td>Overlapping folds are not fully independent</td>
+</tr>
+<tr>
+<td>Ship it</td>
+<td>Refit on all data, then <code>forecast()</code></td>
+<td>The backtest picks the recipe, not the final parameters</td>
+</tr>
+</tbody>
+</table>
+
+<p>The short version: one holdout tells you about one year, a rolling backtest tells you about your model, and a rolling backtest across many series tells you enough to defend the decision.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition, Section 5.10: Time series cross-validation. <a href="https://otexts.com/fpp3/tscv.html">Link</a></li>
+
+<li>Hyndman, R.J. & Athanasopoulos, G. - <em>Forecasting: Principles and Practice</em>, 3rd edition, Section 5.8: Evaluating point forecast accuracy. <a href="https://otexts.com/fpp3/accuracy.html">Link</a></li>
+
+<li>tsibble documentation - <code>stretch_tsibble()</code> reference. <a href="https://tsibble.tidyverts.org/reference/stretch_tsibble.html">Link</a></li>
+
+<li>tsibble documentation - <code>slide_tsibble()</code> reference. <a href="https://tsibble.tidyverts.org/reference/slide_tsibble.html">Link</a></li>
+
+<li>fabletools documentation - <code>accuracy()</code> and the built-in accuracy measures. <a href="https://fabletools.tidyverts.org/reference/accuracy.html">Link</a></li>
+
+<li>Hyndman, R.J. - <em>Time series cross-validation using fable</em> (2021). <a href="https://robjhyndman.com/hyndsight/tscv-fable/">Link</a></li>
+
+<li>Hyndman, R.J. & Koehler, A.B. - <em>Another look at measures of forecast accuracy</em>, International Journal of Forecasting 22(4), 2006. The paper that introduced scaled errors. <a href="https://doi.org/10.1016/j.ijforecast.2006.03.001">Link</a></li>
+
+<li>Hewamalage, H., Ackermann, K. & Bergmeir, C. - <em>Forecast evaluation for data scientists: common pitfalls and best practices</em>, Data Mining and Knowledge Discovery, 2023. <a href="https://link.springer.com/article/10.1007/s10618-022-00894-5">Link</a></li>
+
+<li>forecast package documentation - <code>dm.test()</code>, the Diebold-Mariano test for comparing forecast accuracy. <a href="https://pkg.robjhyndman.com/forecast/reference/dm.test.html">Link</a></li>
+
+<li>Svetunkov, I. - <em>Rolling Origin</em> vignette, greybox package. A more parameterised treatment of origin design. <a href="https://cran.r-project.org/web/packages/greybox/vignettes/ro.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Time-Series-Cross-Validation-in-R.html">Time Series Cross-Validation in R with tsCV()</a> - the same rolling-origin idea using the forecast package on a single <code>ts</code> object, with a closer look at how errors grow with horizon.</li>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE</a> - what each metric measures and when it misleads, which is the vocabulary this tutorial assumes.</li>
+
+<li><a href="Global-Forecasting-Models-in-R.html">Global Forecasting Models in R</a> - what to do once your backtest spans hundreds of series and <a class="auto-link" href="Global-Forecasting-Models-in-R.html" title="Global Forecasting Models in R: Learn Across Many Series">one model per series</a> stops making sense.</li>
+
+</ul>
+
