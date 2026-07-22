@@ -1,0 +1,1523 @@
+---
+title: "Forecast Scoring Rules in R: CRPS and Pinball Loss"
+description: "RMSE cannot grade a probabilistic forecast. Learn CRPS, pinball loss, the Winkler score and skill scores in R, built from scratch then scored with fable."
+keywords: "forecast scoring rules R, CRPS in R, pinball loss R, quantile score R, Winkler score R, proper scoring rule, skill score forecasting, probabilistic forecast evaluation R"
+mathjax: true
+webr: true
+curriculum_id: "TS2-10.2"
+post_type: "C"
+auto_link_terms: "CRPS|continuous ranked probability score|pinball loss|quantile score|Winkler score|proper scoring rule|proper scoring rules|scoring rule|skill score|forecast scoring|probabilistic forecast evaluation|quantile_score()|winkler_score()|skill_score()"
+auto_link_case_sensitive: false
+sidebar_section: "Time Series"
+sidebar_title: "Forecast Scoring Rules"
+sidebar_order: "47"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<p class="lead">A forecast scoring rule is a formula that grades a whole probability distribution against the single value that actually happened, and returns one number. CRPS and pinball loss are the two that matter in practice, and both are strictly proper, which means the only way to score well on average is to report what you honestly believe. This tutorial builds both from scratch in a few lines of base R, then uses them to pick between real forecasting models.</p>
+
+<h2>Why does RMSE fail to grade a probabilistic forecast?</h2>
+
+<p>Two forecasters both predict 100 units of demand for tomorrow. One is certain, quoting a range of a couple of units either side. The other admits it could easily land ten units either way.</p>
+
+<p><a class="auto-link" href="Forecast-Accuracy-in-R.html" title="Forecast Accuracy in R: MAE, RMSE, MAPE, and MASE">RMSE</a> and MAE see one number from each, so they call it a tie no matter how the day turns out. Here is what a rule that reads the whole distribution says instead.</p>
+
+<p>The function below is <code>crps_norm()</code>. It scores a normal forecast distribution, and lower is better. Do not worry about the formula inside yet, we derive it line by line in a later section. For now just watch what it does across three different outcomes.</p>
+
+<div class="webr-container" data-block-title="Score two forecasters on three outcomes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score two forecasters on three outcomes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">crps_norm &lt;- function(y, mu, sigma) {
+  z &lt;- (y - mu) / sigma
+  sigma * (z * (2 * pnorm(z) - 1) + 2 * dnorm(z) - 1 / sqrt(pi))
+}
+
+outcomes &lt;- c(100, 96, 88)
+data.frame(
+  actual         = outcomes,
+  absolute_error = abs(outcomes - 100),
+  crps_confident = round(crps_norm(outcomes, 100, 2), 2),
+  crps_honest    = round(crps_norm(outcomes, 100, 10), 2)
+)
+#&gt;   actual absolute_error crps_confident crps_honest
+#&gt; 1    100              0           0.47        2.34
+#&gt; 2     96              4           2.91        2.97
+#&gt; 3     88             12          10.87        7.48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the code: <code>outcomes</code> holds three things that could happen tomorrow. The <code>absolute_error</code> column is what MAE would see, computed from the point forecast of 100 alone. The two CRPS columns score the same point forecast wrapped in two different spreads, a standard deviation of 2 for the confident forecaster and 10 for the honest one.</p>
+
+<p>Now the interpretation. Look at the <code>absolute_error</code> column: it is identical for both forecasters in every row, because it is computed from a number they both reported. It has no way to tell them apart.</p>
+
+<p>The CRPS columns do tell them apart, and the answer changes with the outcome. When demand lands exactly on 100, confidence pays off and the confident forecaster wins, 0.47 against 2.34. When demand collapses to 88, the confident forecaster is punished hard, 10.87 against 7.48.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A point measure grades one number, so it is blind to everything else the model claimed.</strong> RMSE and MAE read only the mean of your forecast distribution. Two models can share a mean and disagree completely about how uncertain that mean is, and no point measure will ever notice.</div></div>
+
+<p>That single table cannot settle which forecaster is better, because one outcome is one outcome. The confident forecaster genuinely did win when the value landed on the nose. What we need is a rule where honesty wins <strong>on average</strong>, and that is exactly what the next section demonstrates.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score a third forecaster who reports the same 100 but with a standard deviation of 5, against an actual value of 88. Where does the middle forecaster land relative to the other two?</p>
+<div class="webr-container" data-block-title="Your turn: score a third spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score a third spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spreads &lt;- c(2, 5, 10)
+
+# Score all three spreads at once against an actual of 88
+# your code here
+# Expected: three numbers, decreasing from left to right</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Third spread solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Third spread solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spreads &lt;- c(2, 5, 10)
+round(crps_norm(88, 100, ex_spreads), 2)
+#&gt; [1] 10.87  9.21  7.48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>crps_norm()</code> is vectorised over <code>sigma</code>, so passing the whole vector scores all three at once. At an outcome of 88 the honest forecaster still wins, and the middle spread of 5 sits neatly between the two.</p>
+
+</details>
+</section>
+
+<h2>What makes a scoring rule proper, and why does it matter?</h2>
+
+<p>Here is the property that makes a scoring rule trustworthy. A rule is <strong>proper</strong> if your best expected score comes from reporting your honest belief. It is <strong>strictly proper</strong> if honesty is the only way to get that best score. Any other report, however clever, does worse on average.</p>
+
+<p>This matters because a scoring rule is not just a report card, it is an incentive. If your team is measured on a rule that can be gamed by exaggerating confidence, someone eventually will, and the published forecasts will stop describing what anyone actually believes.</p>
+
+<p>We can test propriety directly rather than take it on faith. Suppose the truth really is a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> centred on 100 with a standard deviation of 8. We simulate 20,000 days from that truth, then ask what CRPS a forecaster would average if they reported the correct centre but lied about the spread.</p>
+
+<div class="webr-container" data-block-title="Sweep reported spread against the truth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep reported spread against the truth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+truth &lt;- rnorm(20000, mean = 100, sd = 8)
+
+reported &lt;- c(2, 4, 6, 8, 10, 14, 20)
+avg_crps &lt;- sapply(reported, function(s) mean(crps_norm(truth, 100, s)))
+
+data.frame(reported_sd = reported, average_crps = round(avg_crps, 3))
+#&gt;   reported_sd average_crps
+#&gt; 1           2        5.469
+#&gt; 2           4        4.897
+#&gt; 3           6        4.610
+#&gt; 4           8        4.528
+#&gt; 5          10        4.589
+#&gt; 6          14        4.978
+#&gt; 7          20        5.912</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through it: <code>truth</code> is 20,000 outcomes drawn from the real distribution. For each candidate reported standard deviation, <code>sapply()</code> scores all 20,000 of those outcomes against a forecast of N(100, s) and averages the scores. That average is what the forecaster would earn in the long run by reporting <code>s</code>.</p>
+
+<p>The result is the whole point of this section. The average score bottoms out at 4.528 when the reported standard deviation is 8, which is exactly the truth. Understate it to 2 and the average score jumps to 5.469. Overstate it to 20 and it climbs to 5.912.</p>
+
+<p>There is no report that beats telling the truth, which is what strictly proper means in practice.</p>
+
+<p>It reads even more clearly as a curve.</p>
+
+<div class="webr-container" data-block-title="Plot the score against the reported spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the score against the reported spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+sweep &lt;- data.frame(reported_sd = reported, average_crps = avg_crps)
+
+ggplot(sweep, aes(reported_sd, average_crps)) +
+  geom_line(colour = &quot;grey40&quot;) +
+  geom_point(size = 2.5) +
+  geom_vline(xintercept = 8, linetype = &quot;dashed&quot;, colour = &quot;firebrick&quot;) +
+  labs(x = &quot;Reported standard deviation&quot;,
+       y = &quot;Average CRPS over 20,000 days&quot;,
+       title = &quot;Honesty is the bottom of the curve&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed red line marks the true spread of 8. The score curve has its minimum sitting right on it. Report anything else and you climb one side of the valley or the other.</p>
+
+<p>Now contrast that with a point measure, using exactly the same 20,000 outcomes.</p>
+
+<div class="webr-container" data-block-title="Absolute error ignores the reported spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Absolute error ignores the reported spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">avg_abs_error &lt;- sapply(reported, function(s) mean(abs(truth - 100)))
+
+data.frame(reported_sd = reported, average_abs_error = round(avg_abs_error, 3))
+#&gt;   reported_sd average_abs_error
+#&gt; 1           2               6.4
+#&gt; 2           4               6.4
+#&gt; 3           6               6.4
+#&gt; 4           8               6.4
+#&gt; 5          10               6.4
+#&gt; 6          14               6.4
+#&gt; 7          20               6.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The column is flat at 6.4 all the way down. Absolute error never touched <code>s</code>, because the reported spread does not appear anywhere in its formula. MAE does not reward a false spread, but it does not penalise one either: every report scores the same. A forecaster graded only on MAE has no incentive to get their uncertainty right at all.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Not every plausible-sounding forecast metric is proper.</strong> Grading on interval width alone rewards claiming near-certainty, and grading on coverage alone rewards claiming enormous intervals. Both are gameable to the point of uselessness. Stick to rules with a published propriety proof, which in forecasting means CRPS, pinball loss, the Winkler score, and the log score (the FAQ at the end explains why the log score is the risky one of the four).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the sweep, but this time make the truth N(100, 12). Check that the minimum moves to a reported spread of 12.</p>
+<div class="webr-container" data-block-title="Your turn: move the truth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: move the truth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_truth &lt;- rnorm(20000, mean = 100, sd = 12)
+ex_reported &lt;- c(6, 9, 12, 15, 20)
+
+# Build a data.frame of reported_sd and average_crps, as above
+# your code here
+# Expected: the smallest average_crps sits on the row where reported_sd is 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Moved truth solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Moved truth solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_truth &lt;- rnorm(20000, mean = 100, sd = 12)
+ex_reported &lt;- c(6, 9, 12, 15, 20)
+
+data.frame(
+  reported_sd  = ex_reported,
+  average_crps = round(sapply(ex_reported, function(s) mean(crps_norm(ex_truth, 100, s))), 3)
+)
+#&gt;   reported_sd average_crps
+#&gt; 1           6        7.354
+#&gt; 2           9        6.927
+#&gt; 3          12        6.806
+#&gt; 4          15        6.897
+#&gt; 5          20        7.354</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The minimum tracked the truth to 12, exactly as propriety promises. Notice the curve is also fairly flat near the bottom, so being slightly wrong about the spread costs much less than being badly wrong.</p>
+
+</details>
+</section>
+
+<h2>How does pinball loss score a single quantile?</h2>
+
+<p>Sometimes you do not need the whole distribution graded. You need one number checked, a specific quantile, because that is what the business actually uses. Stock cover at the 90th percentile. A staffing floor at the 10th percentile.</p>
+
+<p>Pinball loss is the rule for exactly that job.</p>
+
+<p>The idea behind it is an asymmetry. A 90th percentile forecast is a promise that the actual value will come in below it about 90% of the time. So the two kinds of mistake are not equally bad.</p>
+
+<p>Sitting above the actual is the expected case and should barely cost anything. Sitting below the actual means the promise was broken, and that should hurt roughly nine times more.</p>
+
+<p>Written out, the pinball loss for a quantile forecast $q$ at level $\tau$, against an actual value $y$, is:</p>
+
+<p>$$\rho_\tau(y, q) = \begin{cases} \tau\,(y - q) & \text{if } y \ge q \\[4pt] (1 - \tau)(q - y) & \text{if } y < q \end{cases}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y$ = the value that actually happened</li>
+
+<li>$q$ = the quantile you forecast</li>
+
+<li>$\tau$ = the quantile level you claimed, between 0 and 1</li>
+
+<li>$\rho_\tau$ = the penalty, always zero or positive</li>
+
+</ul>
+
+<p>Both branches are just the size of the miss multiplied by a weight. The whole trick is that the two weights, $\tau$ and $1 - \tau$, are different. That is four lines of R.</p>
+
+<div class="webr-container" data-block-title="Define pinball loss and test both sides">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define pinball loss and test both sides</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pinball &lt;- function(y, q, tau) {
+  ifelse(y &gt;= q, tau * (y - q), (1 - tau) * (q - y))
+}
+
+c(actual_below = pinball(y = 96,  q = 100, tau = 0.9),
+  actual_above = pinball(y = 104, q = 100, tau = 0.9))
+#&gt; actual_below actual_above 
+#&gt;          0.4          3.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the code: <code>ifelse()</code> picks the branch element by element, so the function stays vectorised. Both calls forecast a 90th percentile of 100 and both miss by exactly 4 units, once low and once high.</p>
+
+<p>The two penalties are 0.4 and 3.6, a nine-to-one ratio, from an identical 4-unit miss. That is the asymmetry doing its job. Overshooting your 90th percentile is cheap, because the actual value is supposed to land below it. Undershooting it is expensive, because the actual value blew past a level you said it would rarely reach.</p>
+
+<p>Sweeping the quantile forecast across a range makes the shape obvious.</p>
+
+<div class="webr-container" data-block-title="Loss across a range of quantile forecasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Loss across a range of quantile forecasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q_values &lt;- c(80, 90, 100, 110, 120)
+
+data.frame(
+  quantile_forecast = q_values,
+  loss_at_tau_0.5   = pinball(100, q_values, 0.5),
+  loss_at_tau_0.9   = pinball(100, q_values, 0.9)
+)
+#&gt;   quantile_forecast loss_at_tau_0.5 loss_at_tau_0.9
+#&gt; 1                80              10              18
+#&gt; 2                90               5               9
+#&gt; 3               100               0               0
+#&gt; 4               110               5               1
+#&gt; 5               120              10               2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the actual value is fixed at 100 and the forecast moves. At $\tau = 0.5$ the two arms are symmetric: being 20 low and being 20 high both cost 10. At $\tau = 0.9$ they are not: being 20 low costs 18, while being 20 high costs only 2.</p>
+
+<p>Plotting it shows where the name comes from.</p>
+
+<div class="webr-container" data-block-title="Plot the pinball shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the pinball shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shape &lt;- expand.grid(q = seq(70, 130, by = 0.5), tau = c(0.1, 0.5, 0.9))
+shape$loss &lt;- pinball(y = 100, q = shape$q, tau = shape$tau)
+
+ggplot(shape, aes(q, loss, colour = factor(tau))) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = 100, linetype = &quot;dashed&quot;, colour = &quot;grey50&quot;) +
+  labs(x = &quot;Quantile forecast&quot;, y = &quot;Pinball loss&quot;,
+       colour = &quot;tau&quot;, title = &quot;Pinball loss when the actual value is 100&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each line is a V with its point at the actual value of 100 and one arm steeper than the other. At $\tau = 0.1$ the steep arm faces right, punishing forecasts that sit too high. At $\tau = 0.9$ it faces left. At $\tau = 0.5$ the V is symmetric, which connects this rule back to something familiar.</p>
+
+<div class="webr-container" data-block-title="At the median, pinball is half the absolute error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">At the median, pinball is half the absolute error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(pinball_half = pinball(96, 100, 0.5), absolute_error = abs(96 - 100))
+#&gt;   pinball_half absolute_error 
+#&gt;              2              4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At $\tau = 0.5$ both weights are 0.5, so the loss is exactly half the absolute error. Pinball loss is therefore a generalisation of the error measure you already know: MAE is the special case where you only care about the median.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Watch the factor of two when comparing implementations.</strong> The formula above is the plain pinball loss. The <code>quantile_score()</code> function in fabletools, and the fpp3 textbook, both use twice this value so that the median case equals the absolute error rather than half of it. Rankings are unaffected because every score is doubled equally, but the printed numbers differ by a factor of two.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the pinball loss at $\tau = 0.1$ for the same two misses, an actual of 96 and an actual of 104 against a forecast of 100. Predict which one is penalised more before you run it.</p>
+<div class="webr-container" data-block-title="Your turn: pinball at the tenth percentile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pinball at the tenth percentile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score both misses at tau = 0.1 against a quantile forecast of 100
+# your code here
+# Expected: the two numbers from the tau = 0.9 example, swapped</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tenth percentile solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tenth percentile solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(actual_below = pinball(y = 96,  q = 100, tau = 0.1),
+  actual_above = pinball(y = 104, q = 100, tau = 0.1))
+#&gt; actual_below actual_above 
+#&gt;          3.6          0.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The penalties flipped. A 10th percentile is supposed to sit below the actual value nearly always, so landing above it is the expensive mistake this time.</p>
+
+</details>
+</section>
+
+<h2>How does CRPS grade the whole forecast distribution?</h2>
+
+<p>Pinball loss grades one quantile. CRPS grades all of them at once, which is what you want when the deliverable is the entire distribution rather than one chosen level.</p>
+
+<p>The picture behind CRPS is simple once you see it. Draw the <a class="auto-link" href="Random-Variables-in-R.html" title="Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised">cumulative distribution function</a> of your forecast, an S-shaped curve rising from 0 to 1. Now draw what a perfect forecaster would have said with hindsight: a step that sits flat at 0 until the actual value, then jumps straight to 1. CRPS is the area of the squared gap between those two curves.</p>
+
+<p><img src="screenshots/Forecast-Scoring-Rules-in-R-crps-construction.webp" alt="Flowchart showing the forecast CDF and the actual value as a step function combining into a squared gap that is summed into CRPS" class="img-responsive img-zoomable" loading="lazy" width="2090" height="642" /></p>
+
+<p><em>Figure 1: CRPS compares the forecast CDF with a <a class="auto-link" href="ggplot2-geom_step-in-R.html" title="ggplot2 geom_step() in R: Step Function Lines">step function</a> at the actual value, then adds up the squared gap.</em></p>
+
+<p>In notation, with $F$ the forecast CDF and $y$ the actual value:</p>
+
+<p>$$\text{CRPS}(F, y) = \int_{-\infty}^{\infty} \big(F(u) - \mathbf{1}\{u \ge y\}\big)^2 \, du$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$F(u)$ = the forecast probability that the outcome is at or below $u$</li>
+
+<li>$\mathbf{1}\{u \ge y\}$ = the hindsight step, 0 below the actual value and 1 at or above it</li>
+
+<li>the square = why both being wrong and being vague are penalised</li>
+
+<li>$du$ = we sweep across every possible value $u$ and add up as we go</li>
+
+</ul>
+
+<p><em>If the notation is not your thing, skip to the code. The integral is doing nothing more than measuring the gap in the figure above.</em></p>
+
+<p>Because the formula is literally an area, we can compute it with R's numerical integrator and check it against the closed form we have been using all along.</p>
+
+<div class="webr-container" data-block-title="Compute CRPS as an area, then check it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute CRPS as an area, then check it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">crps_by_area &lt;- function(y, mu, sigma) {
+  gap_squared &lt;- function(u) (pnorm(u, mu, sigma) - (u &gt;= y))^2
+  integrate(gap_squared, lower = mu - 12 * sigma, upper = mu + 12 * sigma)$value
+}
+
+round(c(by_area = crps_by_area(96, 100, 10), closed_form = crps_norm(96, 100, 10)), 4)
+#&gt;     by_area closed_form 
+#&gt;      2.9669      2.9669</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through it: <code>gap_squared()</code> is the integrand, the squared difference between the forecast CDF at <code>u</code> and the hindsight step at <code>u</code>. The comparison <code>u &gt;= y</code> returns TRUE or FALSE, which R treats as 1 or 0 in arithmetic. <code>integrate()</code> then sweeps that function across a range wide enough to capture essentially all the probability, twelve standard deviations either side.</p>
+
+<p>The two numbers agree to four decimal places. That confirms <code>crps_norm()</code>, the function we have been trusting since the first section, is nothing but this area computed with pen and paper instead of a numerical integrator. For a normal forecast that closed form is:</p>
+
+<p>$$\text{CRPS} = \sigma\left[ z\big(2\Phi(z) - 1\big) + 2\varphi(z) - \tfrac{1}{\sqrt{\pi}} \right], \qquad z = \frac{y - \mu}{\sigma}$$</p>
+
+<p>Where $\Phi$ is <code>pnorm()</code>, $\varphi$ is <code>dnorm()</code>, and $z$ is how many standard deviations the actual value sat from the forecast mean. Compare it to the R function from the first section and you will find the two match term for term.</p>
+
+<p>Seeing the gap helps more than either formula.</p>
+
+<div class="webr-container" data-block-title="Plot the gap CRPS measures">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the gap CRPS measures</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">u &lt;- seq(60, 140, by = 0.25)
+curves &lt;- data.frame(u = u,
+                     forecast = pnorm(u, mean = 100, sd = 10),
+                     hindsight = as.numeric(u &gt;= 96))
+
+ggplot(curves, aes(u)) +
+  geom_ribbon(aes(ymin = pmin(forecast, hindsight), ymax = pmax(forecast, hindsight)),
+              fill = &quot;steelblue&quot;, alpha = 0.25) +
+  geom_line(aes(y = forecast), colour = &quot;steelblue&quot;, linewidth = 1) +
+  geom_line(aes(y = hindsight), colour = &quot;firebrick&quot;, linewidth = 1) +
+  labs(x = &quot;Value&quot;, y = &quot;Cumulative probability&quot;,
+       title = &quot;Forecast N(100, 10) against an actual of 96&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The blue S-curve is the forecast, the red step is hindsight, and the shaded band between them is the gap. CRPS squares that gap before adding it up, so the shaded region is the thing being measured rather than the answer itself.</p>
+
+<p>A sharper forecast centred on 96 would make the blue curve hug the red step and shrink the band. A vague forecast would flatten the blue curve and widen it. Both ways of being wrong grow the same area, which is precisely why the rule cannot be gamed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>CRPS is measured in the units of your data, and it collapses to absolute error when the forecast is a single number.</strong> A CRPS of 5.82 on beer production means roughly the same kind of thing as an MAE of 5.82 megalitres. That makes it a genuine generalisation of a measure you already have intuition for, not a new abstract scale you have to learn from zero.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score an actual value of 96 against three forecasts that share a standard deviation of 10 but are centred on 96, 100 and 104. Confirm the centred forecast wins, and that missing high by 4 costs more than being spot on.</p>
+<div class="webr-container" data-block-title="Your turn: move the forecast centre">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: move the forecast centre</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score y = 96 against forecast means of 96, 100 and 104, all with sigma = 10
+# your code here
+# Expected: three numbers, smallest first</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Forecast centre solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forecast centre solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(crps_norm(96, c(96, 100, 104), 10), 3)
+#&gt; [1] 2.337 2.967 4.762</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>crps_norm()</code> vectorises over <code>mu</code> just as it did over <code>sigma</code>. Being centred on the truth scores best at 2.337. Notice the penalty grows faster than the miss does: moving the centre 4 units off adds 0.63 to the score, while moving it 8 units off adds 2.43, nearly four times as much rather than twice as much.</p>
+
+</details>
+</section>
+
+<h2>Why is CRPS just the average of every pinball loss?</h2>
+
+<p>Two sections ago we scored one quantile. One section ago we scored a whole distribution. Those look like separate tools, but they are the same tool at different resolutions, and the link between them is the most useful fact in this tutorial.</p>
+
+<p>A distribution is nothing more than all of its quantiles stacked together. So if you score every quantile with pinball loss and average the results, you have scored the whole distribution. That average, doubled, is exactly CRPS:</p>
+
+<p>$$\text{CRPS}(F, y) = 2 \int_{0}^{1} \rho_\tau\big(y,\; F^{-1}(\tau)\big) \, d\tau$$</p>
+
+<p>Where $F^{-1}(\tau)$ is the forecast's $\tau$-th quantile, which in R is <code>qnorm(tau, mu, sigma)</code> for a normal forecast.</p>
+
+<p><img src="screenshots/Forecast-Scoring-Rules-in-R-pinball-to-crps.webp" alt="Flowchart showing pinball losses at three quantile levels averaged across every level and multiplied by two to give CRPS" class="img-responsive img-zoomable" loading="lazy" width="1736" height="986" /></p>
+
+<p><em>Figure 2: CRPS is the average pinball loss across every quantile level, doubled.</em></p>
+
+<p>We can check the claim rather than believe it. Take a thousand quantile levels spread evenly between 0 and 1, score each one with the <code>pinball()</code> function we wrote earlier, then average.</p>
+
+<div class="webr-container" data-block-title="Average pinball across every quantile level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average pinball across every quantile level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tau_grid &lt;- seq(0.0005, 0.9995, by = 0.001)
+q_grid   &lt;- qnorm(tau_grid, mean = 100, sd = 10)
+
+round(c(average_pinball = mean(2 * pinball(96, q_grid, tau_grid)),
+        closed_form     = crps_norm(96, 100, 10)), 4)
+#&gt; average_pinball     closed_form 
+#&gt;          2.9669          2.9669</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the code: <code>tau_grid</code> is a thousand quantile levels, deliberately stopping just short of 0 and 1 where the normal quantiles run off to infinity. <code>q_grid</code> converts each level into the matching quantile of the forecast distribution. Then <code>pinball()</code> scores the actual value of 96 against all thousand quantiles at once, and <code>mean()</code> averages them.</p>
+
+<p>The two numbers are identical to four decimal places, and neither one knew about the other. The left number was built by scoring a thousand separate quantiles. The right number came from an integral of a squared area. They agree because they are the same quantity.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pinball loss and CRPS are one rule, not two.</strong> Score one quantile and you get pinball loss. Score every quantile and average, and you get CRPS. That is also why CRPS inherits propriety: an average of strictly proper scores is itself strictly proper.</div></div>
+
+<p>This identity has a practical payoff. Many modern forecasters, including <a class="auto-link" href="Quantile-Regression-in-R.html" title="Quantile Regression in R: quantreg Package, Model Beyond the Mean">quantile regression</a> and gradient boosting with a quantile objective, output a set of quantiles rather than a named distribution. You can score them directly by averaging pinball losses across the quantiles they produced, with no distributional assumption at all.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Verify the identity again with different numbers. Score an actual value of 57 against a forecast of N(50, 4), both ways.</p>
+<div class="webr-container" data-block-title="Your turn: verify the identity again">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify the identity again</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse tau_grid, build the quantiles of N(50, 4), and compare both routes for y = 57
+# your code here
+# Expected: two identical numbers near 4.87</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Identity check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Identity check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_q &lt;- qnorm(tau_grid, mean = 50, sd = 4)
+
+round(c(average_pinball = mean(2 * pinball(57, ex_q, tau_grid)),
+        closed_form     = crps_norm(57, 50, 4)), 4)
+#&gt; average_pinball     closed_form 
+#&gt;          4.8726          4.8726</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The identity holds for any normal forecast and any actual value. Only <code>q_grid</code> had to change, because the quantile levels themselves are the same thousand numbers regardless of which distribution you are scoring.</p>
+
+</details>
+</section>
+
+<h2>How do you score a forecast made of simulated draws?</h2>
+
+<p>Not every forecast has a tidy formula behind it. Bootstrapped forecasts, simulated future paths and ensemble models all hand you a bag of possible outcomes rather than a named distribution. CRPS handles that case too, with a different but equivalent formula.</p>
+
+<p>For a set of draws $X_1, \dots, X_n$ from your forecast distribution:</p>
+
+<p>$$\text{CRPS} = \frac{1}{n}\sum_{i} |X_i - y| \;-\; \frac{1}{2n^2}\sum_{i}\sum_{j} |X_i - X_j|$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>the first term = how far your draws sit from what actually happened, on average</li>
+
+<li>the second term = how spread out your draws are among themselves, on average</li>
+
+<li>$y$ = the actual value</li>
+
+</ul>
+
+<p>The two terms are worth pausing on because together they are the whole philosophy of the rule. The first term rewards accuracy, since draws close to the truth make it small. On its own it would reward cheating: predict the same number a thousand times with no spread at all and you would just get absolute error.</p>
+
+<p>The second term stops that. It is subtracted, so a forecast that spreads its draws out gets a credit, and a forecast that collapses to a point gets no credit at all. Accuracy and honest uncertainty are traded off inside one formula.</p>
+
+<div class="webr-container" data-block-title="Score a forecast made of draws">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score a forecast made of draws</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">crps_from_draws &lt;- function(y, draws) {
+  mean(abs(draws - y)) - 0.5 * mean(abs(outer(draws, draws, &quot;-&quot;)))
+}
+
+set.seed(11)
+draws &lt;- rnorm(1000, mean = 100, sd = 10)
+
+round(c(from_draws = crps_from_draws(96, draws), closed_form = crps_norm(96, 100, 10)), 4)
+#&gt;  from_draws closed_form 
+#&gt;      2.9946      2.9669</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through it: <code>outer(draws, draws, &quot;-&quot;)</code> builds every pairwise difference as a 1000 by 1000 matrix, and taking the mean of its absolute values gives the average distance between two random draws. The first term is the average distance from the draws to the actual value. Subtracting half the second from the first gives the score.</p>
+
+<p>The interpretation is the useful part. We deliberately drew from N(100, 10), the same distribution we scored in closed form earlier, and the two routes give 2.9946 and 2.9669. The small gap is sampling error from using only 1000 draws, not a disagreement about the formula. With more draws it shrinks toward zero.</p>
+
+<p>Worth confirming against a package that specialises in this. The block below uses <code>scoringRules</code>, which is not available in the browser, so run it locally in RStudio if you want to reproduce it.</p>
+
+<pre><code class="language-r">round(c(
+  ours_closed = crps_norm(96, 100, 10),
+  pkg_closed  = scoringRules::crps_norm(y = 96, mean = 100, sd = 10),
+  ours_draws  = crps_from_draws(96, draws),
+  pkg_draws   = scoringRules::crps_sample(y = 96, dat = draws)
+), 6)
+#&gt; ours_closed  pkg_closed  ours_draws   pkg_draws 
+#&gt;    2.966881    2.966881    2.994630    2.994630</code></pre>
+
+<p>Both of our hand-written functions match the reference implementation to six decimal places. They are not simplified teaching versions: they compute exactly what the published package computes.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use at least 1000 draws, and remember the pairwise term grows quadratically.</strong> At 1000 draws the matrix has a million entries and computes instantly. At 50,000 draws it has 2.5 billion and will exhaust memory. For large ensembles use the sorted formula, which gets the same answer in n log n time, or let a package handle it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score the same actual value of 96 using 200 draws and 2000 draws, and compare both against the closed form. Which <a class="auto-link" href="AB-Testing-Interview-Cases.html" title="A/B Testing Interview Cases: 20 Solved in R">sample size</a> lands closer?</p>
+<div class="webr-container" data-block-title="Your turn: does more draws mean closer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: does more draws mean closer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+
+# Score y = 96 with 200 draws, with 2000 draws, and against the closed form
+# Draw from rnorm(n, 100, 10) in each case
+# your code here
+# Expected: three numbers, with the 2000-draw one closest to the last</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sample size solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample size solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+round(c(n_200   = crps_from_draws(96, rnorm(200,  100, 10)),
+        n_2000  = crps_from_draws(96, rnorm(2000, 100, 10)),
+        closed  = crps_norm(96, 100, 10)), 4)
+#&gt;  n_200 n_2000 closed 
+#&gt; 2.8785 2.9491 2.9669</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 200-draw estimate is off by about 0.09, the 2000-draw estimate by about 0.02. Sampling error shrinks roughly with the square root of the number of draws, so ten times more draws buys you about three times the precision.</p>
+
+</details>
+</section>
+
+<h2>How do you score real fable forecasts with accuracy()?</h2>
+
+<p>Time to apply all of this to actual models. The <code>fable</code> package computes every rule in this tutorial through one function, <code>accuracy()</code>, and the numbers it returns are the ones we have been building by hand.</p>
+
+<p>The data is Australian quarterly beer production from <code>tsibbledata</code>, measured in megalitres. We hold back everything from 2008 onwards so there are ten real quarters to grade against, and fit four models that disagree with each other in interesting ways.</p>
+
+<div class="webr-container" data-block-title="Fit four models and forecast ten quarters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit four models and forecast ten quarters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(fable)
+library(tsibble)
+library(tsibbledata)
+library(dplyr)
+
+beer &lt;- aus_production |&gt;
+  select(Quarter, Beer) |&gt;
+  filter_index(&quot;1992 Q1&quot; ~ &quot;2010 Q2&quot;)
+
+train &lt;- beer |&gt; filter_index(~ &quot;2007 Q4&quot;)
+
+fit &lt;- train |&gt; model(
+  ets    = ETS(Beer),
+  arima  = ARIMA(Beer),
+  tslm   = TSLM(Beer ~ trend() + season()),
+  snaive = SNAIVE(Beer)
+)
+
+fc &lt;- fit |&gt; forecast(h = 10)
+
+fc |&gt; filter(.model == &quot;ets&quot;) |&gt; as_tibble() |&gt;
+  transmute(Quarter, distribution = format(Beer), point = round(.mean, 1)) |&gt;
+  head(4) |&gt; as.data.frame()
+#&gt;   Quarter distribution point
+#&gt; 1 2008 Q1  N(426, 164) 425.7
+#&gt; 2 2008 Q2  N(386, 136) 386.5
+#&gt; 3 2008 Q3  N(403, 148) 402.7
+#&gt; 4 2008 Q4  N(483, 214) 482.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through it: <code>filter_index()</code> trims the series by time. Given two quarters either side of a <code>~</code>, it keeps everything between them, which is how we cut the series down to 1992 Q1 through 2010 Q2. Given a <code>~</code> with nothing on its left, as in <code>filter_index(~ &quot;2007 Q4&quot;)</code>, it keeps everything up to and including that quarter, which is how we carve off the training period. <code>model()</code> fits all four candidates in one call, and <code>forecast(h = 10)</code> produces ten quarters ahead from each.</p>
+
+<p>The last three lines are only there to show what came back. A forecast object carries two things per quarter: a <code>Beer</code> column that is not a number at all but a <code>&lt;dist&gt;</code> column holding a whole normal distribution, and a <code>.mean</code> column holding the single point forecast pulled out of it. <code>format()</code> turns the distribution into readable text so both can sit in one printed table. That <code>&lt;dist&gt;</code> column is exactly the object our scoring rules need.</p>
+
+<p>One thing to read carefully: <code>N(426, 164)</code> means a normal distribution with mean 426 and <strong>variance</strong> 164, so a standard deviation of about 12.8. The second number is a variance, not a standard deviation, and reading it as a standard deviation is an easy mistake to make.</p>
+
+<p>Start with the point measures, which grade only the <code>.mean</code> column.</p>
+
+<div class="webr-container" data-block-title="Score the point forecasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the point forecasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt; accuracy(beer, measures = list(RMSE = RMSE, MAE = MAE))
+#&gt; # A tibble: 4 × 4
+#&gt;   .model .type  RMSE   MAE
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 arima  Test  11.2  10.4 
+#&gt; 2 ets    Test   9.80  8.99
+#&gt; 3 snaive Test  14.3  13.4 
+#&gt; 4 tslm   Test  10.3   7.27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Note that we scored against <code>beer</code>, the full series, not against <code>train</code>. The <code>accuracy()</code> function finds the 2008 to 2010 actuals in there and lines them up with the forecasts by quarter.</p>
+
+<p>Already the two point measures disagree with each other. RMSE ranks <code>ets</code> first at 9.80, while MAE ranks <code>tslm</code> first at 7.27 by a comfortable margin. That happens when one model has smaller typical errors but a couple of larger ones, since RMSE squares errors and so punishes the occasional big miss harder.</p>
+
+<p>Now add CRPS, which reads the whole <code>&lt;dist&gt;</code> column instead of just <code>.mean</code>.</p>
+
+<div class="webr-container" data-block-title="Add CRPS to the comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add CRPS to the comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt; accuracy(beer, measures = list(RMSE = RMSE, MAE = MAE, CRPS = CRPS))
+#&gt; # A tibble: 4 × 5
+#&gt;   .model .type  RMSE   MAE  CRPS
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 arima  Test  11.2  10.4   6.54
+#&gt; 2 ets    Test   9.80  8.99  5.82
+#&gt; 3 snaive Test  14.3  13.4   8.71
+#&gt; 4 tslm   Test  10.3   7.27  5.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the moment the tutorial has been building toward. On MAE, <code>tslm</code> is the clear winner at 7.27 against 8.99 for <code>ets</code>, a 19% margin. On CRPS the order reverses and <code>ets</code> wins, 5.82 against 5.86. The two models are nearly tied once you grade the whole distribution, and the model with visibly worse point forecasts comes out ahead.</p>
+
+<p>The reason is that CRPS is grading something MAE never looked at. The <code>tslm</code> model puts its centre in a better place, but <code>ets</code> describes its own uncertainty slightly better, and that is enough to close a 19% gap. If your deliverable is an interval or a risk number rather than a single point, the CRPS ranking is the one that matters.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Always score against the full series, never against the training data.</strong> Passing <code>train</code> instead of <code>beer</code> to <code>accuracy()</code> returns training-set residual measures, which flatter complex models and are close to meaningless for choosing between them. The <code>.type</code> column tells you which you got: it must say <code>Test</code>.</div></div>
+
+<p>You can also grade one specific quantile with <code>quantile_score()</code>, which is the doubled pinball loss from earlier.</p>
+
+<div class="webr-container" data-block-title="Grade the ninetieth percentile only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grade the ninetieth percentile only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt; accuracy(beer, measures = list(qs_90 = quantile_score), probs = 0.90)
+#&gt; # A tibble: 4 × 3
+#&gt;   .model .type qs_90
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 arima  Test   3.25
+#&gt; 2 ets    Test   3.20
+#&gt; 3 snaive Test   4.60
+#&gt; 4 tslm   Test   3.54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>probs</code> argument names the quantile level. This is the score to report when the business only uses one number from your forecast, such as a stock cover level set at the 90th percentile. Here <code>ets</code> is best at 3.20 and <code>tslm</code> slips to third, because a model can describe the middle of a distribution well and its upper tail poorly.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit just <code>ETS()</code> and <code>MEAN()</code> on the same training data and compare them on CRPS. <code>MEAN()</code> forecasts the historical average forever, so it should lose badly on a strongly seasonal series.</p>
+<div class="webr-container" data-block-title="Your turn: score a deliberately bad model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score a deliberately bad model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- train |&gt; model(ets = ETS(Beer), mean = MEAN(Beer))
+
+# Forecast 10 quarters and score both on CRPS
+# your code here
+# Expected: ets near 5.8, mean around four times worse</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bad model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bad model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- train |&gt; model(ets = ETS(Beer), mean = MEAN(Beer))
+ex_fit |&gt; forecast(h = 10) |&gt; accuracy(beer, measures = list(CRPS = CRPS))
+#&gt; # A tibble: 2 × 3
+#&gt;   .model .type  CRPS
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 ets    Test   5.82
+#&gt; 2 mean   Test  22.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>MEAN()</code> ignores the <a class="auto-link" href="Holt-Winters-in-R.html" title="Holt-Winters in R: Additive or Multiplicative Seasonality?">seasonal swing</a> entirely, so its centre sits far from the actual value in most quarters, and the wide spread it reports to cover that error is itself penalised by the second term of the rule. A CRPS of 22.4 against 5.82 quantifies just how much the seasonal structure was worth.</p>
+
+</details>
+</section>
+
+<h2>How does the Winkler score grade a prediction interval?</h2>
+
+<p>Sometimes the thing you ship is neither a point nor a full distribution. It is an interval: "between 380 and 415 megalitres, with 80% confidence". The Winkler score is the proper rule for that deliverable.</p>
+
+<p>It balances two things you would otherwise have to trade off by hand. A narrow interval is more useful, so width is a cost. But an interval that misses is a broken promise, so landing outside is a much bigger cost. Written out:</p>
+
+<p>$$W_\alpha = (u - \ell) + \frac{2}{\alpha} \times \begin{cases} \ell - y & \text{if } y < \ell \\ 0 & \text{if } \ell \le y \le u \\ y - u & \text{if } y > u \end{cases}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\ell$ and $u$ = the lower and upper ends of the interval</li>
+
+<li>$\alpha$ = 1 minus the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence level</a>, so 0.20 for an 80% interval</li>
+
+<li>$2/\alpha$ = the penalty multiplier, which is 10 for an 80% interval and 40 for a 95% one</li>
+
+</ul>
+
+<p>The multiplier is what makes the rule honest. For an 80% interval, every unit you land outside costs ten times what a unit of extra width would have cost. Shrinking an interval to look impressive is therefore a losing trade unless you are genuinely confident.</p>
+
+<div class="webr-container" data-block-title="Score the intervals with winkler_score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the intervals with winkler_score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt; accuracy(beer, measures = list(winkler = winkler_score), level = 80)
+#&gt; # A tibble: 4 × 3
+#&gt;   .model .type winkler
+#&gt;   &lt;chr&gt;  &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 arima  Test     37.3
+#&gt; 2 ets    Test     33.8
+#&gt; 3 snaive Test     56.4
+#&gt; 4 tslm   Test     39.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>level</code> argument names which interval to grade. Here is the second surprise of the tutorial: <code>tslm</code>, which had the best MAE of any model at 7.27, now ranks third at 39.8, behind <code>arima</code> which had the second-worst MAE at 10.4. The best point forecaster produces the second-worst intervals.</p>
+
+<p>Rather than take that on trust, we can rebuild the whole thing by hand from the intervals themselves.</p>
+
+<div class="webr-container" data-block-title="Rebuild the Winkler score by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebuild the Winkler score by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">winkler_one &lt;- function(y, lower, upper, alpha) {
+  (upper - lower) + (2 / alpha) * (pmax(lower - y, 0) + pmax(y - upper, 0))
+}
+
+intervals &lt;- fc |&gt;
+  hilo(80) |&gt;
+  unpack_hilo(&quot;80%&quot;) |&gt;
+  as_tibble() |&gt;
+  left_join(as_tibble(beer), by = &quot;Quarter&quot;, suffix = c(&quot;&quot;, &quot;_actual&quot;)) |&gt;
+  mutate(W = winkler_one(Beer_actual, `80%_lower`, `80%_upper`, 0.20))
+
+intervals |&gt; group_by(.model) |&gt; summarise(winkler_by_hand = round(mean(W), 1))
+#&gt; # A tibble: 4 × 2
+#&gt;   .model winkler_by_hand
+#&gt;   &lt;chr&gt;            &lt;dbl&gt;
+#&gt; 1 arima             37.3
+#&gt; 2 ets               33.8
+#&gt; 3 snaive            56.4
+#&gt; 4 tslm              39.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the code: <code>hilo(80)</code> extracts the 80% interval from each forecast distribution, and <code>unpack_hilo()</code> splits it into plain lower and upper columns. The <code>pmax(..., 0)</code> pair encodes the three-case formula compactly, since only one of the two can be positive at a time. The <code>left_join()</code> brings in the actual values.</p>
+
+<p>All four numbers match <code>accuracy()</code> exactly. Nothing is hidden inside the package.</p>
+
+<p>So where does the <code>tslm</code> penalty come from? Both models missed their interval in exactly one quarter out of ten, and their intervals are almost the same width. The difference is how badly they missed.</p>
+
+<div class="webr-container" data-block-title="Break down the quarter where both models missed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Break down the quarter where both models missed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt;
+  hilo(80) |&gt;
+  unpack_hilo(&quot;80%&quot;) |&gt;
+  as_tibble() |&gt;
+  left_join(as_tibble(beer), by = &quot;Quarter&quot;, suffix = c(&quot;&quot;, &quot;_actual&quot;)) |&gt;
+  filter(Quarter == yearquarter(&quot;2009 Q3&quot;), .model %in% c(&quot;arima&quot;, &quot;tslm&quot;)) |&gt;
+  transmute(.model,
+            actual  = Beer_actual,
+            upper   = round(`80%_upper`, 2),
+            width   = round(`80%_upper` - `80%_lower`, 2),
+            penalty = round(10 * (Beer_actual - `80%_upper`), 2),
+            winkler = round(winkler_one(Beer_actual, `80%_lower`, `80%_upper`, 0.20), 2))
+#&gt; # A tibble: 2 × 6
+#&gt;   .model actual upper width penalty winkler
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 arima     419  415.  34.1    35.7    69.8
+#&gt; 2 tslm      419  414.  34.4    54.6    89.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You can check the arithmetic yourself: for <code>arima</code>, 34.1 of width plus 35.7 of penalty gives 69.8. For <code>tslm</code>, 34.4 plus 54.6 gives 89.0. The widths are within 1% of each other, so essentially all of the 19-point gap comes from the penalty term.</p>
+
+<p>Beer production in 2009 Q3 came in at 419, and <code>tslm</code> put its upper bound about 1.9 megalitres lower than <code>arima</code> did. You can read that straight off the penalty column: dividing 54.6 and 35.7 by the multiplier of ten gives overshoots of 5.46 and 3.57 megalitres, a difference of 1.89. Multiplying that small difference in placement back up by ten is what produced the whole 19-point gap.</p>
+
+<p>That single quarter, spread over the ten-quarter average, is what moved <code>tslm</code> from first on MAE to third on Winkler.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The Winkler score only grades the interval you name, so report the level you actually ship.</strong> A model can score well at 80% and poorly at 95% if its tails are the wrong shape. If you are unsure which level matters, or you ship several, use CRPS instead: it grades every interval at once.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score the same four models at the 95% level instead of 80%. The penalty multiplier becomes 40, so misses matter far more. Does the ranking survive?</p>
+<div class="webr-container" data-block-title="Your turn: Winkler at ninety-five percent">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Winkler at ninety-five percent</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score the 95% intervals instead of the 80% ones
+# your code here
+# Expected: every score noticeably higher, and the top two now nearly tied</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ninety-five percent solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ninety-five percent solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc |&gt; accuracy(beer, measures = list(winkler = winkler_score), level = 95)
+#&gt; # A tibble: 4 × 3
+#&gt;   .model .type winkler
+#&gt;   &lt;chr&gt;  &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 arima  Test     51.6
+#&gt; 2 ets    Test     51.6
+#&gt; 3 snaive Test     86.3
+#&gt; 4 tslm   Test     52.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The scores rose because 95% intervals are wider and width is a cost. More interestingly, <code>arima</code> and <code>ets</code> are now tied at 51.6 where <code>ets</code> led clearly at the 80% level. A ranking that depends on which interval you grade is a warning that the models are genuinely close.</p>
+
+</details>
+</section>
+
+<h2>How do you compare scores across series of different scales?</h2>
+
+<p>Everything so far graded one series. The moment you <a class="auto-link" href="fable-in-R.html" title="fable in R: Tidy Time Series Forecasting with tsibble">forecast many series at once</a>, a new problem appears: CRPS is measured in the units of the data, so it cannot be averaged across series that live on different scales.</p>
+
+<p>Here is the problem made concrete. We put beer production, which runs in the hundreds of megalitres, alongside electricity production, which runs in the tens of thousands of gigawatt hours, into one tsibble and score both.</p>
+
+<div class="webr-container" data-block-title="Score two series on very different scales">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score two series on very different scales</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+two_series &lt;- aus_production |&gt;
+  select(Quarter, Beer, Electricity) |&gt;
+  filter_index(&quot;1992 Q1&quot; ~ &quot;2010 Q2&quot;) |&gt;
+  pivot_longer(c(Beer, Electricity), names_to = &quot;Series&quot;, values_to = &quot;Value&quot;) |&gt;
+  as_tsibble(index = Quarter, key = Series)
+
+fc2 &lt;- two_series |&gt;
+  filter_index(~ &quot;2007 Q4&quot;) |&gt;
+  model(ets = ETS(Value), snaive = SNAIVE(Value)) |&gt;
+  forecast(h = 10)
+
+fc2 |&gt; accuracy(two_series, measures = list(CRPS = CRPS)) |&gt; arrange(Series, .model)
+#&gt; # A tibble: 4 × 4
+#&gt;   .model Series      .type    CRPS
+#&gt;   &lt;chr&gt;  &lt;chr&gt;       &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 ets    Beer        Test     5.82
+#&gt; 2 snaive Beer        Test     8.71
+#&gt; 3 ets    Electricity Test  1589.  
+#&gt; 4 snaive Electricity Test  1562.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through it: <code>pivot_longer()</code> stacks the two measurements into one value column with a <code>Series</code> label, and <code>as_tsibble(key = Series)</code> tells fable these are two separate series to be modelled independently. Each gets its own <a class="auto-link" href="ETS-Models-in-R.html" title="ETS Models in R: Error, Trend, and Seasonal Components">ETS</a> and seasonal naive fit.</p>
+
+<p>Look at the magnitudes. Electricity CRPS is around 1589, beer is around 5.82, a factor of 270. If you averaged those two numbers to get an overall model score, electricity would decide the winner on its own and beer would contribute nothing. That is not a judgement about which series matters more, it is an accident of the units.</p>
+
+<p>The fix is a <strong>skill score</strong>, which converts each raw score into a percentage improvement over a benchmark model. Against a benchmark score $B$ and your score $S$:</p>
+
+<p>$$\text{Skill} = \frac{B - S}{B}$$</p>
+
+<p>A skill of 0.30 means you beat the benchmark by 30%. Zero means you tied it. Negative means the benchmark beat you. Because it is a ratio, the units cancel and the numbers become comparable across series.</p>
+
+<div class="webr-container" data-block-title="Convert to skill scores against the naive benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert to skill scores against the naive benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc2 |&gt; accuracy(two_series, measures = list(skill = skill_score(CRPS))) |&gt; arrange(Series, .model)
+#&gt; # A tibble: 4 × 4
+#&gt;   .model Series      .type   skill
+#&gt;   &lt;chr&gt;  &lt;chr&gt;       &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 ets    Beer        Test   0.332 
+#&gt; 2 snaive Beer        Test   0     
+#&gt; 3 ets    Electricity Test  -0.0172
+#&gt; 4 snaive Electricity Test   0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>skill_score()</code> wrapper takes any measure and re-expresses it against a benchmark, which by default is the seasonal <a class="auto-link" href="Benchmark-Forecasts-in-R.html" title="Benchmark Forecasts in R: Naive, Seasonal Naive, and Drift">naive forecast</a>. That is why the <code>snaive</code> rows are exactly 0: it is being compared with itself.</p>
+
+<p>Now the comparison is honest, and it delivers news that the raw table hid. On beer, ETS beats the naive benchmark by 33.2%, a solid win. On electricity it is 1.7% <strong>worse</strong> than simply repeating last year's quarter. The model that looked uniformly good is only good on one of the two series, and no amount of staring at 5.82 and 1589 would have told you that.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Skill scores explode when the benchmark score is close to zero.</strong> On a nearly deterministic series the naive benchmark can be almost perfect, and dividing by that tiny number produces enormous negative skill for a model that is barely worse in absolute terms. Always look at the raw scores alongside the skill scores before acting on either.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Average each model's skill across both series to get one overall number per model. This is the standard way to rank models over a portfolio of series.</p>
+<div class="webr-container" data-block-title="Your turn: average skill across series">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: average skill across series</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute skill for both series, then average per model
+# Hint: group_by(.model) then summarise()
+# your code here
+# Expected: ets slightly positive, snaive exactly zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Average skill solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average skill solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fc2 |&gt; accuracy(two_series, measures = list(skill = skill_score(CRPS))) |&gt;
+  group_by(.model) |&gt;
+  summarise(average_skill = round(mean(skill), 3))
+#&gt; # A tibble: 2 × 2
+#&gt;   .model average_skill
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 ets            0.157
+#&gt; 2 snaive         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Averaging 0.332 and -0.017 gives 0.157, so ETS is about 16% better than the benchmark across the portfolio. That is a defensible headline number in a way that averaging 5.82 and 1589 never could be.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Build a scoring report</h3>
+
+<p>Produce a single report for the four beer models containing CRPS, the Winkler score at level 90, and CRPS expressed as a percentage of the mean of the beer series so it can be read as a relative error. Sort by CRPS. Save it to <code>my_report</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: accuracy() takes a named list of measures and a level argument
+# Hint: mean(beer$Beer) gives the series mean
+# Hint: mutate() after accuracy() to add the percentage column
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Scoring report solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scoring report solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_report &lt;- fc |&gt;
+  accuracy(beer, measures = list(CRPS = CRPS, winkler = winkler_score), level = 90) |&gt;
+  mutate(crps_pct = round(100 * CRPS / mean(beer$Beer), 2)) |&gt;
+  arrange(CRPS)
+
+my_report
+#&gt; # A tibble: 4 × 5
+#&gt;   .model .type  CRPS winkler crps_pct
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 ets    Test   5.82    43.3     1.34
+#&gt; 2 tslm   Test   5.86    45.3     1.35
+#&gt; 3 arima  Test   6.54    43.3     1.51
+#&gt; 4 snaive Test   8.71    72.4     2.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>crps_pct</code> column is the useful addition. A CRPS of 5.82 is meaningless without context, but 1.34% of the series mean is instantly interpretable and roughly comparable to a percentage error on another series. Note that at level 90, <code>arima</code> and <code>ets</code> tie on Winkler at 43.3 even though <code>ets</code> leads on CRPS, another reminder that the interval you grade changes the answer.</p>
+
+</details>
+
+<h3>Exercise 2: Make RMSE and CRPS disagree</h3>
+
+<p>Construct two forecasters over 5,000 simulated days where the truth is N(100, 9). The first is sharp but overconfident: its centre is nearly perfect (mean plus a small wobble of sd 1) but it reports a standard deviation of only 1. The second is blunt but honest: its centre wobbles more (sd 4) but it reports the correct spread of 9. Show that the sharp model wins on RMSE while the honest model wins on CRPS.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(4)
+my_actuals &lt;- rnorm(5000, mean = 100, sd = 9)
+
+# Build my_sharp and my_blunt as centres, then score both ways
+# Hint: RMSE is sqrt(mean((actual - centre)^2))
+# Hint: score the sharp model with crps_norm(actuals, my_sharp, 1)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Disagreement solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Disagreement solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(4)
+my_actuals &lt;- rnorm(5000, mean = 100, sd = 9)
+my_sharp   &lt;- 100 + rnorm(5000, 0, 1)
+my_blunt   &lt;- 100 + rnorm(5000, 0, 4)
+
+data.frame(
+  model = c(&quot;sharp_overconfident&quot;, &quot;blunt_honest&quot;),
+  RMSE  = round(c(sqrt(mean((my_actuals - my_sharp)^2)), sqrt(mean((my_actuals - my_blunt)^2))), 3),
+  CRPS  = round(c(mean(crps_norm(my_actuals, my_sharp, 1)), mean(crps_norm(my_actuals, my_blunt, 9))), 3)
+)
+#&gt;                 model  RMSE  CRPS
+#&gt; 1 sharp_overconfident 8.894 6.601
+#&gt; 2        blunt_honest 9.797 5.564</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The rankings are fully reversed. RMSE prefers the sharp model, 8.894 against 9.797, because its centre really is closer to the truth. CRPS prefers the honest one, 5.564 against 6.601, because the sharp model claims a spread of 1 when reality has a spread of 9, so it assigns almost no probability to what actually happens on most days. In production its actual values would fall outside its intervals constantly while its headline error looked excellent.</p>
+
+</details>
+
+<h3>Exercise 3: Score a skewed forecast</h3>
+
+<p>A forecast of website sessions is right-skewed: 4,000 draws from a lognormal with <code>meanlog = 3</code> and <code>sdlog = 0.6</code>. The actual value came in at 30. Score it with the draws-based CRPS, then score it again by pretending the forecast was normal with the same mean and standard deviation as the draws. How much does the normal assumption distort the answer?</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+my_draws &lt;- rlnorm(4000, meanlog = 3, sdlog = 0.6)
+
+# Score y = 30 both ways and compare
+# Hint: crps_from_draws() for the honest answer
+# Hint: crps_norm(30, mean(my_draws), sd(my_draws)) for the normal pretence
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Skewed forecast solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skewed forecast solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+my_draws &lt;- rlnorm(4000, meanlog = 3, sdlog = 0.6)
+
+round(c(from_draws    = crps_from_draws(30, my_draws),
+        normal_approx = crps_norm(30, mean(my_draws), sd(my_draws))), 3)
+#&gt;    from_draws normal_approx 
+#&gt;         5.584         4.459</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">normal approximation</a> reports 4.459 where the honest answer is 5.584, understating the score by about 20%. A normal distribution with the same mean and spread puts probability below zero and misses the long right tail entirely, so it flatters a forecast that is genuinely worse than it looks. When your forecast is skewed, score the draws directly and never substitute a normal with matching moments.</p>
+
+</details>
+
+<h2>Frequently Asked Questions</h2>
+
+<p><strong>Is a CRPS of 5.82 good?</strong> On its own, no number is good or bad, because CRPS carries the units of your data. Divide it by the series mean for a relative figure (5.82 on beer is 1.34%), or convert it to a skill score against a naive benchmark. Those two transformations are what make the number interpretable.</p>
+
+<p><strong>Why is my skill score negative?</strong> Because your model scored worse than the benchmark, which by default is the seasonal naive forecast. That is a genuinely useful finding rather than a bug, as the electricity example in this tutorial showed. A sophisticated model that cannot beat "the same quarter last year" is not earning its complexity.</p>
+
+<p><strong>Which single rule should I report?</strong> Report the rule that matches your deliverable. If you ship one number, use MAE or RMSE. If you ship one quantile, use pinball loss at that level. If you ship an interval, use the Winkler score at that level. If you ship the whole distribution or you are not sure, use CRPS, since it grades every interval at once.</p>
+
+<p><strong>Should I average CRPS across forecast horizons?</strong> Only if a one-step error and a ten-step error are equally costly to you, which is rarely true. Uncertainty grows with the horizon, so a raw average is dominated by the far end. Report scores per horizon when you can, and average only when you have a genuine reason to weight them equally.</p>
+
+<p><strong>Does a low CRPS mean my intervals are correctly calibrated?</strong> No, and this is the easiest thing to get wrong. A proper scoring rule ranks the forecasts you hand it against each other; it never certifies that any of them is good. The winner of your comparison can still be the best of a badly calibrated set, with 80% intervals that only contain the actual value half the time. Score to choose between models, then check calibration separately by counting how often the actual value fell inside your 80% interval and seeing whether that share is near 80%. Coverage is useless as a grade, since you can always widen your way to it, but it is a good diagnostic to run beside a proper score.</p>
+
+<p><strong>What about the log score?</strong> It is strictly proper and popular in Bayesian work, but it is brutal in a specific way: it returns infinity if the actual value lands where your forecast assigned zero probability. One unlucky observation can therefore destroy an otherwise good model's average. CRPS penalises the same mistake proportionately rather than infinitely, which is why it is the safer default for forecasting.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Forecast-Scoring-Rules-in-R-choose-a-rule.webp" alt="Flowchart matching one quantile to pinball loss, one interval to the Winkler score, and the whole distribution to CRPS and then skill scores" class="img-responsive img-zoomable" loading="lazy" width="1496" height="866" /></p>
+
+<p><em>Figure 3: Match the scoring rule to what your model actually outputs.</em></p>
+
+<p>One call scores the four beer models on every rule in this tutorial at once. This is the table you would actually put in front of a colleague.</p>
+
+<div class="webr-container" data-block-title="Build the full scorecard">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the full scorecard</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scorecard &lt;- fc |&gt; accuracy(beer, measures = list(
+  MAE     = MAE,
+  CRPS    = CRPS,
+  winkler = winkler_score,
+  skill   = skill_score(CRPS)
+), level = 80)
+
+scorecard |&gt; arrange(CRPS)
+#&gt; # A tibble: 4 × 6
+#&gt;   .model .type   MAE  CRPS winkler skill
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ets    Test   8.99  5.82    33.8 0.332
+#&gt; 2 tslm   Test   7.27  5.86    39.8 0.328
+#&gt; 3 arima  Test  10.4   6.54    37.3 0.250
+#&gt; 4 snaive Test  13.4   8.71    56.4 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read it row by row and the disagreements are visible at a glance. MAE says <code>tslm</code> is the best model by a wide margin. CRPS says <code>ets</code> and <code>tslm</code> are effectively tied. Winkler says <code>tslm</code> is third. The skill column says <code>ets</code> beats the seasonal naive benchmark by 33%. Every one of those numbers is reproducible by hand with the functions from the first half of this tutorial, exactly as the Winkler rebuild showed.</p>
+
+<p>Which row wins depends entirely on what you ship. If the deliverable is the distribution or an interval, <code>ets</code> is the pick. If it is a single number every quarter, <code>tslm</code> and its better MAE is the right call instead.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Ten quarters is a small <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>, and 5.82 against 5.86 is not a meaningful gap.</strong> A difference that small can flip on a different holdout window. Choosing between close models properly needs many forecast origins rather than one, which is what <a class="auto-link" href="rsample-rolling_origin-in-R.html" title="rsample rolling_origin() in R: Time-Series Resampling">time series cross-validation</a> is for.</div></div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Rule</th>
+<th>Grades</th>
+<th>R call</th>
+<th>Key property</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MAE / RMSE</td>
+<td>The point forecast only</td>
+<td><code>accuracy(measures = list(MAE = MAE))</code></td>
+<td>Blind to uncertainty</td>
+</tr>
+<tr>
+<td>Pinball loss</td>
+<td>One named quantile</td>
+<td><code>quantile_score</code> with <code>probs =</code></td>
+<td>Asymmetric penalty; MAE at the median</td>
+</tr>
+<tr>
+<td>Winkler score</td>
+<td>One named interval</td>
+<td><code>winkler_score</code> with <code>level =</code></td>
+<td>Width plus a 2/alpha miss penalty</td>
+</tr>
+<tr>
+<td>CRPS</td>
+<td>The whole distribution</td>
+<td><code>CRPS</code></td>
+<td>Average pinball across all levels</td>
+</tr>
+<tr>
+<td>Skill score</td>
+<td>Any rule, versus a benchmark</td>
+<td><code>skill_score(CRPS)</code></td>
+<td>Unit-free, comparable across series</td>
+</tr>
+</tbody>
+</table>
+
+<p>The five things worth carrying away:</p>
+
+<ol>
+
+<li><strong>Point measures cannot see uncertainty.</strong> RMSE and MAE read only the mean, so two models with identical means and wildly different spreads score the same.</li>
+
+<li><strong>Proper means honesty wins on average.</strong> The 20,000-day sweep showed average CRPS bottoming out exactly at the true spread, and average absolute error staying flat regardless.</li>
+
+<li><strong>Pinball loss and CRPS are the same rule.</strong> Score one quantile and you get pinball loss; average across all quantile levels and double it, and you get CRPS to four decimal places.</li>
+
+<li><strong>Rankings genuinely disagree, so pick the rule that matches the deliverable.</strong> On beer production, <code>tslm</code> won on MAE, <code>ets</code> won on CRPS, and <code>tslm</code> fell to third on the Winkler score.</li>
+
+<li><strong>Never average raw scores across series of different scales.</strong> Electricity CRPS of 1589 would swamp a beer CRPS of 5.82. Convert to skill scores first.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gneiting, T. and Raftery, A. E. Strictly Proper Scoring Rules, Prediction, and Estimation. <em>Journal of the American Statistical Association</em> 102(477), 359-378 (2007). The foundational paper defining propriety. <a href="https://sites.stat.washington.edu/raftery/Research/PDF/Gneiting2007jasa.pdf">Link</a></li>
+
+<li>Hyndman, R. J. and Athanasopoulos, G. <em>Forecasting: Principles and Practice</em>, 3rd edition, Section 5.9: Distributional forecast accuracy. <a href="https://otexts.com/fpp3/distaccuracy.html">Link</a></li>
+
+<li>fabletools reference: <code>accuracy()</code> and the distribution accuracy measures. <a href="https://fabletools.tidyverts.org/reference/accuracy.html">Link</a></li>
+
+<li>fabletools reference: <code>CRPS()</code> and <code>quantile_score()</code>. <a href="https://fabletools.tidyverts.org/reference/distribution_accuracy_measures.html">Link</a></li>
+
+<li>Jordan, A., Krueger, F. and Lerch, S. Evaluating Probabilistic Forecasts with scoringRules. <em>Journal of Statistical Software</em> 90(12) (2019). Closed forms for many distribution families. <a href="https://www.jstatsoft.org/article/view/v090i12">Link</a></li>
+
+<li>Bracher, J., Ray, E. L., Gneiting, T. and Reich, N. G. Evaluating Epidemic Forecasts in an Interval Format. <em>PLOS Computational Biology</em> 17(2) (2021). Formalises the interval score that Winkler introduced in 1972, and shows how it relates to CRPS. <a href="https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1008618">Link</a></li>
+
+<li>Bosse, N. I. et al. Evaluating Forecasts with scoringutils in R. arXiv:2205.07090 (2022). A survey of scoring rules and their pitfalls. <a href="https://arxiv.org/abs/2205.07090">Link</a></li>
+
+<li>Gneiting, T., Balabdaoui, F. and Raftery, A. E. Probabilistic Forecasts, Calibration and Sharpness. <em>Journal of the Royal Statistical Society B</em> 69(2), 243-268 (2007). The source of the sharpness-subject-to-calibration principle, and the best answer to the calibration question in the FAQ above. <a href="https://sites.stat.washington.edu/raftery/Research/PDF/Gneiting2007jrssb.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Distributional-Forecasts-in-R.html">Distributional Forecasts in R with fable</a> shows where the <code>&lt;dist&gt;</code> column comes from and how to pull intervals, quantiles and simulated paths out of it. Read it first if the forecast objects in this tutorial felt unfamiliar.</li>
+
+<li><a href="Forecast-Accuracy-in-R.html">Forecast Accuracy in R</a> covers the point measures in depth, including MASE and the scaled errors that solve the cross-series problem for point forecasts the way skill scores solve it here.</li>
+
+<li><a href="Conformal-Prediction-in-R.html">Conformal Prediction in R</a> builds <a class="auto-link" href="Prediction-Intervals-in-R.html" title="Prediction Intervals in R: Quantify Forecast Uncertainty">prediction intervals</a> with guaranteed coverage and no distributional assumption, which pairs naturally with the Winkler score for grading them.</li>
+
+</ul>
+
+{% endraw %}
